@@ -381,9 +381,9 @@ main {
 }
 .portrait-image {
   background-size: cover;
-  background-position: 62% 40%;
+  background-position: 60% center;
   background-color: #121110;
-  background-image: url("/sample-smile.jpg");
+  background-image: url("/smile-hero-dr-vik-v2.png");
 }
 .start-screen::after {
   content: "";
@@ -410,6 +410,19 @@ main {
 }
 .portrait-top .wordmark {
   color: #fff;
+}
+.start-brand {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+.wordmark-by {
+  color: rgba(255, 255, 255, 0.62);
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-size: 13px;
+  font-style: italic;
+  letter-spacing: 0.12em;
 }
 .portrait-caption {
   display: flex;

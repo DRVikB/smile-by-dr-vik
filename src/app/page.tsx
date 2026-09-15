@@ -410,17 +410,15 @@ export default function Smile() {
               <div className="start-visual">
                 <div
                   className="portrait-image"
-                  style={
-                    photo ? { backgroundImage: `url(${photo.dataUrl})` } : undefined
-                  }
                   role="img"
-                  aria-label={
-                    photo ? "Selected smile photograph" : "A natural smile"
-                  }
+                  aria-label="A natural smile photographed for Dr Vik"
                 />
               </div>
               <div className="portrait-top">
-                <span className="wordmark">Smile</span>
+                <span className="start-brand">
+                  <span className="wordmark">Smile</span>
+                  <span className="wordmark-by">by Dr Vik</span>
+                </span>
                 <span className="portrait-caption">
                   <img src="/dr-vik-logo.png" alt="Dr Vik" />
                 </span>
