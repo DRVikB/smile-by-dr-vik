@@ -12,3 +12,11 @@ test('current case, reference and demo state survive a new database connection; 
   await Promise.all(writes);
   assert.equal(await readCase(), null);
 });
+
+test('photo selected on the splash screen restores before Continue is pressed', async () => {
+  const selected: SmileCase = { photo, settings: defaultSettings, result: null, screen: 'start' };
+  await persistCase(selected);
+  assert.deepEqual(await readCase(), selected);
+  await persistCase(null);
+  assert.equal(await readCase(), null);
+});

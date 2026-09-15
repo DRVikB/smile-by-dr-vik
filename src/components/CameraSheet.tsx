@@ -8,7 +8,7 @@ export function CameraSheet({
   onCapture,
 }: {
   onClose: () => void;
-  onCapture: (photo: Photo) => void;
+  onCapture: (photo: Photo) => void | Promise<void>;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const nativeInput = useRef<HTMLInputElement>(null);
@@ -76,7 +76,7 @@ export function CameraSheet({
           0.95,
         ),
       );
-      onCapture(
+      await onCapture(
         await preparePhoto(
           new File([blob], "smile-photo.jpg", { type: "image/jpeg" }),
         ),
@@ -174,7 +174,7 @@ export function CameraSheet({
             if (file) {
               setBusy(true);
               try {
-                onCapture(await preparePhoto(file));
+                await onCapture(await preparePhoto(file));
               } catch (err) {
                 setError(
                   err instanceof Error ? err.message : "Could not open photo.",

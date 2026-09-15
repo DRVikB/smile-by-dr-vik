@@ -15,11 +15,13 @@ export function PhotoUploader({
   onPhoto,
   onContinue,
   onCamera,
+  onRemove,
 }: {
   photo: Photo | null;
-  onPhoto: (photo: Photo) => void;
+  onPhoto: (photo: Photo) => void | Promise<void>;
   onContinue: () => void;
   onCamera: () => void;
+  onRemove: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -29,7 +31,7 @@ export function PhotoUploader({
     setBusy(true);
     setError("");
     try {
-      onPhoto(await preparePhoto(file));
+      await onPhoto(await preparePhoto(file));
     } catch (e) {
       setError(e instanceof Error ? e.message : "We couldn’t open that photo.");
     } finally {
@@ -62,13 +64,11 @@ export function PhotoUploader({
               <span className="selected-title">Your photo is ready</span>
               <span>{photo.isSample ? "Sample photograph" : photo.name}</span>
             </div>
-            <button
-              className="icon-button"
-              aria-label="Choose another photo"
-              onClick={() => input.current?.click()}
-            >
-              <ImagePlus size={18} strokeWidth={1.6} />
-            </button>
+          </div>
+          <div className="selected-photo-actions">
+            <button type="button" disabled={busy} onClick={() => input.current?.click()}><ImagePlus size={16} /> Change photo</button>
+            <button type="button" disabled={busy} onClick={onCamera}><Camera size={16} /> Retake</button>
+            <button type="button" disabled={busy} onClick={onRemove}><X size={16} /> Remove photo</button>
           </div>
           <button
             className="continue-button"

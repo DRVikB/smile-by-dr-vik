@@ -121,13 +121,20 @@ export default function Smile() {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [screen]);
 
-  function selectPhoto(p: Photo) {
+  async function selectPhoto(p: Photo) {
     setPhoto(p);
     setResult(null);
     setTestMode(false);
     setTestPreview(null);
     setError("");
     setCamera(false);
+    // Commit the selection immediately, even while still on the start screen.
+    try {
+      await persistCase({ photo: p, settings, reference, result: null,
+        screen: screen === "start" ? "start" : "design", testMode: false, testPreview: null });
+    } catch {
+      setStorageError(true);
+    }
   }
 
   async function openTestMode() {
@@ -447,6 +454,7 @@ export default function Smile() {
                 <PhotoUploader
                   photo={photo}
                   onPhoto={selectPhoto}
+                  onRemove={newSmile}
                   onContinue={() => setScreen("design")}
                   onCamera={() => setCamera(true)}
                 />
@@ -485,7 +493,7 @@ export default function Smile() {
                   const file = e.target.files?.[0];
                   if (file) {
                     try {
-                      selectPhoto(await preparePhoto(file));
+                      await selectPhoto(await preparePhoto(file));
                     } catch (err) {
                       setError(
                         err instanceof Error ? err.message : "Could not open photo.",
@@ -545,6 +553,9 @@ export default function Smile() {
                     >
                       <ImagePlus size={15} strokeWidth={1.6} />
                       Replace photo
+                    </button>
+                    <button className="text-button" disabled={busy} onClick={newSmile}>
+                      <X size={15} /> Remove photo
                     </button>
                     <span>
                       {testMode && <b>Test mode · </b>}
