@@ -124,7 +124,7 @@ export async function composeBeforeAfter(
     cells[1].x + m,
     cells[1].y + m,
     isMock ? "Demo — unchanged" : "Dr Vik preview",
-    isMock ? "rgba(9,12,20,0.62)" : "rgba(18,104,255,0.92)",
+    "rgba(9,12,20,0.72)",
     "#ffffff",
     labelFont,
   );
@@ -136,11 +136,11 @@ export async function composeBeforeAfter(
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "#ffffff";
-  ctx.font = `700 ${Math.round(cellW * 0.03)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif`;
-  ctx.fillText("DR ViK", m, fy + footerH * 0.42);
+  ctx.font = `600 ${Math.round(cellW * 0.027)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif`;
+  ctx.fillText("D R  V I K", m, fy + footerH * 0.42);
   ctx.fillStyle = "#8b93a2";
   ctx.font = `500 ${Math.round(cellW * 0.016)}px -apple-system, BlinkMacSystemFont, sans-serif`;
-  ctx.fillText("SMILE STUDIO", m, fy + footerH * 0.66);
+  ctx.fillText("SMILE  ·  LONDON", m, fy + footerH * 0.66);
 
   ctx.fillStyle = "#9aa2b1";
   ctx.font = `${Math.round(cellW * 0.0145)}px -apple-system, BlinkMacSystemFont, sans-serif`;

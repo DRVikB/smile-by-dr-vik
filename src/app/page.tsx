@@ -378,7 +378,9 @@ export default function Smile() {
               </div>
               <div className="portrait-top">
                 <span className="wordmark">Smile</span>
-                <span className="portrait-caption">Dr Vik</span>
+                <span className="portrait-caption">
+                  <img src="/dr-vik-logo.png" alt="Dr Vik" />
+                </span>
               </div>
               <div className="start-copy">
                 <h1 ref={heading} tabIndex={-1}>
@@ -406,10 +408,13 @@ export default function Smile() {
                   </button>
                 )}
               </div>
-              <div className="hero-words">
-                <span>Confidence</span>
-                <span>Aesthetics</span>
-                <span>You</span>
+              <div className="hero-footer">
+                <div className="hero-words">
+                  <span>Confidence</span>
+                  <span>Aesthetics</span>
+                  <span>You</span>
+                </div>
+                <span className="hero-location">Dr Vik · London</span>
               </div>
             </section>
           )}
@@ -674,7 +679,11 @@ export default function Smile() {
             />
           </div>
           <div className="consult-top">
-            <span className="wordmark">Smile</span>
+            <div className="product-lockup product-lockup-inverse">
+              <span className="wordmark">Smile</span>
+              <span className="brand-divider" aria-hidden="true" />
+              <img className="dr-vik-mark" src="/dr-vik-logo.png" alt="Dr Vik" />
+            </div>
             <button
               className="consult-close"
               onPointerDown={(e) => e.stopPropagation()}
@@ -689,6 +698,7 @@ export default function Smile() {
             confident you
           </p>
           <div className="consult-foot">
+            <span className="consult-practice">Dr Vik · London</span>
             <span className="consult-hint">Tap and hold to see original</span>
             <span className="consult-meta">
               AI Smile Preview

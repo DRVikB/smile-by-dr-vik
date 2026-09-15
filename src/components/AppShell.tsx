@@ -21,7 +21,11 @@ export function AppShell({
               <ChevronLeft size={21} strokeWidth={1.7} />
             </button>
           )}
-          <span className="wordmark">Smile</span>
+          <div className="product-lockup">
+            <span className="wordmark">Smile</span>
+            <span className="brand-divider" aria-hidden="true" />
+            <img className="dr-vik-mark" src="/dr-vik-logo.png" alt="Dr Vik" />
+          </div>
         </div>
         {action}
       </header>

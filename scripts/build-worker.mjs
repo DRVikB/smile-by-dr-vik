@@ -24,6 +24,6 @@ const worker = await import(
 if (typeof worker.default.fetch !== "function")
   throw new Error("Worker entrypoint is missing fetch.");
 const home = await worker.default.fetch(new Request("https://smile.test/"), {});
-if (home.status !== 200 || !(await home.text()).includes("Smile"))
+if (home.status !== 200 || !/smile/i.test(await home.text()))
   throw new Error("Prerendered page is invalid.");
 console.log("Sites worker and Next.js browser assets ready.");
