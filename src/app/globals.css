@@ -411,17 +411,11 @@ main {
 .portrait-top .wordmark {
   color: #fff;
 }
-.start-brand {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-}
-.start-brand .dr-vik-mark {
-  width: 88px;
+.portrait-logo {
+  width: 92px;
   height: auto;
   filter: invert(1) brightness(1.25);
-  opacity: 0.86;
+  opacity: 0.92;
 }
 .portrait-caption-detail,
 .photo-corner,

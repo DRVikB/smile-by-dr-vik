@@ -415,10 +415,12 @@ export default function Smile() {
                 />
               </div>
               <div className="portrait-top">
-                <span className="start-brand">
-                  <span className="wordmark">Smile</span>
-                  <img className="dr-vik-mark" src="/dr-vik-logo.png" alt="Dr Vik" />
-                </span>
+                <span className="wordmark">Smile</span>
+                <img
+                  className="portrait-logo"
+                  src="/dr-vik-logo.png"
+                  alt="Dr Vik"
+                />
               </div>
               <div className="start-copy">
                 <h1 ref={heading} tabIndex={-1}>
