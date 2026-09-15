@@ -1,3 +1,4 @@
+import { FullscreenControl } from "./FullscreenControl";
 import { ChevronLeft } from "lucide-react";
 import type { Screen } from "@/lib/types";
 export function AppShell({
@@ -11,10 +12,9 @@ export function AppShell({
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  if (screen === "start") return <div className="app-shell">{children}</div>;
   return (
     <div className="app-shell">
-      <header className="app-header">
+      {screen !== "start" && <header className="app-header">
         <div className="nav-group">
           {onBack && (
             <button className="nav-back" onClick={onBack} aria-label="Back">
@@ -28,8 +28,9 @@ export function AppShell({
           </div>
         </div>
         {action}
-      </header>
+      </header>}
       <main>{children}</main>
+      <FullscreenControl />
     </div>
   );
 }

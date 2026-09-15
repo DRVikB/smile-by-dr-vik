@@ -573,7 +573,7 @@ export default function Smile() {
                   onClick={() => setFullscreen(true)}
                 >
                   <Maximize2 size={14} strokeWidth={1.8} />
-                  Full Screen
+                  Consultation view
                 </button>
                 {generation}
               </div>

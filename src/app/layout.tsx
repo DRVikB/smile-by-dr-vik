@@ -4,11 +4,13 @@ export const metadata: Metadata = {
   title: "SMILE by Dr Vik — Cosmetic Dentistry Visualiser",
   description:
     "Visualise and discuss a potential cosmetic dentistry result with Dr Vik in London.",
+  appleWebApp: { capable: true, title: "SMILE", statusBarStyle: "black-translucent" },
   icons: { icon: "/favicon.svg" },
 };
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
   themeColor: "#f5f5f7",
 };
 export default function RootLayout({

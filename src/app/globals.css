@@ -1662,3 +1662,39 @@ button.option-card:hover {
     display: none;
   }
 }
+
+/* Persistent display control, including camera, generation and consultation. */
+:root { --display-toolbar-height: calc(60px + env(safe-area-inset-bottom, 0px)); }
+.app-shell { min-height: 100dvh; padding-bottom: var(--display-toolbar-height); }
+.app-shell > main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.start-screen { min-height: calc(100dvh - var(--display-toolbar-height)); }
+.display-toolbar { position: fixed; inset: auto 0 0; z-index: 200; min-height: var(--display-toolbar-height); padding: 8px max(16px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); display: flex; align-items: center; justify-content: flex-end; gap: 12px; background: #171615; color: white; border-top: 1px solid rgba(255,255,255,.12); }
+.display-toggle { flex-shrink: 0; min-height: 44px; padding: 10px 16px; display: inline-flex; align-items: center; gap: 9px; border-radius: 100px; color: white; background: rgba(255,255,255,.12); font-size: 14px; touch-action: manipulation; }
+.display-status { font-size: 12px; line-height: 1.4; color: #d7d5d2; }
+.expanded-view, .expanded-view body { height: 100%; overflow: hidden; }
+.expanded-view .app-shell { position: fixed; inset: 0; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; }
+.app-header, .portrait-top, .consult-top { padding-top: max(16px, env(safe-area-inset-top)); padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+.consult, .sheet-backdrop { bottom: var(--display-toolbar-height); }
+.sheet { max-height: min(760px, calc(100dvh - var(--display-toolbar-height) - 44px)); }
+.global-error { bottom: calc(var(--display-toolbar-height) + 12px); }
+@media (pointer: coarse) {
+  button, .nav-back, .nav-action, .consult-close, .panel-tab, .shade-option { min-height: 44px; }
+  .nav-back { min-width: 44px; }
+  .notes-field { font-size: 16px; }
+  .tooth-card-description { font-size: 12px; }
+  .tooth-card-title { font-size: 22px; }
+}
+@media (min-width: 960px) and (orientation: landscape) {
+  .design-layout { grid-template-columns: minmax(0, 1fr) minmax(340px, 380px); align-items: start; }
+  .design-panel { position: sticky; top: calc(80px + env(safe-area-inset-top)); max-height: calc(100dvh - 100px - var(--display-toolbar-height) - env(safe-area-inset-top)); }
+  .design-fieldset { overflow-y: auto; overscroll-behavior: contain; }
+  .patient-photo { min-height: 380px; height: calc(100dvh - 230px - var(--display-toolbar-height)); }
+  .patient-photo img { object-fit: contain; }
+}
+@media (max-width: 959px) {
+  .design-layout { grid-template-columns: minmax(0, 1fr); }
+  .patient-photo { min-height: 0; height: clamp(260px, 46dvh, 580px); flex: none; }
+  .patient-photo img { object-fit: contain; }
+  .design-panel { position: static; max-height: none; }
+  .design-fieldset { overflow: visible; }
+}
