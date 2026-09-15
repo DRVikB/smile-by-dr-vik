@@ -415,27 +415,13 @@ main {
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 3px;
+  gap: 8px;
 }
-.wordmark-by {
-  color: rgba(255, 255, 255, 0.62);
-  font-family: "New York", "Iowan Old Style", Georgia, serif;
-  font-size: 13px;
-  font-style: italic;
-  letter-spacing: 0.12em;
-}
-.portrait-caption {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: rgba(255, 255, 255, 0.86);
-  font-size: 14px;
-  font-weight: 500;
-}
-.portrait-caption img {
-  width: auto;
-  height: 28px;
+.start-brand .dr-vik-mark {
+  width: 88px;
+  height: auto;
   filter: invert(1) brightness(1.25);
+  opacity: 0.86;
 }
 .portrait-caption-detail,
 .photo-corner,

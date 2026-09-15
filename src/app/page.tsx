@@ -417,10 +417,7 @@ export default function Smile() {
               <div className="portrait-top">
                 <span className="start-brand">
                   <span className="wordmark">Smile</span>
-                  <span className="wordmark-by">by Dr Vik</span>
-                </span>
-                <span className="portrait-caption">
-                  <img src="/dr-vik-logo.png" alt="Dr Vik" />
+                  <img className="dr-vik-mark" src="/dr-vik-logo.png" alt="Dr Vik" />
                 </span>
               </div>
               <div className="start-copy">
