@@ -24,45 +24,11 @@ const SHADE_COLOURS: Record<string, string> = {
   BL1: "#fdfcf8",
 };
 
-/** Patient-facing presets that map onto the underlying shape + intensity. */
-const STYLES: {
-  name: string;
-  shape: ToothShape;
-  intensity: number;
-  radius: number;
-  tone: string;
-}[] = [
-  { name: "Natural", shape: "Rounded", intensity: 20, radius: 7, tone: "#efe9dd" },
-  { name: "Refined", shape: "Square", intensity: 45, radius: 4, tone: "#f3efe6" },
-  { name: "Bright", shape: "Square", intensity: 70, radius: 3, tone: "#f8f5ee" },
-  { name: "Hollywood", shape: "Square", intensity: 95, radius: 2, tone: "#fdfcf9" },
+const SHAPES: { name: string; shape: ToothShape; image: string; description: string }[] = [
+  { name: "Square", shape: "Square", image: "square", description: "Structured, balanced tooth form" },
+  { name: "Triangle", shape: "Triangular", image: "triangle", description: "Tapered, delicate tooth form" },
+  { name: "Round", shape: "Rounded", image: "round", description: "Soft, rounded tooth form" },
 ];
-
-function SmileThumb({ radius, tone }: { radius: number; tone: string }) {
-  const teeth = [
-    { x: 5, w: 10, h: 16 },
-    { x: 17, w: 13, h: 21 },
-    { x: 32, w: 13, h: 21 },
-    { x: 47, w: 10, h: 16 },
-  ];
-  return (
-    <svg viewBox="0 0 62 40" width="100%" height="100%" aria-hidden="true">
-      {teeth.map((t) => (
-        <rect
-          key={t.x}
-          x={t.x}
-          y={11}
-          width={t.w}
-          height={t.h}
-          rx={radius}
-          fill={tone}
-          stroke="rgba(0,0,0,0.13)"
-          strokeWidth="0.8"
-        />
-      ))}
-    </svg>
-  );
-}
 
 export function SegmentedControl<T extends string | number>({
   label,
@@ -200,9 +166,6 @@ export function DesignControls({
   ) {
     onChange({ ...settings, [key]: value });
   }
-  const activeStyle = STYLES.find(
-    (s) => s.shape === settings.shape && s.intensity === settings.intensity,
-  )?.name;
   return (
     <aside className="design-panel">
       <div className="panel-tabs" role="tablist" aria-label="Design controls">
@@ -242,29 +205,18 @@ export function DesignControls({
             </div>
 
             <div className="control-group">
-              <div className="control-label">
-                <span>Smile style</span>
-                {activeStyle && <span className="muted">{activeStyle}</span>}
-              </div>
-              <div className="style-row" role="group" aria-label="Smile style">
-                {STYLES.map((s) => (
-                  <button
-                    key={s.name}
-                    type="button"
-                    className="style-option"
-                    aria-pressed={activeStyle === s.name}
-                    onClick={() =>
-                      onChange({
-                        ...settings,
-                        shape: s.shape,
-                        intensity: s.intensity,
-                      })
-                    }
-                  >
-                    <span className="style-thumb">
-                      <SmileThumb radius={s.radius} tone={s.tone} />
+              <div className="control-label">Tooth shape</div>
+              <div className="tooth-card-row" role="group" aria-label="Tooth shape">
+                {SHAPES.map((s) => (
+                  <button key={s.shape} type="button" className="tooth-card"
+                    aria-pressed={settings.shape === s.shape}
+                    onClick={() => change("shape", s.shape)}>
+                    <span className="tooth-card-photo">
+                      <img src={`/tooth-shape-${s.image}.png`} alt={`${s.name} tooth form example`} />
+                      {settings.shape === s.shape && <span className="tooth-card-check"><Check size={12} /></span>}
                     </span>
-                    <span>{s.name}</span>
+                    <span className="tooth-card-title">{s.name}</span>
+                    <span className="tooth-card-description">{s.description}</span>
                   </button>
                 ))}
               </div>

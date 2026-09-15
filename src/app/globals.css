@@ -843,47 +843,15 @@ main {
   font-weight: 500;
 }
 
-/* Smile style thumbnails */
-.style-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-}
-.style-option {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 7px;
-  padding: 0;
-  background: none;
-}
-.style-thumb {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: linear-gradient(180deg, #fbf9f7, #f2efeb);
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  transition:
-    border-color var(--fast),
-    box-shadow var(--fast),
-    transform var(--fast);
-}
-.style-option[aria-pressed="true"] .style-thumb {
-  border-color: rgba(0, 0, 0, 0.55);
-  box-shadow: var(--shadow-sm);
-  transform: translateY(-2px);
-}
-.style-option span {
-  font-size: 11.5px;
-  color: var(--text-secondary);
-}
-.style-option[aria-pressed="true"] span {
-  color: var(--text-primary);
-  font-weight: 500;
-}
+/* Photographic tooth form cards */
+.tooth-card-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tooth-card { min-width: 0; display: flex; flex-direction: column; align-items: center; padding: 6px 6px 12px; border: 1px solid var(--border); border-radius: 16px; background: #fdfcfb; box-shadow: 0 3px 12px rgba(40, 30, 20, .04); transition: border-color var(--fast), box-shadow var(--fast); }
+.tooth-card[aria-pressed="true"] { border-color: #1d1d1f; box-shadow: 0 0 0 1px #1d1d1f; }
+.tooth-card-photo { position: relative; display: block; width: 100%; aspect-ratio: 944 / 840; overflow: hidden; border-radius: 10px; }
+.tooth-card-photo > img { position: absolute; width: 118.86%; max-width: none; height: auto; left: -9.53%; top: -13.1%; }
+.tooth-card-check { position: absolute; right: 5px; bottom: 5px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; color: white; background: #1d1d1f; }
+.tooth-card-title { margin-top: 10px; font-family: Georgia, serif; font-size: clamp(18px, 1.6vw, 25px); line-height: 1.2; color: var(--text-primary); }
+.tooth-card-description { margin-top: 6px; font-size: 10px; line-height: 1.45; color: var(--text-secondary); }
 
 /* Segmented controls */
 .segmented {
@@ -1653,9 +1621,7 @@ button.option-card:hover {
   .upload-controls {
     align-self: stretch;
   }
-  .style-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
+
   .screen-heading {
     flex-direction: column;
     align-items: flex-start;

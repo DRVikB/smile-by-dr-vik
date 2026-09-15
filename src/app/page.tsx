@@ -72,6 +72,8 @@ export default function Smile() {
       .then((c) => {
         if (active && c) {
           setPhoto(c.photo);
+          setTestMode(Boolean(c.testMode));
+          setTestPreview(c.testPreview ?? null);
           setSettings(c.settings);
           setResult(c.result);
           setScreen(c.screen);
@@ -95,13 +97,15 @@ export default function Smile() {
       photo
         ? {
             photo,
+            testMode,
+            testPreview,
             settings,
             result,
             screen: screen === "compare" ? "design" : screen,
           }
         : null,
     ).catch(() => setStorageError(true));
-  }, [photo, settings, result, screen, ready]);
+  }, [photo, settings, result, screen, ready, testMode, testPreview]);
 
   useEffect(() => {
     if (firstScreen.current) {

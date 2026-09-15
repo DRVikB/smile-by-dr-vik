@@ -31,6 +31,8 @@ export interface GenerationResult {
   variationId: string;
 }
 export interface SmileCase {
+  testMode?: boolean;
+  testPreview?: string | null;
   photo: Photo;
   settings: SmileSettings;
   result: GenerationResult | null;
