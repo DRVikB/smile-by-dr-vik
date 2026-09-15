@@ -35,7 +35,8 @@ test("Gemini adapter sends one authenticated generateContent edit with all denta
       const headers = new Headers(init?.headers);
       assert.equal(headers.get("x-goog-api-key"), "test-key");
       assert.equal(headers.get("Content-Type"), "application/json");
-      assert.equal(init?.cache, "no-store");
+      assert.equal(init?.cache, undefined);
+      assert.equal(new Headers(init?.headers).get("Cache-Control"), "no-store");
       const body = JSON.parse(String(init?.body));
       const parts = body.contents[0].parts;
       assert.equal(parts[0].inlineData.mimeType, "image/jpeg");
@@ -188,4 +189,23 @@ test("cancelled generation does not send a paid request", async () => {
   });
   await assert.rejects(provider.generate(input, controller.signal));
   assert.equal(calls, 0);
+});
+
+test("default Gemini fetch preserves the Workers global receiver and avoids unsupported cache options", async () => {
+  const originalFetch = globalThis.fetch;
+  let called = false;
+  globalThis.fetch = async function (this: unknown, _url, init) {
+    assert.equal(this, globalThis);
+    assert.equal(init?.cache, undefined);
+    assert.equal(new Headers(init?.headers).get("Cache-Control"), "no-store");
+    called = true;
+    return Response.json({ candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: PNG_1x1 } }] } }] });
+  };
+  try {
+    const result = await new GeminiSmileProvider({ apiKey: "test-key" }).generate(input);
+    assert.equal(result.mode, "live");
+    assert.equal(called, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

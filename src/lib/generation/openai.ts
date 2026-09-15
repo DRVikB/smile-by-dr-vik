@@ -85,7 +85,7 @@ export class OpenAISmileProvider implements SmileImageProvider {
   readonly name = "openai";
   private readonly fetcher: typeof fetch;
   constructor(private readonly options: OpenAIOptions) {
-    this.fetcher = options.fetcher ?? fetch;
+    this.fetcher = options.fetcher ?? ((input, init) => globalThis.fetch(input, init));
   }
 
   async generate(
@@ -124,10 +124,9 @@ export class OpenAISmileProvider implements SmileImageProvider {
     try {
       response = await this.fetcher(EDIT_ENDPOINT, {
         method: "POST",
-        headers: { Authorization: `Bearer ${this.options.apiKey}` },
+        headers: { Authorization: `Bearer ${this.options.apiKey}`, "Cache-Control": "no-store" },
         body: form,
         signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-        cache: "no-store",
       });
     } catch (error) {
       if (signal?.aborted) throw signal.reason;

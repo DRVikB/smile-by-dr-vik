@@ -57,7 +57,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
   readonly name = "gemini";
   private readonly fetcher: typeof fetch;
   constructor(private readonly options: GeminiOptions) {
-    this.fetcher = options.fetcher ?? fetch;
+    this.fetcher = options.fetcher ?? ((input, init) => globalThis.fetch(input, init));
   }
 
   async generate(
@@ -115,14 +115,21 @@ export class GeminiSmileProvider implements SmileImageProvider {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Cache-Control": "no-store",
             "x-goog-api-key": this.options.apiKey,
           },
           body: JSON.stringify(requestBody),
           signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-          cache: "no-store",
         },
       );
     } catch (error) {
+      // Record only a category, never request bodies, photos or credentials.
+      const reason = error instanceof Error ? error.message : "";
+      console.error("Gemini transport failure", {
+        category: /illegal invocation|this reference/i.test(reason) ? "runtime_binding"
+          : /cache.*not implemented/i.test(reason) ? "runtime_cache_option"
+          : timeout.aborted ? "timeout" : signal?.aborted ? "cancelled" : "network",
+      });
       if (signal?.aborted) throw signal.reason;
       if (timeout.aborted)
         throw new GenerationError(

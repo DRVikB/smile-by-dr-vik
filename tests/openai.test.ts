@@ -30,7 +30,8 @@ test("OpenAI adapter sends a single authenticated image edit with all dental cho
         new Headers(init?.headers).get("Authorization"),
         "Bearer test-key",
       );
-      assert.equal(init?.cache, "no-store");
+      assert.equal(init?.cache, undefined);
+      assert.equal(new Headers(init?.headers).get("Cache-Control"), "no-store");
       const form = init?.body as FormData;
       assert.equal(form.get("model"), DEFAULT_IMAGE_MODEL);
       assert.equal(form.get("n"), "1");
