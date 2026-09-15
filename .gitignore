@@ -7,3 +7,9 @@ node_modules/
 output/
 dist/
 .playwright-cli/
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+service-account*.json

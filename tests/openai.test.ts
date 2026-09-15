@@ -117,7 +117,7 @@ test("configured OpenAI is selected automatically and explicit mock remains avai
     getSmileProvider({ OPENAI_API_KEY: "test", SMILE_PROVIDER: "mock" }).name,
     "mock",
   );
-  assert.equal(getSmileProvider({}).name, "mock");
+  assert.throws(() => getSmileProvider({}), (error: unknown) => error instanceof GenerationError && error.code === "provider_not_configured");
 });
 
 test("rate limits, billing, authorization and malformed output are safe recoverable errors without retries", async () => {

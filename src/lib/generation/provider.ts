@@ -80,7 +80,7 @@ export function getSmileProvider(
 ): SmileImageProvider {
   const mode =
     env.SMILE_PROVIDER ||
-    (env.GEMINI_API_KEY ? "gemini" : env.OPENAI_API_KEY ? "openai" : "mock");
+    (env.GEMINI_API_KEY ? "gemini" : env.OPENAI_API_KEY ? "openai" : "unconfigured");
   if (mode === "gemini")
     return new GeminiSmileProvider({
       apiKey: env.GEMINI_API_KEY || "",
@@ -98,7 +98,7 @@ export function getSmileProvider(
       env.SMILE_PROVIDER_API_KEY,
     );
   throw new GenerationError(
-    "AI generation isn’t connected. Check the app’s provider configuration.",
+    "AI generation isn’t connected. Configure the server’s SMILE_PROVIDER and API key, or use Open test mode to explore the app.",
     503,
     "provider_not_configured",
   );

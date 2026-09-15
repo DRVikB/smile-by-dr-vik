@@ -42,7 +42,7 @@ export function CameraSheet({
         if (video.current) {
           video.current.srcObject = s;
           await video.current.play();
-          if (active) setReady(true);
+          if (active) setReady(video.current.videoWidth > 0);
         }
       } catch {
         if (active)
@@ -142,7 +142,7 @@ export function CameraSheet({
           </button>
         </div>
         <div className="camera-view">
-          <video ref={video} autoPlay playsInline muted />
+          <video ref={video} autoPlay playsInline muted onLoadedData={() => setReady(Boolean(video.current?.videoWidth))} />
           {!ready && (
             <span>
               <Camera size={35} strokeWidth={1.3} />
@@ -166,7 +166,7 @@ export function CameraSheet({
         <input
           ref={nativeInput}
           type="file"
-          accept="image/jpeg,image/png,image/heic,image/heif,.heic"
+          accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif"
           capture="user"
           className="sr-only"
           onChange={async (e) => {
@@ -181,6 +181,7 @@ export function CameraSheet({
                 );
               } finally {
                 setBusy(false);
+                if (nativeInput.current) nativeInput.current.value = "";
               }
             }
           }}

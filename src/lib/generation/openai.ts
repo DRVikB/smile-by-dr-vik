@@ -128,7 +128,7 @@ export class OpenAISmileProvider implements SmileImageProvider {
         body: form,
         signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       });
-    } catch (error) {
+    } catch {
       if (signal?.aborted) throw signal.reason;
       if (timeout.aborted)
         throw new GenerationError(

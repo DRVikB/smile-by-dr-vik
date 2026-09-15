@@ -72,6 +72,7 @@ export default function Smile() {
       .then((c) => {
         if (active && c) {
           setPhoto(c.photo);
+          setReference(c.reference ?? null);
           setTestMode(Boolean(c.testMode));
           setTestPreview(c.testPreview ?? null);
           setSettings({ ...c.settings, targetShade:
@@ -102,13 +103,14 @@ export default function Smile() {
             photo,
             testMode,
             testPreview,
+            reference,
             settings,
             result,
             screen: screen === "compare" ? "design" : screen,
           }
         : null,
     ).catch(() => setStorageError(true));
-  }, [photo, settings, result, screen, ready, testMode, testPreview]);
+  }, [photo, settings, result, screen, ready, testMode, testPreview, reference]);
 
   useEffect(() => {
     if (firstScreen.current) {
@@ -182,6 +184,7 @@ export default function Smile() {
         variationId: crypto.randomUUID(),
       };
     }
+    if (!navigator.onLine) throw new Error("You’re offline. Reconnect to create a preview; your current case is kept on this device.");
     const r = await fetch("/api/generate-smile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -194,8 +197,11 @@ export default function Smile() {
         controller.signal,
         AbortSignal.timeout(255000),
       ]),
+    }).catch((error: unknown) => {
+      if (controller.signal.aborted) throw error;
+      throw new Error("The image-generation service couldn’t be reached. Please check your connection and try again. Your current case remains on this device.");
     });
-    const body = await r.json();
+    const body = await r.json().catch(() => { throw new Error("The image-generation service is unavailable. Your case is kept on this device. Please try again shortly."); });
     if (!r.ok)
       throw new Error(
         body.error || "We couldn’t create your preview. Please try again.",

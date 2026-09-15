@@ -9,6 +9,7 @@ import {
   MockSmileProvider,
 } from "../src/lib/generation/provider";
 import { POST } from "../src/app/api/generate-smile/route";
+process.env.SMILE_PROVIDER = "mock";
 const image = `data:image/jpeg;base64,${readFileSync("public/sample-smile.jpg").toString("base64")}`;
 const input = { originalImage: image, settings: defaultSettings };
 test("mock preserves the exact patient image and generates a new variation identity", async () => {

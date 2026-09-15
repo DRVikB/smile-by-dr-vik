@@ -33,6 +33,12 @@ export async function readCase(): Promise<SmileCase | null> {
             !["mock", "live"].includes(c.result.mode))
         )
           c.result = null;
+        if (c.reference && !imageSchema.safeParse(c.reference.dataUrl).success) c.reference = null;
+        if (c.testMode && !imageSchema.safeParse(c.testPreview).success) {
+          // Never silently turn an incomplete test case into a paid request.
+          resolve(null);
+          return;
+        }
         if (c.screen === "preview" && !c.result) c.screen = "design";
         resolve(c);
       };
