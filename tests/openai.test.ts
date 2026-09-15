@@ -43,8 +43,7 @@ test("OpenAI adapter sends a single authenticated image edit with all dental cho
       const prompt = String(form.get("prompt"));
       for (const token of [
         "Composite",
-        "A2",
-        "B1",
+        "Gently whiten",
         "Rounded",
         "35/100",
         "14, 13, 12, 11, 21, 22, 23, 24",

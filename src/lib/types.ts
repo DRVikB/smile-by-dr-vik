@@ -2,7 +2,7 @@ export type Screen = "start" | "design" | "compare" | "preview";
 export type TeethCount = 4 | 6 | 8 | 10;
 export type Treatment = "Composite" | "Porcelain";
 export type CurrentShade = "A3" | "A2" | "A1" | "B1";
-export type TargetShade = "A1" | "B1" | "BL3" | "BL2" | "BL1";
+export type TargetShade = "The same" | "Whiten" | "Bleach" | "A1" | "B1" | "BL3" | "BL2" | "BL1";
 export type ToothShape = "Square" | "Rounded" | "Triangular";
 export type TextureLevel = "Smooth" | "Natural" | "Textured";
 export type ShotType = "Full face" | "Close-up";
@@ -49,7 +49,7 @@ export const defaultSettings: SmileSettings = {
   selectedTeeth: upperTeeth[8],
   treatment: "Composite",
   currentShade: "A2",
-  targetShade: "B1",
+  targetShade: "Whiten",
   shape: "Rounded",
   texture: "Natural",
   shotType: "Full face",

@@ -1,7 +1,6 @@
 "use client";
 import { Check, ImagePlus, Layers, Sparkles, X } from "lucide-react";
 import type {
-  CurrentShade,
   Photo,
   ShotType,
   SmileSettings,
@@ -12,16 +11,6 @@ import type {
   Treatment,
 } from "@/lib/types";
 import { upperTeeth } from "@/lib/types";
-
-const SHADE_COLOURS: Record<string, string> = {
-  A3: "#d9c9aa",
-  A2: "#e6d9bd",
-  A1: "#eee3cb",
-  B1: "#f1ecdb",
-  BL3: "#f4f0e4",
-  BL2: "#f8f6ed",
-  BL1: "#fdfcf8",
-};
 
 const SHAPES: { name: string; shape: ToothShape; image: string; description: string }[] = [
   { name: "Square", shape: "Square", image: "square", description: "Structured, balanced tooth form" },
@@ -57,44 +46,6 @@ export function SegmentedControl<T extends string | number>({
         ))}
       </div>
     </div>
-  );
-}
-
-function ShadeRow<T extends string>({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: readonly T[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <>
-      <span className="shade-side-label">{label}</span>
-      <div className="shade-row" role="group" aria-label={`${label} shade`}>
-        {options.map((option) => (
-          <button
-            key={option}
-            type="button"
-            className="shade-option"
-            aria-pressed={value === option}
-            aria-label={`${label} shade ${option}`}
-            onClick={() => onChange(option)}
-          >
-            <span
-              className="shade-swatch"
-              style={{ background: SHADE_COLOURS[option] }}
-            >
-              {value === option && <Check size={12} strokeWidth={2.4} />}
-            </span>
-            <span>{option}</span>
-          </button>
-        ))}
-      </div>
-    </>
   );
 }
 
@@ -180,23 +131,13 @@ export function DesignControls({
                 })
               }
             />
-            <div className="control-group">
-              <div className="control-label">Shade</div>
-              <div className="shade-group">
-                <ShadeRow<CurrentShade>
-                  label="Current"
-                  options={["A3", "A2", "A1", "B1"]}
-                  value={settings.currentShade}
-                  onChange={(v) => change("currentShade", v)}
-                />
-                <ShadeRow<TargetShade>
-                  label="Target"
-                  options={["A1", "B1", "BL3", "BL2", "BL1"]}
-                  value={settings.targetShade}
-                  onChange={(v) => change("targetShade", v)}
-                />
-              </div>
-            </div>
+            <SegmentedControl<TargetShade>
+              label="Shade"
+              options={["The same", "Whiten", "Bleach"]}
+              value={["The same", "Whiten", "Bleach"].includes(settings.targetShade)
+                ? settings.targetShade : settings.targetShade.startsWith("BL") ? "Bleach" : "Whiten"}
+              onChange={(v) => change("targetShade", v)}
+            />
 
             <div className="control-group">
               <div className="control-label">Tooth shape</div>

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { defaultSettings, upperTeeth } from "../src/lib/types";
-import { generationSchema } from "../src/lib/generation/schema";
+import { generationSchema, settingsSchema } from "../src/lib/generation/schema";
 import { buildSmileInstruction } from "../src/lib/generation/prompt";
 import {
   generateSmile,
@@ -69,7 +69,7 @@ test("instruction includes the selected anatomy and preservation boundaries", ()
     "Do not edit the gingiva",
     "35/100",
     "Composite",
-    "B1",
+    "Gently whiten",
   ])
     assert.ok(prompt.includes(phrase));
 });
@@ -157,4 +157,15 @@ test("instruction includes clinician notes and reference guidance", () => {
   const ref = buildSmileInstruction(defaultSettings, true);
   assert.ok(ref.includes("reference image"));
   assert.ok(!buildSmileInstruction(defaultSettings).includes("reference image"));
+});
+
+test("simple shade choices give distinct generation instructions", () => {
+  const same = buildSmileInstruction({ ...defaultSettings, targetShade: "The same", intensity: 100 });
+  assert.match(same, /Preserve the original tooth colour and shade exactly/);
+  assert.match(same, /Do not whiten or brighten/);
+  assert.match(buildSmileInstruction({ ...defaultSettings, targetShade: "Whiten" }), /Gently whiten/);
+  assert.match(buildSmileInstruction({ ...defaultSettings, targetShade: "Bleach" }), /noticeably brighter bleached-white/);
+  for (const targetShade of ["The same", "Whiten", "Bleach"]) {
+    assert.equal(settingsSchema.safeParse({ ...defaultSettings, targetShade }).success, true);
+  }
 });

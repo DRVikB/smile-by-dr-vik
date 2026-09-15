@@ -59,7 +59,7 @@ export function useSmileTools(
             teeth: { enum: [4, 6, 8, 10] },
             treatment: { enum: ["Composite", "Porcelain"] },
             currentShade: { enum: ["A3", "A2", "A1", "B1"] },
-            targetShade: { enum: ["A1", "B1", "BL3", "BL2", "BL1"] },
+            targetShade: { enum: ["The same", "Whiten", "Bleach", "A1", "B1", "BL3", "BL2", "BL1"] },
             shape: { enum: ["Square", "Rounded", "Triangular"] },
             texture: { enum: ["Smooth", "Natural", "Textured"] },
             shotType: { enum: ["Full face", "Close-up"] },

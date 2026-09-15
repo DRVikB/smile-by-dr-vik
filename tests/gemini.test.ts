@@ -45,8 +45,7 @@ test("Gemini adapter sends one authenticated generateContent edit with all denta
       const prompt = String(parts[1].text);
       for (const token of [
         "Composite",
-        "A2",
-        "B1",
+        "Gently whiten",
         "Rounded",
         "35/100",
         "14, 13, 12, 11, 21, 22, 23, 24",

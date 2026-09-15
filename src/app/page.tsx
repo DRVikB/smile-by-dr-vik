@@ -74,7 +74,10 @@ export default function Smile() {
           setPhoto(c.photo);
           setTestMode(Boolean(c.testMode));
           setTestPreview(c.testPreview ?? null);
-          setSettings(c.settings);
+          setSettings({ ...c.settings, targetShade:
+            ["The same", "Whiten", "Bleach"].includes(c.settings.targetShade)
+              ? c.settings.targetShade
+              : c.settings.targetShade.startsWith("BL") ? "Bleach" : "Whiten" });
           setResult(c.result);
           setScreen(c.screen);
         }

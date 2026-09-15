@@ -19,7 +19,7 @@ export const settingsSchema = z
     selectedTeeth: z.array(z.number().int()).min(4).max(10),
     treatment: z.enum(["Composite", "Porcelain"]),
     currentShade: z.enum(["A3", "A2", "A1", "B1"]),
-    targetShade: z.enum(["A1", "B1", "BL3", "BL2", "BL1"]),
+    targetShade: z.enum(["The same", "Whiten", "Bleach", "A1", "B1", "BL3", "BL2", "BL1"]),
     shape: z.enum(["Square", "Rounded", "Triangular"]),
     texture: z.enum(["Smooth", "Natural", "Textured"]),
     shotType: z.enum(["Full face", "Close-up"]),
