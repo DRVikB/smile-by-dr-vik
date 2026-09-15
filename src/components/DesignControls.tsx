@@ -1,5 +1,4 @@
 "use client";
-import { useState } from "react";
 import { Check, ImagePlus, Layers, Sparkles, X } from "lucide-react";
 import type {
   CurrentShade,
@@ -159,7 +158,6 @@ export function DesignControls({
   onAddReference: () => void;
   onClearReference: () => void;
 }) {
-  const [tab, setTab] = useState<"design" | "advanced">("design");
   function change<K extends keyof SmileSettings>(
     key: K,
     value: SmileSettings[K],
@@ -168,24 +166,20 @@ export function DesignControls({
   }
   return (
     <aside className="design-panel">
-      <div className="panel-tabs" role="tablist" aria-label="Design controls">
-        {(["design", "advanced"] as const).map((t) => (
-          <button
-            key={t}
-            role="tab"
-            type="button"
-            className="panel-tab"
-            aria-selected={tab === t}
-            onClick={() => setTab(t)}
-          >
-            {t === "design" ? "Design" : "Advanced"}
-          </button>
-        ))}
-      </div>
-
-      <fieldset disabled={busy} className="design-fieldset">
-        {tab === "design" ? (
-          <>
+      <h2 className="design-panel-title">Smile design</h2>
+      <fieldset disabled={busy} className="design-fieldset" aria-label="Smile design controls">
+            <SegmentedControl<TeethCount>
+              label="Teeth"
+              options={[4, 6, 8, 10]}
+              value={settings.teeth}
+              onChange={(teeth) =>
+                onChange({
+                  ...settings,
+                  teeth,
+                  selectedTeeth: upperTeeth[teeth],
+                })
+              }
+            />
             <div className="control-group">
               <div className="control-label">Shade</div>
               <div className="shade-group">
@@ -251,25 +245,6 @@ export function DesignControls({
                 <span>Enhanced</span>
               </div>
             </div>
-          </>
-        ) : (
-          <>
-            <SegmentedControl<TeethCount>
-              label="Teeth"
-              options={[4, 6, 8, 10]}
-              value={settings.teeth}
-              onChange={(teeth) =>
-                onChange({
-                  ...settings,
-                  teeth,
-                  selectedTeeth: upperTeeth[teeth],
-                })
-              }
-            />
-            <ShapeSelector
-              value={settings.shape}
-              onChange={(v) => change("shape", v)}
-            />
             <SegmentedControl<TextureLevel>
               label="Texture"
               options={["Smooth", "Natural", "Textured"]}
@@ -331,8 +306,6 @@ export function DesignControls({
               <Layers size={16} strokeWidth={1.6} />
               Compare 3 shapes
             </button>
-          </>
-        )}
       </fieldset>
 
       <div className="panel-actions">
