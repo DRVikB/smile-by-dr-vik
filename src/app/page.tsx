@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowUpRight,
   Check,
   Columns2,
   Download,
   ImagePlus,
   Maximize2,
   MoveHorizontal,
+  Play,
   Rows2,
   X,
 } from "lucide-react";
@@ -57,6 +57,8 @@ export default function Smile() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [holding, setHolding] = useState(false);
+  const [testMode, setTestMode] = useState(false);
+  const [testPreview, setTestPreview] = useState<string | null>(null);
   useSmileTools({ screen, hasPhoto: !!photo, settings, busy }, setSettings);
   const replacement = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
@@ -113,23 +115,46 @@ export default function Smile() {
   function selectPhoto(p: Photo) {
     setPhoto(p);
     setResult(null);
+    setTestMode(false);
+    setTestPreview(null);
     setError("");
     setCamera(false);
   }
 
-  async function sample() {
+  async function openTestMode() {
+    if (sampleBusy) return;
     setSampleBusy(true);
     setError("");
     try {
-      const response = await fetch("/sample-smile.jpg");
-      if (!response.ok) throw new Error();
-      const blob = await response.blob();
-      const p = await preparePhoto(
-        new File([blob], "Sample photograph.jpg", { type: "image/jpeg" }),
-      );
-      selectPhoto({ ...p, isSample: true });
+      const [patientResponse, previewResponse] = await Promise.all([
+        fetch("/sample-smile.jpg"),
+        fetch("/test-smile-preview.jpg"),
+      ]);
+      if (!patientResponse.ok || !previewResponse.ok) throw new Error();
+      const [patientBlob, previewBlob] = await Promise.all([
+        patientResponse.blob(),
+        previewResponse.blob(),
+      ]);
+      const [patient, preview] = await Promise.all([
+        preparePhoto(
+          new File([patientBlob], "Dr Vik test patient.jpg", {
+            type: "image/jpeg",
+          }),
+        ),
+        preparePhoto(
+          new File([previewBlob], "Dr Vik test preview.jpg", {
+            type: "image/jpeg",
+          }),
+        ),
+      ]);
+      setPhoto({ ...patient, isSample: true });
+      setTestPreview(preview.dataUrl);
+      setTestMode(true);
+      setResult(null);
+      setSettings({ ...defaultSettings });
+      setScreen("design");
     } catch {
-      setError("The sample photo couldn’t load. Please upload a photo instead.");
+      setError("Test mode couldn’t open. Please try again.");
     } finally {
       setSampleBusy(false);
     }
@@ -140,6 +165,16 @@ export default function Smile() {
     settingsIn: SmileSettings,
     controller: AbortController,
   ): Promise<GenerationResult> {
+    if (testMode && testPreview) {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      if (controller.signal.aborted) throw controller.signal.reason;
+      const { alignPreview } = await import("@/lib/photos");
+      return {
+        image: await alignPreview(testPreview, photoIn),
+        mode: "live",
+        variationId: crypto.randomUUID(),
+      };
+    }
     const r = await fetch("/api/generate-smile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -276,6 +311,8 @@ export default function Smile() {
     setPhoto(null);
     setResult(null);
     setReference(null);
+    setTestMode(false);
+    setTestPreview(null);
     setOptions(null);
     setFullscreen(false);
     setSettings({ ...defaultSettings });
@@ -343,16 +380,22 @@ export default function Smile() {
       }
       action={
         screen === "design" ? (
-          <button
-            className="nav-action"
-            onClick={() => setSettings({ ...defaultSettings })}
-          >
-            Reset
-          </button>
+          <div className="nav-actions">
+            {testMode && <span className="test-mode-pill">Test mode</span>}
+            <button
+              className="nav-action"
+              onClick={() => setSettings({ ...defaultSettings })}
+            >
+              Reset
+            </button>
+          </div>
         ) : screen === "preview" ? (
-          <button className="nav-action" onClick={() => setSaveOpen(true)}>
-            Save
-          </button>
+          <div className="nav-actions">
+            {testMode && <span className="test-mode-pill">Test mode</span>}
+            <button className="nav-action" onClick={() => setSaveOpen(true)}>
+              Save
+            </button>
+          </div>
         ) : undefined
       }
     >
@@ -400,11 +443,12 @@ export default function Smile() {
                 {!photo && (
                   <button
                     className="sample-button"
-                    onClick={() => void sample()}
+                    onClick={() => void openTestMode()}
                     disabled={sampleBusy}
                   >
-                    {sampleBusy ? "Opening…" : "Try a sample photo"}
-                    <ArrowUpRight size={15} strokeWidth={1.7} />
+                    <Play size={14} fill="currentColor" strokeWidth={1.7} />
+                    {sampleBusy ? "Opening…" : "Open test mode"}
+                    <span>No AI credits</span>
                   </button>
                 )}
               </div>
@@ -493,6 +537,7 @@ export default function Smile() {
                       Replace photo
                     </button>
                     <span>
+                      {testMode && <b>Test mode · </b>}
                       {settings.teeth} upper teeth · {settings.targetShade}
                     </span>
                   </div>
@@ -539,6 +584,12 @@ export default function Smile() {
                 <p className="demo-notice">
                   <span>Demo preview</span>Your original photo is shown on both
                   sides. AI smile editing isn’t connected yet.
+                </p>
+              )}
+              {testMode && (
+                <p className="test-notice">
+                  Test mode uses a prepared Dr Vik example, so no AI credits are
+                  used.
                 </p>
               )}
               <BottomActionBar
