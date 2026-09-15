@@ -38,6 +38,8 @@ test("rejects mismatched tooth sets, out-of-range intensity, unsupported shade a
     { ...defaultSettings, selectedTeeth: [11, 12, 13, 14] },
     { ...defaultSettings, intensity: 101 },
     { ...defaultSettings, targetShade: "A4" },
+    { ...defaultSettings, texture: "Glossy" },
+    { ...defaultSettings, shotType: "Macro" },
   ])
     assert.equal(
       generationSchema.safeParse({ ...input, settings }).success,
@@ -129,4 +131,30 @@ test("API accepts the browser Host when Next uses an internal bind address", asy
     }),
   );
   assert.equal(response.status, 200);
+});
+
+test("instruction adapts to whitening, texture and close-up choices", () => {
+  const bleached = buildSmileInstruction({
+    ...defaultSettings,
+    targetShade: "BL1",
+  });
+  assert.ok(bleached.includes("BL1"));
+  const textured = buildSmileInstruction({ ...defaultSettings, texture: "Textured" });
+  assert.ok(textured.includes("secondary anatomy"));
+  assert.ok(textured.includes("incisal"));
+  const closeup = buildSmileInstruction({ ...defaultSettings, shotType: "Close-up" });
+  assert.ok(closeup.includes("close-up"));
+  assert.ok(!closeup.includes("facial identity"));
+});
+
+test("instruction includes clinician notes and reference guidance", () => {
+  const noted = buildSmileInstruction({
+    ...defaultSettings,
+    notes: "close the black triangles",
+  });
+  assert.ok(noted.includes("close the black triangles"));
+  assert.ok(noted.includes("clinician instruction"));
+  const ref = buildSmileInstruction(defaultSettings, true);
+  assert.ok(ref.includes("reference image"));
+  assert.ok(!buildSmileInstruction(defaultSettings).includes("reference image"));
 });

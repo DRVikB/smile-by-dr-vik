@@ -1,3 +1,6 @@
+import { OpenAISmileProvider } from "./openai";
+import { GeminiSmileProvider } from "./gemini";
+import { GenerationError } from "./errors";
 import type { GenerationResult } from "../types";
 import { generationSchema, imageSchema, type GenerationInput } from "./schema";
 import { buildSmileInstruction } from "./prompt";
@@ -56,25 +59,49 @@ export class HttpSmileProvider implements SmileImageProvider {
   }
 }
 export interface ProviderEnvironment {
+  GEMINI_API_KEY?: string;
+  GEMINI_IMAGE_MODEL?: string;
+  OPENAI_API_KEY?: string;
+  OPENAI_IMAGE_MODEL?: string;
   SMILE_PROVIDER?: string;
   SMILE_PROVIDER_URL?: string;
   SMILE_PROVIDER_API_KEY?: string;
 }
 export function getSmileProvider(
   env: ProviderEnvironment = {
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    GEMINI_IMAGE_MODEL: process.env.GEMINI_IMAGE_MODEL,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENAI_IMAGE_MODEL: process.env.OPENAI_IMAGE_MODEL,
     SMILE_PROVIDER: process.env.SMILE_PROVIDER,
     SMILE_PROVIDER_URL: process.env.SMILE_PROVIDER_URL,
     SMILE_PROVIDER_API_KEY: process.env.SMILE_PROVIDER_API_KEY,
   },
 ): SmileImageProvider {
-  const mode = env.SMILE_PROVIDER || "mock";
+  const mode =
+    env.SMILE_PROVIDER ||
+    (env.GEMINI_API_KEY ? "gemini" : env.OPENAI_API_KEY ? "openai" : "mock");
+  if (mode === "gemini")
+    return new GeminiSmileProvider({
+      apiKey: env.GEMINI_API_KEY || "",
+      model: env.GEMINI_IMAGE_MODEL,
+    });
+  if (mode === "openai")
+    return new OpenAISmileProvider({
+      apiKey: env.OPENAI_API_KEY || "",
+      model: env.OPENAI_IMAGE_MODEL,
+    });
   if (mode === "mock") return new MockSmileProvider();
   if (mode === "http" && env.SMILE_PROVIDER_URL && env.SMILE_PROVIDER_API_KEY)
     return new HttpSmileProvider(
       env.SMILE_PROVIDER_URL,
       env.SMILE_PROVIDER_API_KEY,
     );
-  throw new Error("Image provider is not configured.");
+  throw new GenerationError(
+    "AI generation isn’t connected. Check the app’s provider configuration.",
+    503,
+    "provider_not_configured",
+  );
 }
 export async function generateSmile(
   input: unknown,

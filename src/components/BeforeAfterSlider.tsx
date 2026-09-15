@@ -5,10 +5,12 @@ export function BeforeAfterSlider({
   original,
   preview,
   isMock,
+  previewLabel = "Smile Preview",
 }: {
   original: string;
   preview: string;
   isMock: boolean;
+  previewLabel?: string;
 }) {
   const [position, setPosition] = useState(50);
   return (
@@ -29,7 +31,7 @@ export function BeforeAfterSlider({
         style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
       />
       <span className="compare-label original-label">Original</span>
-      <span className="compare-label preview-label">Smile Preview</span>
+      <span className="compare-label preview-label">{previewLabel}</span>
       <div className="compare-divider" style={{ left: `${position}%` }}>
         <span className="compare-handle">
           <ChevronLeft size={17} />

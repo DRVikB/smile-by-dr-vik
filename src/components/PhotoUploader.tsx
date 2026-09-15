@@ -24,7 +24,6 @@ export function PhotoUploader({
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [dragging, setDragging] = useState(false);
   async function receive(file?: File) {
     if (!file) return;
     setBusy(true);
@@ -41,14 +40,9 @@ export function PhotoUploader({
   return (
     <div
       className="upload-controls"
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDragging(true);
-      }}
-      onDragLeave={() => setDragging(false)}
+      onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
-        setDragging(false);
         void receive(e.dataTransfer.files[0]);
       }}
     >
@@ -61,53 +55,52 @@ export function PhotoUploader({
         onChange={(e) => void receive(e.target.files?.[0])}
       />
       {photo ? (
-        <div className="selected-photo">
-          <img src={photo.dataUrl} alt="Selected patient photo" />
-          <div>
-            <span className="selected-title">Your photo is ready</span>
-            <span>{photo.isSample ? "Sample photograph" : photo.name}</span>
+        <>
+          <div className="selected-photo">
+            <img src={photo.dataUrl} alt="Selected patient photo" />
+            <div>
+              <span className="selected-title">Your photo is ready</span>
+              <span>{photo.isSample ? "Sample photograph" : photo.name}</span>
+            </div>
+            <button
+              className="icon-button"
+              aria-label="Choose another photo"
+              onClick={() => input.current?.click()}
+            >
+              <ImagePlus size={18} strokeWidth={1.6} />
+            </button>
           </div>
           <button
-            className="icon-button"
-            aria-label="Choose another photo"
+            className="continue-button"
+            disabled={busy}
+            onClick={onContinue}
+          >
+            Continue <ArrowRight size={18} strokeWidth={1.7} />
+          </button>
+        </>
+      ) : (
+        <>
+          <button className="capture-card" onClick={onCamera} disabled={busy}>
+            <span className="camera-symbol">
+              <Camera size={19} strokeWidth={1.6} />
+            </span>
+            <strong>Take a Photo</strong>
+          </button>
+          <button
+            className="upload-button"
+            disabled={busy}
             onClick={() => input.current?.click()}
           >
-            <ImagePlus size={20} />
+            {busy ? (
+              <LoaderCircle className="spin" size={18} />
+            ) : (
+              <Upload size={18} strokeWidth={1.6} />
+            )}
+            {busy ? "Preparing…" : "Upload Photo"}
           </button>
-        </div>
-      ) : (
-        <button
-          className={`capture-card ${dragging ? "dragging" : ""}`}
-          onClick={onCamera}
-          disabled={busy}
-        >
-          <span className="camera-symbol">
-            <Camera strokeWidth={1.5} size={28} />
-          </span>
-          <span>
-            <strong>Take Photo</strong>
-            <span>Capture a natural, front-facing smile</span>
-          </span>
-          <ArrowRight size={20} />
-        </button>
+        </>
       )}
-      <button
-        className="upload-button"
-        disabled={busy}
-        onClick={() => input.current?.click()}
-      >
-        {busy ? (
-          <LoaderCircle className="spin" size={18} />
-        ) : (
-          <Upload size={18} />
-        )}{" "}
-        {busy
-          ? "Preparing your photo…"
-          : photo
-            ? "Choose another photo"
-            : "Upload Photo"}
-      </button>
-      <p className="file-hint">JPG, PNG or HEIC · Up to 25 MB</p>
+      <p className="file-hint">JPG, PNG or HEIC · up to 25 MB</p>
       {error && (
         <p className="error-message" role="alert">
           {error}
@@ -116,13 +109,6 @@ export function PhotoUploader({
           </button>
         </p>
       )}
-      <button
-        className="primary-button continue-button"
-        disabled={!photo || busy}
-        onClick={onContinue}
-      >
-        Continue <ArrowRight size={18} />
-      </button>
     </div>
   );
 }

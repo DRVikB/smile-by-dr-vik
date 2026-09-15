@@ -1,11 +1,15 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft,
   ArrowUpRight,
   Check,
+  Columns2,
+  Download,
   ImagePlus,
+  Maximize2,
   MoveHorizontal,
+  Rows2,
+  X,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { PhotoUploader } from "@/components/PhotoUploader";
@@ -19,6 +23,7 @@ import {
   defaultSettings,
   type Photo,
   type Screen,
+  type SmileSettings,
   type GenerationResult,
 } from "@/lib/types";
 import { readCase, persistCase } from "@/lib/storage";
@@ -26,6 +31,14 @@ import { preparePhoto } from "@/lib/photos";
 import { downloadPreview } from "@/lib/download";
 import { useSmileTools } from "@/lib/useSmileTools";
 import { imageSchema } from "@/lib/generation/schema";
+
+type Variant = {
+  label: string;
+  note: string;
+  patch: Partial<SmileSettings>;
+  result: GenerationResult;
+};
+
 export default function Smile() {
   const [screen, setScreen] = useState<Screen>("start");
   const [photo, setPhoto] = useState<Photo | null>(null);
@@ -39,11 +52,18 @@ export default function Smile() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [sampleBusy, setSampleBusy] = useState(false);
+  const [reference, setReference] = useState<Photo | null>(null);
+  const [options, setOptions] = useState<Variant[] | null>(null);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [holding, setHolding] = useState(false);
   useSmileTools({ screen, hasPhoto: !!photo, settings, busy }, setSettings);
   const replacement = useRef<HTMLInputElement>(null);
+  const referenceInput = useRef<HTMLInputElement>(null);
   const request = useRef<AbortController | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const firstScreen = useRef(true);
+
   useEffect(() => {
     let active = true;
     readCase()
@@ -66,12 +86,21 @@ export default function Smile() {
       request.current?.abort();
     };
   }, []);
+
   useEffect(() => {
     if (!ready) return;
-    void persistCase(photo ? { photo, settings, result, screen } : null).catch(
-      () => setStorageError(true),
-    );
+    void persistCase(
+      photo
+        ? {
+            photo,
+            settings,
+            result,
+            screen: screen === "compare" ? "design" : screen,
+          }
+        : null,
+    ).catch(() => setStorageError(true));
   }, [photo, settings, result, screen, ready]);
+
   useEffect(() => {
     if (firstScreen.current) {
       firstScreen.current = false;
@@ -80,12 +109,14 @@ export default function Smile() {
     heading.current?.focus({ preventScroll: true });
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [screen]);
+
   function selectPhoto(p: Photo) {
     setPhoto(p);
     setResult(null);
     setError("");
     setCamera(false);
   }
+
   async function sample() {
     setSampleBusy(true);
     setError("");
@@ -98,44 +129,58 @@ export default function Smile() {
       );
       selectPhoto({ ...p, isSample: true });
     } catch {
-      setError(
-        "The sample photo couldn’t load. Please upload a photo instead.",
-      );
+      setError("The sample photo couldn’t load. Please upload a photo instead.");
     } finally {
       setSampleBusy(false);
     }
   }
+
+  async function requestPreview(
+    photoIn: Photo,
+    settingsIn: SmileSettings,
+    controller: AbortController,
+  ): Promise<GenerationResult> {
+    const r = await fetch("/api/generate-smile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        originalImage: photoIn.dataUrl,
+        referenceImage: reference?.dataUrl,
+        settings: settingsIn,
+      }),
+      signal: AbortSignal.any([
+        controller.signal,
+        AbortSignal.timeout(255000),
+      ]),
+    });
+    const body = await r.json();
+    if (!r.ok)
+      throw new Error(
+        body.error || "We couldn’t create your preview. Please try again.",
+      );
+    if (
+      !imageSchema.safeParse(body.image).success ||
+      !["mock", "live"].includes(body.mode)
+    )
+      throw new Error("The preview could not be opened. Please try again.");
+    let next = body as GenerationResult;
+    if (next.mode === "live") {
+      const { alignPreview } = await import("@/lib/photos");
+      next = { ...next, image: await alignPreview(next.image, photoIn) };
+    }
+    return next;
+  }
+
   async function generate() {
-    if (!photo || busy) return;
+    if (!photo || busy || request.current) return;
     const controller = new AbortController();
     request.current = controller;
     setBusy(true);
     setError("");
     setSaved(false);
     try {
-      const work = fetch("/api/generate-smile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ originalImage: photo.dataUrl, settings }),
-        signal: AbortSignal.any([
-          controller.signal,
-          AbortSignal.timeout(110000),
-        ]),
-      }).then(async (r) => {
-        const body = await r.json();
-        if (!r.ok)
-          throw new Error(
-            body.error || "We couldn’t create your preview. Please try again.",
-          );
-        if (
-          !imageSchema.safeParse(body.image).success ||
-          !["mock", "live"].includes(body.mode)
-        )
-          throw new Error("The preview could not be opened. Please try again.");
-        return body as GenerationResult;
-      });
       const [next] = await Promise.all([
-        work,
+        requestPreview(photo, settings, controller),
         new Promise((resolve) => setTimeout(resolve, 2300)),
       ]);
       if (controller.signal.aborted) return;
@@ -155,23 +200,94 @@ export default function Smile() {
       }
     }
   }
+
+  async function generateVariants(
+    wanted: { label: string; note: string; patch: Partial<SmileSettings> }[],
+  ) {
+    if (!photo || busy || request.current) return;
+    const controller = new AbortController();
+    request.current = controller;
+    setBusy(true);
+    setError("");
+    setSaved(false);
+    const originalPhoto = photo;
+    try {
+      const settled = await Promise.allSettled(
+        wanted.map(async (v) => ({
+          ...v,
+          result: await requestPreview(
+            originalPhoto,
+            { ...settings, ...v.patch },
+            controller,
+          ),
+        })),
+      );
+      if (controller.signal.aborted) return;
+      const ok = settled
+        .filter((x) => x.status === "fulfilled")
+        .map((x) => (x as PromiseFulfilledResult<Variant>).value);
+      if (ok.length === 0)
+        throw new Error("These options couldn’t be created. Please try again.");
+      setOptions(ok);
+    } catch (e) {
+      if (!controller.signal.aborted)
+        setError(
+          e instanceof Error && e.name !== "TimeoutError"
+            ? e.message
+            : "This took too long. Please try again.",
+        );
+    } finally {
+      if (request.current === controller) {
+        setBusy(false);
+        request.current = null;
+      }
+    }
+  }
+
+  const showAnother = () =>
+    void generateVariants([
+      { label: "Subtle", note: "A natural enhancement.", patch: { intensity: 20 } },
+      { label: "Refined", note: "A balanced, polished look.", patch: { intensity: 50 } },
+      { label: "Bright", note: "A brighter, more defined smile.", patch: { intensity: 80 } },
+    ]);
+
+  const compareShapes = () =>
+    void generateVariants([
+      { label: "Square", note: "Defined, confident edges.", patch: { shape: "Square" } },
+      { label: "Rounded", note: "Soft and natural.", patch: { shape: "Rounded" } },
+      { label: "Triangular", note: "Tapered and youthful.", patch: { shape: "Triangular" } },
+    ]);
+
+  function selectOption(v: Variant) {
+    setSettings((s) => ({ ...s, ...v.patch }));
+    setResult(v.result);
+    setOptions(null);
+    setScreen("preview");
+  }
+
   function cancelGeneration() {
     request.current?.abort();
     request.current = null;
     setBusy(false);
   }
+
   function newSmile() {
     cancelGeneration();
     setPhoto(null);
     setResult(null);
+    setReference(null);
+    setOptions(null);
+    setFullscreen(false);
     setSettings({ ...defaultSettings });
     setError("");
     setSaved(false);
     setScreen("start");
     void persistCase(null).catch(() => setStorageError(true));
   }
+
   async function save() {
     if (!result) return;
+    setSaveOpen(false);
     setSaving(true);
     setError("");
     try {
@@ -184,30 +300,94 @@ export default function Smile() {
       setSaving(false);
     }
   }
+
+  async function saveComposite(layout: "split" | "stacked") {
+    if (!result || !photo) return;
+    setSaveOpen(false);
+    setSaving(true);
+    setError("");
+    try {
+      const { composeBeforeAfter, downloadBlob } = await import("@/lib/compose");
+      const blob = await composeBeforeAfter(
+        photo.dataUrl,
+        result.image,
+        layout,
+        result,
+      );
+      downloadBlob(
+        blob,
+        `smile-${layout === "split" ? "side-by-side" : "stacked"}-${new Date().toISOString().slice(0, 10)}.jpg`,
+      );
+      setSaved(true);
+      setTimeout(() => setSaved(false), 4000);
+    } catch {
+      setError("The image couldn’t be saved. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const generation = busy ? (
     <GenerationState onCancel={cancelGeneration} />
   ) : null;
+
   return (
-    <AppShell screen={screen}>
+    <AppShell
+      screen={screen}
+      onBack={
+        screen === "design"
+          ? () => setScreen("start")
+          : screen === "preview"
+            ? () => setScreen("design")
+            : undefined
+      }
+      action={
+        screen === "design" ? (
+          <button
+            className="nav-action"
+            onClick={() => setSettings({ ...defaultSettings })}
+          >
+            Reset
+          </button>
+        ) : screen === "preview" ? (
+          <button className="nav-action" onClick={() => setSaveOpen(true)}>
+            Save
+          </button>
+        ) : undefined
+      }
+    >
       {!ready ? (
         <div className="restore-state" role="status">
-          Preparing your space<span>…</span>
+          Preparing your space…
         </div>
       ) : (
         <>
           {screen === "start" && (
             <section className="start-screen">
+              <div className="start-visual">
+                <div
+                  className="portrait-image"
+                  style={
+                    photo ? { backgroundImage: `url(${photo.dataUrl})` } : undefined
+                  }
+                  role="img"
+                  aria-label={
+                    photo ? "Selected smile photograph" : "A natural smile"
+                  }
+                />
+              </div>
+              <div className="portrait-top">
+                <span className="wordmark">Smile</span>
+                <span className="portrait-caption">Dr Vik</span>
+              </div>
               <div className="start-copy">
-                <span className="eyebrow">
-                  A LITTLE CHANGE. A NEW POSSIBILITY.
-                </span>
                 <h1 ref={heading} tabIndex={-1}>
-                  Create a<br />
-                  new smile<span className="heading-period">.</span>
+                  A preview
+                  <br />
+                  of what’s possible
                 </h1>
                 <p className="intro">
-                  Create a visual preview to explore possible changes to shape
-                  and shade.
+                  Visualise your future smile in seconds.
                 </p>
                 <PhotoUploader
                   photo={photo}
@@ -215,75 +395,27 @@ export default function Smile() {
                   onContinue={() => setScreen("design")}
                   onCamera={() => setCamera(true)}
                 />
-                <p className="photo-tip">
-                  For the best preview, use a clear photo with your face
-                  <br className="desktop-break" /> looking forward and your
-                  teeth visible.
-                </p>
+                {!photo && (
+                  <button
+                    className="sample-button"
+                    onClick={() => void sample()}
+                    disabled={sampleBusy}
+                  >
+                    {sampleBusy ? "Opening…" : "Try a sample photo"}
+                    <ArrowUpRight size={15} strokeWidth={1.7} />
+                  </button>
+                )}
               </div>
-              <div className="start-visual">
-                <div
-                  className="portrait-image"
-                  style={
-                    photo
-                      ? { backgroundImage: `url(${photo.dataUrl})` }
-                      : undefined
-                  }
-                  role="img"
-                  aria-label={
-                    photo
-                      ? "Selected smile photograph"
-                      : "A naturally smiling woman, sample portrait"
-                  }
-                />
-                <div className="portrait-top">
-                  <span className="glass-label">YOUR SMILE. REIMAGINED.</span>
-                  <span className="photo-corner" aria-hidden="true">
-                    ✳
-                  </span>
-                </div>
-                <div className="portrait-caption">
-                  <span>
-                    Still you.
-                    <br />A little more possibility.
-                  </span>
-                  {photo ? (
-                    <span className="photo-ready">
-                      <Check size={15} />
-                      Photo selected
-                    </span>
-                  ) : (
-                    <button
-                      className="sample-button"
-                      onClick={() => void sample()}
-                      disabled={sampleBusy}
-                    >
-                      {sampleBusy ? "Opening…" : "Try this photo"}
-                      <ArrowUpRight size={16} />
-                    </button>
-                  )}
-                </div>
+              <div className="hero-words">
+                <span>Confidence</span>
+                <span>Aesthetics</span>
+                <span>You</span>
               </div>
             </section>
           )}
+
           {screen === "design" && photo && (
             <section className="design-screen">
-              <div className="screen-heading">
-                <div>
-                  <span className="eyebrow">MAKE IT YOURS</span>
-                  <h1 ref={heading} tabIndex={-1}>
-                    Smile Design
-                  </h1>
-                </div>
-                <button
-                  className="text-button"
-                  disabled={busy}
-                  onClick={() => replacement.current?.click()}
-                >
-                  <ImagePlus size={16} />
-                  Replace photo
-                </button>
-              </div>
               <input
                 ref={replacement}
                 className="sr-only"
@@ -297,9 +429,7 @@ export default function Smile() {
                       selectPhoto(await preparePhoto(file));
                     } catch (err) {
                       setError(
-                        err instanceof Error
-                          ? err.message
-                          : "Could not open photo.",
+                        err instanceof Error ? err.message : "Could not open photo.",
                       );
                     } finally {
                       e.target.value = "";
@@ -307,103 +437,279 @@ export default function Smile() {
                   }
                 }}
               />
+              <input
+                ref={referenceInput}
+                className="sr-only"
+                type="file"
+                aria-label="Add reference smile photo"
+                accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    try {
+                      setReference(await preparePhoto(file));
+                    } catch (err) {
+                      setError(
+                        err instanceof Error
+                          ? err.message
+                          : "Could not open reference photo.",
+                      );
+                    } finally {
+                      e.target.value = "";
+                    }
+                  }
+                }}
+              />
+              <h1 ref={heading} tabIndex={-1} className="sr-only">
+                Choose your smile
+              </h1>
               <div className="design-layout">
                 <div className="photo-column">
-                  <PatientPhoto photo={photo}>{generation}</PatientPhoto>
+                  {result ? (
+                    <div className="preview-stage">
+                      <BeforeAfterSlider
+                        original={photo.dataUrl}
+                        preview={result.image}
+                        isMock={result.mode === "mock"}
+                        previewLabel="Live Preview"
+                      />
+                      {generation}
+                    </div>
+                  ) : (
+                    <PatientPhoto photo={photo}>{generation}</PatientPhoto>
+                  )}
                   <div className="photo-under">
-                    <span>A familiar face. New possibilities.</span>
-                    <span>Upper teeth only</span>
+                    <button
+                      className="text-button"
+                      disabled={busy}
+                      onClick={() => replacement.current?.click()}
+                    >
+                      <ImagePlus size={15} strokeWidth={1.6} />
+                      Replace photo
+                    </button>
+                    <span>
+                      {settings.teeth} upper teeth · {settings.targetShade}
+                    </span>
                   </div>
                 </div>
                 <DesignControls
                   settings={settings}
                   onChange={setSettings}
                   onGenerate={() => void generate()}
+                  onCompare={compareShapes}
                   busy={busy}
+                  reference={reference}
+                  onAddReference={() => referenceInput.current?.click()}
+                  onClearReference={() => setReference(null)}
                 />
               </div>
-              <button
-                className="text-button back-link"
-                disabled={busy}
-                onClick={() => setScreen("start")}
-              >
-                <ArrowLeft size={15} />
-                Back to photo
-              </button>
             </section>
           )}
+
           {screen === "preview" && photo && result && (
             <section className="preview-screen">
-              <div className="screen-heading">
-                <div>
-                  <span className="eyebrow">A NEW PERSPECTIVE</span>
-                  <h1 ref={heading} tabIndex={-1}>
-                    Your Smile Preview
-                  </h1>
-                </div>
-                <div className="preview-summary">
-                  {settings.teeth} teeth<span>·</span>
-                  {settings.treatment}
-                  <span>·</span>
-                  {settings.targetShade}
-                </div>
-              </div>
+              <h1 ref={heading} tabIndex={-1} className="sr-only">
+                Your Smile Preview
+              </h1>
               <div className="preview-stage">
                 <BeforeAfterSlider
                   original={photo.dataUrl}
                   preview={result.image}
                   isMock={result.mode === "mock"}
                 />
+                <button
+                  className="fullscreen-button"
+                  onClick={() => setFullscreen(true)}
+                >
+                  <Maximize2 size={14} strokeWidth={1.8} />
+                  Full Screen
+                </button>
                 {generation}
               </div>
               <div className="comparison-hint">
-                <MoveHorizontal size={15} />
-                Slide to explore your smile
+                <MoveHorizontal size={15} strokeWidth={1.6} />
+                Slide to compare
               </div>
               {result.mode === "mock" && (
                 <p className="demo-notice">
-                  <span>Demo preview</span> Your original photo is shown on both
+                  <span>Demo preview</span>Your original photo is shown on both
                   sides. AI smile editing isn’t connected yet.
                 </p>
               )}
               <BottomActionBar
+                onAnother={showAnother}
                 onEdit={() => {
                   setScreen("design");
                   setError("");
                 }}
-                onRegenerate={() => void generate()}
-                onSave={() => void save()}
+                onSave={() => setSaveOpen(true)}
                 onNew={newSmile}
                 busy={busy}
                 saving={saving}
               />
               {saved && (
                 <p className="save-status" role="status">
-                  <Check size={14} />
-                  Image ready to save
+                  <Check size={14} /> Image saved
                 </p>
               )}
               <Disclaimer />
             </section>
           )}
-          {error && (
-            <div className="global-error error-message" role="alert">
-              {error}
-              <button onClick={() => setError("")} aria-label="Dismiss error">
-                ×
-              </button>
-            </div>
-          )}
-          {storageError && (
-            <p className="storage-note" role="status">
-              This browser can’t save your case locally. Keep this tab open
-              while you work.
-            </p>
-          )}
         </>
       )}
+
       {camera && (
-        <CameraSheet onClose={() => setCamera(false)} onCapture={selectPhoto} />
+        <CameraSheet onCapture={selectPhoto} onClose={() => setCamera(false)} />
+      )}
+
+      {options && (
+        <div
+          className="sheet-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Smile variations"
+          onClick={() => setOptions(null)}
+        >
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-heading">
+              <h2>Smile Variations</h2>
+              <button
+                className="icon-button"
+                aria-label="Close"
+                onClick={() => setOptions(null)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <p className="sheet-sub">Same settings, different options.</p>
+            <div className="variation-list">
+              {options.map((o) => (
+                <button
+                  key={o.label}
+                  className="option-card"
+                  onClick={() => selectOption(o)}
+                >
+                  <span
+                    className="option-image"
+                    style={{ backgroundImage: `url(${o.result.image})` }}
+                    role="img"
+                    aria-label={`${o.label} preview`}
+                  />
+                  <span className="option-cap">
+                    <span>{o.label}</span>
+                    <span className="option-pick">{o.note}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {saveOpen && result && (
+        <div
+          className="sheet-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Save image"
+          onClick={() => setSaveOpen(false)}
+        >
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-heading">
+              <h2>Save Image</h2>
+              <button
+                className="icon-button"
+                aria-label="Close"
+                onClick={() => setSaveOpen(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <p className="sheet-sub">Choose how the preview is saved.</p>
+            <div className="variation-list">
+              <button className="save-option" onClick={() => void save()}>
+                <Download size={18} strokeWidth={1.6} />
+                <span>
+                  Preview only
+                  <small>The smile preview on its own.</small>
+                </span>
+              </button>
+              <button
+                className="save-option"
+                onClick={() => void saveComposite("split")}
+              >
+                <Columns2 size={18} strokeWidth={1.6} />
+                <span>
+                  Side by side
+                  <small>Before and after, 50/50.</small>
+                </span>
+              </button>
+              <button
+                className="save-option"
+                onClick={() => void saveComposite("stacked")}
+              >
+                <Rows2 size={18} strokeWidth={1.6} />
+                <span>
+                  Stacked
+                  <small>Before above, preview below.</small>
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {fullscreen && photo && result && (
+        <div
+          className="consult"
+          onPointerDown={() => setHolding(true)}
+          onPointerUp={() => setHolding(false)}
+          onPointerCancel={() => setHolding(false)}
+          onPointerLeave={() => setHolding(false)}
+        >
+          <div className="consult-media">
+            <img
+              src={holding ? photo.dataUrl : result.image}
+              alt={holding ? "Original photograph" : "Smile preview"}
+            />
+          </div>
+          <div className="consult-top">
+            <span className="wordmark">Smile</span>
+            <button
+              className="consult-close"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setFullscreen(false)}
+            >
+              <X size={15} /> Close
+            </button>
+          </div>
+          <p className="consult-serif">
+            A more
+            <br />
+            confident you
+          </p>
+          <div className="consult-foot">
+            <span className="consult-hint">Tap and hold to see original</span>
+            <span className="consult-meta">
+              AI Smile Preview
+              <small>for discussion purposes only</small>
+            </span>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="global-error" role="alert">
+          {error}
+          <button onClick={() => setError("")} aria-label="Dismiss error">
+            ×
+          </button>
+        </div>
+      )}
+      {storageError && (
+        <p className="storage-note">
+          This browser isn’t saving your case locally. Your preview still works.
+        </p>
       )}
     </AppShell>
   );

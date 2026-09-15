@@ -50,3 +50,30 @@ export async function preparePhoto(file: File): Promise<Photo> {
     URL.revokeObjectURL(url);
   }
 }
+
+/** Compensate only for the provider's 16px size rounding; never stretch a reframed face. */
+export async function alignPreview(
+  dataUrl: string,
+  original: Photo,
+): Promise<string> {
+  const image = new Image();
+  image.src = dataUrl;
+  await image.decode();
+  const difference = Math.abs(
+    image.naturalWidth /
+      image.naturalHeight /
+      (original.width / original.height) -
+      1,
+  );
+  if (difference > 0.03)
+    throw new Error(
+      "The preview changed the photograph’s framing. Please regenerate to keep the comparison aligned.",
+    );
+  const canvas = document.createElement("canvas");
+  canvas.width = original.width;
+  canvas.height = original.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("The preview could not be prepared.");
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.95);
+}

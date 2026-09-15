@@ -60,8 +60,11 @@ export function useSmileTools(
             treatment: { enum: ["Composite", "Porcelain"] },
             currentShade: { enum: ["A3", "A2", "A1", "B1"] },
             targetShade: { enum: ["A1", "B1", "BL3", "BL2", "BL1"] },
-            shape: { enum: ["Rounded", "Soft Square", "Square"] },
+            shape: { enum: ["Square", "Rounded", "Triangular"] },
+            texture: { enum: ["Smooth", "Natural", "Textured"] },
+            shotType: { enum: ["Full face", "Close-up"] },
             intensity: { type: "integer", minimum: 0, maximum: 100 },
+            notes: { type: "string", maxLength: 400 },
           },
           additionalProperties: false,
         },
@@ -84,7 +87,10 @@ export function useSmileTools(
             "currentShade",
             "targetShade",
             "shape",
+            "texture",
+            "shotType",
             "intensity",
+            "notes",
           ];
           if (Object.keys(input).some((k) => !allowed.includes(k)))
             throw new Error("Unknown design choice.");

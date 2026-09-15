@@ -1,3 +1,4 @@
+import { GenerationError } from "./errors";
 import { generationSchema } from "@/lib/generation/schema";
 import {
   generateSmile,
@@ -47,7 +48,7 @@ export async function handleGenerationRequest(
       const { done, value } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > 8_100_000) {
+      if (bytes > 17_000_000) {
         await reader.cancel();
         return Response.json(
           { error: "Photo is too large. Please try a smaller image." },
@@ -83,7 +84,12 @@ export async function handleGenerationRequest(
       await generateSmile(parsed.data, request.signal, getSmileProvider(env)),
       { headers },
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof GenerationError)
+      return Response.json(
+        { error: error.message, code: error.code },
+        { status: error.status, headers },
+      );
     return Response.json(
       {
         error:

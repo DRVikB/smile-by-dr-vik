@@ -20,8 +20,11 @@ export const settingsSchema = z
     treatment: z.enum(["Composite", "Porcelain"]),
     currentShade: z.enum(["A3", "A2", "A1", "B1"]),
     targetShade: z.enum(["A1", "B1", "BL3", "BL2", "BL1"]),
-    shape: z.enum(["Rounded", "Soft Square", "Square"]),
+    shape: z.enum(["Square", "Rounded", "Triangular"]),
+    texture: z.enum(["Smooth", "Natural", "Textured"]),
+    shotType: z.enum(["Full face", "Close-up"]),
     intensity: z.number().int().min(0).max(100),
+    notes: z.string().max(400).default(""),
   })
   .refine(
     (s) =>
@@ -31,6 +34,7 @@ export const settingsSchema = z
   );
 export const generationSchema = z.object({
   originalImage: imageSchema,
+  referenceImage: imageSchema.optional(),
   settings: settingsSchema,
 });
 export type GenerationInput = z.infer<typeof generationSchema>;

@@ -1,14 +1,14 @@
-import { Download, Pencil, Plus, RotateCw } from "lucide-react";
+import { Download, Pencil, Plus, Sparkles } from "lucide-react";
 export function BottomActionBar({
+  onAnother,
   onEdit,
-  onRegenerate,
   onSave,
   onNew,
   busy,
   saving,
 }: {
+  onAnother: () => void;
   onEdit: () => void;
-  onRegenerate: () => void;
   onSave: () => void;
   onNew: () => void;
   busy: boolean;
@@ -16,29 +16,24 @@ export function BottomActionBar({
 }) {
   return (
     <div className="bottom-action-bar">
-      <button className="secondary-button" disabled={busy} onClick={onEdit}>
-        <Pencil size={16} />
+      <button className="action-button" disabled={busy} onClick={onAnother}>
+        <Sparkles size={19} strokeWidth={1.5} />
+        Show me another
+      </button>
+      <button className="action-button" disabled={busy} onClick={onEdit}>
+        <Pencil size={19} strokeWidth={1.5} />
         Edit
       </button>
       <button
-        className="secondary-button"
-        disabled={busy}
-        onClick={onRegenerate}
-      >
-        <RotateCw size={16} />
-        Regenerate
-      </button>
-      <button
-        className="primary-button save-button"
+        className="action-button"
         disabled={busy || saving}
         onClick={onSave}
       >
-        <Download size={17} />
+        <Download size={19} strokeWidth={1.5} />
         {saving ? "Saving…" : "Save Image"}
       </button>
-      <span className="action-separator" />
-      <button className="text-button" disabled={busy} onClick={onNew}>
-        <Plus size={17} />
+      <button className="action-button" disabled={busy} onClick={onNew}>
+        <Plus size={19} strokeWidth={1.5} />
         New Smile
       </button>
     </div>
