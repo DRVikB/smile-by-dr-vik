@@ -49,3 +49,15 @@ Camera preview uses muted, inline video and requires HTTPS and camera permission
 The existing single current case is saved in IndexedDB on this device: original photo, settings, result, test state, and reference photo. It survives ordinary reloads and app closure. New Smile deletes it; Reset retains its existing settings-reset behavior. There is no case archive or new remote photo storage. Browser storage can still be cleared or evicted by the user/OS; this is not permanent backup. Safari and a Home Screen installation may have separate local storage, so start the case in the app you intend to use.
 
 The service worker does not cache authenticated pages, photos, or generation requests. Offline launches show a reconnect page. AI generation requires a connection. Missing server configuration produces a clear error; `SMILE_PROVIDER=mock` is an explicit development-only simulation, and the existing in-app test mode requires no API key.
+
+## GitHub → Netlify
+
+Push this project's source to a private GitHub repository, then choose Netlify → Add new project → Import an existing project → GitHub. `netlify.toml` configures `npm run build:next` and `.next`; use the project root as the base directory. This avoids running the separate Sites Worker packaging step on Netlify. Set the three Gemini variables above in Netlify's environment settings with Functions scope enabled.
+
+Migration checks before using patient photos:
+
+- The current Sites URL is owner-private. A private GitHub repository does not make a Netlify deployment private. Configure equivalent site access protection before launch.
+- Netlify synchronous functions have a 60-second execution limit and a 6 MB buffered request/response limit. This app currently allows longer generation requests and larger combined photo payloads; validate representative photos and slow generations before switching. Supporting requests beyond those limits requires adapting the backend, not just changing build settings.
+- Existing device-local cases do not automatically transfer to a new domain.
+
+The source is prepared for import; this does not mean a GitHub repository or Netlify deployment has been created.

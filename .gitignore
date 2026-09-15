@@ -13,3 +13,5 @@ dist/
 *.pfx
 credentials*.json
 service-account*.json
+
+.netlify/
