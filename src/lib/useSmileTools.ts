@@ -63,6 +63,8 @@ export function useSmileTools(
             shape: { enum: ["Square", "Rounded", "Triangular"] },
             texture: { enum: ["Smooth", "Natural", "Textured"] },
             shotType: { enum: ["Full face", "Close-up"] },
+            faceShape: { enum: ["Auto", "Square", "Ovoid", "Tapering"] },
+            character: { enum: ["Soft", "Balanced", "Defined"] },
             intensity: { type: "integer", minimum: 0, maximum: 100 },
             notes: { type: "string", maxLength: 400 },
           },
@@ -89,6 +91,8 @@ export function useSmileTools(
             "shape",
             "texture",
             "shotType",
+            "faceShape",
+            "character",
             "intensity",
             "notes",
           ];

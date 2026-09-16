@@ -23,6 +23,8 @@ export const settingsSchema = z
     shape: z.enum(["Square", "Rounded", "Triangular"]),
     texture: z.enum(["Smooth", "Natural", "Textured"]),
     shotType: z.enum(["Full face", "Close-up"]),
+    faceShape: z.enum(["Auto", "Square", "Ovoid", "Tapering"]),
+    character: z.enum(["Soft", "Balanced", "Defined"]),
     intensity: z.number().int().min(0).max(100),
     notes: z.string().max(400).default(""),
   })

@@ -361,6 +361,71 @@ export default function Smile() {
       { label: "Bright", note: "A brighter, more defined smile.", patch: { intensity: 80 } },
     ]);
 
+  /**
+   * Classical face-shape / tooth-form correspondence. "Auto" leaves the
+   * clinician's chosen form alone rather than guessing at the facial outline
+   * here — the model reads it from the photograph instead.
+   */
+  const FORM_FOR_FACE: Record<string, SmileSettings["shape"] | null> = {
+    Auto: null,
+    Square: "Square",
+    Ovoid: "Rounded",
+    Tapering: "Triangular",
+  };
+
+  const harmoniseStyles = () => {
+    const matched = FORM_FOR_FACE[settings.faceShape] ?? settings.shape;
+    const withNote = (extra: string): Partial<SmileSettings> => ({
+      notes: [settings.notes.trim(), extra].filter(Boolean).join(". "),
+    });
+    void generateVariants([
+      {
+        label: "Harmonious",
+        note: "Tooth form matched to the face.",
+        patch: {
+          shape: matched,
+          character: "Balanced",
+          ...withNote(
+            "Prioritise harmony with this patient's facial outline and existing teeth above any other stylistic goal",
+          ),
+        },
+      },
+      {
+        label: "Softer",
+        note: "Rounded corners, open embrasures.",
+        patch: {
+          shape: "Rounded",
+          character: "Soft",
+          ...withNote(
+            "Soften the incisal corners and open the embrasures a little further than the existing teeth",
+          ),
+        },
+      },
+      {
+        label: "Defined",
+        note: "Stronger edges and line angles.",
+        patch: {
+          shape: "Square",
+          character: "Defined",
+          ...withNote(
+            "Strengthen the incisal line angles and keep the incisal plane crisp, without widening or lengthening any tooth",
+          ),
+        },
+      },
+      {
+        label: "Youthful",
+        note: "Dominant centrals, lively edges.",
+        patch: {
+          shape: matched,
+          character: "Soft",
+          ...withNote(
+            "Give the central incisors gentle dominance over the laterals and keep the incisal embrasures noticeably open, without lengthening any tooth past the lower lip line",
+          ),
+        },
+      },
+    ]);
+  };
+
   const compareShapes = () =>
     void generateVariants([
       { label: "Square", note: "Defined, confident edges.", patch: { shape: "Square" } },
@@ -650,6 +715,7 @@ export default function Smile() {
                   onChange={setSettings}
                   onGenerate={() => void generate()}
                   onCompare={compareShapes}
+                  onHarmonise={harmoniseStyles}
                   busy={busy}
                   reference={reference}
                   onAddReference={() => referenceInput.current?.click()}
@@ -768,7 +834,7 @@ export default function Smile() {
                 <X size={16} />
               </button>
             </div>
-            <p className="sheet-sub">Same settings, different options.</p>
+            <p className="sheet-sub">Tap the one they prefer.</p>
             <div className="variation-list">
               {options.map((o) => (
                 <button

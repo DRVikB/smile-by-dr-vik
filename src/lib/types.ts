@@ -6,6 +6,8 @@ export type TargetShade = "The same" | "Whiten" | "Bleach" | "A1" | "B1" | "BL3"
 export type ToothShape = "Square" | "Rounded" | "Triangular";
 export type TextureLevel = "Smooth" | "Natural" | "Textured";
 export type ShotType = "Full face" | "Close-up";
+export type FaceShape = "Auto" | "Square" | "Ovoid" | "Tapering";
+export type SmileCharacter = "Soft" | "Balanced" | "Defined";
 export interface SmileSettings {
   teeth: TeethCount;
   selectedTeeth: number[];
@@ -15,6 +17,8 @@ export interface SmileSettings {
   shape: ToothShape;
   texture: TextureLevel;
   shotType: ShotType;
+  faceShape: FaceShape;
+  character: SmileCharacter;
   intensity: number;
   notes: string;
 }
@@ -99,6 +103,8 @@ export const defaultSettings: SmileSettings = {
   shape: "Rounded",
   texture: "Natural",
   shotType: "Full face",
+  faceShape: "Auto",
+  character: "Balanced",
   intensity: 35,
   notes: "",
 };

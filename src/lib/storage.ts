@@ -44,7 +44,7 @@ export async function readCase(): Promise<SmileCase | null> {
         c.variants = Array.isArray(c.variants) ? c.variants.filter((v: import("./types").SmileVariant) =>
           typeof v?.label === "string" && typeof v?.note === "string" && settingsSchema.safeParse(v.settings).success &&
           imageSchema.safeParse(v.result?.image).success && ["mock", "live"].includes(v.result?.mode) && typeof v.result?.variationId === "string"
-        ).slice(0, 3) : [];
+        ).slice(0, 4) : [];
         c.variants.forEach((v: import("./types").SmileVariant) => validatePreferences(v.result));
         if (c.reference && !imageSchema.safeParse(c.reference.dataUrl).success) c.reference = null;
         if (c.testMode && !imageSchema.safeParse(c.testPreview).success) {

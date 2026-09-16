@@ -1,7 +1,9 @@
 "use client";
-import { Check, ImagePlus, Layers, Sparkles, X } from "lucide-react";
+import { Check, ImagePlus, Layers, Sparkles, Wand2, X } from "lucide-react";
 import type {
+  FaceShape,
   Photo,
+  SmileCharacter,
   ShotType,
   SmileSettings,
   TargetShade,
@@ -78,6 +80,7 @@ export function DesignControls({
   onChange,
   onGenerate,
   onCompare,
+  onHarmonise,
   busy,
   reference,
   onAddReference,
@@ -87,6 +90,7 @@ export function DesignControls({
   onChange: (s: SmileSettings) => void;
   onGenerate: () => void;
   onCompare: () => void;
+  onHarmonise: () => void;
   busy: boolean;
   reference: Photo | null;
   onAddReference: () => void;
@@ -143,6 +147,39 @@ export function DesignControls({
                 ))}
               </div>
             </div>
+
+            <div className="control-group">
+              <div className="control-label">
+                <span>Face shape</span>
+                <span className="muted">Harmony</span>
+              </div>
+              <div className="segmented" role="group" aria-label="Face shape">
+                {(["Auto", "Square", "Ovoid", "Tapering"] as FaceShape[]).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    aria-pressed={settings.faceShape === f}
+                    className={settings.faceShape === f ? "selected" : ""}
+                    onClick={() => change("faceShape", f)}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+              <p className="control-hint">
+                {settings.faceShape === "Auto"
+                  ? "Reads the facial outline from the photo and matches the tooth form to it."
+                  : "Tooth form is matched to a " +
+                    settings.faceShape.toLowerCase() +
+                    " facial outline."}
+              </p>
+            </div>
+            <SegmentedControl<SmileCharacter>
+              label="Character"
+              options={["Soft", "Balanced", "Defined"]}
+              value={settings.character}
+              onChange={(v) => change("character", v)}
+            />
 
             <SegmentedControl<Treatment>
               label="Treatment"
@@ -226,6 +263,14 @@ export function DesignControls({
                 </button>
               )}
             </div>
+            <button
+              type="button"
+              className="secondary-button compare-button"
+              onClick={onHarmonise}
+            >
+              <Wand2 size={16} strokeWidth={1.6} />
+              Harmonised options
+            </button>
             <button
               type="button"
               className="secondary-button compare-button"

@@ -790,6 +790,13 @@ main {
   color: var(--text-secondary);
 }
 
+.control-hint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
 /* Shade swatches */
 .shade-group {
   display: grid;

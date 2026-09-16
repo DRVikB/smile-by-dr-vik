@@ -50,3 +50,15 @@ test('the patient name for the case survives a refresh', async () => {
   assert.equal((await readCase())?.patientName, 'Sarah Wells');
   await persistCase(null);
 });
+
+test('all four harmonised options survive refresh', async () => {
+  const variants = (['Harmonious', 'Softer', 'Defined', 'Youthful'] as const).map((label, i) => ({
+    label, note: label, patch: {}, settings: { ...defaultSettings, character: i === 1 ? 'Soft' as const : 'Balanced' as const },
+    result: { image: photo.dataUrl, mode: 'live' as const, variationId: `harmony-${i}` },
+  }));
+  await persistCase({ photo, settings: variants[0].settings, result: variants[0].result, screen: 'preview', variants });
+  const restored = await readCase();
+  assert.equal(restored?.variants?.length, 4);
+  assert.deepEqual(restored?.variants?.map((v) => v.label), ['Harmonious', 'Softer', 'Defined', 'Youthful']);
+  await persistCase(null);
+});
