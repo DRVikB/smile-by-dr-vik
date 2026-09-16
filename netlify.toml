@@ -1,5 +1,5 @@
 [build]
-  command = "npm run build:next"
+  command = "node scripts/verify-netlify-provider.mjs && npm run build:next"
   publish = ".next"
 
 [build.environment]
