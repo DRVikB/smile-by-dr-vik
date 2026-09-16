@@ -6,8 +6,10 @@ import {
   ImagePlus,
   History,
   Maximize2,
+  Minus,
   MoveHorizontal,
   Play,
+  Plus,
   Rows2,
   X,
 } from "lucide-react";
@@ -214,6 +216,7 @@ export default function Smile() {
       body: JSON.stringify({
         originalImage: photoIn.dataUrl,
         referenceImage: reference?.dataUrl,
+        framing: photoIn.framing,
         settings: settingsIn,
       }),
       signal: AbortSignal.any([
@@ -270,8 +273,10 @@ export default function Smile() {
     }
   }
 
-  async function generate() {
+  async function generate(override?: Partial<SmileSettings>) {
     if (!photo || busy || request.current) return;
+    const used = override ? { ...settings, ...override } : settings;
+    if (override) setSettings(used);
     const controller = new AbortController();
     request.current = controller;
     setBusy(true);
@@ -279,14 +284,14 @@ export default function Smile() {
     setSaved(false);
     try {
       const [next] = await Promise.all([
-        requestPreview(photo, settings, controller),
+        requestPreview(photo, used, controller),
         new Promise((resolve) => setTimeout(resolve, 2300)),
       ]);
       if (controller.signal.aborted) return;
       setVariants([]);
       setResult(next);
       setScreen("preview");
-      void logGenerated(next, settings);
+      void logGenerated(next, used);
     } catch (e) {
       if (!controller.signal.aborted)
         setError(
@@ -678,6 +683,33 @@ export default function Smile() {
               <div className="comparison-hint">
                 <MoveHorizontal size={15} strokeWidth={1.6} />
                 Slide to compare
+              </div>
+              <div className="adjust-row">
+                <span className="adjust-label">Not quite right?</span>
+                <button
+                  className="adjust-button"
+                  disabled={busy || settings.intensity <= 0}
+                  onClick={() =>
+                    void generate({
+                      intensity: Math.max(0, settings.intensity - 20),
+                    })
+                  }
+                >
+                  <Minus size={15} strokeWidth={1.8} />
+                  Softer
+                </button>
+                <button
+                  className="adjust-button"
+                  disabled={busy || settings.intensity >= 100}
+                  onClick={() =>
+                    void generate({
+                      intensity: Math.min(100, settings.intensity + 20),
+                    })
+                  }
+                >
+                  <Plus size={15} strokeWidth={1.8} />
+                  Stronger
+                </button>
               </div>
               {result.mode === "mock" && (
                 <p className="demo-notice">

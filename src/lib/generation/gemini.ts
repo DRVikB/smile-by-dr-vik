@@ -92,7 +92,11 @@ export class GeminiSmileProvider implements SmileImageProvider {
       });
     }
     requestParts.push({
-      text: buildSmileInstruction(input.settings, Boolean(input.referenceImage)),
+      text: buildSmileInstruction(
+        input.settings,
+        Boolean(input.referenceImage),
+        input.framing,
+      ),
     });
     const requestBody = {
       contents: [{ parts: requestParts }],

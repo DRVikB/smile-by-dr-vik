@@ -42,7 +42,8 @@ export function BottomActionBar({
 export function Disclaimer() {
   return (
     <p className="disclaimer">
-      Digital smile simulation for visual communication only. The final clinical
+      Digital smile simulation for visual communication only. It shows tooth shape
+      and shade — not gum position, tooth movement or bite. The final clinical
       result may differ following assessment, treatment planning and material
       selection.
     </p>

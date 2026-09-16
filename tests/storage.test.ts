@@ -43,3 +43,10 @@ test('report preferences survive refresh separately from draft design changes', 
   assert.deepEqual(restored?.result?.preferences, result.preferences);
   await persistCase(null);
 });
+
+test('the patient name for the case survives a refresh', async () => {
+  const saved: SmileCase = { photo, settings: defaultSettings, result: null, screen: 'design', variants: [], patientName: 'Sarah Wells' };
+  await persistCase(saved);
+  assert.equal((await readCase())?.patientName, 'Sarah Wells');
+  await persistCase(null);
+});

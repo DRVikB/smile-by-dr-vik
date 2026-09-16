@@ -110,7 +110,7 @@ export class OpenAISmileProvider implements SmileImageProvider {
       new Blob([bytes], { type: mime }),
       mime === "image/png" ? "smile.png" : "smile.jpg",
     );
-    form.set("prompt", buildSmileInstruction(input.settings));
+    form.set("prompt", buildSmileInstruction(input.settings, false, input.framing));
     form.set("n", "1");
     form.set("size", outputSize(dimensions.width, dimensions.height));
     form.set("quality", "high");

@@ -1,8 +1,11 @@
-import type { SmileSettings } from "../types";
+import type { Framing, SmileSettings } from "../types";
+
+const percent = (value: number) => Math.round(value * 100);
 
 export function buildSmileInstruction(
   s: SmileSettings,
   hasReference = false,
+  capture?: Framing,
 ): string {
   const texture =
     s.texture === "Textured"
@@ -20,6 +23,10 @@ export function buildSmileInstruction(
     ? " A separate reference image is also provided; use it only as a visual guide for the desired tooth shape, proportion and shade — do not copy the reference person's identity, lips, skin or face."
     : "";
 
+  const region = capture
+    ? ` The photograph was captured with the smile aligned to an on-screen guide, so the teeth sit roughly between ${percent(capture.x)}% and ${percent(capture.x + capture.width)}% across the frame and ${percent(capture.y)}% to ${percent(capture.y + capture.height)}% down it. Confine every change to the teeth inside that region and leave every pixel outside it untouched.`
+    : "";
+
   const notes =
     s.notes && s.notes.trim()
       ? ` Additional clinician instruction, to follow within all of the above constraints: ${s.notes.trim()}.`
@@ -33,5 +40,5 @@ export function buildSmileInstruction(
         ? "Give the selected teeth a noticeably brighter bleached-white shade, while retaining realistic enamel depth, translucency and natural shading."
         : `Dentist-selected current shade: ${s.currentShade}; requested target shade: ${s.targetShade}. This is a supplied shade reference, not a diagnosis from the photograph.`;
 
-  return `Create a photorealistic cosmetic dentistry communication preview from the provided photograph. Modify only ${s.teeth} upper anterior teeth, symmetrically around the midline (FDI tooth numbers: ${s.selectedTeeth.join(", ")}). Treatment material: ${s.treatment}. ${shade} Tooth morphology: ${s.shape}. ${texture} Transformation intensity: ${s.intensity}/100, where 0 is subtle and natural, and 100 is more enhanced while remaining anatomically believable. ${framing} Keep all untreated teeth exactly. Do not edit the gingiva; if the requested result would require gingival editing, reduce the tooth changes instead. Preserve realistic enamel translucency, interdental contacts and individual character. Avoid CGI, flat opaque white teeth, excessive uniformity and unnatural proportions.${reference}${notes} Return only the edited photograph at the same aspect ratio and composition.`;
+  return `Create a photorealistic cosmetic dentistry communication preview from the provided photograph. Modify only ${s.teeth} upper anterior teeth, symmetrically around the midline (FDI tooth numbers: ${s.selectedTeeth.join(", ")}). Treatment material: ${s.treatment}. ${shade} Tooth morphology: ${s.shape}. ${texture} Transformation intensity: ${s.intensity}/100, where 0 is subtle and natural, and 100 is more enhanced while remaining anatomically believable. ${framing} Keep all untreated teeth exactly. Do not edit the gingiva; if the requested result would require gingival editing, reduce the tooth changes instead. Preserve realistic enamel translucency, interdental contacts and individual character. Avoid CGI, flat opaque white teeth, excessive uniformity and unnatural proportions.${region}${reference}${notes} Return only the edited photograph at exactly the same pixel dimensions, framing, scale, rotation and crop as the input, aligned so the original and the edit can be compared with a before-and-after slider. Do not zoom, pan, straighten, re-crop, mirror, or change the size or position of the face, lips or teeth within the frame.`;
 }

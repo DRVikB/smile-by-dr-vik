@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Camera, X } from "lucide-react";
-import type { Photo } from "@/lib/types";
+import { SMILE_GUIDE, type Photo } from "@/lib/types";
 import { preparePhoto } from "@/lib/photos";
 export function CameraSheet({
   onClose,
@@ -17,6 +17,7 @@ export function CameraSheet({
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [light, setLight] = useState<number | null>(null);
   useEffect(() => {
     const before = document.activeElement as HTMLElement | null;
     sheet.current?.focus();
@@ -68,16 +69,57 @@ export function CameraSheet({
       if (element) element.srcObject = null;
     };
   }, [facing]);
+  useEffect(() => {
+    if (!ready) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const timer = setInterval(() => {
+      const v = video.current;
+      if (!v || !ctx || !v.videoWidth) return;
+      try {
+        ctx.drawImage(v, 0, 0, 32, 32);
+        const { data } = ctx.getImageData(0, 0, 32, 32);
+        let total = 0;
+        for (let i = 0; i < data.length; i += 4)
+          total += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        setLight(total / (data.length / 4));
+      } catch {
+        setLight(null);
+      }
+    }, 700);
+    return () => clearInterval(timer);
+  }, [ready]);
+
   async function capture() {
     if (!video.current || !ready) return;
     setBusy(true);
     try {
+      const v = video.current;
+      // Crop to what the guide actually showed, so the framing the clinician
+      // lined up is the framing that reaches the model.
+      const box = v.getBoundingClientRect();
+      const shown = box.width && box.height ? box.width / box.height : 3 / 4;
+      const vw = v.videoWidth;
+      const vh = v.videoHeight;
+      let sw = vw;
+      let sh = vh;
+      let sx = 0;
+      let sy = 0;
+      if (vw / vh > shown) {
+        sw = vh * shown;
+        sx = (vw - sw) / 2;
+      } else {
+        sh = vw / shown;
+        sy = (vh - sh) / 2;
+      }
       const canvas = document.createElement("canvas");
-      canvas.width = video.current.videoWidth;
-      canvas.height = video.current.videoHeight;
+      canvas.width = Math.round(sw);
+      canvas.height = Math.round(sh);
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error();
-      ctx.drawImage(video.current, 0, 0);
+      ctx.drawImage(v, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
       const blob = await new Promise<Blob>((resolve, reject) =>
         canvas.toBlob(
           (b) => (b ? resolve(b) : reject(new Error())),
@@ -85,11 +127,10 @@ export function CameraSheet({
           0.95,
         ),
       );
-      await onCapture(
-        await preparePhoto(
-          new File([blob], "smile-photo.jpg", { type: "image/jpeg" }),
-        ),
+      const photo = await preparePhoto(
+        new File([blob], "smile-photo.jpg", { type: "image/jpeg" }),
       );
+      await onCapture({ ...photo, framing: SMILE_GUIDE });
     } catch {
       setError("We couldn’t capture that photo. Please try again.");
     } finally {
@@ -165,6 +206,29 @@ export function CameraSheet({
               <Camera size={35} strokeWidth={1.3} />
               {error ? "Camera unavailable" : "Opening your camera…"}
             </span>
+          )}
+          {ready && (
+            <>
+              <div className="capture-guide" aria-hidden="true">
+                <span className="capture-guide-face" />
+                <span
+                  className="capture-guide-smile"
+                  style={{
+                    left: `${SMILE_GUIDE.x * 100}%`,
+                    top: `${SMILE_GUIDE.y * 100}%`,
+                    width: `${SMILE_GUIDE.width * 100}%`,
+                    height: `${SMILE_GUIDE.height * 100}%`,
+                  }}
+                />
+              </div>
+              <p className="capture-hint" role="status">
+                {light !== null && light < 60
+                  ? "A little more light on the face would help"
+                  : light !== null && light > 215
+                    ? "Very bright — try moving out of direct light"
+                    : "Line the smile up inside the box"}
+              </p>
+            </>
           )}
         </div>
         {error && (

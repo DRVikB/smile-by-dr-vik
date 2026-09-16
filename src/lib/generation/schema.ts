@@ -32,9 +32,17 @@ export const settingsSchema = z
       s.selectedTeeth.every((id, i) => id === upperTeeth[s.teeth][i]),
     "Choose a symmetric set of upper anterior teeth.",
   );
+const fraction = z.number().min(0).max(1);
+export const framingSchema = z.object({
+  x: fraction,
+  y: fraction,
+  width: fraction,
+  height: fraction,
+});
 export const generationSchema = z.object({
   originalImage: imageSchema,
   referenceImage: imageSchema.optional(),
+  framing: framingSchema.optional(),
   settings: settingsSchema,
 });
 export type GenerationInput = z.infer<typeof generationSchema>;

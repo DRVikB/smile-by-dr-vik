@@ -18,12 +18,27 @@ export interface SmileSettings {
   intensity: number;
   notes: string;
 }
+/** A region of the frame, as fractions of its width and height. */
+export interface Framing {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+/** Where the capture guide asks the smile to sit within the frame. */
+export const SMILE_GUIDE: Framing = {
+  x: 0.3,
+  y: 0.54,
+  width: 0.4,
+  height: 0.15,
+};
 export interface Photo {
   dataUrl: string;
   name: string;
   width: number;
   height: number;
   isSample?: boolean;
+  framing?: Framing;
 }
 export interface PreviewPreferences {
   settings: SmileSettings;

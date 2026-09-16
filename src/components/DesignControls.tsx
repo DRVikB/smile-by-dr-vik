@@ -12,11 +12,35 @@ import type {
 } from "@/lib/types";
 import { upperTeeth } from "@/lib/types";
 
-const SHAPES: { name: string; shape: ToothShape; image: string; description: string }[] = [
-  { name: "Square", shape: "Square", image: "square", description: "Structured, balanced tooth form" },
-  { name: "Triangle", shape: "Triangular", image: "triangle", description: "Tapered, delicate tooth form" },
-  { name: "Round", shape: "Rounded", image: "round", description: "Soft, rounded tooth form" },
+const SHAPES: { name: string; shape: ToothShape; description: string }[] = [
+  { name: "Square", shape: "Square", description: "Straight sides, flat edge" },
+  { name: "Triangle", shape: "Triangular", description: "Tapered towards the gum" },
+  { name: "Round", shape: "Rounded", description: "Curved sides, soft edge" },
 ];
+
+/** One tooth, drawn around x=0 so it can be placed and mirrored freely. */
+const TOOTH_PATHS: Record<ToothShape, string> = {
+  Square: "M-15 3 Q0 0 15 3 L15 55 Q15 60 10 60 L-10 60 Q-15 60 -15 55 Z",
+  Rounded: "M-14 3 Q0 -1 14 3 L16 32 Q16 60 0 60 Q-16 60 -16 32 Z",
+  Triangular: "M-9 2 Q0 -1 9 2 L16 54 Q16 60 12 60 L-12 60 Q-16 60 -16 54 Z",
+};
+
+/** Two central incisors with their neighbours, so the tooth form reads at a glance. */
+function ToothForm({ shape }: { shape: ToothShape }) {
+  const d = TOOTH_PATHS[shape];
+  return (
+    <svg className="tooth-form" viewBox="0 0 120 76" aria-hidden="true">
+      <g className="tooth-form-side">
+        <path d={d} transform="translate(16 13) scale(0.8 0.85)" />
+        <path d={d} transform="translate(104 13) scale(0.8 0.85)" />
+      </g>
+      <g className="tooth-form-main">
+        <path d={d} transform="translate(43 8)" />
+        <path d={d} transform="translate(77 8)" />
+      </g>
+    </svg>
+  );
+}
 
 export function SegmentedControl<T extends string | number>({
   label,
@@ -42,47 +66,6 @@ export function SegmentedControl<T extends string | number>({
             onClick={() => onChange(option)}
           >
             {option}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function ShapeSelector({
-  value,
-  onChange,
-}: {
-  value: ToothShape;
-  onChange: (v: ToothShape) => void;
-}) {
-  return (
-    <div className="control-group">
-      <div className="control-label">Tooth shape</div>
-      <div className="shape-row" role="group" aria-label="Tooth shape">
-        {(["Square", "Rounded", "Triangular"] as const).map((shape) => (
-          <button
-            key={shape}
-            type="button"
-            onClick={() => onChange(shape)}
-            className={`shape-option ${value === shape ? "selected" : ""}`}
-            aria-pressed={value === shape}
-          >
-            <svg aria-hidden="true" width="27" height="32" viewBox="0 0 36 42">
-              <path
-                d={
-                  shape === "Square"
-                    ? "M8 5 Q18 3 28 5 L28 34 Q28 37 25 37 L11 37 Q8 37 8 34 Z"
-                    : shape === "Rounded"
-                      ? "M8 5 Q18 2 28 5 L29 24 Q29 37 18 37 Q7 37 7 24 Z"
-                      : "M12 5 Q18 3 24 5 L29 35 Q29 37 27 37 L9 37 Q7 37 7 35 Z"
-                }
-                fill="currentColor"
-                stroke="currentColor"
-                strokeWidth="1.2"
-              />
-            </svg>
-            <span>{shape}</span>
           </button>
         ))}
       </div>
@@ -146,9 +129,13 @@ export function DesignControls({
                   <button key={s.shape} type="button" className="tooth-card"
                     aria-pressed={settings.shape === s.shape}
                     onClick={() => change("shape", s.shape)}>
-                    <span className="tooth-card-photo">
-                      <img src={`/tooth-shape-${s.image}.png`} alt={`${s.name} tooth form example`} />
-                      {settings.shape === s.shape && <span className="tooth-card-check"><Check size={12} /></span>}
+                    <span className="tooth-card-figure">
+                      <ToothForm shape={s.shape} />
+                      {settings.shape === s.shape && (
+                        <span className="tooth-card-check">
+                          <Check size={13} strokeWidth={2.6} />
+                        </span>
+                      )}
                     </span>
                     <span className="tooth-card-title">{s.name}</span>
                     <span className="tooth-card-description">{s.description}</span>

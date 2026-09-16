@@ -15,3 +15,6 @@ credentials*.json
 service-account*.json
 
 .netlify/
+
+# Session artefacts from Claude, not part of the app
+Claude outputs/

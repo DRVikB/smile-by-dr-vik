@@ -102,6 +102,28 @@ test("a reference image is sent as an extra part and noted in the prompt", async
   await provider.generate({ ...input, referenceImage: "data:image/png;base64," + PNG_1x1 });
 });
 
+test("a capture framing region is passed through to the model", async () => {
+  const provider = new GeminiSmileProvider({
+    apiKey: "test",
+    fetcher: async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      const parts = body.contents[0].parts;
+      const text = String(parts[parts.length - 1].text);
+      assert.ok(text.includes("on-screen guide"));
+      assert.ok(text.includes("30%"));
+      return Response.json({
+        candidates: [
+          { content: { parts: [{ inlineData: { mimeType: "image/png", data: PNG_1x1 } }] } },
+        ],
+      });
+    },
+  });
+  await provider.generate({
+    ...input,
+    framing: { x: 0.3, y: 0.56, width: 0.4, height: 0.16 },
+  });
+});
+
 test("nearestAspectRatio keeps portrait, square and landscape framing", () => {
   assert.equal(nearestAspectRatio(1000, 1000), "1:1");
   assert.equal(nearestAspectRatio(1600, 900), "16:9");

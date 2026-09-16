@@ -170,3 +170,37 @@ test("simple shade choices give distinct generation instructions", () => {
     assert.equal(settingsSchema.safeParse({ ...defaultSettings, targetShade }).success, true);
   }
 });
+
+test("the instruction always demands a like-for-like frame, and names the guide region when one was captured", () => {
+  const plain = buildSmileInstruction(defaultSettings);
+  assert.ok(plain.includes("same pixel dimensions"));
+  assert.ok(plain.includes("Do not zoom"));
+  assert.ok(!plain.includes("on-screen guide"));
+  const framed = buildSmileInstruction(defaultSettings, false, {
+    x: 0.3,
+    y: 0.56,
+    width: 0.4,
+    height: 0.16,
+  });
+  assert.ok(framed.includes("on-screen guide"));
+  for (const edge of ["30%", "70%", "56%", "72%"]) assert.ok(framed.includes(edge));
+});
+
+test("a capture framing region must be fractions of the frame", () => {
+  assert.equal(
+    generationSchema.safeParse({
+      ...input,
+      framing: { x: 0.3, y: 0.56, width: 0.4, height: 0.16 },
+    }).success,
+    true,
+  );
+  for (const framing of [
+    { x: -0.1, y: 0.5, width: 0.4, height: 0.2 },
+    { x: 0.3, y: 0.5, width: 1.4, height: 0.2 },
+    { x: 0.3, y: 0.5, width: 0.4 },
+  ])
+    assert.equal(
+      generationSchema.safeParse({ ...input, framing }).success,
+      false,
+    );
+});
