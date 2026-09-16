@@ -25,6 +25,7 @@ import {
   type Screen,
   type SmileSettings,
   type GenerationResult,
+  type SmileVariant,
 } from "@/lib/types";
 import { readCase, persistCase } from "@/lib/storage";
 import { preparePhoto } from "@/lib/photos";
@@ -32,12 +33,7 @@ import { downloadPreview } from "@/lib/download";
 import { useSmileTools } from "@/lib/useSmileTools";
 import { imageSchema } from "@/lib/generation/schema";
 
-type Variant = {
-  label: string;
-  note: string;
-  patch: Partial<SmileSettings>;
-  result: GenerationResult;
-};
+type Variant = SmileVariant;
 
 export default function Smile() {
   const [screen, setScreen] = useState<Screen>("start");
@@ -53,6 +49,7 @@ export default function Smile() {
   const [saved, setSaved] = useState(false);
   const [sampleBusy, setSampleBusy] = useState(false);
   const [reference, setReference] = useState<Photo | null>(null);
+  const [variants, setVariants] = useState<Variant[]>([]);
   const [options, setOptions] = useState<Variant[] | null>(null);
   const [saveOpen, setSaveOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -72,6 +69,7 @@ export default function Smile() {
       .then((c) => {
         if (active && c) {
           setPhoto(c.photo);
+          setVariants(c.variants ?? []);
           setReference(c.reference ?? null);
           setTestMode(Boolean(c.testMode));
           setTestPreview(c.testPreview ?? null);
@@ -104,13 +102,14 @@ export default function Smile() {
             testMode,
             testPreview,
             reference,
+            variants,
             settings,
             result,
             screen: screen === "compare" ? "design" : screen,
           }
         : null,
     ).catch(() => setStorageError(true));
-  }, [photo, settings, result, screen, ready, testMode, testPreview, reference]);
+  }, [photo, settings, result, screen, ready, testMode, testPreview, reference, variants]);
 
   useEffect(() => {
     if (firstScreen.current) {
@@ -122,6 +121,8 @@ export default function Smile() {
   }, [screen]);
 
   async function selectPhoto(p: Photo) {
+    setVariants([]);
+    setOptions(null);
     setPhoto(p);
     setResult(null);
     setTestMode(false);
@@ -163,6 +164,7 @@ export default function Smile() {
           }),
         ),
       ]);
+      setVariants([]);
       setPhoto({ ...patient, isSample: true });
       setTestPreview(preview.dataUrl);
       setTestMode(true);
@@ -239,6 +241,7 @@ export default function Smile() {
         new Promise((resolve) => setTimeout(resolve, 2300)),
       ]);
       if (controller.signal.aborted) return;
+      setVariants([]);
       setResult(next);
       setScreen("preview");
     } catch (e) {
@@ -270,6 +273,7 @@ export default function Smile() {
       const settled = await Promise.allSettled(
         wanted.map(async (v) => ({
           ...v,
+          settings: { ...settings, ...v.patch },
           result: await requestPreview(
             originalPhoto,
             { ...settings, ...v.patch },
@@ -283,7 +287,9 @@ export default function Smile() {
         .map((x) => (x as PromiseFulfilledResult<Variant>).value);
       if (ok.length === 0)
         throw new Error("These options couldn’t be created. Please try again.");
+      setVariants(ok);
       setOptions(ok);
+      if (ok.length < wanted.length) setError(`${ok.length} of ${wanted.length} options were created. You can compare those now or try again.`);
     } catch (e) {
       if (!controller.signal.aborted)
         setError(
@@ -314,7 +320,8 @@ export default function Smile() {
     ]);
 
   function selectOption(v: Variant) {
-    setSettings((s) => ({ ...s, ...v.patch }));
+    setSettings(v.settings);
+    setSaved(false);
     setResult(v.result);
     setOptions(null);
     setScreen("preview");
@@ -334,6 +341,7 @@ export default function Smile() {
     setTestMode(false);
     setTestPreview(null);
     setOptions(null);
+    setVariants([]);
     setFullscreen(false);
     setSettings({ ...defaultSettings });
     setError("");
@@ -383,6 +391,17 @@ export default function Smile() {
       setSaving(false);
     }
   }
+
+  const variantTabs = variants.length > 0 ? (
+    <div className="variant-tabs" role="group" aria-label="Generated smile options">
+      {variants.map((v) => (
+        <button key={v.result.variationId} type="button" disabled={busy}
+          aria-pressed={result?.variationId === v.result.variationId}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => selectOption(v)}>{v.label}</button>
+      ))}
+    </div>
+  ) : null;
 
   const generation = busy ? (
     <GenerationState onCancel={cancelGeneration} />
@@ -582,6 +601,7 @@ export default function Smile() {
               <h1 ref={heading} tabIndex={-1} className="sr-only">
                 Your Smile Preview
               </h1>
+              {variantTabs}
               <div className="preview-stage">
                 <BeforeAfterSlider
                   original={photo.dataUrl}
@@ -769,6 +789,7 @@ export default function Smile() {
             <br />
             confident you
           </p>
+          <div className="consult-variants">{variantTabs}</div>
           <div className="consult-foot">
             <span className="consult-practice">Dr Vik · London</span>
             <span className="consult-hint">Tap and hold to see original</span>

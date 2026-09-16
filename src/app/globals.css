@@ -1705,3 +1705,9 @@ button.option-card:hover {
 .selected-photo-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .selected-photo-actions button { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.25); border-radius: 100px; color: #fff; background: rgba(18,17,16,.35); font-size: 13px; }
 .photo-under { flex-wrap: wrap; }
+
+.variant-tabs { display: flex; gap: 8px; padding: 6px; margin-bottom: 12px; border-radius: 18px; background: rgba(128,128,128,.12); }
+.variant-tabs button { flex: 1; min-height: 44px; padding: 10px 14px; border-radius: 13px; background: transparent; color: inherit; font-size: 14px; }
+.variant-tabs button[aria-pressed="true"] { background: #fff; color: #1d1d1f; box-shadow: 0 2px 8px #0001; }
+.consult-variants { position: absolute; z-index: 4; top: calc(85px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(420px, calc(100% - 32px)); color: #fff; }
+.consult-variants .variant-tabs { background: rgba(0,0,0,.5); backdrop-filter: blur(16px); }

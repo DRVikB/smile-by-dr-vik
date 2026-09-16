@@ -30,7 +30,15 @@ export interface GenerationResult {
   mode: "mock" | "live";
   variationId: string;
 }
+export interface SmileVariant {
+  label: string;
+  note: string;
+  patch: Partial<SmileSettings>;
+  settings: SmileSettings;
+  result: GenerationResult;
+}
 export interface SmileCase {
+  variants?: SmileVariant[];
   reference?: Photo | null;
   testMode?: boolean;
   testPreview?: string | null;
