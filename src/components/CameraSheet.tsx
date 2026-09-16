@@ -13,22 +13,32 @@ export function CameraSheet({
   const video = useRef<HTMLVideoElement>(null);
   const nativeInput = useRef<HTMLInputElement>(null);
   const sheet = useRef<HTMLDivElement>(null);
+  const [facing, setFacing] = useState<"environment" | "user">("environment");
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    let active = true;
-    let stream: MediaStream | undefined;
     const before = document.activeElement as HTMLElement | null;
     sheet.current?.focus();
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = overflow;
+      before?.focus();
+    };
+  }, []);
+  useEffect(() => {
+    let active = true;
+    let stream: MediaStream | undefined;
+    const element = video.current;
+    setReady(false);
+    setError("");
     async function start() {
       try {
         if (!navigator.mediaDevices?.getUserMedia) throw new Error();
         const s = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: "user",
+            facingMode: { ideal: facing },
             width: { ideal: 1920 },
             height: { ideal: 1440 },
           },
@@ -55,10 +65,9 @@ export function CameraSheet({
     return () => {
       active = false;
       stream?.getTracks().forEach((t) => t.stop());
-      document.body.style.overflow = overflow;
-      before?.focus();
+      if (element) element.srcObject = null;
     };
-  }, []);
+  }, [facing]);
   async function capture() {
     if (!video.current || !ready) return;
     setBusy(true);
@@ -141,6 +150,14 @@ export function CameraSheet({
             <X size={21} />
           </button>
         </div>
+        <div className="segmented" role="group" aria-label="Camera selection">
+          <button type="button" disabled={busy} aria-pressed={facing === "environment"}
+            className={facing === "environment" ? "selected" : ""}
+            onClick={() => { if (facing !== "environment") { setReady(false); setFacing("environment"); } }}>Back camera</button>
+          <button type="button" disabled={busy} aria-pressed={facing === "user"}
+            className={facing === "user" ? "selected" : ""}
+            onClick={() => { if (facing !== "user") { setReady(false); setFacing("user"); } }}>Front camera</button>
+        </div>
         <div className="camera-view">
           <video ref={video} autoPlay playsInline muted onLoadedData={() => setReady(Boolean(video.current?.videoWidth))} />
           {!ready && (
@@ -167,7 +184,7 @@ export function CameraSheet({
           ref={nativeInput}
           type="file"
           accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif"
-          capture="user"
+          capture={facing}
           className="sr-only"
           onChange={async (e) => {
             const file = e.target.files?.[0];
