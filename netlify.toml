@@ -6,7 +6,7 @@
   NODE_VERSION = "22"
 
 # Netlify automatically supplies the Next.js adapter and server route hosting.
-# Set SMILE_PROVIDER, GEMINI_API_KEY and GEMINI_IMAGE_MODEL in Netlify's
+# Set SMILE_PROVIDER, SMILE_GEMINI_API_KEY and GEMINI_IMAGE_MODEL in Netlify's
 # environment-variable settings (including Functions scope), never in this file.
 
 [[headers]]

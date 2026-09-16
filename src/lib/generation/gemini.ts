@@ -146,6 +146,12 @@ export class GeminiSmileProvider implements SmileImageProvider {
 
     if (!response.ok) {
       const body = await response.json().catch(() => null);
+      const reason = body?.error?.details?.find((detail: { reason?: string }) => typeof detail?.reason === "string")?.reason;
+      console.error("Gemini provider rejected request", {
+        status: response.status,
+        category: ["API_KEY_INVALID", "API_KEY_EXPIRED", "API_KEY_SERVICE_BLOCKED", "API_KEY_HTTP_REFERRER_BLOCKED", "API_KEY_IP_ADDRESS_BLOCKED"].includes(reason)
+          ? reason : "provider_rejected",
+      });
       const message =
         typeof body?.error?.message === "string" ? body.error.message : "";
       const status = typeof body?.error?.status === "string" ? body.error.status : "";

@@ -52,6 +52,7 @@ export async function readCase(): Promise<SmileCase | null> {
           resolve(null);
           return;
         }
+        if (typeof c.patientName !== "string") delete c.patientName;
         if (c.screen === "preview" && !c.result) c.screen = "design";
         resolve(c);
       };

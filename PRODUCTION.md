@@ -61,3 +61,9 @@ Migration checks before using patient photos:
 - Existing device-local cases do not automatically transfer to a new domain.
 
 The source is prepared for import; this does not mean a GitHub repository or Netlify deployment has been created.
+
+### Netlify Gemini credentials
+
+Set `SMILE_GEMINI_API_KEY` as a secret in the production context, including Builds and Functions scopes. This dedicated name prevents Netlify's automatic AI Gateway credentials from being used with our direct Google API requests. `GEMINI_API_KEY` remains supported for local development and Sites. Keep `SMILE_PROVIDER=gemini` and `GEMINI_IMAGE_MODEL=gemini-3.1-flash-image`.
+
+The Netlify build checks this dedicated key against Google model metadata before publishing; it never sends a patient photo or performs image generation. A successful metadata check verifies authentication and model visibility, but does not prove image-generation quota or the runtime request path. The server reads Netlify environment variables on each request. Key changes still require a new deployment.

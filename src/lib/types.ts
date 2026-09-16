@@ -43,7 +43,23 @@ export interface SmileVariant {
   settings: SmileSettings;
   result: GenerationResult;
 }
+export interface CaseLogEntry {
+  id: string;
+  patientName: string;
+  createdAt: number;
+  mode: "mock" | "live";
+  testMode?: boolean;
+  label?: string;
+  summary: string;
+  thumb: string;
+}
+export interface CaseLogMedia {
+  id: string;
+  image: string;
+  originalImage: string;
+}
 export interface SmileCase {
+  patientName?: string;
   variants?: SmileVariant[];
   reference?: Photo | null;
   testMode?: boolean;

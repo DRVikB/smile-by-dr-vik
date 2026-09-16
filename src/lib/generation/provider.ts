@@ -59,6 +59,7 @@ export class HttpSmileProvider implements SmileImageProvider {
   }
 }
 export interface ProviderEnvironment {
+  SMILE_GEMINI_API_KEY?: string;
   GEMINI_API_KEY?: string;
   GEMINI_IMAGE_MODEL?: string;
   OPENAI_API_KEY?: string;
@@ -67,23 +68,35 @@ export interface ProviderEnvironment {
   SMILE_PROVIDER_URL?: string;
   SMILE_PROVIDER_API_KEY?: string;
 }
+/** Read deployment secrets at request time, outside Netlify's automatic AI key names. */
+export function readProviderEnvironment(): ProviderEnvironment {
+  const netlify = (globalThis as typeof globalThis & {
+    Netlify?: { env: { get(name: string): string | undefined } };
+  }).Netlify;
+  const read = (key: string) => netlify ? netlify.env.get(key) : process.env[key];
+  const hostedOnNetlify = Boolean(netlify || process.env.NETLIFY);
+  return {
+    SMILE_GEMINI_API_KEY: read("SMILE_GEMINI_API_KEY"),
+    // Standard provider names may be populated with a Netlify gateway credential.
+    // Our adapter calls Google directly, so Netlify must use the explicit app key.
+    GEMINI_API_KEY: hostedOnNetlify ? undefined : read("GEMINI_API_KEY"),
+    GEMINI_IMAGE_MODEL: read("GEMINI_IMAGE_MODEL"),
+    OPENAI_API_KEY: read("OPENAI_API_KEY"),
+    OPENAI_IMAGE_MODEL: read("OPENAI_IMAGE_MODEL"),
+    SMILE_PROVIDER: read("SMILE_PROVIDER"),
+    SMILE_PROVIDER_URL: read("SMILE_PROVIDER_URL"),
+    SMILE_PROVIDER_API_KEY: read("SMILE_PROVIDER_API_KEY"),
+  };
+}
 export function getSmileProvider(
-  env: ProviderEnvironment = {
-    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-    GEMINI_IMAGE_MODEL: process.env.GEMINI_IMAGE_MODEL,
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    OPENAI_IMAGE_MODEL: process.env.OPENAI_IMAGE_MODEL,
-    SMILE_PROVIDER: process.env.SMILE_PROVIDER,
-    SMILE_PROVIDER_URL: process.env.SMILE_PROVIDER_URL,
-    SMILE_PROVIDER_API_KEY: process.env.SMILE_PROVIDER_API_KEY,
-  },
+  env: ProviderEnvironment = readProviderEnvironment(),
 ): SmileImageProvider {
   const mode =
     env.SMILE_PROVIDER ||
-    (env.GEMINI_API_KEY ? "gemini" : env.OPENAI_API_KEY ? "openai" : "unconfigured");
+    ((env.SMILE_GEMINI_API_KEY || env.GEMINI_API_KEY) ? "gemini" : env.OPENAI_API_KEY ? "openai" : "unconfigured");
   if (mode === "gemini")
     return new GeminiSmileProvider({
-      apiKey: env.GEMINI_API_KEY || "",
+      apiKey: (env.SMILE_GEMINI_API_KEY || env.GEMINI_API_KEY || "").trim(),
       model: env.GEMINI_IMAGE_MODEL,
     });
   if (mode === "openai")
@@ -98,7 +111,7 @@ export function getSmileProvider(
       env.SMILE_PROVIDER_API_KEY,
     );
   throw new GenerationError(
-    "AI generation isn’t connected. Configure the server’s SMILE_PROVIDER and API key, or use Open test mode to explore the app.",
+    "AI generation isn’t connected. Set SMILE_PROVIDER=gemini and SMILE_GEMINI_API_KEY on the server (GEMINI_API_KEY works for local development only), or use Open test mode to explore the app.",
     503,
     "provider_not_configured",
   );

@@ -4,6 +4,7 @@ import {
   Check,
   Columns2,
   ImagePlus,
+  History,
   Maximize2,
   MoveHorizontal,
   Play,
@@ -18,6 +19,7 @@ import { PatientPhoto } from "@/components/PatientPhoto";
 import { GenerationState } from "@/components/GenerationState";
 import { BeforeAfterSlider } from "@/components/BeforeAfterSlider";
 import { BottomActionBar, Disclaimer } from "@/components/PreviewActions";
+import { CaseLog } from "@/components/CaseLog";
 import {
   defaultSettings,
   type Photo,
@@ -27,6 +29,8 @@ import {
   type SmileVariant,
 } from "@/lib/types";
 import { readCase, persistCase } from "@/lib/storage";
+import { addLogEntry } from "@/lib/caseLog";
+import { thumbnail } from "@/lib/thumb";
 import { preparePhoto } from "@/lib/photos";
 import { getReportPreferences, preferenceRows } from "@/lib/report";
 import { useSmileTools } from "@/lib/useSmileTools";
@@ -55,6 +59,8 @@ export default function Smile() {
   const [holding, setHolding] = useState(false);
   const [testMode, setTestMode] = useState(false);
   const [testPreview, setTestPreview] = useState<string | null>(null);
+  const [patientName, setPatientName] = useState("");
+  const [logOpen, setLogOpen] = useState(false);
   useSmileTools({ screen, hasPhoto: !!photo, settings, busy }, setSettings);
   const replacement = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
@@ -72,6 +78,7 @@ export default function Smile() {
           setReference(c.reference ?? null);
           setTestMode(Boolean(c.testMode));
           setTestPreview(c.testPreview ?? null);
+          setPatientName(c.patientName ?? "");
           setSettings({ ...c.settings, targetShade:
             ["The same", "Whiten", "Bleach"].includes(c.settings.targetShade)
               ? c.settings.targetShade
@@ -98,6 +105,7 @@ export default function Smile() {
       photo
         ? {
             photo,
+            patientName,
             testMode,
             testPreview,
             reference,
@@ -108,7 +116,12 @@ export default function Smile() {
           }
         : null,
     ).catch(() => setStorageError(true));
-  }, [photo, settings, result, screen, ready, testMode, testPreview, reference, variants]);
+  }, [photo, settings, result, screen, ready, testMode, testPreview, reference, variants, patientName]);
+
+  useEffect(() => {
+    document.body.classList.toggle("consult-open", fullscreen);
+    return () => document.body.classList.remove("consult-open");
+  }, [fullscreen]);
 
   useEffect(() => {
     if (firstScreen.current) {
@@ -229,6 +242,34 @@ export default function Smile() {
     return { ...next, preferences };
   }
 
+  /** Every generated preview is logged locally so it can be found again later. */
+  async function logGenerated(
+    entryResult: GenerationResult,
+    used: SmileSettings,
+    label?: string,
+  ) {
+    if (!photo) return;
+    const id = entryResult.variationId || crypto.randomUUID();
+    try {
+      const thumb = await thumbnail(entryResult.image);
+      await addLogEntry(
+        {
+          id,
+          patientName: patientName.trim(),
+          createdAt: Date.now(),
+          mode: entryResult.mode,
+          testMode,
+          label,
+          summary: `${used.teeth} teeth · ${used.treatment} · ${used.targetShade} · ${used.shape}`,
+          thumb,
+        },
+        { id, image: entryResult.image, originalImage: photo.dataUrl },
+      );
+    } catch {
+      // The log is a convenience — never let it interrupt a consultation.
+    }
+  }
+
   async function generate() {
     if (!photo || busy || request.current) return;
     const controller = new AbortController();
@@ -245,6 +286,7 @@ export default function Smile() {
       setVariants([]);
       setResult(next);
       setScreen("preview");
+      void logGenerated(next, settings);
     } catch (e) {
       if (!controller.signal.aborted)
         setError(
@@ -290,6 +332,7 @@ export default function Smile() {
         throw new Error("These options couldn’t be created. Please try again.");
       setVariants(ok);
       setOptions(ok);
+      ok.forEach((v) => void logGenerated(v.result, v.settings, v.label));
       if (ok.length < wanted.length) setError(`${ok.length} of ${wanted.length} options were created. You can compare those now or try again.`);
     } catch (e) {
       if (!controller.signal.aborted)
@@ -407,24 +450,30 @@ export default function Smile() {
             : undefined
       }
       action={
-        screen === "design" ? (
-          <div className="nav-actions">
-            {testMode && <span className="test-mode-pill">Test mode</span>}
+        <div className="nav-actions">
+          {testMode && <span className="test-mode-pill">Test mode</span>}
+          <button
+            className="nav-action"
+            onClick={() => setLogOpen(true)}
+            aria-label="Open case log"
+          >
+            <History size={16} strokeWidth={1.7} />
+            Log
+          </button>
+          {screen === "design" && (
             <button
               className="nav-action"
               onClick={() => setSettings({ ...defaultSettings })}
             >
               Reset
             </button>
-          </div>
-        ) : screen === "preview" ? (
-          <div className="nav-actions">
-            {testMode && <span className="test-mode-pill">Test mode</span>}
+          )}
+          {screen === "preview" && (
             <button className="nav-action" onClick={() => setSaveOpen(true)}>
               Save
             </button>
-          </div>
-        ) : undefined
+          )}
+        </div>
       }
     >
       {!ready ? (
@@ -444,11 +493,20 @@ export default function Smile() {
               </div>
               <div className="portrait-top">
                 <span className="wordmark">Smile</span>
-                <img
-                  className="portrait-logo"
-                  src="/dr-vik-logo.png"
-                  alt="Dr Vik"
-                />
+                <div className="portrait-top-right">
+                  <button
+                    className="hero-log"
+                    onClick={() => setLogOpen(true)}
+                  >
+                    <History size={15} strokeWidth={1.7} />
+                    Case log
+                  </button>
+                  <img
+                    className="portrait-logo"
+                    src="/dr-vik-logo.png"
+                    alt="Dr Vik"
+                  />
+                </div>
               </div>
               <div className="start-copy">
                 <h1 ref={heading} tabIndex={-1}>
@@ -538,6 +596,17 @@ export default function Smile() {
               <h1 ref={heading} tabIndex={-1} className="sr-only">
                 Choose your smile
               </h1>
+              <div className="patient-field">
+                <label htmlFor="patient-name">Patient</label>
+                <input
+                  id="patient-name"
+                  type="text"
+                  value={patientName}
+                  maxLength={60}
+                  placeholder="Name or reference — saved to the case log on this device"
+                  onChange={(e) => setPatientName(e.target.value)}
+                />
+              </div>
               <div className="design-layout">
                 <div className="photo-column">
                   {result ? (
@@ -818,6 +887,7 @@ export default function Smile() {
           This browser isn’t saving your case locally. Your preview still works.
         </p>
       )}
+      {logOpen && <CaseLog onClose={() => setLogOpen(false)} />}
     </AppShell>
   );
 }
