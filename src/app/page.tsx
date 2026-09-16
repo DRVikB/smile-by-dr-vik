@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   Check,
   Columns2,
-  Download,
   ImagePlus,
   Maximize2,
   MoveHorizontal,
@@ -29,7 +28,6 @@ import {
 } from "@/lib/types";
 import { readCase, persistCase } from "@/lib/storage";
 import { preparePhoto } from "@/lib/photos";
-import { downloadPreview } from "@/lib/download";
 import { getReportPreferences, preferenceRows } from "@/lib/report";
 import { useSmileTools } from "@/lib/useSmileTools";
 import { imageSchema } from "@/lib/generation/schema";
@@ -354,22 +352,6 @@ export default function Smile() {
   }
 
   const reportPreferences = result ? getReportPreferences(result, variants) : undefined;
-
-  async function save() {
-    if (!result) return;
-    setSaveOpen(false);
-    setSaving(true);
-    setError("");
-    try {
-      await downloadPreview(result, reportPreferences, testMode);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 4000);
-    } catch {
-      setError("The image couldn’t be saved. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  }
 
   async function saveComposite(layout: "split" | "stacked") {
     if (!result || !photo) return;
@@ -710,7 +692,7 @@ export default function Smile() {
         </div>
       )}
 
-      {saveOpen && result && (
+      {saveOpen && result && photo && (
         <div
           className="sheet-backdrop"
           role="dialog"
@@ -729,7 +711,17 @@ export default function Smile() {
                 <X size={16} />
               </button>
             </div>
-            <p className="sheet-sub">Every format includes your Dr Vik logo and smile preferences.</p>
+            <p className="sheet-sub">Both formats include your before and after photos, Dr Vik logo and smile preferences.</p>
+            <div className="report-photo-pair" aria-label="Before and after report preview">
+              <figure>
+                <img src={photo.dataUrl} alt="Before: original photograph" />
+                <figcaption>Before</figcaption>
+              </figure>
+              <figure>
+                <img src={result.image} alt="After: generated smile preview" />
+                <figcaption>{testMode || result.mode === "mock" ? "Demo preview" : "After · Smile preview"}</figcaption>
+              </figure>
+            </div>
             <div className="report-summary">
               <div className="report-summary-heading">
                 <span>Your smile preferences</span>
@@ -743,13 +735,6 @@ export default function Smile() {
               {reportPreferences?.settings.notes.trim() && <p className="report-notes"><strong>Notes</strong>{reportPreferences.settings.notes}</p>}
             </div>
             <div className="variation-list">
-              <button className="save-option" onClick={() => void save()}>
-                <Download size={18} strokeWidth={1.6} />
-                <span>
-                  Preview only
-                  <small>The smile preview on its own.</small>
-                </span>
-              </button>
               <button
                 className="save-option"
                 onClick={() => void saveComposite("split")}

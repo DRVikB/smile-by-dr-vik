@@ -1722,3 +1722,8 @@ button.option-card:hover {
 .report-summary p { font-size: 14px; line-height: 1.5; }
 .report-notes { white-space: pre-wrap; overflow-wrap: anywhere; }
 .report-notes strong { display: block; margin-bottom: 4px; }
+
+.report-photo-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 18px; }
+.report-photo-pair figure { margin: 0; overflow: hidden; border: 1px solid #e5e5e7; border-radius: 12px; background: #fff; }
+.report-photo-pair img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: contain; background: #121110; }
+.report-photo-pair figcaption { padding: 10px 8px; font-size: 13px; line-height: 1.4; color: #1d1d1f; text-align: center; }
