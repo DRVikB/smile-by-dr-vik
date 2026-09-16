@@ -32,3 +32,14 @@ test('all three generated options and their settings survive refresh', async () 
   assert.equal(restored?.result?.variationId, 'option-1');
   await persistCase(null);
 });
+
+test('report preferences survive refresh separately from draft design changes', async () => {
+  const result = { image: photo.dataUrl, mode: 'live' as const, variationId: 'report', preferences: {
+    settings: { ...defaultSettings, targetShade: 'Bleach' as const, notes: 'Preserve natural edges.' }, referenceUsed: true, testMode: false,
+  } };
+  await persistCase({ photo, settings: defaultSettings, result, screen: 'preview', variants: [] });
+  const restored = await readCase();
+  assert.equal(restored?.settings.targetShade, 'Whiten');
+  assert.deepEqual(restored?.result?.preferences, result.preferences);
+  await persistCase(null);
+});

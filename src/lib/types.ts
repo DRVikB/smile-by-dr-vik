@@ -25,7 +25,13 @@ export interface Photo {
   height: number;
   isSample?: boolean;
 }
+export interface PreviewPreferences {
+  settings: SmileSettings;
+  referenceUsed?: boolean;
+  testMode?: boolean;
+}
 export interface GenerationResult {
+  preferences?: PreviewPreferences;
   image: string;
   mode: "mock" | "live";
   variationId: string;

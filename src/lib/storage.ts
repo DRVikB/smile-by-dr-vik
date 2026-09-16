@@ -33,10 +33,19 @@ export async function readCase(): Promise<SmileCase | null> {
             !["mock", "live"].includes(c.result.mode))
         )
           c.result = null;
+        const validatePreferences = (result: import("./types").GenerationResult | null) => {
+          if (!result?.preferences) return;
+          const p = result.preferences;
+          if (!settingsSchema.safeParse(p.settings).success ||
+              (p.referenceUsed !== undefined && typeof p.referenceUsed !== "boolean") ||
+              (p.testMode !== undefined && typeof p.testMode !== "boolean")) delete result.preferences;
+        };
+        validatePreferences(c.result);
         c.variants = Array.isArray(c.variants) ? c.variants.filter((v: import("./types").SmileVariant) =>
           typeof v?.label === "string" && typeof v?.note === "string" && settingsSchema.safeParse(v.settings).success &&
           imageSchema.safeParse(v.result?.image).success && ["mock", "live"].includes(v.result?.mode) && typeof v.result?.variationId === "string"
         ).slice(0, 3) : [];
+        c.variants.forEach((v: import("./types").SmileVariant) => validatePreferences(v.result));
         if (c.reference && !imageSchema.safeParse(c.reference.dataUrl).success) c.reference = null;
         if (c.testMode && !imageSchema.safeParse(c.testPreview).success) {
           // Never silently turn an incomplete test case into a paid request.

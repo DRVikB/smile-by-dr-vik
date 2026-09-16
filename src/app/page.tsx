@@ -30,6 +30,7 @@ import {
 import { readCase, persistCase } from "@/lib/storage";
 import { preparePhoto } from "@/lib/photos";
 import { downloadPreview } from "@/lib/download";
+import { getReportPreferences, preferenceRows } from "@/lib/report";
 import { useSmileTools } from "@/lib/useSmileTools";
 import { imageSchema } from "@/lib/generation/schema";
 
@@ -183,6 +184,7 @@ export default function Smile() {
     settingsIn: SmileSettings,
     controller: AbortController,
   ): Promise<GenerationResult> {
+    const preferences = { settings: structuredClone(settingsIn), referenceUsed: Boolean(reference), testMode };
     if (testMode && testPreview) {
       await new Promise((resolve) => setTimeout(resolve, 1200));
       if (controller.signal.aborted) throw controller.signal.reason;
@@ -191,6 +193,7 @@ export default function Smile() {
         image: await alignPreview(testPreview, photoIn),
         mode: "live",
         variationId: crypto.randomUUID(),
+        preferences,
       };
     }
     if (!navigator.onLine) throw new Error("You’re offline. Reconnect to create a preview; your current case is kept on this device.");
@@ -225,7 +228,7 @@ export default function Smile() {
       const { alignPreview } = await import("@/lib/photos");
       next = { ...next, image: await alignPreview(next.image, photoIn) };
     }
-    return next;
+    return { ...next, preferences };
   }
 
   async function generate() {
@@ -350,13 +353,15 @@ export default function Smile() {
     void persistCase(null).catch(() => setStorageError(true));
   }
 
+  const reportPreferences = result ? getReportPreferences(result, variants) : undefined;
+
   async function save() {
     if (!result) return;
     setSaveOpen(false);
     setSaving(true);
     setError("");
     try {
-      await downloadPreview(result);
+      await downloadPreview(result, reportPreferences, testMode);
       setSaved(true);
       setTimeout(() => setSaved(false), 4000);
     } catch {
@@ -378,6 +383,8 @@ export default function Smile() {
         result.image,
         layout,
         result,
+        reportPreferences,
+        testMode,
       );
       downloadBlob(
         blob,
@@ -722,7 +729,19 @@ export default function Smile() {
                 <X size={16} />
               </button>
             </div>
-            <p className="sheet-sub">Choose how the preview is saved.</p>
+            <p className="sheet-sub">Every format includes your Dr Vik logo and smile preferences.</p>
+            <div className="report-summary">
+              <div className="report-summary-heading">
+                <span>Your smile preferences</span>
+                <img src="/dr-vik-logo.png" alt="Dr Vik" />
+              </div>
+              {reportPreferences ? <dl>
+                {preferenceRows(reportPreferences.settings).map(([label, value]) => (
+                  <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+                ))}
+              </dl> : <p>This older preview has no saved preferences. Create a new preview to include them.</p>}
+              {reportPreferences?.settings.notes.trim() && <p className="report-notes"><strong>Notes</strong>{reportPreferences.settings.notes}</p>}
+            </div>
             <div className="variation-list">
               <button className="save-option" onClick={() => void save()}>
                 <Download size={18} strokeWidth={1.6} />

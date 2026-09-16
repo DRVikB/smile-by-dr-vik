@@ -1711,3 +1711,14 @@ button.option-card:hover {
 .variant-tabs button[aria-pressed="true"] { background: #fff; color: #1d1d1f; box-shadow: 0 2px 8px #0001; }
 .consult-variants { position: absolute; z-index: 4; top: calc(85px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(420px, calc(100% - 32px)); color: #fff; }
 .consult-variants .variant-tabs { background: rgba(0,0,0,.5); backdrop-filter: blur(16px); }
+
+/* Patient report preview, using the existing Dr Vik palette and logo. */
+.report-summary { margin: 18px 0; padding: 20px; border: 1px solid #e5e5e7; border-radius: 18px; background: #f5f5f7; }
+.report-summary-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; font-weight: 600; }
+.report-summary-heading img { width: 76px; height: auto; }
+.report-summary dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; margin: 20px 0 0; }
+.report-summary dt { font-size: 12px; color: #6e6e73; margin-bottom: 4px; }
+.report-summary dd { font-size: 14px; margin: 0; overflow-wrap: anywhere; }
+.report-summary p { font-size: 14px; line-height: 1.5; }
+.report-notes { white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-notes strong { display: block; margin-bottom: 4px; }

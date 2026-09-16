@@ -1,4 +1,5 @@
-import type { GenerationResult } from "./types";
+import type { GenerationResult, PreviewPreferences } from "./types";
+import { preferenceRows, wrapText } from "./report";
 
 export type ComposeLayout = "split" | "stacked";
 
@@ -9,31 +10,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     img.onerror = () => reject(new Error("An image could not be opened."));
     img.src = src;
   });
-}
-
-/** Draw an image cropped to cover the destination rectangle (no distortion). */
-function drawCover(
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  dx: number,
-  dy: number,
-  dw: number,
-  dh: number,
-) {
-  const dar = dw / dh;
-  const iar = img.naturalWidth / img.naturalHeight;
-  let sx = 0,
-    sy = 0,
-    sw = img.naturalWidth,
-    sh = img.naturalHeight;
-  if (iar > dar) {
-    sw = sh * dar;
-    sx = (img.naturalWidth - sw) / 2;
-  } else {
-    sh = sw / dar;
-    sy = (img.naturalHeight - sh) / 2;
-  }
-  ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
 }
 
 function roundRect(
@@ -77,94 +53,117 @@ function pill(
   ctx.fillText(text, x + padX, y + h / 2 + fontPx * 0.04);
 }
 
-/** Compose the before/after into a shareable, labelled image. Returns a JPEG blob. */
-export async function composeBeforeAfter(
-  before: string,
+/** All export layouts share the same branding and patient preference report. */
+export async function composeReport(
   after: string,
-  layout: ComposeLayout,
   result: GenerationResult,
+  preferences?: PreviewPreferences,
+  testMode = false,
+  before?: string,
+  layout: ComposeLayout = "split",
 ): Promise<Blob> {
-  const [b, a] = await Promise.all([loadImage(before), loadImage(after)]);
-  const cellW = Math.max(1000, a.naturalWidth);
-  const cellH = Math.round((cellW * a.naturalHeight) / a.naturalWidth);
-  const gap = Math.round(cellW * 0.014);
-  const footerH = Math.round(cellW * 0.12);
-  const isMock = result.mode === "mock";
-
+  const [a, b, logo] = await Promise.all([
+    loadImage(after), before ? loadImage(before) : undefined, loadImage("/dr-vik-logo.png"),
+  ]);
+  const width = b && layout === "split" ? 2000 : 1200;
+  const unit = width / 1200;
+  const margin = 48 * unit;
+  const gap = 16 * unit;
+  const cellW = b && layout === "split" ? (width - gap) / 2 : width;
+  const cellH = Math.min(cellW * 2, Math.round(cellW * a.naturalHeight / a.naturalWidth));
+  const headerH = 152 * unit;
+  const imagesH = b && layout === "stacked" ? cellH * 2 + gap : cellH;
   const canvas = document.createElement("canvas");
-  const cells =
-    layout === "split"
-      ? [
-          { x: 0, y: 0 },
-          { x: cellW + gap, y: 0 },
-        ]
-      : [
-          { x: 0, y: 0 },
-          { x: 0, y: cellH + gap },
-        ];
-  const imagesW = layout === "split" ? cellW * 2 + gap : cellW;
-  const imagesH = layout === "split" ? cellH : cellH * 2 + gap;
-  canvas.width = imagesW;
-  canvas.height = imagesH + footerH;
-
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Saving is not available in this browser.");
-
+  const font = (size: number, weight = 400) => `${weight} ${size * unit}px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif`;
+  const contentW = width - margin * 2;
+  const rows = preferences ? preferenceRows(preferences.settings) : [];
+  if (preferences?.referenceUsed !== undefined) rows.push(["Reference smile", preferences.referenceUsed ? "Included" : "None"]);
+  ctx.font = font(23);
+  const rowLines = rows.map(([label, value]) => ({label, lines: wrapText(ctx, value, contentW / 2 - 28 * unit)}));
+  const rowHeights = Array.from({length: Math.ceil(rows.length / 2)}, (_, i) =>
+    58 * unit + Math.max(rowLines[i * 2].lines.length, rowLines[i * 2 + 1]?.lines.length ?? 0) * 30 * unit);
+  const notes = preferences?.settings.notes.trim();
+  const noteLines = notes ? wrapText(ctx, notes, contentW) : [];
+  const isDemo = testMode || preferences?.testMode || result.mode === "mock";
+  const disclaimer = isDemo
+    ? "DEMO PREVIEW · Sample imagery. The selected preferences are illustrative only."
+    : "Digital smile simulation for discussion only. The final clinical result may differ following assessment, treatment planning and material selection.";
+  ctx.font = font(20);
+  const disclaimerLines = wrapText(ctx, disclaimer, contentW);
+  const reportH = 140 * unit + (rows.length ? rowHeights.reduce((a, b) => a + b, 0) : 100 * unit)
+    + (notes ? 65 * unit + noteLines.length * 31 * unit : 0) + 54 * unit + disclaimerLines.length * 28 * unit;
+  canvas.width = width;
+  canvas.height = Math.ceil(headerH + imagesH + reportH);
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, width, canvas.height);
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "#1d1d1f";
+  ctx.font = font(34, 500);
+  ctx.fillText("S M I L E", margin, 39 * unit);
+  ctx.fillStyle = "#6e6e73";
+  ctx.font = font(21);
+  ctx.fillText("Your smile preview", margin, 91 * unit);
+  const logoW = 195 * unit;
+  const logoH = logoW * logo.naturalHeight / logo.naturalWidth;
+  ctx.drawImage(logo, width - margin - logoW, (headerH - logoH) / 2, logoW, logoH);
 
-  drawCover(ctx, b, cells[0].x, cells[0].y, cellW, cellH);
-  drawCover(ctx, a, cells[1].x, cells[1].y, cellW, cellH);
+  const drawPhoto = (img: HTMLImageElement, x: number, y: number, label: string) => {
+    // Fit the whole photograph so unusually tall uploads are never cropped.
+    ctx.fillStyle = "#121110";
+    ctx.fillRect(x, y, cellW, cellH);
+    const scale = Math.min(cellW / img.naturalWidth, cellH / img.naturalHeight);
+    const w = img.naturalWidth * scale, h = img.naturalHeight * scale;
+    ctx.drawImage(img, x + (cellW - w) / 2, y + (cellH - h) / 2, w, h);
+    pill(ctx, x + 24 * unit, y + 24 * unit, label, "rgba(9,12,20,.72)", "#ffffff", 22 * unit);
+  };
+  if (b) drawPhoto(b, 0, headerH, "Original");
+  drawPhoto(a, b && layout === "split" ? cellW + gap : 0,
+    headerH + (b && layout === "stacked" ? cellH + gap : 0), isDemo ? "Demo preview" : "Smile preview");
 
-  const labelFont = Math.round(cellW * 0.03);
-  const m = Math.round(cellW * 0.03);
-  pill(ctx, cells[0].x + m, cells[0].y + m, "Before", "rgba(9,12,20,0.62)", "#ffffff", labelFont);
-  pill(
-    ctx,
-    cells[1].x + m,
-    cells[1].y + m,
-    isMock ? "Demo — unchanged" : "Dr Vik preview",
-    "rgba(9,12,20,0.72)",
-    "#ffffff",
-    labelFont,
-  );
+  const reportY = headerH + imagesH;
+  ctx.fillStyle = "#f5f5f7";
+  ctx.fillRect(0, reportY, width, reportH);
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "#1d1d1f";
+  ctx.font = font(34, 500);
+  ctx.fillText("Your smile preferences", margin, reportY + 42 * unit);
+  let y = reportY + 114 * unit;
+  rowHeights.forEach((height, index) => {
+    for (let col = 0; col < 2; col++) {
+      const row = rowLines[index * 2 + col];
+      if (!row) continue;
+      const x = margin + col * contentW / 2;
+      ctx.fillStyle = "#6e6e73"; ctx.font = font(19);
+      ctx.fillText(row.label, x, y);
+      ctx.fillStyle = "#1d1d1f"; ctx.font = font(23, 500);
+      row.lines.forEach((line, i) => ctx.fillText(line, x, y + 29 * unit + i * 30 * unit));
+    }
+    y += height;
+  });
+  if (!preferences) {
+    ctx.font = font(22); ctx.fillStyle = "#6e6e73";
+    wrapText(ctx, "Preferences were not recorded for this older preview. Create a new preview to include them.", contentW)
+      .forEach((line, i) => ctx.fillText(line, margin, y + i * 30 * unit));
+    y += 100 * unit;
+  }
+  if (notes) {
+    ctx.font = font(19); ctx.fillStyle = "#6e6e73"; ctx.fillText("Notes", margin, y);
+    ctx.font = font(23); ctx.fillStyle = "#1d1d1f";
+    noteLines.forEach((line, i) => ctx.fillText(line, margin, y + 31 * unit + i * 31 * unit));
+    y += 65 * unit + noteLines.length * 31 * unit;
+  }
+  ctx.fillStyle = "#d2d2d7"; ctx.fillRect(margin, y + 4 * unit, contentW, unit);
+  ctx.fillStyle = "#6e6e73"; ctx.font = font(20);
+  disclaimerLines.forEach((line, i) => ctx.fillText(line, margin, y + 28 * unit + i * 28 * unit));
+  return new Promise<Blob>((resolve, reject) => canvas.toBlob(
+    (blob) => blob ? resolve(blob) : reject(new Error("Could not save image.")), "image/jpeg", 0.95));
+}
 
-  // Footer
-  const fy = imagesH;
-  ctx.fillStyle = "#0b0d12";
-  ctx.fillRect(0, fy, canvas.width, footerH);
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = "#ffffff";
-  ctx.font = `600 ${Math.round(cellW * 0.027)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif`;
-  ctx.fillText("D R  V I K", m, fy + footerH * 0.42);
-  ctx.fillStyle = "#8b93a2";
-  ctx.font = `500 ${Math.round(cellW * 0.016)}px -apple-system, BlinkMacSystemFont, sans-serif`;
-  ctx.fillText("SMILE  ·  LONDON", m, fy + footerH * 0.66);
-
-  ctx.fillStyle = "#9aa2b1";
-  ctx.font = `${Math.round(cellW * 0.0145)}px -apple-system, BlinkMacSystemFont, sans-serif`;
-  const noteX = Math.round(cellW * 0.24);
-  ctx.fillText(
-    isMock
-      ? "Demo mode — original photo shown unchanged."
-      : "Digital smile simulation for visual communication only.",
-    noteX,
-    fy + footerH * 0.42,
-  );
-  ctx.fillText(
-    "The final clinical result may differ following assessment, treatment planning and material selection.",
-    noteX,
-    fy + footerH * 0.66,
-  );
-
-  return new Promise<Blob>((resolve, reject) =>
-    canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error("Could not save image."))),
-      "image/jpeg",
-      0.95,
-    ),
-  );
+export function composeBeforeAfter(before: string, after: string, layout: ComposeLayout,
+  result: GenerationResult, preferences?: PreviewPreferences, testMode = false): Promise<Blob> {
+  return composeReport(after, result, preferences, testMode, before, layout);
 }
 
 export function downloadBlob(blob: Blob, filename: string) {
