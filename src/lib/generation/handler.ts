@@ -48,7 +48,7 @@ export async function handleGenerationRequest(
       const { done, value } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > 17_000_000) {
+      if (bytes > 24_000_000) {
         await reader.cancel();
         return Response.json(
           { error: "Photo is too large. Please try a smaller image." },

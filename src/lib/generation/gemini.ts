@@ -91,11 +91,25 @@ export class GeminiSmileProvider implements SmileImageProvider {
         },
       });
     }
+    // The clinician's own finished cases, so the preview matches their work.
+    const styleReferences = (input.styleReferences ?? []).slice(0, 3);
+    for (const reference of styleReferences) {
+      const [stylePrefix, styleData] = reference.split(",");
+      requestParts.push({
+        inlineData: {
+          mimeType: stylePrefix.includes("image/png")
+            ? "image/png"
+            : "image/jpeg",
+          data: styleData,
+        },
+      });
+    }
     requestParts.push({
       text: buildSmileInstruction(
         input.settings,
         Boolean(input.referenceImage),
         input.framing,
+        styleReferences.length,
       ),
     });
     const requestBody = {

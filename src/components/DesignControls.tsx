@@ -1,5 +1,5 @@
 "use client";
-import { Check, ImagePlus, Layers, Sparkles, Wand2, X } from "lucide-react";
+import { BookMarked, Check, ImagePlus, Layers, Sparkles, Wand2, X } from "lucide-react";
 import type {
   FaceShape,
   Photo,
@@ -82,6 +82,9 @@ export function DesignControls({
   onCompare,
   onHarmonise,
   busy,
+  libraryCount,
+  pinnedCount,
+  onOpenLibrary,
   reference,
   onAddReference,
   onClearReference,
@@ -92,6 +95,9 @@ export function DesignControls({
   onCompare: () => void;
   onHarmonise: () => void;
   busy: boolean;
+  libraryCount: number;
+  pinnedCount: number;
+  onOpenLibrary: () => void;
   reference: Photo | null;
   onAddReference: () => void;
   onClearReference: () => void;
@@ -236,6 +242,31 @@ export function DesignControls({
                 value={settings.notes}
                 onChange={(e) => change("notes", e.target.value)}
               />
+            </div>
+            <div className="control-group">
+              <div className="control-label">
+                <span>My style</span>
+                <button type="button" className="text-button" onClick={onOpenLibrary}>
+                  <BookMarked size={14} strokeWidth={1.7} /> Case library
+                </button>
+              </div>
+              <label className="style-toggle">
+                <input
+                  type="checkbox"
+                  checked={settings.libraryStyle}
+                  onChange={(e) => change("libraryStyle", e.target.checked)}
+                />
+                <span>Match my own finished cases</span>
+              </label>
+              <p className="control-hint">
+                {libraryCount === 0
+                  ? "Your library is empty — add your own bonding and porcelain cases and previews will follow their contour, texture and finish."
+                  : !settings.libraryStyle
+                    ? `${libraryCount} ${libraryCount === 1 ? "case" : "cases"} saved, not being used for this preview.`
+                    : pinnedCount > 0
+                      ? `${pinnedCount} pinned ${pinnedCount === 1 ? "case" : "cases"} will be sent with this photo.`
+                      : `Up to three of your ${settings.treatment.toLowerCase()} cases will be sent with this photo.`}
+              </p>
             </div>
             <div className="control-group">
               <div className="control-label">

@@ -25,6 +25,7 @@ export const settingsSchema = z
     shotType: z.enum(["Full face", "Close-up"]),
     faceShape: z.enum(["Auto", "Square", "Ovoid", "Tapering"]),
     character: z.enum(["Soft", "Balanced", "Defined"]),
+    libraryStyle: z.boolean().default(true),
     intensity: z.number().int().min(0).max(100),
     notes: z.string().max(400).default(""),
   })
@@ -41,9 +42,18 @@ export const framingSchema = z.object({
   width: fraction,
   height: fraction,
 });
+/**
+ * Style references are downscaled before sending: three of them plus the
+ * patient photograph must still fit inside the request body cap.
+ */
+export const styleImageSchema = imageSchema.refine(
+  (value) => value.length <= 2_200_000,
+  "Style reference is too large.",
+);
 export const generationSchema = z.object({
   originalImage: imageSchema,
   referenceImage: imageSchema.optional(),
+  styleReferences: z.array(styleImageSchema).max(3).optional(),
   framing: framingSchema.optional(),
   settings: settingsSchema,
 });

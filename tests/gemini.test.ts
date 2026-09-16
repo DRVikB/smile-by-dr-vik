@@ -91,7 +91,10 @@ test("a reference image is sent as an extra part and noted in the prompt", async
       assert.equal(parts.length, 3);
       assert.equal(parts[0].inlineData.mimeType, "image/jpeg");
       assert.equal(parts[1].inlineData.mimeType, "image/png");
-      assert.ok(String(parts[2].text).includes("reference image"));
+      const text = String(parts[2].text);
+      assert.ok(text.includes("the first image is the patient to edit"));
+      assert.ok(text.includes("smile the patient likes"));
+      assert.ok(!text.includes("finished case"));
       return Response.json({
         candidates: [
           { content: { parts: [{ inlineData: { mimeType: "image/png", data: PNG_1x1 } }] } },
@@ -230,4 +233,50 @@ test("default Gemini fetch preserves the Workers global receiver and avoids unsu
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("the clinician's own cases are sent as extra parts after the patient's reference", async () => {
+  const style = "data:image/jpeg;base64,/9j/" + "A".repeat(40);
+  const provider = new GeminiSmileProvider({
+    apiKey: "test",
+    fetcher: async (_url, init) => {
+      const parts = JSON.parse(String(init?.body)).contents[0].parts;
+      // patient, patient reference, 3 style references, instruction
+      assert.equal(parts.length, 6);
+      assert.equal(parts[1].inlineData.mimeType, "image/png");
+      for (const i of [2, 3, 4])
+        assert.equal(parts[i].inlineData.mimeType, "image/jpeg");
+      const text = String(parts[5].text);
+      assert.ok(text.includes("following 3 images are finished cases"));
+      assert.ok(text.includes("Edit only the first image"));
+      return Response.json({
+        candidates: [
+          { content: { parts: [{ inlineData: { mimeType: "image/png", data: PNG_1x1 } }] } },
+        ],
+      });
+    },
+  });
+  await provider.generate({
+    ...input,
+    referenceImage: "data:image/png;base64," + PNG_1x1,
+    styleReferences: [style, style, style],
+  });
+});
+
+test("a fourth style reference is never forwarded, even if one reaches the provider", async () => {
+  const style = "data:image/jpeg;base64,/9j/" + "A".repeat(40);
+  const provider = new GeminiSmileProvider({
+    apiKey: "test",
+    fetcher: async (_url, init) => {
+      const parts = JSON.parse(String(init?.body)).contents[0].parts;
+      assert.equal(parts.length, 5); // patient + 3 styles + instruction
+      assert.ok(String(parts[4].text).includes("next 3 images are finished cases"));
+      return Response.json({
+        candidates: [
+          { content: { parts: [{ inlineData: { mimeType: "image/png", data: PNG_1x1 } }] } },
+        ],
+      });
+    },
+  });
+  await provider.generate({ ...input, styleReferences: [style, style, style, style] });
 });

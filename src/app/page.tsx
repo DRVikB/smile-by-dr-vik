@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import {
+  BookMarked,
   Check,
   Columns2,
   ImagePlus,
@@ -22,6 +23,7 @@ import { GenerationState } from "@/components/GenerationState";
 import { BeforeAfterSlider } from "@/components/BeforeAfterSlider";
 import { BottomActionBar, Disclaimer } from "@/components/PreviewActions";
 import { CaseLog } from "@/components/CaseLog";
+import { CaseLibrary } from "@/components/CaseLibrary";
 import {
   defaultSettings,
   type Photo,
@@ -63,6 +65,11 @@ export default function Smile() {
   const [testPreview, setTestPreview] = useState<string | null>(null);
   const [patientName, setPatientName] = useState("");
   const [logOpen, setLogOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryCount, setLibraryCount] = useState(0);
+  // Pinned cases override the automatic match, and are a chairside choice for
+  // this session rather than something saved with the case.
+  const [pinnedCases, setPinnedCases] = useState<string[]>([]);
   useSmileTools({ screen, hasPhoto: !!photo, settings, busy }, setSettings);
   const replacement = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
@@ -192,6 +199,19 @@ export default function Smile() {
     }
   }
 
+  useEffect(() => {
+    let live = true;
+    import("@/lib/caseLibrary")
+      .then((m) => m.listLibrary())
+      .then((all) => {
+        if (live) setLibraryCount(all.length);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [libraryOpen]);
+
   async function requestPreview(
     photoIn: Photo,
     settingsIn: SmileSettings,
@@ -210,12 +230,30 @@ export default function Smile() {
       };
     }
     if (!navigator.onLine) throw new Error("You’re offline. Reconnect to create a preview; your current case is kept on this device.");
+    // The clinician's own finished cases, attached so the preview matches their
+    // work. A library that can't be opened must never block a preview.
+    let styleReferences: string[] = [];
+    if (settingsIn.libraryStyle) {
+      try {
+        const { chooseLibraryCases, listLibrary, loadStyleReferences } =
+          await import("@/lib/caseLibrary");
+        const chosen = chooseLibraryCases(
+          await listLibrary(),
+          settingsIn.treatment,
+          pinnedCases,
+        );
+        styleReferences = await loadStyleReferences(chosen.map((c) => c.id));
+      } catch {
+        styleReferences = [];
+      }
+    }
     const r = await fetch("/api/generate-smile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         originalImage: photoIn.dataUrl,
         referenceImage: reference?.dataUrl,
+        styleReferences: styleReferences.length ? styleReferences : undefined,
         framing: photoIn.framing,
         settings: settingsIn,
       }),
@@ -530,6 +568,14 @@ export default function Smile() {
             <History size={16} strokeWidth={1.7} />
             Log
           </button>
+          <button
+            className="nav-action"
+            onClick={() => setLibraryOpen(true)}
+            aria-label="Open case library"
+          >
+            <BookMarked size={16} strokeWidth={1.7} />
+            Library
+          </button>
           {screen === "design" && (
             <button
               className="nav-action"
@@ -716,6 +762,9 @@ export default function Smile() {
                   onGenerate={() => void generate()}
                   onCompare={compareShapes}
                   onHarmonise={harmoniseStyles}
+                  libraryCount={libraryCount}
+                  pinnedCount={pinnedCases.length}
+                  onOpenLibrary={() => setLibraryOpen(true)}
                   busy={busy}
                   reference={reference}
                   onAddReference={() => referenceInput.current?.click()}
@@ -986,6 +1035,14 @@ export default function Smile() {
         </p>
       )}
       {logOpen && <CaseLog onClose={() => setLogOpen(false)} />}
+      {libraryOpen && (
+        <CaseLibrary
+          onClose={() => setLibraryOpen(false)}
+          pinned={pinnedCases}
+          onPinnedChange={setPinnedCases}
+          onCountChange={setLibraryCount}
+        />
+      )}
     </AppShell>
   );
 }

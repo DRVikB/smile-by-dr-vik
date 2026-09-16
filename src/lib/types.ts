@@ -8,6 +8,41 @@ export type TextureLevel = "Smooth" | "Natural" | "Textured";
 export type ShotType = "Full face" | "Close-up";
 export type FaceShape = "Auto" | "Square" | "Ovoid" | "Tapering";
 export type SmileCharacter = "Soft" | "Balanced" | "Defined";
+
+/** How a finished case in the style library was built. */
+export type CaseMaterial =
+  | "Single-shade composite"
+  | "Layered composite"
+  | "Porcelain";
+export const caseMaterials: CaseMaterial[] = [
+  "Single-shade composite",
+  "Layered composite",
+  "Porcelain",
+];
+
+/**
+ * One of the clinician's own finished cases, kept as a style reference.
+ * Metadata only — the images live in LibraryCaseMedia so the grid can list
+ * a large library without loading every photograph.
+ */
+export interface LibraryCase {
+  id: string;
+  material: CaseMaterial;
+  label: string;
+  addedAt: number;
+}
+export interface LibraryCaseMedia {
+  id: string;
+  /** Downscaled for sending to the model: style, not resolution, is the point. */
+  image: string;
+  thumb: string;
+}
+/** Portable library file, so a library can be handed to another clinician. */
+export interface LibraryExport {
+  version: 1;
+  exportedAt: number;
+  cases: (LibraryCase & { image: string; thumb: string })[];
+}
 export interface SmileSettings {
   teeth: TeethCount;
   selectedTeeth: number[];
@@ -19,6 +54,8 @@ export interface SmileSettings {
   shotType: ShotType;
   faceShape: FaceShape;
   character: SmileCharacter;
+  /** Use the clinician's own finished cases as a style reference. */
+  libraryStyle: boolean;
   intensity: number;
   notes: string;
 }
@@ -105,6 +142,7 @@ export const defaultSettings: SmileSettings = {
   shotType: "Full face",
   faceShape: "Auto",
   character: "Balanced",
+  libraryStyle: true,
   intensity: 35,
   notes: "",
 };

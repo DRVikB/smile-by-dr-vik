@@ -1,5 +1,9 @@
 /** Small JPEG preview so the case log list stays fast with many entries. */
-export async function thumbnail(dataUrl: string, size = 360): Promise<string> {
+export async function thumbnail(
+  dataUrl: string,
+  size = 360,
+  quality = 0.72,
+): Promise<string> {
   try {
     const img = new Image();
     img.src = dataUrl;
@@ -16,7 +20,7 @@ export async function thumbnail(dataUrl: string, size = 360): Promise<string> {
     const ctx = canvas.getContext("2d");
     if (!ctx) return dataUrl;
     ctx.drawImage(img, 0, 0, w, h);
-    return canvas.toDataURL("image/jpeg", 0.72);
+    return canvas.toDataURL("image/jpeg", quality);
   } catch {
     return dataUrl;
   }

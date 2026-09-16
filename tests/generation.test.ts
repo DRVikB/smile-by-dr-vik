@@ -156,8 +156,11 @@ test("instruction includes clinician notes and reference guidance", () => {
   assert.ok(noted.includes("close the black triangles"));
   assert.ok(noted.includes("clinician instruction"));
   const ref = buildSmileInstruction(defaultSettings, true);
-  assert.ok(ref.includes("reference image"));
-  assert.ok(!buildSmileInstruction(defaultSettings).includes("reference image"));
+  assert.ok(ref.includes("smile the patient likes"));
+  assert.ok(ref.includes("do not copy the reference person's identity"));
+  const plainRef = buildSmileInstruction(defaultSettings);
+  assert.ok(!plainRef.includes("smile the patient likes"));
+  assert.ok(!plainRef.includes("reference person"));
 });
 
 test("simple shade choices give distinct generation instructions", () => {
@@ -258,4 +261,57 @@ test("a close-up drops the interpupillary reference, which needs a full face", (
   assert.ok(!closeup.includes("interpupillary"));
   // The rest of the smile lines survive.
   assert.match(closeup, /follows the curve of the lower lip/);
+});
+
+test("the clinician's own cases are described as a style source, not as the patient", () => {
+  const none = buildSmileInstruction(defaultSettings, false, undefined, 0);
+  assert.ok(!none.includes("finished case"));
+  assert.ok(!none.includes("Image order"));
+
+  const three = buildSmileInstruction(defaultSettings, false, undefined, 3);
+  assert.match(three, /the first image is the patient to edit/);
+  assert.match(three, /next 3 images are finished cases/);
+  assert.match(three, /Edit only the first image/);
+  // Style only: contour, texture, layering — never the other patients' arrangement.
+  for (const rule of [
+    "emergence profile",
+    "surface texture",
+    "incisal translucency",
+    "how the shade is layered",
+    "do not average their arrangements together",
+    "the arrangement must come from the first image",
+  ])
+    assert.ok(three.includes(rule), `missing: ${rule}`);
+  assert.match(three, /do not copy any of these patients' tooth positions/i);
+
+  // Singular reads as singular.
+  const one = buildSmileInstruction(defaultSettings, false, undefined, 1);
+  assert.match(one, /next image is a finished case/);
+  assert.ok(!one.includes("images are finished cases"));
+
+  // Out-of-range counts are clamped, never rendered literally.
+  assert.match(buildSmileInstruction(defaultSettings, false, undefined, 99), /following 3 images|next 3 images/);
+  assert.ok(!buildSmileInstruction(defaultSettings, false, undefined, -2).includes("Image order"));
+});
+
+test("a patient's reference smile and the clinician's cases are told apart", () => {
+  const both = buildSmileInstruction(defaultSettings, true, undefined, 2);
+  assert.match(both, /next image is a smile the patient likes/);
+  assert.match(both, /following 2 images are finished cases/);
+  assert.match(both, /do not copy the reference person's identity/);
+  // Order must place the patient reference before the clinician's cases.
+  assert.ok(both.indexOf("smile the patient likes") < both.indexOf("finished cases"));
+});
+
+test("generation accepts at most three style references, and caps their size", () => {
+  const base = {
+    originalImage: image,
+    settings: defaultSettings,
+  };
+  assert.equal(generationSchema.safeParse({ ...base, styleReferences: [image] }).success, true);
+  assert.equal(generationSchema.safeParse({ ...base, styleReferences: Array(3).fill(image) }).success, true);
+  assert.equal(generationSchema.safeParse({ ...base, styleReferences: Array(4).fill(image) }).success, false);
+  assert.equal(generationSchema.safeParse({ ...base, styleReferences: ["not-an-image"] }).success, false);
+  const huge = `data:image/png;base64,${"iVBORw0KGgo"}${"A".repeat(2_300_000)}`;
+  assert.equal(generationSchema.safeParse({ ...base, styleReferences: [huge] }).success, false);
 });

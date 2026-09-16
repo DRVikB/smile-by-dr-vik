@@ -65,6 +65,7 @@ export function useSmileTools(
             shotType: { enum: ["Full face", "Close-up"] },
             faceShape: { enum: ["Auto", "Square", "Ovoid", "Tapering"] },
             character: { enum: ["Soft", "Balanced", "Defined"] },
+            libraryStyle: { type: "boolean" },
             intensity: { type: "integer", minimum: 0, maximum: 100 },
             notes: { type: "string", maxLength: 400 },
           },
@@ -93,6 +94,7 @@ export function useSmileTools(
             "shotType",
             "faceShape",
             "character",
+            "libraryStyle",
             "intensity",
             "notes",
           ];

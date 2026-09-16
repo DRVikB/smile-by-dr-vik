@@ -57,6 +57,7 @@ export function buildSmileInstruction(
   s: SmileSettings,
   hasReference = false,
   capture?: Framing,
+  styleReferenceCount = 0,
 ): string {
   const texture =
     s.texture === "Textured"
@@ -70,9 +71,31 @@ export function buildSmileInstruction(
       ? "This is a close-up, retracted or smile-only photograph. Preserve the lips, gingiva and any visible soft tissue, the lighting and the framing exactly; there may be no full face in view, so do not invent facial features."
       : "Preserve facial identity, facial proportions, lips, skin, gingiva, background, pose, camera framing and lighting exactly.";
 
+  const styles = Math.max(0, Math.min(3, Math.trunc(styleReferenceCount)));
+
+  // Spell out which supplied image is which, so the model never mistakes a
+  // style reference for the patient it is meant to be editing.
+  const order =
+    hasReference || styles > 0
+      ? ` Image order: the first image is the patient to edit.${
+          hasReference
+            ? " The next image is a smile the patient likes, supplied as a visual guide only."
+            : ""
+        }${
+          styles > 0
+            ? ` The ${hasReference ? "following" : "next"} ${styles === 1 ? "image is a finished case" : `${styles} images are finished cases`} completed by this clinician.`
+            : ""
+        } Edit only the first image.`
+      : "";
+
   const reference = hasReference
-    ? " A separate reference image is also provided; use it only as a visual guide for the desired tooth shape, proportion and shade — do not copy the reference person's identity, lips, skin or face."
+    ? " Use the patient's reference smile only as a visual guide for the desired tooth shape, proportion and shade — do not copy the reference person's identity, lips, skin or face."
     : "";
+
+  const houseStyle =
+    styles > 0
+      ? ` The clinician's own finished ${styles === 1 ? "case is" : "cases are"} supplied so the preview matches how this clinician actually works. Take from ${styles === 1 ? "it" : "them"} only the qualities that are consistent across ${styles === 1 ? "the case" : "every case"}: tooth contour and emergence profile, the shape of the incisal edges and line angles, surface texture and level of characterisation, incisal translucency and halo, how the shade is layered from cervical to incisal, and how the margins meet the gingiva. Do not copy any of these patients' tooth positions, arch form, midline, lip shape, gingival display, skin or identity, and do not average their arrangements together — the arrangement must come from the first image. Where ${styles === 1 ? "the case differs" : "the cases differ"} from one another, follow the first image and the settings above instead.`
+      : "";
 
   const region = capture
     ? ` The photograph was captured with the smile aligned to an on-screen guide, so the teeth sit roughly between ${percent(capture.x)}% and ${percent(capture.x + capture.width)}% across the frame and ${percent(capture.y)}% to ${percent(capture.y + capture.height)}% down it. Confine every change to the teeth inside that region and leave every pixel outside it untouched.`
@@ -103,5 +126,5 @@ export function buildSmileInstruction(
     CHARACTER_GUIDANCE[s.character] ?? CHARACTER_GUIDANCE.Balanced
   } ${smileLines} ${EXISTING_DENTITION}`;
 
-  return `Create a photorealistic cosmetic dentistry communication preview from the provided photograph. Modify only ${s.teeth} upper anterior teeth, symmetrically around the midline (FDI tooth numbers: ${s.selectedTeeth.join(", ")}). Treatment material: ${s.treatment}. ${shade} Tooth morphology: ${s.shape}. ${texture} Transformation intensity: ${s.intensity}/100. This governs how far the result may move from the original tooth form: at low values refine the existing teeth only — tidy the edges and adjust shade while leaving size, width and length close to the original; at high values a more designed result is acceptable, but every proportion rule still applies. ${DESIGN_PRINCIPLES} ${harmony} ${framing} Keep all untreated teeth exactly. Do not edit the gingiva; if the requested result would require gingival editing, reduce the tooth changes instead. Preserve realistic enamel translucency, interdental contacts and individual character. Avoid CGI, flat opaque white teeth, a uniform denture-like row, chiclet-shaped teeth, and any result whose teeth look larger, wider or longer than the patient\u2019s own.${region}${reference}${notes} Return only the edited photograph at exactly the same pixel dimensions, framing, scale, rotation and crop as the input, aligned so the original and the edit can be compared with a before-and-after slider. Do not zoom, pan, straighten, re-crop, mirror, or change the size or position of the face, lips or teeth within the frame.`;
+  return `Create a photorealistic cosmetic dentistry communication preview from the provided photograph. Modify only ${s.teeth} upper anterior teeth, symmetrically around the midline (FDI tooth numbers: ${s.selectedTeeth.join(", ")}). Treatment material: ${s.treatment}. ${shade} Tooth morphology: ${s.shape}. ${texture} Transformation intensity: ${s.intensity}/100. This governs how far the result may move from the original tooth form: at low values refine the existing teeth only — tidy the edges and adjust shade while leaving size, width and length close to the original; at high values a more designed result is acceptable, but every proportion rule still applies. ${DESIGN_PRINCIPLES} ${harmony} ${framing} Keep all untreated teeth exactly. Do not edit the gingiva; if the requested result would require gingival editing, reduce the tooth changes instead. Preserve realistic enamel translucency, interdental contacts and individual character. Avoid CGI, flat opaque white teeth, a uniform denture-like row, chiclet-shaped teeth, and any result whose teeth look larger, wider or longer than the patient\u2019s own.${region}${order}${reference}${houseStyle}${notes} Return only the edited photograph at exactly the same pixel dimensions, framing, scale, rotation and crop as the input, aligned so the original and the edit can be compared with a before-and-after slider. Do not zoom, pan, straighten, re-crop, mirror, or change the size or position of the face, lips or teeth within the frame.`;
 }
