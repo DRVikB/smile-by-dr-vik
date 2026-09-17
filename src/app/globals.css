@@ -3,6 +3,8 @@
   --font-sans:
     -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter,
     sans-serif;
+  --font-serif:
+    "New York", "Iowan Old Style", Georgia, "Times New Roman", serif;
 }
 
 /* ============================================================
@@ -1995,3 +1997,297 @@ body.consult-open .consult { bottom: 0; }
   cursor: pointer;
 }
 .style-toggle input { width: 17px; height: 17px; accent-color: var(--black); }
+
+/* ============================================================
+   Splash (screen 01) and photo step (screen 02)
+   ============================================================ */
+.splash-lockup { display: flex; flex-direction: column; gap: 2px; }
+.splash-lockup .wordmark {
+  font-family: var(--font-serif);
+  letter-spacing: 0.2em;
+  font-weight: 400;
+  font-size: clamp(20px, 2.2vw, 26px);
+}
+.splash-byline {
+  font-family: var(--font-serif);
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.72);
+  padding-left: 2px;
+}
+.splash-location {
+  font-size: 11.5px;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.62);
+}
+.splash-heading {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: clamp(38px, 5.6vw, 66px);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  color: #fff;
+  max-width: none;
+}
+.splash-rule {
+  display: block;
+  width: 46px;
+  height: 1px;
+  margin: 26px 0 20px;
+  background: rgba(255, 255, 255, 0.45);
+}
+.splash-sub {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: clamp(16px, 1.7vw, 19px);
+  color: rgba(255, 255, 255, 0.82);
+  margin: 0;
+}
+.splash-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 34px;
+  width: min(320px, 100%);
+}
+.splash-primary,
+.splash-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 0 22px;
+  border-radius: 100px;
+  font-size: 15px;
+  font-weight: 500;
+  transition: transform var(--fast), background var(--fast), opacity var(--fast);
+}
+.splash-primary { background: #fff; color: #15140f; }
+.splash-outline {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+}
+.splash-primary:active, .splash-outline:active { transform: scale(0.985); }
+.splash-outline:hover { background: rgba(255, 255, 255, 0.08); }
+.splash-quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 6px 2px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.55);
+}
+.splash-quiet span {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.36);
+}
+.splash-quiet:disabled { opacity: 0.6; }
+.splash-tagline {
+  margin: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Step indicator in the header */
+.nav-step { display: flex; align-items: center; gap: 12px; }
+.nav-step > span:first-child { font-size: 12px; color: var(--text-secondary); }
+.nav-step-bar {
+  display: block;
+  width: clamp(80px, 14vw, 150px);
+  height: 2px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.nav-step-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--black);
+  transition: width var(--mid);
+}
+
+/* Photo step */
+.photo-screen { padding: clamp(16px, 3vw, 34px); }
+.photo-step {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: clamp(18px, 3vw, 40px);
+  align-items: start;
+  max-width: 1180px;
+  margin: 0 auto;
+  animation: fade-up var(--mid) both;
+}
+.photo-stage {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--control-background);
+  border: 1px solid var(--border);
+  aspect-ratio: 4 / 3;
+}
+.photo-stage img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-stage-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.photo-stage-empty p {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.photo-stage-guide {
+  position: absolute;
+  border: 1.5px dashed rgba(0, 0, 0, 0.26);
+  border-radius: 8px;
+}
+.photo-aside { display: flex; flex-direction: column; gap: 12px; }
+.photo-heading {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: clamp(28px, 3.4vw, 42px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin: 0;
+}
+.photo-sub {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  max-width: 34ch;
+}
+.photo-primary,
+.photo-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 0 22px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 500;
+  transition: transform var(--fast), background var(--fast);
+}
+.photo-primary { background: var(--black); color: #fff; }
+.photo-outline {
+  background: var(--surface-solid);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+.photo-primary:active, .photo-outline:active { transform: scale(0.985); }
+.photo-primary:disabled, .photo-outline:disabled { opacity: 0.55; }
+.photo-secondary-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.photo-secondary-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--control-background);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.photo-filename {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.photo-tips {
+  margin-top: 6px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.photo-tips strong {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+.photo-tips ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.photo-tips li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.photo-tips li svg { color: var(--text-primary); opacity: 0.55; flex-shrink: 0; }
+.photo-hint { margin: 0; font-size: 12px; color: var(--text-secondary); }
+
+@media (max-width: 860px) {
+  .photo-step { grid-template-columns: 1fr; }
+  .photo-stage { aspect-ratio: 1 / 1; }
+}
+
+/* Smile Variations — a gallery big enough to show the patient */
+.variation-sheet {
+  width: min(1180px, 100%);
+  max-height: min(92svh, 1040px);
+  padding: clamp(18px, 2.4vw, 30px);
+}
+.variation-sheet .sheet-heading h2 { font-size: clamp(19px, 2vw, 24px); }
+.variation-sheet .sheet-sub { font-size: 14px; margin-bottom: 20px; }
+.variation-sheet .variation-list {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+  gap: clamp(10px, 1.2vw, 16px);
+}
+.variation-sheet .option-card {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 20px;
+  margin: 0;
+}
+.variation-sheet .option-image {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 4;
+  border-radius: 0;
+  background-position: center 32%;
+}
+.variation-sheet .option-cap {
+  padding: 13px 15px 15px;
+  gap: 4px;
+  text-align: left;
+}
+.variation-sheet .option-cap span:first-child { font-size: 16px; font-weight: 550; }
+.variation-sheet .option-pick { font-size: 13px; line-height: 1.4; }
+/* The patient's own photo is a point of comparison, not a choice. */
+.variation-sheet .option-original { opacity: 1; cursor: default; }
+.variation-sheet .option-original .option-image { filter: saturate(0.92); }
+.variation-sheet .option-original .option-cap span:first-child { color: var(--text-secondary); }
+
+/* Narrow or portrait: two up, still without scrolling past the first row. */
+@media (max-width: 900px) {
+  .variation-sheet .variation-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .variation-sheet .option-image { aspect-ratio: 1 / 1; }
+  .variation-sheet .option-cap span:first-child { font-size: 14px; }
+}

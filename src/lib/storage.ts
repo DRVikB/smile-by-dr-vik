@@ -22,7 +22,7 @@ export async function readCase(): Promise<SmileCase | null> {
           !c ||
           !settingsSchema.safeParse(c.settings).success ||
           !imageSchema.safeParse(c.photo?.dataUrl).success ||
-          !["start", "design", "preview"].includes(c.screen)
+          !["start", "photo", "design", "preview"].includes(c.screen)
         ) {
           resolve(null);
           return;

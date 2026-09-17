@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import {
+  ArrowRight,
   BookMarked,
   Check,
   Columns2,
@@ -153,7 +154,7 @@ export default function Smile() {
     // Commit the selection immediately, even while still on the start screen.
     try {
       await persistCase({ photo: p, settings, reference, result: null,
-        screen: screen === "start" ? "start" : "design", testMode: false, testPreview: null });
+        screen: screen === "start" || screen === "photo" ? "photo" : "design", testMode: false, testPreview: null });
     } catch {
       setStorageError(true);
     }
@@ -551,11 +552,22 @@ export default function Smile() {
     <AppShell
       screen={screen}
       onBack={
-        screen === "design"
+        screen === "photo"
           ? () => setScreen("start")
-          : screen === "preview"
-            ? () => setScreen("design")
-            : undefined
+          : screen === "design"
+            ? () => setScreen("photo")
+            : screen === "preview"
+              ? () => setScreen("design")
+              : undefined
+      }
+      step={
+        screen === "photo"
+          ? { current: 1, total: 3 }
+          : screen === "design"
+            ? { current: 2, total: 3 }
+            : screen === "preview"
+              ? { current: 3, total: 3 }
+              : undefined
       }
       action={
         <div className="nav-actions">
@@ -608,58 +620,72 @@ export default function Smile() {
                 />
               </div>
               <div className="portrait-top">
-                <span className="wordmark">Smile</span>
-                <div className="portrait-top-right">
-                  <button
-                    className="hero-log"
-                    onClick={() => setLogOpen(true)}
-                  >
-                    <History size={15} strokeWidth={1.7} />
-                    Case log
-                  </button>
-                  <img
-                    className="portrait-logo"
-                    src="/dr-vik-logo.png"
-                    alt="Dr Vik"
-                  />
-                </div>
+                <span className="splash-lockup">
+                  <span className="wordmark">Smile</span>
+                  <span className="splash-byline">by Dr Vik</span>
+                </span>
+                <span className="splash-location">
+                  Hammersmith
+                  <br />
+                  Harley Street
+                </span>
               </div>
               <div className="start-copy">
-                <h1 ref={heading} tabIndex={-1}>
+                <h1 ref={heading} tabIndex={-1} className="splash-heading">
                   A preview
                   <br />
-                  of what’s possible
+                  of what’s
+                  <br />
+                  possible.
                 </h1>
-                <p className="intro">
-                  Visualise your future smile in seconds.
-                </p>
-                <PhotoUploader
-                  photo={photo}
-                  onPhoto={selectPhoto}
-                  onRemove={newSmile}
-                  onContinue={() => setScreen("design")}
-                  onCamera={() => setCamera(true)}
-                />
-                {!photo && (
+                <span className="splash-rule" aria-hidden="true" />
+                <p className="splash-sub">A smile that’s still you.</p>
+                <div className="splash-actions">
                   <button
-                    className="sample-button"
+                    className="splash-primary"
+                    onClick={() => setScreen("photo")}
+                  >
+                    New Smile <ArrowRight size={17} strokeWidth={1.8} />
+                  </button>
+                  <button
+                    className="splash-outline"
+                    onClick={() => setLogOpen(true)}
+                  >
+                    <History size={16} strokeWidth={1.7} />
+                    Recent Cases
+                  </button>
+                  <button
+                    className="splash-quiet"
                     onClick={() => void openTestMode()}
                     disabled={sampleBusy}
                   >
-                    <Play size={14} fill="currentColor" strokeWidth={1.7} />
+                    <Play size={12} fill="currentColor" strokeWidth={1.7} />
                     {sampleBusy ? "Opening…" : "Open test mode"}
-                    <span>No AI credits</span>
+                    <span>no AI credits</span>
                   </button>
-                )}
+                </div>
               </div>
               <div className="hero-footer">
-                <div className="hero-words">
-                  <span>Confidence</span>
-                  <span>Aesthetics</span>
-                  <span>You</span>
-                </div>
-                <span className="hero-location">Dr Vik · London</span>
+                <p className="splash-tagline">
+                  Thoughtfully planned. Personally cared for.
+                </p>
               </div>
+            </section>
+          )}
+
+          {screen === "photo" && (
+            <section className="photo-screen">
+              <PhotoUploader
+                photo={photo}
+                onPhoto={selectPhoto}
+                onRemove={() => {
+                  setPhoto(null);
+                  setResult(null);
+                  void persistCase(null).catch(() => setStorageError(true));
+                }}
+                onContinue={() => setScreen("design")}
+                onCamera={() => setCamera(true)}
+              />
             </section>
           )}
 
@@ -872,7 +898,10 @@ export default function Smile() {
           aria-label="Smile variations"
           onClick={() => setOptions(null)}
         >
-          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="sheet variation-sheet"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="sheet-heading">
               <h2>Smile Variations</h2>
               <button
@@ -884,7 +913,28 @@ export default function Smile() {
               </button>
             </div>
             <p className="sheet-sub">Tap the one they prefer.</p>
-            <div className="variation-list">
+            <div
+              className="variation-list"
+              style={
+                {
+                  "--cols": Math.min(5, options.length + (photo ? 1 : 0)),
+                } as React.CSSProperties
+              }
+            >
+              {photo && (
+                <figure className="option-card option-original">
+                  <span
+                    className="option-image"
+                    style={{ backgroundImage: `url(${photo.dataUrl})` }}
+                    role="img"
+                    aria-label="Their smile today"
+                  />
+                  <figcaption className="option-cap">
+                    <span>Now</span>
+                    <span className="option-pick">Their smile today.</span>
+                  </figcaption>
+                </figure>
+              )}
               {options.map((o) => (
                 <button
                   key={o.label}

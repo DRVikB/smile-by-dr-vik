@@ -62,3 +62,13 @@ test('all four harmonised options survive refresh', async () => {
   assert.deepEqual(restored?.variants?.map((v) => v.label), ['Harmonious', 'Softer', 'Defined', 'Youthful']);
   await persistCase(null);
 });
+
+test('a photo chosen on the photo step keeps the clinician on that step after a refresh', async () => {
+  const onPhotoStep: SmileCase = { photo, settings: defaultSettings, result: null, screen: 'photo', variants: [] };
+  await persistCase(onPhotoStep);
+  assert.deepEqual(await readCase(), onPhotoStep);
+  // An unknown screen is still rejected outright rather than guessed at.
+  await persistCase({ ...onPhotoStep, screen: 'nonsense' as unknown as SmileCase['screen'] });
+  assert.equal(await readCase(), null);
+  await persistCase(null);
+});

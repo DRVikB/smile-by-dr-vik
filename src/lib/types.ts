@@ -1,4 +1,4 @@
-export type Screen = "start" | "design" | "compare" | "preview";
+export type Screen = "start" | "photo" | "design" | "compare" | "preview";
 export type TeethCount = 4 | 6 | 8 | 10;
 export type Treatment = "Composite" | "Porcelain";
 export type CurrentShade = "A3" | "A2" | "A1" | "B1";

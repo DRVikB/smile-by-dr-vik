@@ -5,11 +5,14 @@ export function AppShell({
   screen,
   onBack,
   action,
+  step,
   children,
 }: {
   screen: Screen;
   onBack?: () => void;
   action?: React.ReactNode;
+  /** Where the clinician is in the flow. Only ever counts screens that exist. */
+  step?: { current: number; total: number };
   children: React.ReactNode;
 }) {
   return (
@@ -27,6 +30,23 @@ export function AppShell({
             <img className="dr-vik-mark" src="/dr-vik-logo.png" alt="Dr Vik" />
           </div>
         </div>
+        {step ? (
+          <div className="nav-step">
+            <span>
+              Step {step.current} of {step.total}
+            </span>
+            <span
+              className="nav-step-bar"
+              role="progressbar"
+              aria-valuenow={step.current}
+              aria-valuemin={1}
+              aria-valuemax={step.total}
+              aria-label={`Step ${step.current} of ${step.total}`}
+            >
+              <span style={{ width: `${(step.current / step.total) * 100}%` }} />
+            </span>
+          </div>
+        ) : null}
         {action}
       </header>}
       <main>{children}</main>
