@@ -46,6 +46,32 @@ function drawContained(
   return { x: dx, y: dy, w: dw, h: dh };
 }
 
+/**
+ * Recolour artwork to a flat brand colour, keeping its alpha.
+ *
+ * The mark is dark artwork and the page is near-black, so it has to be
+ * lightened. ctx.filter would do it in one line but is missing or ignored on
+ * several iPadOS versions, which silently leaves a dark logo on a dark page —
+ * compositing works everywhere.
+ */
+function tinted(
+  img: HTMLImageElement,
+  colour: string,
+  w: number,
+  h: number,
+): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(w));
+  c.height = Math.max(1, Math.round(h));
+  const ctx = c.getContext("2d");
+  if (!ctx) throw new Error("This browser could not prepare the logo.");
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  ctx.globalCompositeOperation = "source-in";
+  ctx.fillStyle = colour;
+  ctx.fillRect(0, 0, c.width, c.height);
+  return c;
+}
+
 export interface PresentationOptions {
   patientName?: string;
   /** Shown instead of the clinical line when the preview is a demo. */
@@ -97,16 +123,23 @@ export async function composePresentation(
   ctx.fillText("SMILE", margin, 104);
   ctx.letterSpacing = "0px";
 
-  const logoW = 250;
+  const logoW = 268;
   const logoH = (logoW * logo.naturalHeight) / logo.naturalWidth;
-  ctx.save();
-  // The mark is dark artwork; invert it onto the ink.
-  ctx.filter = "invert(1) brightness(1.25)";
-  ctx.drawImage(logo, PAGE_W - margin - logoW, 96, logoW, logoH);
-  ctx.restore();
+  ctx.drawImage(
+    tinted(logo, BRAND.paper, logoW * 2, logoH * 2),
+    PAGE_W - margin - logoW,
+    92,
+    logoW,
+    logoH,
+  );
 
   ctx.fillStyle = BRAND.gold;
   ctx.fillRect(margin, 206, 78, 2);
+
+  // A gold hairline just inside the page edge, so the sheet reads as a piece.
+  ctx.strokeStyle = "rgba(201, 169, 110, 0.32)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(44, 44, PAGE_W - 88, PAGE_H - 88);
 
   // The photographs.
   const gap = 64;
