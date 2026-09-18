@@ -111,7 +111,8 @@ export function DesignControls({
   return (
     <aside className="design-panel">
       <h2 className="design-panel-title">Smile design</h2>
-      <fieldset disabled={busy} className="design-fieldset" aria-label="Smile design controls">
+      <div className="design-scroll">
+        <fieldset disabled={busy} className="design-fieldset" aria-label="Smile design controls">
             <SegmentedControl<TeethCount>
               label="Teeth"
               options={[4, 6, 8, 10]}
@@ -310,7 +311,8 @@ export function DesignControls({
               <Layers size={16} strokeWidth={1.6} />
               Compare 3 shapes
             </button>
-      </fieldset>
+        </fieldset>
+      </div>
 
       <div className="panel-actions">
         <button
