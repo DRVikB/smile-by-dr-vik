@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "SMILE", statusBarStyle: "black-translucent" },
   other: { "apple-mobile-web-app-capable": "yes" },
   manifest: "/manifest.webmanifest",
-  icons: { icon: [{ url: "/favicon.svg", type: "image/svg+xml" }, { url: "/favicon-32.png", sizes: "32x32", type: "image/png" }], apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }] },
+  icons: { icon: [{ url: "/favicon-32.png", sizes: "32x32", type: "image/png" }], apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }] },
 };
 export const viewport: Viewport = {
   width: "device-width",
