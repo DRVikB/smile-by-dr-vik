@@ -2296,3 +2296,67 @@ body.consult-open .consult { bottom: 0; }
   .variation-sheet .option-image { aspect-ratio: 1 / 1; }
   .variation-sheet .option-cap span:first-child { font-size: 14px; }
 }
+
+/* Proposed-change outline over the patient's own photograph */
+.outline-view { background: #141312; }
+.outline-line {
+  pointer-events: none;
+  /* Screen keeps the line bright over dark lips and gingiva alike. */
+  mix-blend-mode: screen;
+}
+.outline-toggle {
+  position: absolute;
+  z-index: 4;
+  right: 16px;
+  bottom: 16px;
+  min-height: 38px;
+  padding: 0 15px;
+  border-radius: 100px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(18, 17, 16, 0.5);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+.outline-status {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: min(420px, calc(100% - 32px));
+  padding: 9px 15px;
+  border-radius: 100px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  text-align: center;
+  color: #fff;
+  background: rgba(18, 17, 16, 0.58);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+.comparison-modes {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.comparison-modes button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 100px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: background var(--fast), color var(--fast);
+}
+.comparison-modes button[aria-pressed="true"] {
+  background: var(--black);
+  color: #fff;
+}

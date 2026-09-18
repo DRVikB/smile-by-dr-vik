@@ -10,6 +10,7 @@ import {
   Maximize2,
   Minus,
   MoveHorizontal,
+  PenLine,
   Play,
   Plus,
   Rows2,
@@ -22,6 +23,7 @@ import { DesignControls } from "@/components/DesignControls";
 import { PatientPhoto } from "@/components/PatientPhoto";
 import { GenerationState } from "@/components/GenerationState";
 import { BeforeAfterSlider } from "@/components/BeforeAfterSlider";
+import { OutlineOverlay } from "@/components/OutlineOverlay";
 import { BottomActionBar, Disclaimer } from "@/components/PreviewActions";
 import { CaseLog } from "@/components/CaseLog";
 import { CaseLibrary } from "@/components/CaseLibrary";
@@ -66,6 +68,7 @@ export default function Smile() {
   const [testPreview, setTestPreview] = useState<string | null>(null);
   const [patientName, setPatientName] = useState("");
   const [logOpen, setLogOpen] = useState(false);
+  const [compareMode, setCompareMode] = useState<"slider" | "outline">("slider");
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryCount, setLibraryCount] = useState(0);
   // Pinned cases override the automatic match, and are a chairside choice for
@@ -486,6 +489,12 @@ export default function Smile() {
     setBusy(false);
   }
 
+  /** New Smile always starts clean: the previous patient's photo never carries over. */
+  function startNewSmile() {
+    newSmile();
+    setScreen("photo");
+  }
+
   function newSmile() {
     cancelGeneration();
     setPhoto(null);
@@ -642,7 +651,7 @@ export default function Smile() {
                 <div className="splash-actions">
                   <button
                     className="splash-primary"
-                    onClick={() => setScreen("photo")}
+                    onClick={startNewSmile}
                   >
                     New Smile <ArrowRight size={17} strokeWidth={1.8} />
                   </button>
@@ -772,7 +781,7 @@ export default function Smile() {
                       <ImagePlus size={15} strokeWidth={1.6} />
                       Replace photo
                     </button>
-                    <button className="text-button" disabled={busy} onClick={newSmile}>
+                    <button className="text-button" disabled={busy} onClick={startNewSmile}>
                       <X size={15} /> Remove photo
                     </button>
                     <span>
@@ -806,11 +815,19 @@ export default function Smile() {
               </h1>
               {variantTabs}
               <div className="preview-stage">
-                <BeforeAfterSlider
-                  original={photo.dataUrl}
-                  preview={result.image}
-                  isMock={result.mode === "mock"}
-                />
+                {compareMode === "slider" ? (
+                  <BeforeAfterSlider
+                    original={photo.dataUrl}
+                    preview={result.image}
+                    isMock={result.mode === "mock"}
+                  />
+                ) : (
+                  <OutlineOverlay
+                    original={photo.dataUrl}
+                    preview={result.image}
+                    isMock={result.mode === "mock"}
+                  />
+                )}
                 <button
                   className="fullscreen-button"
                   onClick={() => setFullscreen(true)}
@@ -820,9 +837,23 @@ export default function Smile() {
                 </button>
                 {generation}
               </div>
-              <div className="comparison-hint">
-                <MoveHorizontal size={15} strokeWidth={1.6} />
-                Slide to compare
+              <div className="comparison-modes" role="group" aria-label="How to compare">
+                <button
+                  type="button"
+                  aria-pressed={compareMode === "slider"}
+                  onClick={() => setCompareMode("slider")}
+                >
+                  <MoveHorizontal size={15} strokeWidth={1.6} />
+                  Slide to compare
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={compareMode === "outline"}
+                  onClick={() => setCompareMode("outline")}
+                >
+                  <PenLine size={15} strokeWidth={1.6} />
+                  Outline on their photo
+                </button>
               </div>
               <div className="adjust-row">
                 <span className="adjust-label">Not quite right?</span>
@@ -870,7 +901,7 @@ export default function Smile() {
                   setError("");
                 }}
                 onSave={() => setSaveOpen(true)}
-                onNew={newSmile}
+                onNew={startNewSmile}
                 busy={busy}
                 saving={saving}
               />
