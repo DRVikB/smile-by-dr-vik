@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Play, Sparkles, X } from "lucide-react";
 import { buildChangeOutline } from "@/lib/overlay";
+import { ZoomPan } from "./ZoomPan";
 
 export type RevealPhase = "before" | "outline" | "after" | "done";
 
@@ -85,7 +86,7 @@ export function ConsultView({
       onPointerCancel={() => setHolding(false)}
       onPointerLeave={() => setHolding(false)}
     >
-      <div className="consult-media">
+      <ZoomPan className="consult-media" label="">
         <img src={original} alt="Your smile today" />
         {outline && (
           <img
@@ -100,7 +101,7 @@ export function ConsultView({
           src={preview}
           alt="Smile preview"
         />
-      </div>
+      </ZoomPan>
 
       <div className="consult-top">
         <div className="product-lockup product-lockup-inverse">

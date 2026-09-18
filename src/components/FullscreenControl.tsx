@@ -18,6 +18,11 @@ export function FullscreenControl() {
       document.removeEventListener("webkitfullscreenchange", sync);
     };
   }, []);
+  // In the Fullscreen API there is no safe-area inset on iPad, but the status
+  // bar still draws over the page, so the top bars need the room explicitly.
+  useEffect(() => {
+    document.documentElement.classList.toggle("fullscreen-view", native || expanded);
+  }, [native, expanded]);
   useEffect(() => {
     document.documentElement.classList.toggle("expanded-view", expanded);
     const escape = (e: KeyboardEvent) => {
@@ -26,6 +31,7 @@ export function FullscreenControl() {
     document.addEventListener("keydown", escape);
     return () => {
       document.documentElement.classList.remove("expanded-view");
+      document.documentElement.classList.remove("fullscreen-view");
       document.removeEventListener("keydown", escape);
     };
   }, [expanded]);

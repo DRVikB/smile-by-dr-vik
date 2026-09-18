@@ -816,6 +816,7 @@ export default function Smile() {
                 Your Smile Preview
               </h1>
               {variantTabs}
+              <div className="preview-layout">
               <div className="preview-stage">
                 {compareMode === "slider" ? (
                   <BeforeAfterSlider
@@ -839,6 +840,7 @@ export default function Smile() {
                 </button>
                 {generation}
               </div>
+              <div className="preview-side">
               <div className="comparison-modes" role="group" aria-label="How to compare">
                 <button
                   type="button"
@@ -912,6 +914,8 @@ export default function Smile() {
                   <Check size={14} /> Image saved
                 </p>
               )}
+              </div>
+              </div>
               <Disclaimer />
             </section>
           )}

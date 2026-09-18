@@ -18,3 +18,6 @@ service-account*.json
 
 # Session artefacts from Claude, not part of the app
 Claude outputs/
+
+# Temporary archives used to copy the source out for browser verification
+_stage.tgz

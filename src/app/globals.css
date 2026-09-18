@@ -1718,7 +1718,10 @@ button.option-card:hover {
   .design-layout { grid-template-columns: minmax(0, 1fr) minmax(340px, 380px); align-items: start; }
   .design-panel { position: sticky; top: calc(80px + env(safe-area-inset-top)); max-height: calc(100dvh - 100px - var(--display-toolbar-height) - env(safe-area-inset-top)); }
   .design-scroll { overflow-y: auto; overscroll-behavior: contain; }
-  .patient-photo { min-height: 380px; height: calc(100dvh - 230px - var(--display-toolbar-height)); }
+  .design-layout { align-items: stretch; }
+  .photo-column { min-height: 0; }
+  /* Stretch to the row, so the photo is as large as the panel beside it. */
+  .patient-photo { min-height: 440px; height: auto; flex: 1; }
   .patient-photo img { object-fit: contain; }
 }
 @media (max-width: 959px) {
@@ -2434,4 +2437,139 @@ body.consult-open .consult { bottom: 0; }
   color: rgba(244, 241, 236, 0.6);
   text-align: center;
   max-width: 44ch;
+}
+
+/* ============================================================
+   iPad: full screen, the status bar, and touch behaviour
+   ============================================================ */
+/*
+ * The Fullscreen API reports no safe-area inset on iPad, but iOS still draws
+ * the status bar over the page — so the top bars have to leave the room
+ * themselves or the clock lands on the wordmark.
+ */
+:root { --status-bar: 28px; }
+.fullscreen-view .app-header,
+.fullscreen-view .portrait-top,
+.fullscreen-view .consult-top {
+  padding-top: max(var(--status-bar), env(safe-area-inset-top, 0px));
+}
+.fullscreen-view .consult-variants {
+  top: calc(85px + max(var(--status-bar), env(safe-area-inset-top, 0px)));
+}
+.fullscreen-view .present { padding-top: max(var(--status-bar), env(safe-area-inset-top, 0px)); }
+.fullscreen-view .design-panel {
+  top: calc(80px + max(var(--status-bar), env(safe-area-inset-top, 0px)));
+}
+
+/*
+ * iOS puts its own menu on any image you touch and hold — Share, Save to
+ * Photos, Copy — and lifts the image for drag and drop. Both fire over the
+ * app's own gestures, so the patient's photo is inert and the frame around it
+ * handles the touch.
+ */
+.patient-photo img,
+.compare-image,
+.consult-media img,
+.photo-stage img,
+.present-art,
+.option-image,
+.library-thumb {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+/* Pinch to zoom */
+.zoompan {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+.zoompan-inner {
+  position: absolute;
+  inset: 0;
+  transform-origin: center center;
+  will-change: transform;
+}
+.zoompan.zoomed { cursor: grab; }
+.zoompan-reset {
+  position: absolute;
+  z-index: 6;
+  left: 14px;
+  top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 13px;
+  border-radius: 100px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #fff;
+  background: rgba(18, 17, 16, 0.58);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  pointer-events: auto;
+}
+.zoompan-hint {
+  position: absolute;
+  z-index: 5;
+  left: 14px;
+  top: 14px;
+  padding: 6px 12px;
+  border-radius: 100px;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(18, 17, 16, 0.4);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  opacity: 0;
+  transition: opacity var(--mid);
+  pointer-events: none;
+}
+.zoompan-hint:empty { display: none; }
+@media (pointer: coarse) {
+  .zoompan-hint { opacity: 1; animation: fade-out-hint 4s 2.5s forwards; }
+}
+@keyframes fade-out-hint { to { opacity: 0; } }
+/* Consultation view already has the lockup top left, so the control sits low. */
+.consult-media .zoompan-reset {
+  left: 50%;
+  top: auto;
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+}
+
+/* The comparison keeps its slider on top of the zoom frame. */
+.comparison-zoom { z-index: 1; }
+.comparison .compare-divider,
+.comparison .compare-handle,
+.comparison .compare-input,
+.comparison .compare-label,
+.comparison .demo-image-label { z-index: 5; }
+
+/* Preview: the photograph takes the room, the controls sit beside it */
+.preview-layout { display: flex; flex-direction: column; gap: 14px; min-height: 0; flex: 1; }
+.preview-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+@media (min-width: 960px) and (orientation: landscape) {
+  .preview-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+    gap: clamp(16px, 2vw, 26px);
+    align-items: stretch;
+  }
+  .preview-stage { min-height: 0; }
+  .preview-side {
+    justify-content: flex-start;
+    gap: 16px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .preview-side .comparison-modes { flex-direction: column; margin-top: 0; }
+  .preview-side .comparison-modes button { justify-content: flex-start; }
+  .preview-side .adjust-row { flex-wrap: wrap; }
+  .comparison { min-height: 0; }
 }

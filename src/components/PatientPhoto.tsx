@@ -1,4 +1,5 @@
 import type { Photo } from "@/lib/types";
+import { ZoomPan } from "./ZoomPan";
 export function PatientPhoto({
   photo,
   children,
@@ -8,7 +9,9 @@ export function PatientPhoto({
 }) {
   return (
     <div className="patient-photo">
-      <img src={photo.dataUrl} alt="Original smiling patient photograph" />
+      <ZoomPan className="photo-zoom">
+        <img src={photo.dataUrl} alt="Original smiling patient photograph" />
+      </ZoomPan>
       <div className="photo-label">Original photograph</div>
       {photo.isSample && <div className="sample-photo-label">Sample photo</div>}
       {children}

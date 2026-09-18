@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ZoomPan } from "./ZoomPan";
 export function BeforeAfterSlider({
   original,
   preview,
@@ -15,6 +16,7 @@ export function BeforeAfterSlider({
   const [position, setPosition] = useState(50);
   return (
     <div className="comparison">
+      <ZoomPan className="comparison-zoom" label="Pinch to zoom · drag to compare">
       <img
         className="compare-image"
         src={preview}
@@ -32,6 +34,7 @@ export function BeforeAfterSlider({
       />
       <span className="compare-label original-label">Original</span>
       <span className="compare-label preview-label">{previewLabel}</span>
+      </ZoomPan>
       <div className="compare-divider" style={{ left: `${position}%` }}>
         <span className="compare-handle">
           <ChevronLeft size={17} />
