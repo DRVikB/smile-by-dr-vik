@@ -24,6 +24,8 @@ import { PatientPhoto } from "@/components/PatientPhoto";
 import { GenerationState } from "@/components/GenerationState";
 import { BeforeAfterSlider } from "@/components/BeforeAfterSlider";
 import { OutlineOverlay } from "@/components/OutlineOverlay";
+import { ConsultView } from "@/components/ConsultView";
+import { Presentation } from "@/components/Presentation";
 import { BottomActionBar, Disclaimer } from "@/components/PreviewActions";
 import { CaseLog } from "@/components/CaseLog";
 import { CaseLibrary } from "@/components/CaseLibrary";
@@ -63,12 +65,12 @@ export default function Smile() {
   const [options, setOptions] = useState<Variant[] | null>(null);
   const [saveOpen, setSaveOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const [holding, setHolding] = useState(false);
   const [testMode, setTestMode] = useState(false);
   const [testPreview, setTestPreview] = useState<string | null>(null);
   const [patientName, setPatientName] = useState("");
   const [logOpen, setLogOpen] = useState(false);
   const [compareMode, setCompareMode] = useState<"slider" | "outline">("slider");
+  const [presenting, setPresenting] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryCount, setLibraryCount] = useState(0);
   // Pinned cases override the automatic match, and are a chairside choice for
@@ -1057,48 +1059,24 @@ export default function Smile() {
       )}
 
       {fullscreen && photo && result && (
-        <div
-          className="consult"
-          onPointerDown={() => setHolding(true)}
-          onPointerUp={() => setHolding(false)}
-          onPointerCancel={() => setHolding(false)}
-          onPointerLeave={() => setHolding(false)}
-        >
-          <div className="consult-media">
-            <img
-              src={holding ? photo.dataUrl : result.image}
-              alt={holding ? "Original photograph" : "Smile preview"}
-            />
-          </div>
-          <div className="consult-top">
-            <div className="product-lockup product-lockup-inverse">
-              <span className="wordmark">Smile</span>
-              <span className="brand-divider" aria-hidden="true" />
-              <img className="dr-vik-mark" src="/dr-vik-logo.png" alt="Dr Vik" />
-            </div>
-            <button
-              className="consult-close"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => setFullscreen(false)}
-            >
-              <X size={15} /> Close
-            </button>
-          </div>
-          <p className="consult-serif">
-            A more
-            <br />
-            confident you
-          </p>
-          <div className="consult-variants">{variantTabs}</div>
-          <div className="consult-foot">
-            <span className="consult-practice">Dr Vik · London</span>
-            <span className="consult-hint">Tap and hold to see original</span>
-            <span className="consult-meta">
-              AI Smile Preview
-              <small>for discussion purposes only</small>
-            </span>
-          </div>
-        </div>
+        <ConsultView
+          original={photo.dataUrl}
+          preview={result.image}
+          isMock={result.mode === "mock" || testMode}
+          variants={variantTabs}
+          onPresent={() => setPresenting(true)}
+          onClose={() => setFullscreen(false)}
+        />
+      )}
+
+      {presenting && photo && result && (
+        <Presentation
+          before={photo.dataUrl}
+          after={result.image}
+          patientName={patientName}
+          isDemo={result.mode === "mock" || testMode}
+          onClose={() => setPresenting(false)}
+        />
       )}
 
       {error && (
