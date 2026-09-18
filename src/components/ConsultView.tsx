@@ -1,24 +1,18 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Play, Sparkles, X } from "lucide-react";
-import { buildChangeOutline } from "@/lib/overlay";
 import { ZoomPan } from "./ZoomPan";
 
-export type RevealPhase = "before" | "outline" | "after" | "done";
+export type RevealPhase = "before" | "after" | "done";
 
 /** Milliseconds each phase holds before the next begins. */
 export const REVEAL_TIMING: Record<Exclude<RevealPhase, "done">, number> = {
-  before: 1400,
-  outline: 2000,
-  after: 1800,
+  before: 1600,
+  after: 2000,
 };
 
 export function nextPhase(phase: RevealPhase): RevealPhase {
-  return phase === "before"
-    ? "outline"
-    : phase === "outline"
-      ? "after"
-      : "done";
+  return phase === "before" ? "after" : "done";
 }
 
 /**
@@ -42,20 +36,8 @@ export function ConsultView({
   onClose: () => void;
 }) {
   const [phase, setPhase] = useState<RevealPhase>("before");
-  const [outline, setOutline] = useState<string | null>(null);
   const [holding, setHolding] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // The outline is optional scenery: if it can't be traced the reveal still runs.
-  useEffect(() => {
-    let live = true;
-    buildChangeOutline(original, preview)
-      .then((result) => live && setOutline(result))
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [original, preview]);
 
   useEffect(() => {
     if (phase === "done") return;
@@ -69,9 +51,8 @@ export function ConsultView({
   }, [phase]);
 
   const revealing = phase !== "done";
-  // During the reveal the preview only appears once the outline has been seen.
+  // Their own face first, then the preview rising through it.
   const showPreview = !holding && (phase === "after" || phase === "done");
-  const showOutline = !holding && (phase === "outline" || phase === "after");
 
   function skip() {
     if (timer.current) clearTimeout(timer.current);
@@ -88,14 +69,6 @@ export function ConsultView({
     >
       <ZoomPan className="consult-media" label="">
         <img src={original} alt="Your smile today" />
-        {outline && (
-          <img
-            className={`consult-layer consult-outline${showOutline ? " shown" : ""}`}
-            src={outline}
-            alt=""
-            aria-hidden="true"
-          />
-        )}
         <img
           className={`consult-layer${showPreview ? " shown" : ""}`}
           src={preview}
@@ -142,11 +115,9 @@ export function ConsultView({
         <span className="consult-hint">
           {phase === "before"
             ? "Your smile today"
-            : phase === "outline"
-              ? "The proposed design"
-              : phase === "after"
-                ? "Your preview"
-                : "Tap and hold to see original"}
+            : phase === "after"
+              ? "Your preview"
+              : "Tap and hold to see original"}
         </span>
         <span className="consult-meta">
           {isMock ? "Demo preview" : "AI Smile Preview"}

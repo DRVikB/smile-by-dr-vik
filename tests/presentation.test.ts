@@ -117,11 +117,11 @@ test('the reveal runs once, in order, and ends', () => {
     phase = nextPhase(phase);
     seen.push(phase);
   }
-  assert.deepEqual(seen, ['before', 'outline', 'after', 'done']);
+  assert.deepEqual(seen, ['before', 'after', 'done']);
   assert.equal(nextPhase('done'), 'done', 'the reveal must not loop');
   // Long enough for a patient to take it in, short enough not to stall a consult.
-  const total = REVEAL_TIMING.before + REVEAL_TIMING.outline + REVEAL_TIMING.after;
-  assert.ok(total >= 4000 && total <= 7000, `reveal is ${total}ms`);
+  const total = REVEAL_TIMING.before + REVEAL_TIMING.after;
+  assert.ok(total >= 2500 && total <= 5000, `reveal is ${total}ms`);
 });
 
 test('the presentation dates in the clinician’s own format', () => {

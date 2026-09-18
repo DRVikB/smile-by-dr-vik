@@ -10,7 +10,6 @@ import {
   Maximize2,
   Minus,
   MoveHorizontal,
-  PenLine,
   Play,
   Plus,
   Rows2,
@@ -23,7 +22,6 @@ import { DesignControls } from "@/components/DesignControls";
 import { PatientPhoto } from "@/components/PatientPhoto";
 import { GenerationState } from "@/components/GenerationState";
 import { BeforeAfterSlider } from "@/components/BeforeAfterSlider";
-import { OutlineOverlay } from "@/components/OutlineOverlay";
 import { ConsultView } from "@/components/ConsultView";
 import { Presentation } from "@/components/Presentation";
 import { BottomActionBar, Disclaimer } from "@/components/PreviewActions";
@@ -69,7 +67,6 @@ export default function Smile() {
   const [testPreview, setTestPreview] = useState<string | null>(null);
   const [patientName, setPatientName] = useState("");
   const [logOpen, setLogOpen] = useState(false);
-  const [compareMode, setCompareMode] = useState<"slider" | "outline">("slider");
   const [presenting, setPresenting] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryCount, setLibraryCount] = useState(0);
@@ -818,19 +815,11 @@ export default function Smile() {
               {variantTabs}
               <div className="preview-layout">
               <div className="preview-stage">
-                {compareMode === "slider" ? (
-                  <BeforeAfterSlider
-                    original={photo.dataUrl}
-                    preview={result.image}
-                    isMock={result.mode === "mock"}
-                  />
-                ) : (
-                  <OutlineOverlay
-                    original={photo.dataUrl}
-                    preview={result.image}
-                    isMock={result.mode === "mock"}
-                  />
-                )}
+                <BeforeAfterSlider
+                  original={photo.dataUrl}
+                  preview={result.image}
+                  isMock={result.mode === "mock"}
+                />
                 <button
                   className="fullscreen-button"
                   onClick={() => setFullscreen(true)}
@@ -841,23 +830,9 @@ export default function Smile() {
                 {generation}
               </div>
               <div className="preview-side">
-              <div className="comparison-modes" role="group" aria-label="How to compare">
-                <button
-                  type="button"
-                  aria-pressed={compareMode === "slider"}
-                  onClick={() => setCompareMode("slider")}
-                >
-                  <MoveHorizontal size={15} strokeWidth={1.6} />
-                  Slide to compare
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={compareMode === "outline"}
-                  onClick={() => setCompareMode("outline")}
-                >
-                  <PenLine size={15} strokeWidth={1.6} />
-                  Outline on their photo
-                </button>
+              <div className="comparison-hint">
+                <MoveHorizontal size={15} strokeWidth={1.6} />
+                Slide to compare
               </div>
               <div className="adjust-row">
                 <span className="adjust-label">Not quite right?</span>
