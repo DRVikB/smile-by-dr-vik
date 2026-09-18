@@ -16,6 +16,7 @@ export function BeforeAfterSlider({
   const [position, setPosition] = useState(50);
   return (
     <div className="comparison">
+      <img className="photo-backdrop" src={original} alt="" aria-hidden="true" />
       <ZoomPan className="comparison-zoom" label="Pinch to zoom · drag to compare">
       <img
         className="compare-image"

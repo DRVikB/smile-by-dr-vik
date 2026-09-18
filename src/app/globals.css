@@ -2507,3 +2507,76 @@ body.consult-open .consult { bottom: 0; }
   .preview-side .adjust-row { flex-wrap: wrap; }
   .comparison { min-height: 0; }
 }
+
+/* ============================================================
+   Full-bleed stage: the photograph fills the frame, uncropped
+   ============================================================ */
+/*
+ * A blurred, enlarged copy of the same photograph sits behind it. The frame
+ * reads edge to edge the way the mockup does, and the photograph itself is
+ * still shown whole — nothing is cropped to achieve the look.
+ */
+.photo-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.18);
+  filter: blur(48px) saturate(1.25) brightness(0.82);
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.patient-photo .zoompan,
+.comparison .comparison-zoom { z-index: 1; }
+
+/* Landscape iPad: the photograph is the screen, the panel floats on it */
+@media (min-width: 960px) and (orientation: landscape) {
+  .design-screen {
+    position: relative;
+    padding: 0;
+    height: calc(100dvh - 78px - var(--display-toolbar-height));
+    min-height: 520px;
+  }
+  .design-screen .patient-field {
+    position: absolute;
+    z-index: 3;
+    top: 18px;
+    left: 18px;
+    width: min(420px, calc(100% - 420px));
+    margin: 0;
+    background: rgba(252, 251, 249, 0.72);
+    -webkit-backdrop-filter: blur(22px) saturate(170%);
+    backdrop-filter: blur(22px) saturate(170%);
+  }
+  .design-layout { display: block; height: 100%; gap: 0; }
+  .photo-column { position: absolute; inset: 0; }
+  .patient-photo {
+    position: absolute;
+    inset: 0;
+    height: auto;
+    min-height: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .design-panel {
+    position: absolute;
+    z-index: 4;
+    top: 18px;
+    right: 18px;
+    bottom: 18px;
+    width: clamp(330px, 30vw, 390px);
+    max-height: none;
+    background: rgba(252, 251, 249, 0.82);
+    -webkit-backdrop-filter: blur(26px) saturate(180%);
+    backdrop-filter: blur(26px) saturate(180%);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  }
+  /* The labels sit clear of the floating panel. */
+  .patient-photo .photo-label { left: 18px; bottom: 18px; }
+  .patient-photo .sample-photo-label { top: 18px; right: calc(36px + clamp(330px, 30vw, 390px)); }
+  .patient-photo .zoompan-hint,
+  .patient-photo .zoompan-reset { top: auto; bottom: 18px; left: auto; right: calc(36px + clamp(330px, 30vw, 390px)); }
+}

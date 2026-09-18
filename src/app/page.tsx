@@ -752,7 +752,7 @@ export default function Smile() {
                   type="text"
                   value={patientName}
                   maxLength={60}
-                  placeholder="Name or reference — saved to the case log on this device"
+                  placeholder="Name or reference"
                   onChange={(e) => setPatientName(e.target.value)}
                 />
               </div>
