@@ -622,20 +622,12 @@ export default function Smile() {
               <div className="portrait-top">
                 <span className="splash-lockup">
                   <span className="wordmark">Smile</span>
-                  <span className="splash-byline">by Dr Vik</span>
                 </span>
-                <div className="splash-top-right">
-                  <img
-                    className="portrait-logo"
-                    src="/dr-vik-logo.png"
-                    alt="Dr Vik"
-                  />
-                  <span className="splash-location">
-                    Hammersmith
-                    <br />
-                    Harley Street
-                  </span>
-                </div>
+                <img
+                  className="portrait-logo"
+                  src="/dr-vik-logo.png"
+                  alt="Dr Vik"
+                />
               </div>
               <div className="start-copy">
                 <h1 ref={heading} tabIndex={-1} className="splash-heading">

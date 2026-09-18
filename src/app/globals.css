@@ -2010,29 +2010,9 @@ body.consult-open .consult { bottom: 0; }
   font-weight: 400;
   font-size: clamp(20px, 2.2vw, 26px);
 }
-.splash-byline {
-  font-family: var(--font-serif);
-  font-size: 12.5px;
-  letter-spacing: 0.02em;
-  color: rgba(255, 255, 255, 0.72);
-  padding-left: 2px;
-}
-.splash-top-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 12px;
-}
-.splash-top-right .portrait-logo {
+.portrait-top .portrait-logo {
   width: clamp(76px, 7vw, 104px);
   filter: invert(1) brightness(1.25) drop-shadow(0 1px 10px rgba(0, 0, 0, 0.55));
-}
-.splash-location {
-  font-size: 11.5px;
-  line-height: 1.5;
-  letter-spacing: 0.04em;
-  text-align: right;
-  color: rgba(255, 255, 255, 0.62);
 }
 .splash-heading {
   font-family: var(--font-serif);
