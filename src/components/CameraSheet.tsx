@@ -9,10 +9,11 @@ import { clampPan, zoomAbout, IDENTITY, type ZoomState } from "./ZoomPan";
 type Facing = "environment" | "user";
 
 // The front camera's field of view reads a patient as small at a natural
-// arm's length distance, so it starts pre-zoomed; the back camera already
-// has to be held close, so digital zoom only has room to go further in.
+// arm's length distance — noticeably wider than the framing the native
+// camera app shows by default — so it starts pre-zoomed further than the
+// back camera ever needs to.
 const DEFAULT_ZOOM: Record<Facing, ZoomState> = {
-  user: { scale: 1.4, x: 0, y: 0 },
+  user: { scale: 1.85, x: 0, y: 0 },
   environment: IDENTITY,
 };
 const MAX_ZOOM = 4;
@@ -154,18 +155,27 @@ export function CameraSheet({
       const box = stage.current!.getBoundingClientRect();
       const midX = (a.x + b.x) / 2 - box.left - box.width / 2;
       const midY = (a.y + b.y) / 2 - box.top - box.height / 2;
+      // The front camera's preview is mirrored for a natural, look-in-a-mirror
+      // feel (see the render below), so a touch point's on-screen x has to be
+      // flipped back before it is used to zoom the unmirrored underlying video.
+      const pinchX = facing === "user" ? -midX : midX;
       const next = (distance / pinch.current.distance) * pinch.current.scale;
       const { w, h } = stageSize();
-      setZoom((z) => clampPan(zoomAbout(z, next, midX, midY, MAX_ZOOM), w, h));
+      setZoom((z) => clampPan(zoomAbout(z, next, pinchX, midY, MAX_ZOOM), w, h));
       e.stopPropagation();
       return;
     }
 
     if (pointers.current.size === 1 && zoom.scale > 1) {
       const { w, h } = stageSize();
+      const dx = e.clientX - previous.x;
       setZoom((z) =>
         clampPan(
-          { ...z, x: z.x + (e.clientX - previous.x), y: z.y + (e.clientY - previous.y) },
+          {
+            ...z,
+            x: z.x + (facing === "user" ? -dx : dx),
+            y: z.y + (e.clientY - previous.y),
+          },
           w,
           h,
         ),
@@ -310,7 +320,14 @@ export function CameraSheet({
         >
           <div
             className="camera-zoom-inner"
-            style={{ transform: `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})` }}
+            style={{
+              // A selfie feels wrong unmirrored, so the front camera's preview
+              // is flipped for a natural look-in-a-mirror feel — purely a CSS
+              // mirror of the display. The saved photo still comes straight
+              // from the raw video pixels in capture() below, so it stays
+              // true-to-life (unflipped) like the back camera and uploads.
+              transform: `${facing === "user" ? "scaleX(-1) " : ""}translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})`,
+            }}
           >
             <video ref={video} autoPlay playsInline muted onLoadedData={() => setReady(Boolean(video.current?.videoWidth))} />
           </div>
@@ -323,7 +340,6 @@ export function CameraSheet({
           {ready && (
             <>
               <div className="capture-guide" aria-hidden="true">
-                <span className="capture-guide-face" />
                 <span
                   className="capture-guide-smile"
                   style={{

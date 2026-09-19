@@ -176,6 +176,16 @@ textarea:focus-visible {
   height: 23px;
   object-fit: contain;
 }
+/* Full-bleed frame: give the raw photo a size to fill, so it always covers
+   its frame edge to edge instead of rendering at its own natural size. */
+.patient-photo img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 .product-lockup-inverse .brand-divider {
   background: rgba(255, 255, 255, 0.3);
 }
@@ -232,6 +242,7 @@ h3 {
   align-items: center;
   gap: 14px;
   min-width: 0;
+  flex-shrink: 0;
 }
 .nav-back {
   display: grid;
@@ -1788,12 +1799,10 @@ button.option-card:hover {
   .photo-column { min-height: 0; }
   /* Stretch to the row, so the photo is as large as the panel beside it. */
   .patient-photo { min-height: 440px; height: auto; flex: 1; }
-  .patient-photo img { object-fit: contain; }
 }
 @media (max-width: 959px) {
   .design-layout { grid-template-columns: minmax(0, 1fr); }
   .patient-photo { min-height: 0; height: clamp(260px, 46dvh, 580px); flex: none; }
-  .patient-photo img { object-fit: contain; }
   .design-panel { position: static; max-height: none; }
   .design-fieldset, .design-scroll { overflow: visible; }
 }
@@ -1977,7 +1986,6 @@ body.consult-open .consult { bottom: 0; }
 /* ---- Capture framing guide ---- */
 .camera-view { position: relative; }
 .capture-guide { position: absolute; inset: 0; pointer-events: none; }
-.capture-guide-face { position: absolute; left: 19%; top: 6%; width: 62%; height: 78%; border: 1.5px dashed rgba(255, 255, 255, .5); border-radius: 50%; }
 /* position comes from SMILE_GUIDE so the guide and the prompt cannot drift apart */
 .capture-guide-smile { position: absolute; border: 2px solid rgba(255, 255, 255, .92); border-radius: 10px; box-shadow: 0 1px 10px rgba(0, 0, 0, .35); }
 .capture-hint { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); margin: 0; max-width: calc(100% - 24px); padding: 7px 13px; border-radius: 100px; font-size: 12px; line-height: 1.35; text-align: center; color: white; background: rgba(18, 17, 16, .58); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); pointer-events: none; }
@@ -2182,7 +2190,14 @@ body.consult-open .consult { bottom: 0; }
 
 /* Step indicator in the header */
 .nav-step { display: flex; align-items: center; gap: 12px; }
-.nav-step > span:first-child { font-size: 12px; color: var(--text-secondary); }
+.nav-step > span:first-child { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+@media (max-width: 600px) {
+  /* Logo, step indicator and actions no longer fit on one line — wrap the
+     actions onto their own row instead of letting anything get squeezed
+     small enough to overlap its neighbour. */
+  .app-header { flex-wrap: wrap; row-gap: 10px; }
+  .nav-actions { flex-basis: 100%; justify-content: flex-end; flex-wrap: wrap; }
+}
 .nav-step-bar {
   display: block;
   width: clamp(80px, 14vw, 150px);
