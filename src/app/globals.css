@@ -277,6 +277,8 @@ h3 {
 .test-mode-pill {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
+  white-space: nowrap;
   min-height: 28px;
   padding: 0 10px;
   border-radius: 100px;
@@ -779,6 +781,14 @@ main {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 16px 18px;
+  background:
+    linear-gradient(rgba(250, 250, 248, 0.82), rgba(250, 250, 248, 0)) 0 0,
+    linear-gradient(rgba(250, 250, 248, 0), rgba(250, 250, 248, 0.82)) 0 100%,
+    radial-gradient(farthest-side at 50% 0, rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0)) 0 0,
+    radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0)) 0 100%;
+  background-repeat: no-repeat;
+  background-size: 100% 28px, 100% 28px, 100% 10px, 100% 10px;
+  background-attachment: local, local, scroll, scroll;
 }
 .design-fieldset {
   border: 0;
@@ -1775,7 +1785,11 @@ button.option-card:hover {
 .app-shell { min-height: 100dvh; padding-bottom: var(--display-toolbar-height); }
 .app-shell > main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .start-screen { min-height: calc(100dvh - var(--display-toolbar-height)); }
-.display-toolbar { position: fixed; inset: auto 0 0; z-index: 200; min-height: var(--display-toolbar-height); padding: 8px max(16px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); display: flex; align-items: center; justify-content: flex-end; gap: 12px; background: #171615; color: white; border-top: 1px solid rgba(255,255,255,.12); }
+.display-toolbar { position: fixed; inset: auto 0 0; z-index: 200; min-height: var(--display-toolbar-height); padding: 8px max(16px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); display: flex; align-items: center; justify-content: flex-start; gap: 12px; background: #171615; color: white; border-top: 1px solid rgba(255,255,255,.12); }
+/* Netlify's own site badge lives in the bottom-right corner, pinned at a
+   fixed ~202x64px footprint regardless of viewport size (measured on the
+   live site) — keep the toggle clear of it rather than sharing the space. */
+.display-toolbar { padding-right: max(220px, env(safe-area-inset-right)); }
 .display-toggle { flex-shrink: 0; min-height: 44px; padding: 10px 16px; display: inline-flex; align-items: center; gap: 9px; border-radius: 100px; color: white; background: rgba(255,255,255,.12); font-size: 14px; touch-action: manipulation; }
 .display-status { font-size: 12px; line-height: 1.4; color: #d7d5d2; }
 .expanded-view, .expanded-view body { height: 100%; overflow: hidden; }
@@ -2191,10 +2205,14 @@ body.consult-open .consult { bottom: 0; }
 /* Step indicator in the header */
 .nav-step { display: flex; align-items: center; gap: 12px; }
 .nav-step > span:first-child { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
-@media (max-width: 600px) {
+@media (max-width: 800px) {
   /* Logo, step indicator and actions no longer fit on one line — wrap the
      actions onto their own row instead of letting anything get squeezed
-     small enough to overlap its neighbour. */
+     small enough to overlap its neighbour. 800px (not just the ~375-430px
+     portrait phone widths) is deliberate: short phones in landscape (e.g.
+     iPhone SE at 667px wide) hit this same crunch even though they're
+     "wide" in viewport-width terms, because the whole header has far less
+     vertical room to work with there. */
   .app-header { flex-wrap: wrap; row-gap: 10px; }
   .nav-actions { flex-basis: 100%; justify-content: flex-end; flex-wrap: wrap; }
 }
@@ -2632,9 +2650,8 @@ body.consult-open .consult { bottom: 0; }
     z-index: 4;
     top: 18px;
     right: 18px;
-    bottom: 18px;
     width: clamp(300px, 28vw, 360px);
-    max-height: none;
+    max-height: calc(100% - 36px);
     padding: 20px;
     justify-content: flex-start;
     gap: 16px;
