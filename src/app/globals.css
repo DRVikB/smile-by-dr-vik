@@ -1311,6 +1311,7 @@ main {
 .disclaimer,
 .demo-notice,
 .test-notice,
+.scale-notice,
 .storage-note {
   font-size: 12px;
   line-height: 1.55;
@@ -1325,6 +1326,14 @@ main {
 .demo-notice span {
   color: var(--text-primary);
   font-weight: 500;
+  margin-right: 6px;
+}
+.scale-notice {
+  color: #6b4e1e;
+}
+.scale-notice span {
+  color: #8a5a12;
+  font-weight: 600;
   margin-right: 6px;
 }
 
@@ -1378,6 +1387,7 @@ main {
   gap: 10px;
 }
 .option-card {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -1421,6 +1431,21 @@ button.option-card:hover {
   font-size: 12.5px;
   color: var(--text-secondary);
   font-weight: 400;
+}
+.option-flag {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  left: 8px;
+  padding: 4px 9px;
+  border-radius: 100px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #fff;
+  background: rgba(138, 90, 18, 0.88);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 .compare-grid {
   display: flex;
@@ -1882,6 +1907,16 @@ body.consult-open .consult { bottom: 0; }
 .log-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .log-row-text strong { font-size: 15px; font-weight: 500; }
 .log-date { font-size: 12.5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.library-tip {
+  margin: 0;
+  padding: 10px 13px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
 .log-summary {
   font-size: 12.5px; color: var(--text-secondary);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -2263,6 +2298,16 @@ body.consult-open .consult { bottom: 0; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.photo-quality-notice {
+  margin: 0;
+  padding: 10px 13px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #6b4e1e;
+  background: rgba(201, 169, 110, 0.16);
+  border: 1px solid rgba(201, 169, 110, 0.38);
 }
 .photo-tips {
   margin-top: 6px;

@@ -65,6 +65,17 @@ const NATURAL_SCALE_GUIDANCE = [
   "These size and display limits hold at every transformation intensity, including the highest: a bigger, longer or more prominent tooth is never itself an improvement, and must never be how the result reads as more finished.",
 ].join(" ");
 
+/**
+ * What actually reads as "photo", not "edit": how the new pixels sit
+ * against the ones around them, not just the tooth shapes themselves.
+ */
+const REALISM_GUIDANCE = [
+  "Blend the edited region into the photograph seamlessly: match the grain, sharpness, colour temperature and micro-contrast of the surrounding, unedited pixels exactly at the boundary, so there is no visible seam, halo or change in noise level where the edit ends.",
+  "Keep the soft shadow the upper lip casts onto the teeth, and the small shadows in the interdental spaces and gingival third, consistent with the photograph's own light source and direction — do not flatten or remove them.",
+  "Keep the smile naturally asymmetric: real smiles are never a mirror image of themselves, so leave the small left-right differences already visible in the patient's teeth rather than making both sides of the arch identical.",
+  "Whitening or brightening the teeth must not shift the colour temperature of the surrounding lips, skin or gingiva; keep the rest of the photograph's white balance exactly as it was.",
+].join(" ");
+
 export function buildSmileInstruction(
   s: SmileSettings,
   hasReference = false,
@@ -136,7 +147,7 @@ export function buildSmileInstruction(
 
   const harmony = `${FACE_SHAPE_GUIDANCE[s.faceShape] ?? FACE_SHAPE_GUIDANCE.Auto} ${
     CHARACTER_GUIDANCE[s.character] ?? CHARACTER_GUIDANCE.Balanced
-  } ${smileLines} ${EXISTING_DENTITION} ${NATURAL_SCALE_GUIDANCE}`;
+  } ${smileLines} ${EXISTING_DENTITION} ${NATURAL_SCALE_GUIDANCE} ${REALISM_GUIDANCE}`;
 
   return `Create a photorealistic cosmetic dentistry communication preview from the provided photograph. Modify only ${s.teeth} upper anterior teeth, symmetrically around the midline (FDI tooth numbers: ${s.selectedTeeth.join(", ")}). Treatment material: ${s.treatment}. ${shade} Tooth morphology: ${s.shape}. ${texture} Transformation intensity: ${s.intensity}/100. This governs how far the result may move from the original tooth form: at low values refine the existing teeth only — tidy the edges and adjust shade while leaving size, width and length close to the original; at high values a more designed result is acceptable, but every proportion rule still applies. ${DESIGN_PRINCIPLES} ${harmony} ${framing} Keep all untreated teeth exactly. Do not edit the gingiva; if the requested result would require gingival editing, reduce the tooth changes instead. Preserve realistic enamel translucency, interdental contacts and individual character. Avoid CGI, flat opaque white teeth, a uniform denture-like row, chiclet-shaped teeth, and any result whose teeth look larger, wider or longer than the patient\u2019s own.${region}${order}${reference}${houseStyle}${notes} Return only the edited photograph at exactly the same pixel dimensions, framing, scale, rotation and crop as the input, aligned so the original and the edit can be compared with a before-and-after slider. Do not zoom, pan, straighten, re-crop, mirror, or change the size or position of the face, lips or teeth within the frame.`;
 }

@@ -210,6 +210,17 @@ test("a capture region locates the teeth but is never a target size", () => {
   assert.match(framed, /never stretch, enlarge or shrink/);
 });
 
+test("the instruction asks for a seamless blend, consistent shadows, natural asymmetry and no colour-cast shift", () => {
+  const prompt = buildSmileInstruction(defaultSettings);
+  for (const rule of [
+    "no visible seam",
+    "shadow the upper lip casts",
+    "naturally asymmetric",
+    "white balance",
+  ])
+    assert.ok(prompt.includes(rule), `missing: ${rule}`);
+});
+
 test("a capture framing region must be fractions of the frame", () => {
   assert.equal(
     generationSchema.safeParse({

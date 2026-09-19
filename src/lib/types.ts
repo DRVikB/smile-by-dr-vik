@@ -1,3 +1,5 @@
+import type { PhotoQuality } from "./photoQuality";
+
 export type Screen = "start" | "photo" | "design" | "compare" | "preview";
 export type TeethCount = 4 | 6 | 8 | 10;
 export type Treatment = "Composite" | "Porcelain";
@@ -80,6 +82,8 @@ export interface Photo {
   height: number;
   isSample?: boolean;
   framing?: Framing;
+  /** A quick local read on sharpness/exposure, advisory only. */
+  quality?: PhotoQuality;
 }
 export interface PreviewPreferences {
   settings: SmileSettings;
@@ -91,6 +95,10 @@ export interface GenerationResult {
   image: string;
   mode: "mock" | "live";
   variationId: string;
+  /** Advisory only: a rough local check that the edit didn't grow past the
+   *  capture guide by more than a reasonable margin. Unset when there was
+   *  no guide region to check against (e.g. an uploaded photo). */
+  scaleFlag?: "ok" | "grew";
 }
 export interface SmileVariant {
   label: string;

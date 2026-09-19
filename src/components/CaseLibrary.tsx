@@ -176,6 +176,12 @@ export function CaseLibrary({
           </button>
         </div>
 
+        <p className="library-tip">
+          For the truest style match, add well-lit, straight-on close-ups —
+          similar framing and lighting across cases works better than a
+          single striking photo.
+        </p>
+
         <fieldset disabled={busy} className="library-add">
           <div className="control-group">
             <div className="control-label">

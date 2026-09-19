@@ -1,4 +1,5 @@
 import type { Photo } from "./types";
+import { assessPhotoQuality } from "./photoQuality";
 export async function preparePhoto(file: File): Promise<Photo> {
   if (file.size > 25 * 1024 * 1024)
     throw new Error("Choose a photo smaller than 25 MB.");
@@ -36,11 +37,30 @@ export async function preparePhoto(file: File): Promise<Photo> {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    // A cheap, small-scale pass is enough to judge sharpness and exposure —
+    // no need to analyse the full-resolution photo for this.
+    const qScale = Math.min(1, 240 / Math.max(canvas.width, canvas.height));
+    const qWidth = Math.max(1, Math.round(canvas.width * qScale));
+    const qHeight = Math.max(1, Math.round(canvas.height * qScale));
+    const qCanvas = document.createElement("canvas");
+    qCanvas.width = qWidth;
+    qCanvas.height = qHeight;
+    const qCtx = qCanvas.getContext("2d", { willReadFrequently: true });
+    const quality = qCtx
+      ? (() => {
+          qCtx.drawImage(canvas, 0, 0, qWidth, qHeight);
+          const { data } = qCtx.getImageData(0, 0, qWidth, qHeight);
+          return assessPhotoQuality(data, qWidth, qHeight);
+        })()
+      : undefined;
+
     return {
       dataUrl: canvas.toDataURL("image/jpeg", 0.93),
       name: file.name,
       width: canvas.width,
       height: canvas.height,
+      quality,
     };
   } catch (error) {
     throw error instanceof Error && error.message.startsWith("Use a larger")

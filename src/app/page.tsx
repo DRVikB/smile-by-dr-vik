@@ -39,6 +39,7 @@ import { readCase, persistCase } from "@/lib/storage";
 import { addLogEntry } from "@/lib/caseLog";
 import { thumbnail } from "@/lib/thumb";
 import { preparePhoto } from "@/lib/photos";
+import { assessResultScaleFromDataUrls } from "@/lib/resultCheck";
 import { getReportPreferences, preferenceRows } from "@/lib/report";
 import { useSmileTools } from "@/lib/useSmileTools";
 import { imageSchema } from "@/lib/generation/schema";
@@ -282,6 +283,16 @@ export default function Smile() {
     if (next.mode === "live") {
       const { alignPreview } = await import("@/lib/photos");
       next = { ...next, image: await alignPreview(next.image, photoIn) };
+      // Advisory only, and only when there's a trustworthy anchor to check
+      // against — an uploaded photo has no capture guide to measure from.
+      if (photoIn.framing) {
+        const assessment = await assessResultScaleFromDataUrls(
+          photoIn.dataUrl,
+          next.image,
+          photoIn.framing,
+        ).catch(() => null);
+        if (assessment) next = { ...next, scaleFlag: assessment.flag };
+      }
     }
     return { ...next, preferences };
   }
@@ -861,6 +872,13 @@ export default function Smile() {
                   Stronger
                 </button>
               </div>
+              {result.scaleFlag === "grew" && (
+                <p className="scale-notice" role="status">
+                  <span>Check the size</span>This result may show the teeth
+                  larger than the patient’s own — compare closely, or try
+                  Softer, before presenting it.
+                </p>
+              )}
               {result.mode === "mock" && (
                 <p className="demo-notice">
                   <span>Demo preview</span>Your original photo is shown on both
@@ -958,6 +976,9 @@ export default function Smile() {
                     role="img"
                     aria-label={`${o.label} preview`}
                   />
+                  {o.result.scaleFlag === "grew" && (
+                    <span className="option-flag">Check size</span>
+                  )}
                   <span className="option-cap">
                     <span>{o.label}</span>
                     <span className="option-pick">{o.note}</span>

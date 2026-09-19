@@ -119,6 +119,20 @@ export function PhotoUploader({
             >
               Continue <ArrowRight size={18} strokeWidth={1.7} />
             </button>
+            {photo.quality &&
+              (photo.quality.blurry ||
+                photo.quality.tooDark ||
+                photo.quality.tooBright) && (
+              <p className="photo-quality-notice" role="status">
+                {photo.quality.blurry
+                  ? "This photo looks a little soft. A sharper photo usually gives a more natural result — you can continue anyway."
+                  : photo.quality.tooDark
+                    ? "This photo looks a little dark. Better, even lighting usually gives a more natural result — you can continue anyway."
+                    : photo.quality.tooBright
+                      ? "This photo looks very bright. Softer, even lighting usually gives a more natural result — you can continue anyway."
+                      : null}
+              </p>
+            )}
             <div className="photo-secondary-row">
               <button
                 type="button"
