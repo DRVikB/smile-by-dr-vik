@@ -67,14 +67,18 @@ export function ConsultView({
       onPointerCancel={() => setHolding(false)}
       onPointerLeave={() => setHolding(false)}
     >
-      <ZoomPan className="consult-media" label="">
-        <img src={original} alt="Your smile today" />
-        <img
-          className={`consult-layer${showPreview ? " shown" : ""}`}
-          src={preview}
-          alt="Smile preview"
-        />
-      </ZoomPan>
+      <img className="photo-backdrop" src={original} alt="" aria-hidden="true" />
+      <div className="consult-frame">
+        <ZoomPan className="consult-media" label="">
+          <img src={original} alt="Your smile today" />
+          <img
+            className={`consult-layer${showPreview ? " shown" : ""}`}
+            src={preview}
+            alt="Smile preview"
+          />
+        </ZoomPan>
+      </div>
+      <div className="consult-vignette" aria-hidden="true" />
 
       <div className="consult-top">
         <div className="product-lockup product-lockup-inverse">

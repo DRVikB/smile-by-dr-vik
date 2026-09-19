@@ -1573,7 +1573,6 @@ button.option-card:hover {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: #0f0e0d;
 }
 .consult-top {
   position: relative;
@@ -2615,6 +2614,39 @@ body.consult-open .consult { bottom: 0; }
   pointer-events: none;
   -webkit-user-select: none;
   user-select: none;
+}
+.photo-frame,
+.compare-frame,
+.consult-frame {
+  position: absolute;
+  inset: 0;
+  transform: scale(1.18);
+  transform-origin: 50% 54%;
+}
+/* A soft, even falloff at the edges — the tighter default crop above reads
+   as intentional rather than abrupt, and it blends a mismatched photo's
+   edges into the blurred backdrop rather than cutting to it sharply. */
+.photo-vignette,
+.compare-vignette,
+.consult-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 54%,
+    transparent 52%,
+    rgba(0, 0, 0, 0.1) 76%,
+    rgba(0, 0, 0, 0.42) 100%
+  );
+}
+.consult-vignette {
+  background: radial-gradient(
+    ellipse at 50% 54%,
+    transparent 48%,
+    rgba(0, 0, 0, 0.16) 74%,
+    rgba(0, 0, 0, 0.56) 100%
+  );
 }
 .patient-photo .zoompan,
 .comparison .comparison-zoom { z-index: 1; }

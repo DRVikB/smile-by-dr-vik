@@ -17,25 +17,28 @@ export function BeforeAfterSlider({
   return (
     <div className="comparison">
       <img className="photo-backdrop" src={original} alt="" aria-hidden="true" />
-      <ZoomPan className="comparison-zoom" label="Pinch to zoom · drag to compare">
-      <img
-        className="compare-image"
-        src={preview}
-        alt={
-          isMock
-            ? "Demo preview — original photograph unchanged"
-            : "Generated smile preview"
-        }
-      />
-      <img
-        className="compare-image original-image"
-        src={original}
-        alt="Original smile"
-        style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
-      />
-      <span className="compare-label original-label">Original</span>
-      <span className="compare-label preview-label">{previewLabel}</span>
-      </ZoomPan>
+      <div className="compare-frame">
+        <ZoomPan className="comparison-zoom" label="Pinch to zoom · drag to compare">
+        <img
+          className="compare-image"
+          src={preview}
+          alt={
+            isMock
+              ? "Demo preview — original photograph unchanged"
+              : "Generated smile preview"
+          }
+        />
+        <img
+          className="compare-image original-image"
+          src={original}
+          alt="Original smile"
+          style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
+        />
+        <span className="compare-label original-label">Original</span>
+        <span className="compare-label preview-label">{previewLabel}</span>
+        </ZoomPan>
+      </div>
+      <div className="compare-vignette" aria-hidden="true" />
       <div className="compare-divider" style={{ left: `${position}%` }}>
         <span className="compare-handle">
           <ChevronLeft size={17} />
