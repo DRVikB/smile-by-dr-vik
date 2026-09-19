@@ -2576,22 +2576,63 @@ body.consult-open .consult { bottom: 0; }
 .preview-layout { display: flex; flex-direction: column; gap: 14px; min-height: 0; flex: 1; }
 .preview-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 @media (min-width: 960px) and (orientation: landscape) {
-  .preview-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
-    gap: clamp(16px, 2vw, 26px);
-    align-items: stretch;
+  /* Landscape iPad: same full-bleed stage as the design screen — the
+     photograph fills the viewport and the compare controls float on it. */
+  .preview-screen {
+    position: relative;
+    padding: 0;
+    height: calc(100dvh - 78px - var(--display-toolbar-height));
+    min-height: 520px;
   }
-  .preview-stage { min-height: 0; }
+  .preview-screen .variant-tabs {
+    position: absolute;
+    z-index: 3;
+    top: 18px;
+    left: 18px;
+    width: min(420px, calc(100% - 420px));
+    margin: 0;
+    padding: 6px;
+    background: rgba(252, 251, 249, 0.72);
+    -webkit-backdrop-filter: blur(22px) saturate(170%);
+    backdrop-filter: blur(22px) saturate(170%);
+  }
+  .preview-layout { display: block; height: 100%; gap: 0; }
+  .preview-stage {
+    position: absolute;
+    inset: 0;
+    min-height: 0;
+  }
+  .comparison {
+    position: absolute;
+    inset: 0;
+    min-height: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .preview-stage .fullscreen-button {
+    right: calc(36px + clamp(300px, 28vw, 360px));
+  }
   .preview-side {
+    position: absolute;
+    z-index: 4;
+    top: 18px;
+    right: 18px;
+    bottom: 18px;
+    width: clamp(300px, 28vw, 360px);
+    max-height: none;
+    padding: 20px;
     justify-content: flex-start;
     gap: 16px;
     overflow-y: auto;
     overscroll-behavior: contain;
+    border-radius: var(--r-panel);
+    background: rgba(252, 251, 249, 0.82);
+    -webkit-backdrop-filter: blur(26px) saturate(180%);
+    backdrop-filter: blur(26px) saturate(180%);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
   }
   .preview-side .comparison-hint { justify-content: flex-start; margin-top: 0; }
   .preview-side .adjust-row { flex-wrap: wrap; }
-  .comparison { min-height: 0; }
 }
 
 /* ============================================================
@@ -2620,8 +2661,8 @@ body.consult-open .consult { bottom: 0; }
 .consult-frame {
   position: absolute;
   inset: 0;
-  transform: scale(1.18);
-  transform-origin: 50% 54%;
+  transform: scale(1.6);
+  transform-origin: 50% 57%;
 }
 /* A soft, even falloff at the edges — the tighter default crop above reads
    as intentional rather than abrupt, and it blends a mismatched photo's
