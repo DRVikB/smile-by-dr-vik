@@ -53,6 +53,18 @@ const EXISTING_DENTITION = [
   "Where the teeth are already well proportioned, change very little; the result should be recognisable to the patient as their own smile.",
 ].join(" ");
 
+/**
+ * Absolute, patient-specific scale. The rules above stop a single tooth
+ * being oversized relative to its neighbours; these stop the whole smile
+ * being oversized relative to the patient's own face, lips and age.
+ */
+const NATURAL_SCALE_GUIDANCE = [
+  "Anchor the overall scale of the result to this patient's own face, not to a generic ideal: the combined width of the upper anterior teeth being edited must not end up wider than the distance between the corners of the mouth (the commissures) as photographed in this smile.",
+  "Do not increase how much tooth shows between the lips beyond what this photograph already shows at this smile. Match the existing lip line, tooth display and gingival show; a fuller or more youthful display is not the goal unless the clinician's notes ask for it.",
+  "Read the patient's apparent age from the photograph and let it temper the design: an older patient keeps shorter, slightly less uniform incisal edges and less tooth display than a much younger patient would carry. Do not apply a uniformly youthful, elongated result to an older face.",
+  "These size and display limits hold at every transformation intensity, including the highest: a bigger, longer or more prominent tooth is never itself an improvement, and must never be how the result reads as more finished.",
+].join(" ");
+
 export function buildSmileInstruction(
   s: SmileSettings,
   hasReference = false,
@@ -98,7 +110,7 @@ export function buildSmileInstruction(
       : "";
 
   const region = capture
-    ? ` The photograph was captured with the smile aligned to an on-screen guide, so the teeth sit roughly between ${percent(capture.x)}% and ${percent(capture.x + capture.width)}% across the frame and ${percent(capture.y)}% to ${percent(capture.y + capture.height)}% down it. Confine every change to the teeth inside that region and leave every pixel outside it untouched.`
+    ? ` The photograph was captured with the smile aligned to an on-screen guide, so the teeth sit roughly between ${percent(capture.x)}% and ${percent(capture.x + capture.width)}% across the frame and ${percent(capture.y)}% to ${percent(capture.y + capture.height)}% down it. Confine every change to the teeth inside that region and leave every pixel outside it untouched. Use this only to locate the teeth that are already in the photograph — it is not a target size. Keep the teeth at the scale they were actually photographed at; never stretch, enlarge or shrink them to better fill the region.`
     : "";
 
   const notes =
@@ -124,7 +136,7 @@ export function buildSmileInstruction(
 
   const harmony = `${FACE_SHAPE_GUIDANCE[s.faceShape] ?? FACE_SHAPE_GUIDANCE.Auto} ${
     CHARACTER_GUIDANCE[s.character] ?? CHARACTER_GUIDANCE.Balanced
-  } ${smileLines} ${EXISTING_DENTITION}`;
+  } ${smileLines} ${EXISTING_DENTITION} ${NATURAL_SCALE_GUIDANCE}`;
 
   return `Create a photorealistic cosmetic dentistry communication preview from the provided photograph. Modify only ${s.teeth} upper anterior teeth, symmetrically around the midline (FDI tooth numbers: ${s.selectedTeeth.join(", ")}). Treatment material: ${s.treatment}. ${shade} Tooth morphology: ${s.shape}. ${texture} Transformation intensity: ${s.intensity}/100. This governs how far the result may move from the original tooth form: at low values refine the existing teeth only — tidy the edges and adjust shade while leaving size, width and length close to the original; at high values a more designed result is acceptable, but every proportion rule still applies. ${DESIGN_PRINCIPLES} ${harmony} ${framing} Keep all untreated teeth exactly. Do not edit the gingiva; if the requested result would require gingival editing, reduce the tooth changes instead. Preserve realistic enamel translucency, interdental contacts and individual character. Avoid CGI, flat opaque white teeth, a uniform denture-like row, chiclet-shaped teeth, and any result whose teeth look larger, wider or longer than the patient\u2019s own.${region}${order}${reference}${houseStyle}${notes} Return only the edited photograph at exactly the same pixel dimensions, framing, scale, rotation and crop as the input, aligned so the original and the edit can be compared with a before-and-after slider. Do not zoom, pan, straighten, re-crop, mirror, or change the size or position of the face, lips or teeth within the frame.`;
 }

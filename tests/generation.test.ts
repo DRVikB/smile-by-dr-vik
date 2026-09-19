@@ -189,6 +189,27 @@ test("the instruction always demands a like-for-like frame, and names the guide 
   for (const edge of ["30%", "70%", "56%", "72%"]) assert.ok(framed.includes(edge));
 });
 
+test("the instruction anchors overall scale to the patient, not a generic ideal", () => {
+  const prompt = buildSmileInstruction(defaultSettings);
+  for (const rule of [
+    "commissures",
+    "apparent age",
+    "every transformation intensity",
+  ])
+    assert.ok(prompt.includes(rule), `missing: ${rule}`);
+});
+
+test("a capture region locates the teeth but is never a target size", () => {
+  const framed = buildSmileInstruction(defaultSettings, false, {
+    x: 0.3,
+    y: 0.56,
+    width: 0.4,
+    height: 0.16,
+  });
+  assert.match(framed, /not a target size/);
+  assert.match(framed, /never stretch, enlarge or shrink/);
+});
+
 test("a capture framing region must be fractions of the frame", () => {
   assert.equal(
     generationSchema.safeParse({

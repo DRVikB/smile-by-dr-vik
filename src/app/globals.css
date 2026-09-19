@@ -1472,11 +1472,53 @@ button.option-card:hover {
   background: #141312;
   aspect-ratio: 3 / 4;
   max-height: 58svh;
+  touch-action: none;
 }
 .camera-view video {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+/* Digital zoom/pan layer: keeps the guide box meaningful on both cameras
+   even though the front camera's field of view reads much wider than the
+   back camera's at a natural distance. */
+.camera-zoom-inner {
+  position: absolute;
+  inset: 0;
+  transform-origin: center center;
+  will-change: transform;
+}
+.camera-zoom-controls {
+  position: absolute;
+  z-index: 6;
+  right: 14px;
+  top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 100px;
+  color: #fff;
+  background: rgba(18, 17, 16, 0.58);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+.camera-zoom-controls button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.12);
+}
+.camera-zoom-controls button:disabled { opacity: 0.4; }
+.camera-zoom-controls span {
+  min-width: 34px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 .camera-fallback {
   align-self: center;
