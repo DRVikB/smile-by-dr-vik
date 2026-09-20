@@ -1794,7 +1794,15 @@ button.option-card:hover {
 .display-status { font-size: 12px; line-height: 1.4; color: #d7d5d2; }
 .expanded-view, .expanded-view body { height: 100%; overflow: hidden; }
 .expanded-view .app-shell { position: fixed; inset: 0; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; }
-.app-header, .portrait-top, .consult-top { padding-top: max(16px, env(safe-area-inset-top)); padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+.app-header, .consult-top { padding-top: max(16px, env(safe-area-inset-top)); padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+/* On iOS, launching from the home screen (appleWebApp statusBarStyle
+   "black-translucent") draws the status bar as a translucent blur material
+   over the page rather than reserving solid space for it, and that blur
+   visually bleeds a little past the exact safe-area-inset-top boundary —
+   enough to soften the wordmark and logo when they sit right at the edge.
+   Give this bar a bit of extra clearance beyond the raw inset so both sit
+   clearly below where the blur has faded out. */
+.portrait-top { padding-top: max(16px, calc(env(safe-area-inset-top) + 14px)); padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
 .consult, .sheet-backdrop { bottom: var(--display-toolbar-height); }
 .sheet { max-height: min(760px, calc(100dvh - var(--display-toolbar-height) - 44px)); }
 .global-error { bottom: calc(var(--display-toolbar-height) + 12px); }
