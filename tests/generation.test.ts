@@ -199,6 +199,17 @@ test("the instruction anchors overall scale to the patient, not a generic ideal"
     assert.ok(prompt.includes(rule), `missing: ${rule}`);
 });
 
+test("the instruction treats incisal length as its own limit and ties it to age", () => {
+  const prompt = buildSmileInstruction(defaultSettings);
+  for (const rule of [
+    "gingival margin stays exactly where it was photographed",
+    "sixty or older",
+    "shorter clinical crowns",
+    "Never use age to justify a longer result",
+  ])
+    assert.ok(prompt.includes(rule), `missing: ${rule}`);
+});
+
 test("a capture region locates the teeth but is never a target size", () => {
   const framed = buildSmileInstruction(defaultSettings, false, {
     x: 0.3,

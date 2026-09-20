@@ -875,8 +875,8 @@ export default function Smile() {
               {result.scaleFlag === "grew" && (
                 <p className="scale-notice" role="status">
                   <span>Check the size</span>This result may show the teeth
-                  larger than the patient’s own — compare closely, or try
-                  Softer, before presenting it.
+                  larger or longer than the patient’s own — compare closely,
+                  or try Softer, before presenting it.
                 </p>
               )}
               {result.mode === "mock" && (

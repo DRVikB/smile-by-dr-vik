@@ -42,7 +42,7 @@ test('returns null when the buffers do not match', () => {
 test('an unedited photo (no diff) reads as ok', () => {
   const img = baseImage();
   const result = assessResultScale(img, img, W, H, FRAMING);
-  assert.deepEqual(result, { flag: 'ok', changedWidthRatio: 0 });
+  assert.deepEqual(result, { flag: 'ok', changedWidthRatio: 0, changedHeightRatio: 0 });
 });
 
 test('an edit confined to the guide box reads as ok', () => {
@@ -73,6 +73,24 @@ test('an edit that grows well past the guide box is flagged', () => {
   assert.ok(result!.changedWidthRatio > 1.35);
 });
 
+test('teeth lengthened downward past the guide box are flagged, even without much widening', () => {
+  const original = baseImage();
+  const generated = baseImage();
+  const bx0 = Math.round(FRAMING.x * W);
+  const bx1 = Math.round((FRAMING.x + FRAMING.width) * W);
+  const by0 = Math.round(FRAMING.y * H);
+  const by1 = Math.round((FRAMING.y + FRAMING.height) * H);
+  // Same width as the guide box (so the width check alone wouldn't catch
+  // this), but the incisal edges have been pushed well below it, towards
+  // the lower lip — a classic "over-lengthened" edit.
+  const grownHeight = (by1 - by0) * 2;
+  paint(generated, bx0, by0, bx1, by0 + grownHeight);
+  const result = assessResultScale(original, generated, W, H, FRAMING);
+  assert.equal(result?.flag, 'grew');
+  assert.ok(result!.changedHeightRatio > 1.35);
+  assert.ok(result!.changedWidthRatio <= 1.1);
+});
+
 test('a handful of scattered noisy pixels does not widen the measured region', () => {
   const original = baseImage();
   const generated = baseImage();
@@ -98,5 +116,5 @@ test('too little change to measure reads as ok rather than guessing', () => {
   const i = (Math.round(FRAMING.y * H) * W + Math.round(FRAMING.x * W)) * 4;
   generated[i] = 240;
   const result = assessResultScale(original, generated, W, H, FRAMING);
-  assert.deepEqual(result, { flag: 'ok', changedWidthRatio: 0 });
+  assert.deepEqual(result, { flag: 'ok', changedWidthRatio: 0, changedHeightRatio: 0 });
 });

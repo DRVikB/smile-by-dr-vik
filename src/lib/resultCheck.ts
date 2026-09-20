@@ -13,6 +13,14 @@ export interface ScaleAssessment {
   flag: "ok" | "grew";
   /** Width of the changed region as a multiple of the guide box's width. */
   changedWidthRatio: number;
+  /**
+   * Height of the changed region as a multiple of the guide box's height.
+   * Tracked separately from width because over-lengthening (edges pushed
+   * down towards the lower lip) doesn't reliably widen the changed region
+   * the way over-widening does — a tooth can grow taller without growing
+   * much wider at all, and width alone would miss it.
+   */
+  changedHeightRatio: number;
 }
 
 // A weighted grayscale difference above this counts as "changed" — well
@@ -69,6 +77,7 @@ export function assessResultScale(
   if (regionWidth <= 0 || regionHeight <= 0) return null;
 
   const columnCounts = new Uint32Array(regionWidth);
+  const rowCounts = new Uint32Array(regionHeight);
   let totalChanged = 0;
   for (let y = gy0; y < gy1; y++) {
     const rowBase = y * width;
@@ -81,12 +90,13 @@ export function assessResultScale(
         0.299 * Math.abs(dr) + 0.587 * Math.abs(dg) + 0.114 * Math.abs(db);
       if (diff > DIFF_THRESHOLD) {
         columnCounts[x - gx0]++;
+        rowCounts[y - gy0]++;
         totalChanged++;
       }
     }
   }
   if (totalChanged < MIN_CHANGED_PIXELS)
-    return { flag: "ok", changedWidthRatio: 0 };
+    return { flag: "ok", changedWidthRatio: 0, changedHeightRatio: 0 };
 
   const columnThreshold = Math.max(
     MIN_COLUMN_COUNT,
@@ -100,14 +110,42 @@ export function assessResultScale(
       maxCol = c;
     }
   }
-  if (minCol === -1) return { flag: "ok", changedWidthRatio: 0 };
 
-  const changedWidth = maxCol - minCol + 1;
+  // Same idea, rotated 90 degrees: a row only counts towards the changed
+  // region if enough of its sampled pixels (across the region's width)
+  // changed, so this catches genuine vertical growth (teeth lengthened
+  // towards the lower lip) rather than a few stray changed rows.
+  const rowThreshold = Math.max(MIN_COLUMN_COUNT, regionWidth * COLUMN_SHARE);
+  let minRow = -1;
+  let maxRow = -1;
+  for (let r = 0; r < regionHeight; r++) {
+    if (rowCounts[r] >= rowThreshold) {
+      if (minRow === -1) minRow = r;
+      maxRow = r;
+    }
+  }
+
+  if (minCol === -1 && minRow === -1)
+    return { flag: "ok", changedWidthRatio: 0, changedHeightRatio: 0 };
+
   const expectedWidth = framing.width * width;
-  const changedWidthRatio = expectedWidth > 0 ? changedWidth / expectedWidth : 0;
+  const expectedHeight = framing.height * height;
+  const changedWidthRatio =
+    minCol === -1 || expectedWidth <= 0
+      ? 0
+      : (maxCol - minCol + 1) / expectedWidth;
+  const changedHeightRatio =
+    minRow === -1 || expectedHeight <= 0
+      ? 0
+      : (maxRow - minRow + 1) / expectedHeight;
   return {
-    flag: changedWidthRatio > GROWTH_TOLERANCE ? "grew" : "ok",
+    flag:
+      changedWidthRatio > GROWTH_TOLERANCE ||
+      changedHeightRatio > GROWTH_TOLERANCE
+        ? "grew"
+        : "ok",
     changedWidthRatio,
+    changedHeightRatio,
   };
 }
 
