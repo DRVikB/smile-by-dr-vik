@@ -2126,7 +2126,10 @@ body.consult-open .consult { bottom: 0; }
 }
 .portrait-top .portrait-logo {
   width: clamp(76px, 7vw, 104px);
-  filter: invert(1) brightness(1.25) drop-shadow(0 1px 10px rgba(0, 0, 0, 0.55));
+  /* A tight shadow reads as a crisp outline against the photo; a wide blur
+     radius here (this used to be 10px) can read as the logo itself being
+     soft, especially at the compact size this mark renders at. */
+  filter: invert(1) brightness(1.25) drop-shadow(0 1px 3px rgba(0, 0, 0, 0.65));
 }
 .splash-heading {
   font-family: var(--font-serif);
