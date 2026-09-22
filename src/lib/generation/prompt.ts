@@ -10,12 +10,13 @@ const percent = (value: number) => Math.round(value * 100);
 const DESIGN_PRINCIPLES = [
   "Follow established smile-design proportions so the result reads as a refinement of this patient's own teeth rather than a larger set placed over them.",
   "Stay inside the existing footprint: do not widen, lengthen or extend any tooth beyond the outline of the tooth already there, past the lower lip line, or into the buccal corridors at the corners of the smile.",
-  "Keep each central incisor's apparent width at roughly 75-85% of its length, so a central never reads as wider than it is tall.",
-  "Preserve the width progression from the midline outwards: each lateral incisor appears narrower than the central beside it, and each canine narrower again.",
+  "Keep each central incisor's apparent width at roughly 70-80% of its length, so a central never reads as wider than it is tall.",
+  "Preserve the width progression from the midline outwards: each lateral incisor's visible width should read as roughly 65-75% of the central beside it, and each canine's visible width roughly 65-75% of the lateral beside it. This recurring proportion should follow the ratio already implied by this patient's own teeth, not force every case to the same fixed golden-ratio look — a rigid, identical taper from tooth to tooth reads as artificial rather than natural.",
   "Keep the lateral incisal edges slightly shorter than the centrals, and never level every incisal edge into one straight line.",
   "Follow the smile arc, with the curve of the upper incisal edges running roughly parallel to the curve of the lower lip.",
   "Keep the incisal embrasures open between the teeth, opening progressively from the midline outwards.",
-  "Preserve the dental midline, the gingival zenith positions and the existing gingival margin heights exactly.",
+  "Preserve the dental midline, the gingival zenith positions (the highest point of each tooth's own gum margin, naturally sitting distal of centre on the centrals and canines and closer to centred on the laterals) and the existing gingival margin heights exactly as photographed. Do not recentre, level or symmetrise the gum margins into a more uniform line than the patient actually has.",
+  "If the gum line is uneven, receded or asymmetric between teeth in the photograph, leave it exactly as it is: do not smooth, even out, recontour or brighten gum tissue to look healthier or more regular than photographed. This tool edits teeth, not gums.",
   "A brighter shade makes teeth read larger, so when brightening do not let their apparent size grow.",
 ].join(" ");
 

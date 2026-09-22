@@ -255,13 +255,26 @@ test("the instruction carries explicit smile-design proportions, not just a warn
   const prompt = buildSmileInstruction(defaultSettings);
   for (const rule of [
     "existing footprint",
-    "75-85%",
+    "70-80%",
     "width progression",
     "smile arc",
     "embrasures",
     "buccal corridors",
     "gingival zenith",
     "chiclet",
+  ])
+    assert.ok(prompt.includes(rule), `missing: ${rule}`);
+});
+
+test("the instruction grounds tooth proportions and gum-margin preservation in real clinical anchors", () => {
+  const prompt = buildSmileInstruction(defaultSettings);
+  for (const rule of [
+    "65-75%",
+    "recurring proportion",
+    "golden-ratio look",
+    "distal of centre",
+    "Do not recentre, level or symmetrise",
+    "This tool edits teeth, not gums",
   ])
     assert.ok(prompt.includes(rule), `missing: ${rule}`);
 });
