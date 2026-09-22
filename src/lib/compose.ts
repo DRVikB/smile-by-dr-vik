@@ -1,5 +1,7 @@
 import type { GenerationResult, PreviewPreferences } from "./types";
 import { preferenceRows, wrapText } from "./report";
+import { drawAiTag } from "./aiTag";
+import { treatmentImplications } from "./implications";
 
 export type ComposeLayout = "split" | "stacked";
 
@@ -92,8 +94,23 @@ export async function composeReport(
     : "Digital smile simulation for discussion only. The final clinical result may differ following assessment, treatment planning and material selection.";
   ctx.font = font(20);
   const disclaimerLines = wrapText(ctx, disclaimer, contentW);
+  // What getting there would involve: rules-based, so it adds no AI cost.
+  const implications = preferences && !isDemo ? treatmentImplications(preferences.settings, result) : null;
+  ctx.font = font(21);
+  const implicationBlocks = implications?.items.map((item) => ({
+    title: item.title,
+    lines: wrapText(ctx, item.detail, contentW),
+  })) ?? [];
+  const confirmLines = implications
+    ? wrapText(ctx, `To confirm at assessment: ${implications.confirm.join(" · ")}.`, contentW)
+    : [];
+  const implicationsH = implications
+    ? 80 * unit
+      + implicationBlocks.reduce((sum, b) => sum + 36 * unit + b.lines.length * 29 * unit + 14 * unit, 0)
+      + 12 * unit + confirmLines.length * 29 * unit + 24 * unit
+    : 0;
   const reportH = 140 * unit + (rows.length ? rowHeights.reduce((a, b) => a + b, 0) : 100 * unit)
-    + (notes ? 65 * unit + noteLines.length * 31 * unit : 0) + 54 * unit + disclaimerLines.length * 28 * unit;
+    + (notes ? 65 * unit + noteLines.length * 31 * unit : 0) + implicationsH + 54 * unit + disclaimerLines.length * 28 * unit;
   canvas.width = width;
   canvas.height = Math.ceil(headerH + imagesH + reportH);
   ctx.fillStyle = "#ffffff";
@@ -117,10 +134,12 @@ export async function composeReport(
     const w = img.naturalWidth * scale, h = img.naturalHeight * scale;
     ctx.drawImage(img, x + (cellW - w) / 2, y + (cellH - h) / 2, w, h);
     pill(ctx, x + 24 * unit, y + 24 * unit, label, "rgba(9,12,20,.72)", "#ffffff", 22 * unit);
+    return { x: x + (cellW - w) / 2, y: y + (cellH - h) / 2, w, h };
   };
   if (b) drawPhoto(b, 0, headerH, "Original");
-  drawPhoto(a, b && layout === "split" ? cellW + gap : 0,
+  const afterBox = drawPhoto(a, b && layout === "split" ? cellW + gap : 0,
     headerH + (b && layout === "stacked" ? cellH + gap : 0), isDemo ? "Demo preview" : "Smile preview");
+  if (!isDemo) drawAiTag(ctx, afterBox);
 
   const reportY = headerH + imagesH;
   ctx.fillStyle = "#f5f5f7";
@@ -153,6 +172,23 @@ export async function composeReport(
     ctx.font = font(23); ctx.fillStyle = "#1d1d1f";
     noteLines.forEach((line, i) => ctx.fillText(line, margin, y + 31 * unit + i * 31 * unit));
     y += 65 * unit + noteLines.length * 31 * unit;
+  }
+  if (implications) {
+    ctx.fillStyle = "#d2d2d7"; ctx.fillRect(margin, y + 4 * unit, contentW, unit);
+    ctx.fillStyle = "#1d1d1f"; ctx.font = font(28, 500);
+    ctx.fillText("What this would take", margin, y + 30 * unit);
+    y += 80 * unit;
+    for (const block of implicationBlocks) {
+      ctx.fillStyle = "#1d1d1f"; ctx.font = font(22, 600);
+      ctx.fillText(block.title, margin, y);
+      ctx.fillStyle = "#6e6e73"; ctx.font = font(21);
+      block.lines.forEach((line, i) => ctx.fillText(line, margin, y + 36 * unit + i * 29 * unit));
+      y += 36 * unit + block.lines.length * 29 * unit + 14 * unit;
+    }
+    y += 12 * unit;
+    ctx.fillStyle = "#1d1d1f"; ctx.font = font(21);
+    confirmLines.forEach((line, i) => ctx.fillText(line, margin, y + i * 29 * unit));
+    y += confirmLines.length * 29 * unit + 24 * unit;
   }
   ctx.fillStyle = "#d2d2d7"; ctx.fillRect(margin, y + 4 * unit, contentW, unit);
   ctx.fillStyle = "#6e6e73"; ctx.font = font(20);

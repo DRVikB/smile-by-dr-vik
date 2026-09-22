@@ -5,6 +5,7 @@ import {
   BookMarked,
   Check,
   Columns2,
+  Film,
   ImagePlus,
   History,
   Maximize2,
@@ -27,6 +28,9 @@ import { Presentation } from "@/components/Presentation";
 import { BottomActionBar, Disclaimer } from "@/components/PreviewActions";
 import { CaseLog } from "@/components/CaseLog";
 import { CaseLibrary } from "@/components/CaseLibrary";
+import { Implications } from "@/components/Implications";
+import { SmileAnalysisPanel } from "@/components/SmileAnalysis";
+import { RevealVideoSheet } from "@/components/RevealVideoSheet";
 import {
   defaultSettings,
   type Photo,
@@ -45,6 +49,20 @@ import { useSmileTools } from "@/lib/useSmileTools";
 import { imageSchema } from "@/lib/generation/schema";
 
 type Variant = SmileVariant;
+const ANALYSIS_KEY = "smile.analysis";
+
+/**
+ * Put the edit back onto the original photograph so only the mouth can
+ * change. Runs on the device; if no face is found the edit is kept as-is.
+ */
+async function lockFace(
+  photo: Photo,
+  image: string,
+): Promise<Pick<GenerationResult, "image" | "faceLocked" | "lipsMoved">> {
+  const { lockFaceOutsideLips } = await import("@/lib/face/mouthLock");
+  const r = await lockFaceOutsideLips(photo.dataUrl, image);
+  return { image: r.image, faceLocked: r.locked, lipsMoved: r.lipsMoved };
+}
 
 export default function Smile() {
   const [screen, setScreen] = useState<Screen>("start");
@@ -63,6 +81,7 @@ export default function Smile() {
   const [variants, setVariants] = useState<Variant[]>([]);
   const [options, setOptions] = useState<Variant[] | null>(null);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [videoOpen, setVideoOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [testMode, setTestMode] = useState(false);
   const [testPreview, setTestPreview] = useState<string | null>(null);
@@ -74,6 +93,23 @@ export default function Smile() {
   // Pinned cases override the automatic match, and are a chairside choice for
   // this session rather than something saved with the case.
   const [pinnedCases, setPinnedCases] = useState<string[]>([]);
+  // A clinician preference, remembered on this device only.
+  const [analysisOn, setAnalysisOn] = useState(false);
+  useEffect(() => {
+    try {
+      setAnalysisOn(localStorage.getItem(ANALYSIS_KEY) === "on");
+    } catch {
+      // Private browsing or blocked storage: the toggle simply starts off.
+    }
+  }, []);
+  function toggleAnalysis(on: boolean) {
+    setAnalysisOn(on);
+    try {
+      localStorage.setItem(ANALYSIS_KEY, on ? "on" : "off");
+    } catch {
+      // Not remembered on this device, but still works for this session.
+    }
+  }
   useSmileTools({ screen, hasPhoto: !!photo, settings, busy }, setSettings);
   const replacement = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
@@ -135,6 +171,16 @@ export default function Smile() {
     document.body.classList.toggle("consult-open", fullscreen);
     return () => document.body.classList.remove("consult-open");
   }, [fullscreen]);
+
+  // Fetch the on-device face model and read the patient's face while the
+  // clinician is still choosing settings, so the result isn't kept waiting.
+  const photoUrl = photo?.dataUrl;
+  useEffect(() => {
+    if (screen !== "design" || !photoUrl) return;
+    void import("@/lib/face/landmarks")
+      .then((m) => m.detectFace(photoUrl))
+      .catch(() => {});
+  }, [screen, photoUrl]);
 
   useEffect(() => {
     if (firstScreen.current) {
@@ -226,8 +272,9 @@ export default function Smile() {
       await new Promise((resolve) => setTimeout(resolve, 1200));
       if (controller.signal.aborted) throw controller.signal.reason;
       const { alignPreview } = await import("@/lib/photos");
+      const locked = await lockFace(photoIn, await alignPreview(testPreview, photoIn));
       return {
-        image: await alignPreview(testPreview, photoIn),
+        ...locked,
         mode: "live",
         variationId: crypto.randomUUID(),
         preferences,
@@ -282,7 +329,7 @@ export default function Smile() {
     let next = body as GenerationResult;
     if (next.mode === "live") {
       const { alignPreview } = await import("@/lib/photos");
-      next = { ...next, image: await alignPreview(next.image, photoIn) };
+      next = { ...next, ...(await lockFace(photoIn, await alignPreview(next.image, photoIn))) };
       // Advisory only, and only when there's a trustworthy anchor to check
       // against — an uploaded photo has no capture guide to measure from.
       if (photoIn.framing) {
@@ -775,7 +822,6 @@ export default function Smile() {
                         original={photo.dataUrl}
                         preview={result.image}
                         isMock={result.mode === "mock"}
-                        previewLabel="Live Preview"
                       />
                       {generation}
                     </div>
@@ -843,7 +889,7 @@ export default function Smile() {
               <div className="preview-side">
               <div className="comparison-hint">
                 <MoveHorizontal size={15} strokeWidth={1.6} />
-                Slide to compare
+                Slide to compare, or overlay to line up the teeth
               </div>
               <div className="adjust-row">
                 <span className="adjust-label">Not quite right?</span>
@@ -872,11 +918,30 @@ export default function Smile() {
                   Stronger
                 </button>
               </div>
+              <label className="style-toggle analysis-toggle">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={analysisOn}
+                  onChange={(e) => toggleAnalysis(e.target.checked)}
+                />
+                <span className="analysis-toggle-text">
+                  Smile analysis
+                  <small>Reference lines and measurements</small>
+                </span>
+              </label>
               {result.scaleFlag === "grew" && (
                 <p className="scale-notice" role="status">
                   <span>Check the size</span>This result may show the teeth
                   larger or longer than the patient’s own — compare closely,
                   or try Softer, before presenting it.
+                </p>
+              )}
+              {result.lipsMoved && (
+                <p className="scale-notice" role="status">
+                  <span>Lips changed</span>This version moved the lip line as
+                  well as the teeth, so it may not match their own smile — try
+                  again for a closer match.
                 </p>
               )}
               {result.mode === "mock" && (
@@ -907,8 +972,20 @@ export default function Smile() {
                   <Check size={14} /> Image saved
                 </p>
               )}
+              <Implications
+                settings={reportPreferences?.settings ?? settings}
+                result={result}
+              />
               </div>
               </div>
+              {analysisOn && (
+                <SmileAnalysisPanel
+                  before={photo.dataUrl}
+                  after={result.image}
+                  isDemo={result.mode === "mock" || testMode}
+                  patientName={patientName}
+                />
+              )}
               <Disclaimer />
             </section>
           )}
@@ -1009,7 +1086,7 @@ export default function Smile() {
                 <X size={16} />
               </button>
             </div>
-            <p className="sheet-sub">Both formats include your before and after photos, Dr Vik logo and smile preferences.</p>
+            <p className="sheet-sub">The images include the before and after photos, Dr Vik logo, smile preferences and what the treatment would involve. The video shows the new smile fading in.</p>
             <div className="report-photo-pair" aria-label="Before and after report preview">
               <figure>
                 <img src={photo.dataUrl} alt="Before: original photograph" />
@@ -1053,9 +1130,32 @@ export default function Smile() {
                   <small>Before above, preview below.</small>
                 </span>
               </button>
+              <button
+                className="save-option"
+                onClick={() => {
+                  setSaveOpen(false);
+                  setVideoOpen(true);
+                }}
+              >
+                <Film size={18} strokeWidth={1.6} />
+                <span>
+                  Reveal video
+                  <small>Their smile, then the new one fading in.</small>
+                </span>
+              </button>
             </div>
           </div>
         </div>
+      )}
+
+      {videoOpen && photo && result && (
+        <RevealVideoSheet
+          before={photo.dataUrl}
+          after={result.image}
+          isDemo={result.mode === "mock" || testMode}
+          patientName={patientName}
+          onClose={() => setVideoOpen(false)}
+        />
       )}
 
       {fullscreen && photo && result && (

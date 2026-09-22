@@ -124,7 +124,7 @@ export function ConsultView({
               : "Tap and hold to see original"}
         </span>
         <span className="consult-meta">
-          {isMock ? "Demo preview" : "AI Smile Preview"}
+          {isMock ? "Demo preview" : "AI illustration"}
           <small>for discussion purposes only</small>
         </span>
       </div>

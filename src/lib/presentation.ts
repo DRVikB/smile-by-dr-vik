@@ -1,4 +1,5 @@
 import { jpegToPdf } from "./pdf";
+import { drawAiTag } from "./aiTag";
 
 /**
  * The DR ViK before/after page: near-black, champagne gold, editorial serif.
@@ -54,7 +55,7 @@ function drawContained(
  * several iPadOS versions, which silently leaves a dark logo on a dark page —
  * compositing works everywhere.
  */
-function tinted(
+export function tinted(
   img: HTMLImageElement,
   colour: string,
   w: number,
@@ -148,6 +149,7 @@ export async function composePresentation(
   const cellH = 1010;
   const left = drawContained(ctx, b, margin, cellY, cellW, cellH);
   const right = drawContained(ctx, a, margin + cellW + gap, cellY, cellW, cellH);
+  if (!options.isDemo) drawAiTag(ctx, right);
   // The gold rule hugs the preview photograph itself, not its cell.
   ctx.strokeStyle = "rgba(201, 169, 110, 0.55)";
   ctx.lineWidth = 2;

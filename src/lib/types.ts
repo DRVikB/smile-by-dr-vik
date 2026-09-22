@@ -99,6 +99,10 @@ export interface GenerationResult {
    *  capture guide by more than a reasonable margin. Unset when there was
    *  no guide region to check against (e.g. an uploaded photo). */
   scaleFlag?: "ok" | "grew";
+  /** Everything outside the lips was restored to the original photograph. */
+  faceLocked?: boolean;
+  /** The edit moved the lip border itself, not only the teeth. */
+  lipsMoved?: boolean;
 }
 export interface SmileVariant {
   label: string;
