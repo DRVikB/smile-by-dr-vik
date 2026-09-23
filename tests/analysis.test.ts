@@ -56,5 +56,6 @@ test("a sloping mouth-corner line and an off-centre smile are measured", () => {
   assert.ok(Math.abs(a.cantDeg - (Math.atan2(18, 260) * 180) / Math.PI) < 0.01);
   assert.ok(Math.abs(a.midlineOffsetPx - 23) < 0.01);
   const row = analysisRows(a).find((r) => r.label === "Smile centre vs facial midline")!;
-  assert.match(row.value, /mm to photo right/);
+  assert.match(row.value, /% of mouth width to photo right/);
+  assert.ok(analysisRows(a).every(r => !/\d+ mm/.test(r.value)));
 });

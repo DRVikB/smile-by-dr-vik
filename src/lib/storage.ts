@@ -1,3 +1,4 @@
+import { validCaseCosts } from "./generation/cost";
 import type { SmileCase } from "./types";
 import { imageSchema, settingsSchema } from "./generation/schema";
 function open(): Promise<IDBDatabase> {
@@ -34,6 +35,7 @@ export async function readCase(): Promise<SmileCase | null> {
         )
           c.result = null;
         const validatePreferences = (result: import("./types").GenerationResult | null) => {
+          if (result?.review && (typeof result.review.reviewer !== "string" || !result.review.reviewer.trim() || typeof result.review.notes !== "string" || !Number.isFinite(result.review.reviewedAt))) delete result.review;
           if (!result?.preferences) return;
           const p = result.preferences;
           if (!settingsSchema.safeParse(p.settings).success ||
@@ -46,12 +48,17 @@ export async function readCase(): Promise<SmileCase | null> {
           imageSchema.safeParse(v.result?.image).success && ["mock", "live"].includes(v.result?.mode) && typeof v.result?.variationId === "string"
         ).slice(0, 4) : [];
         c.variants.forEach((v: import("./types").SmileVariant) => validatePreferences(v.result));
+        if (c.photo.editMask && !imageSchema.safeParse(c.photo.editMask).success) { resolve(null); return; }
         if (c.reference && !imageSchema.safeParse(c.reference.dataUrl).success) c.reference = null;
         if (c.testMode && !imageSchema.safeParse(c.testPreview).success) {
           // Never silently turn an incomplete test case into a paid request.
           resolve(null);
           return;
         }
+        if (typeof c.validationCaseId !== "string") delete c.validationCaseId;
+        if (![0,3,5,10,20].includes(c.requestLimit)) delete c.requestLimit;
+        if (c.costs !== undefined && !validCaseCosts(c.costs)) delete c.costs;
+        if (c.resolution !== undefined && !["512", "1K"].includes(c.resolution)) delete c.resolution;
         if (typeof c.patientName !== "string") delete c.patientName;
         if (c.screen === "preview" && !c.result) c.screen = "design";
         resolve(c);

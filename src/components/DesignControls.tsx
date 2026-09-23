@@ -12,6 +12,10 @@ import type {
   ToothShape,
   Treatment,
 } from "@/lib/types";
+import { GenerationCosts, generationCostLabel, type GenerationCostsProps } from "./GenerationCosts";
+import { DESIGN_INTENTS, isNoChangeDesign, resolveDesignPlan } from "@/lib/generation/designPlan";
+import { ToothChart } from "./ToothChart";
+import { CaseFeatures } from "./CaseFeatures";
 import { upperTeeth } from "@/lib/types";
 
 const SHAPES: { name: string; shape: ToothShape; description: string }[] = [
@@ -76,10 +80,14 @@ export function SegmentedControl<T extends string | number>({
 }
 
 export function DesignControls({
+  costs,
+  onEditArea,
+  hasEditArea,
   settings,
   onChange,
   onGenerate,
   onCompare,
+  onCompareMaterials,
   onHarmonise,
   busy,
   libraryCount,
@@ -89,10 +97,14 @@ export function DesignControls({
   onAddReference,
   onClearReference,
 }: {
+  costs: GenerationCostsProps;
+  onEditArea: () => void;
+  hasEditArea: boolean;
   settings: SmileSettings;
   onChange: (s: SmileSettings) => void;
   onGenerate: () => void;
   onCompare: () => void;
+  onCompareMaterials: () => void;
   onHarmonise: () => void;
   busy: boolean;
   libraryCount: number;
@@ -112,19 +124,29 @@ export function DesignControls({
     <aside className="design-panel">
       <h2 className="design-panel-title">Smile design</h2>
       <div className="design-scroll">
+        <GenerationCosts {...costs} />
         <fieldset disabled={busy} className="design-fieldset" aria-label="Smile design controls">
+            <div className="control-group">
+              <label className="control-label" htmlFor="design-intent">Design goal</label>
+              <select id="design-intent" className="design-select" value={settings.designIntent ?? "Auto"} onChange={(e) => change("designIntent", e.target.value as SmileSettings["designIntent"])}>{DESIGN_INTENTS.map((intent) => <option key={intent}>{intent}</option>)}</select>
+              <p className="control-hint">{resolveDesignPlan(settings).summary} Anatomy protection takes priority over notes and style preferences.</p>
+              <button type="button" className="secondary-button" onClick={onEditArea}>{hasEditArea ? "Review protected edit area" : "Protect edit area"}</button>
+              <p className="control-hint">{hasEditArea ? "Only your painted area may change. Recheck it if you change teeth or design goal." : "Optional: paint the teeth and planned additions to keep gums and untreated teeth outside the edit. Runs on this device."}</p>
+            </div>
             <SegmentedControl<TeethCount>
-              label="Teeth"
+              label={settings.toothPlans ? "Replace individual plan with upper preset" : "Upper teeth"}
               options={[4, 6, 8, 10]}
               value={settings.teeth}
               onChange={(teeth) =>
                 onChange({
                   ...settings,
                   teeth,
+                  toothPlans: undefined,
                   selectedTeeth: upperTeeth[teeth],
                 })
               }
             />
+            <ToothChart settings={settings} onChange={onChange} />
             <SegmentedControl<TargetShade>
               label="Shade"
               options={["The same", "Whiten", "Bleach"]}
@@ -157,7 +179,7 @@ export function DesignControls({
 
             <div className="control-group">
               <div className="control-label">
-                <span>Face shape</span>
+                <span>Facial style reference</span>
                 <span className="muted">Harmony</span>
               </div>
               <div className="segmented" role="group" aria-label="Face shape">
@@ -175,10 +197,10 @@ export function DesignControls({
               </div>
               <p className="control-hint">
                 {settings.faceShape === "Auto"
-                  ? "Reads the facial outline from the photo and matches the tooth form to it."
-                  : "Tooth form is matched to a " +
+                  ? "Uses visible proportions as context; it does not force a face-to-tooth shape match."
+                  : "Optional visual preference: " +
                     settings.faceShape.toLowerCase() +
-                    " facial outline."}
+                    ". The selected goal and tooth form take priority."}
               </p>
             </div>
             <SegmentedControl<SmileCharacter>
@@ -190,7 +212,7 @@ export function DesignControls({
 
             <SegmentedControl<Treatment>
               label="Treatment"
-              options={["Composite", "Porcelain"]}
+              options={settings.treatment === "Composite" ? ["Composite", "Single-shade composite", "Layered composite", "Porcelain"] : ["Single-shade composite", "Layered composite", "Porcelain"]}
               value={settings.treatment}
               onChange={(v) => change("treatment", v)}
             />
@@ -251,6 +273,8 @@ export function DesignControls({
                   <BookMarked size={14} strokeWidth={1.7} /> Case library
                 </button>
               </div>
+              <CaseFeatures value={settings.caseFeatures ?? []} onChange={v => change("caseFeatures", v)} />
+              <p className="control-hint">Starting conditions guide reference matching; they do not authorise treatment or diagnose the photograph.</p>
               <label className="style-toggle">
                 <input
                   type="checkbox"
@@ -265,7 +289,7 @@ export function DesignControls({
                   : !settings.libraryStyle
                     ? `${libraryCount} ${libraryCount === 1 ? "case" : "cases"} saved, not being used for this preview.`
                     : pinnedCount > 0
-                      ? `${pinnedCount} pinned ${pinnedCount === 1 ? "case" : "cases"} will be sent with this photo.`
+                      ? `Only pinned cases matching ${settings.treatment.toLowerCase()} will be used. Other materials are excluded.`
                       : `Up to three of your ${settings.treatment.toLowerCase()} cases will be sent with this photo.`}
               </p>
             </div>
@@ -298,30 +322,40 @@ export function DesignControls({
             <button
               type="button"
               className="secondary-button compare-button"
+              disabled={settings.designIntent === "Shade only"}
               onClick={onHarmonise}
             >
               <Wand2 size={16} strokeWidth={1.6} />
-              Harmonised options
+              Harmonised options · 3
+              {costs.open && <small className="action-cost">{generationCostLabel(costs.pricing, costs.resolution, 3, costs.testMode)}</small>}
+            </button>
+            <button type="button" className="secondary-button compare-button" disabled={isNoChangeDesign(settings)} onClick={onCompareMaterials}>
+              <Layers size={16} strokeWidth={1.6} />Compare 3 materials
+              {costs.open && <small className="action-cost">{generationCostLabel(costs.pricing, costs.resolution, 3, costs.testMode)}</small>}
             </button>
             <button
               type="button"
               className="secondary-button compare-button"
+              disabled={settings.designIntent === "Shade only"}
               onClick={onCompare}
             >
               <Layers size={16} strokeWidth={1.6} />
               Compare 3 shapes
+              {costs.open && <small className="action-cost">{generationCostLabel(costs.pricing, costs.resolution, 3, costs.testMode)}</small>}
             </button>
         </fieldset>
       </div>
 
       <div className="panel-actions">
+        {isNoChangeDesign(settings) && <p className="control-hint">No change selected: select teeth to edit and choose a different shade or design goal. No generation is needed.</p>}
         <button
           className="primary-button generate-button"
           onClick={onGenerate}
-          disabled={busy}
+          disabled={busy || isNoChangeDesign(settings)}
         >
           <Sparkles size={17} strokeWidth={1.5} />
           {busy ? "Creating your preview…" : "Create Preview"}
+          {costs.open && !busy && <small className="action-cost">{generationCostLabel(costs.pricing, costs.resolution, 1, costs.testMode)}</small>}
         </button>
       </div>
     </aside>

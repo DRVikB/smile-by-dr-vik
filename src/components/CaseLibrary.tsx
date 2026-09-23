@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Download, ImagePlus, Trash2, Upload, X } from "lucide-react";
 import type { CaseMaterial, LibraryCase } from "@/lib/types";
+import { LibraryCaseDetails } from "./LibraryCaseDetails";
+import { exportValidationRecords } from "@/lib/validation";
 import { caseMaterials } from "@/lib/types";
 import {
   MAX_STYLE_REFERENCES,
@@ -23,11 +25,13 @@ export function CaseLibrary({
   pinned,
   onPinnedChange,
   onCountChange,
+  onValidate,
 }: {
   onClose: () => void;
   pinned: string[];
   onPinnedChange: (ids: string[]) => void;
   onCountChange: (count: number) => void;
+  onValidate: (entry: LibraryCase) => void;
 }) {
   const [cases, setCases] = useState<LibraryCase[] | null>(null);
   const [material, setMaterial] = useState<CaseMaterial>("Layered composite");
@@ -151,7 +155,8 @@ export function CaseLibrary({
     }
   }
 
-  const autoComposite = chooseLibraryCases(all, "Composite");
+  const autoSingle = chooseLibraryCases(all, "Single-shade composite");
+  const autoLayered = chooseLibraryCases(all, "Layered composite");
   const autoPorcelain = chooseLibraryCases(all, "Porcelain");
 
   return (
@@ -162,13 +167,12 @@ export function CaseLibrary({
       aria-label="Case library"
       onClick={onClose}
     >
-      <div className="log-panel" onClick={(e) => e.stopPropagation()}>
+      <div className="log-panel library-panel" onClick={(e) => e.stopPropagation()}>
         <div className="log-head">
           <div>
             <h2>Case library</h2>
             <p className="log-date">
-              Your own finished work, used as the style reference for every
-              preview.
+              Your own finished work, matched by material, starting conditions and teeth treated.
             </p>
           </div>
           <button className="icon-button" onClick={onClose} aria-label="Close">
@@ -264,8 +268,8 @@ export function CaseLibrary({
           <>
             <p className="library-note">
               {pinned.length > 0
-                ? `${pinned.length} pinned — ${pinned.length === 1 ? "this case is" : "these cases are"} used for every preview until you unpin ${pinned.length === 1 ? "it" : "them"}.`
-                : `Matched automatically: ${autoComposite.length} for composite, ${autoPorcelain.length} for porcelain. Pin up to ${MAX_STYLE_REFERENCES} to override.`}
+                ? `${pinned.length} pinned. Only cases matching the selected treatment technique are sent; other materials are excluded.`
+                : `Matched automatically: ${autoSingle.length} single-shade, ${autoLayered.length} layered, ${autoPorcelain.length} porcelain. Pin up to ${MAX_STYLE_REFERENCES} to override.`}
             </p>
             <ul className="library-grid">
               {all.map((c) => {
@@ -274,6 +278,7 @@ export function CaseLibrary({
                   <li key={c.id}>
                     <button
                       type="button"
+                      disabled={c.validationOnly}
                       className={`library-card${isPinned ? " pinned" : ""}`}
                       aria-pressed={isPinned}
                       onClick={() => togglePin(c.id)}
@@ -286,9 +291,10 @@ export function CaseLibrary({
                       )}
                       <span className="library-card-text">
                         <strong>{c.label || "Untitled case"}</strong>
-                        <span>{c.material}</span>
+                        <span>{c.material}{c.validationOnly ? " · Held out" : ""}</span>
                       </span>
                     </button>
+                    <LibraryCaseDetails entry={c} onSaved={refresh} onValidate={onValidate} />
                     <button
                       type="button"
                       className="text-button danger library-delete"
@@ -309,6 +315,7 @@ export function CaseLibrary({
             {all.length} {all.length === 1 ? "case" : "cases"}
           </span>
           <span className="library-foot-actions">
+            <button className="text-button" onClick={() => void exportValidationRecords().catch(() => setError("Validation records could not be exported."))}>Export validation scores</button>
             <button
               className="text-button"
               onClick={() => importInput.current?.click()}
@@ -334,10 +341,8 @@ export function CaseLibrary({
                   <button
                     className="text-button danger"
                     onClick={async () => {
-                      await clearLibrary().catch(() => {});
-                      onPinnedChange([]);
-                      setConfirmClear(false);
-                      refresh();
+                      try { await clearLibrary(); onPinnedChange([]); setConfirmClear(false); refresh(); }
+                      catch { setError("The library could not be cleared. Please try again."); }
                     }}
                   >
                     Delete

@@ -57,7 +57,8 @@ export function useSmileTools(
           type: "object",
           properties: {
             teeth: { enum: [4, 6, 8, 10] },
-            treatment: { enum: ["Composite", "Porcelain"] },
+            treatment: { enum: ["Composite", "Single-shade composite", "Layered composite", "Porcelain"] },
+            designIntent: { enum: ["Auto", "Shade only", "Repair edges", "Close gaps", "Reshape"] },
             currentShade: { enum: ["A3", "A2", "A1", "B1"] },
             targetShade: { enum: ["The same", "Whiten", "Bleach", "A1", "B1", "BL3", "BL2", "BL1"] },
             shape: { enum: ["Square", "Rounded", "Triangular"] },
@@ -87,6 +88,7 @@ export function useSmileTools(
           const allowed = [
             "teeth",
             "treatment",
+            "designIntent",
             "currentShade",
             "targetShade",
             "shape",
@@ -105,7 +107,8 @@ export function useSmileTools(
           const next = settingsSchema.parse({
             ...current.state.settings,
             ...patch,
-            selectedTeeth: upperTeeth[count as TeethCount],
+            selectedTeeth: patch.teeth ? upperTeeth[count as TeethCount] : current.state.settings.selectedTeeth,
+            toothPlans: patch.teeth ? undefined : current.state.settings.toothPlans,
           });
           current.setSettings(next);
           await new Promise<void>((r) =>

@@ -18,6 +18,8 @@ const TIPS = [
   "Good lighting",
   "Face the camera",
   "Remove sunglasses",
+  "Keep teeth sharp and fully visible",
+  "Avoid flash glare and beauty filters",
 ];
 
 /**
@@ -185,6 +187,11 @@ export function PhotoUploader({
           </ul>
         </div>
 
+        <details className="clinical-details"><summary>Clinical capture guide</summary>
+          <p className="control-hint">Use a full-face smile for facial context or a straight-on close-up for tooth detail. Set the matching photo type in Smile design. A retracted view can show more tooth detail, but cannot establish the natural smile arc.</p>
+          <p className="control-hint">Keep lighting, camera distance and head position consistent for comparisons. Check blur and reflections on the teeth themselves before continuing. Only one patient photograph is edited per preview.</p>
+          <p className="control-hint">For clinical shade records, include a suitable shade reference and use your calibrated photography workflow. An uncalibrated iPad image is not an exact shade measurement. Keep any extra views or natural-smile video in your clinical record.</p>
+        </details>
         <p className="photo-hint">JPG, PNG or HEIC · up to 25 MB</p>
 
         {error && (

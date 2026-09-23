@@ -2979,3 +2979,68 @@ body.consult-open .consult { bottom: 0; }
   text-align: left;
 }
 .analysis-toggle-text small { margin-top: 2px; }
+
+/* Clinician-only planning controls: excluded from image/report renderers. */
+.generation-costs { flex-shrink: 0; margin: 0 0 18px; border: 1px solid rgba(88, 80, 72, .15); border-radius: 14px; overflow: hidden; }
+.cost-toggle { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; min-height: 44px; background: rgba(255,255,255,.45); color: inherit; font-size: 13px; text-align: left; }
+.cost-toggle > span:last-child { color: #74716c; font-size: 12px; }
+.cost-content { padding: 0 14px 12px; }
+.cost-content .control-hint { margin: 10px 0; line-height: 1.5; }
+.cost-content a { text-decoration: underline; }
+.cost-lines { font-size: 12px; margin: 12px 0; }
+.cost-lines > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 5px 12px; padding: 7px 0; border-bottom: 1px solid rgba(88,80,72,.1); }
+.cost-lines dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 500; }
+.action-cost { display: block; font-size: 10px; line-height: 1.4; font-weight: 400; }
+.compare-button:has(.action-cost), .generate-button:has(.action-cost) { flex-wrap: wrap; }
+.compare-button .action-cost, .generate-button .action-cost { flex-basis: 100%; }
+@media print { .generation-costs, .action-cost { display: none !important; } }
+
+.cost-explainer summary { cursor: pointer; font-size: 12px; padding: 10px 0; min-height: 44px; }
+.design-select { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-solid); color: var(--text-primary); font: inherit; font-size: 14px; }
+.edit-area-sheet { width: min(900px, 96vw); max-height: calc(100dvh - var(--display-toolbar-height) - 24px); overflow-y: auto; }
+.edit-area-viewport { max-height: 40dvh; overflow: auto; background: #202020; border-radius: 12px; margin-top: 12px; overscroll-behavior: contain; }
+.edit-area-image { position: relative; }
+.edit-area-image img { display: block; width: 100%; user-select: none; -webkit-user-drag: none; }
+.edit-area-image canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .55; }
+.edit-area-sliders, .edit-area-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 12px 0; }
+.edit-area-sliders label { flex: 1; min-width: 150px; font-size: 13px; }
+.edit-area-sliders input { display: block; width: 100%; min-height: 44px; }
+.edit-area-actions .primary-button { min-width: 170px; margin-left: auto; }
+.design-fieldset .segmented[aria-label="Treatment"] { flex-wrap: wrap; }
+.design-fieldset .segmented[aria-label="Treatment"] button { flex: 1 1 90px; white-space: normal; min-height: 48px; }
+
+/* Clinician controls share the existing neutral palette and touch sizing. */
+.clinical-details { margin: 12px 0; padding: 12px; border: 1px solid #ddd9d3; border-radius: 14px; min-width: 0; }
+.clinical-details summary { cursor: pointer; font-size: 14px; min-height: 32px; }
+.tooth-arch > strong { display: block; font-size: 12px; margin: 10px 0 5px; }
+.tooth-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.tooth-grid button { min-height: 48px; padding: 5px 1px; border: 1px solid #d5d1cb; border-radius: 8px; background: #fff; color: #444; }
+.tooth-grid button.active { background: #e2eee8; color: #183c2b; }
+.tooth-grid button.focused { outline: 2px solid #1d1d1f; outline-offset: 1px; }
+.tooth-grid small { display: block; font-size: 9px; }
+.tooth-editor { margin-top: 14px; display: grid; gap: 10px; font-size: 13px; }
+.tooth-editor select { width: 100%; margin-top: 4px; }
+.feature-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.feature-tags button { background: #fff; color: #555; border: 1px solid #ddd; border-radius: 20px; padding: 9px 12px; min-height: 44px; font-size: 12px; }
+.feature-tags button.selected { background: #242424; color: #fff; border-color: #242424; }
+.clinical-form { display: grid; gap: 12px; margin-top: 12px; }
+.clinical-form label { display: grid; gap: 6px; font-size: 13px; }
+.clinical-form input, .clinical-form select { min-height: 44px; width: 100%; }
+.clinical-form .style-toggle { display: flex; }
+.clinical-form .style-toggle input { width: auto; min-height: auto; }
+.review-panel { padding: 14px; background: #f5f5f3; border-radius: 14px; margin: 12px 0; }
+.review-panel summary { cursor: pointer; min-height: 32px; }
+.review-panel textarea { width: 100%; }
+.validation-images { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.validation-images img { width: 100%; max-height: 300px; object-fit: contain; background: #151515; }
+.validation-images figure { margin: 0; font-size: 12px; }
+.validation-images figcaption { padding: 8px 0; }
+
+.library-panel { overflow-y: auto; display: block; }
+.library-panel > * + * { margin-top: 14px; }
+.library-panel .library-grid { overflow: visible; }
+.library-grid > li:has(details[open]) { grid-column: 1 / -1; }
+.library-grid > li:has(details[open]) > .library-card { max-width: 220px; }
+fieldset.clinical-form { border: 0; padding: 0; min-width: 0; }
+.tooth-grid { grid-template-columns: repeat(auto-fit,minmax(44px,1fr)); }
+.tooth-grid button { min-width: 44px; }

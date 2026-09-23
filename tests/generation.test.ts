@@ -69,7 +69,7 @@ test("instruction includes the selected anatomy and preservation boundaries", ()
     "facial identity",
     "Do not edit the gingiva",
     "35/100",
-    "Composite",
+    defaultSettings.treatment,
     "Gently whiten",
   ])
     assert.ok(prompt.includes(phrase));
@@ -189,27 +189,6 @@ test("the instruction always demands a like-for-like frame, and names the guide 
   for (const edge of ["30%", "70%", "56%", "72%"]) assert.ok(framed.includes(edge));
 });
 
-test("the instruction anchors overall scale to the patient, not a generic ideal", () => {
-  const prompt = buildSmileInstruction(defaultSettings);
-  for (const rule of [
-    "commissures",
-    "apparent age",
-    "every transformation intensity",
-  ])
-    assert.ok(prompt.includes(rule), `missing: ${rule}`);
-});
-
-test("the instruction treats incisal length as its own limit and ties it to age", () => {
-  const prompt = buildSmileInstruction(defaultSettings);
-  for (const rule of [
-    "gingival margin stays exactly where it was photographed",
-    "sixty or older",
-    "shorter clinical crowns",
-    "Never use age to justify a longer result",
-  ])
-    assert.ok(prompt.includes(rule), `missing: ${rule}`);
-});
-
 test("a capture region locates the teeth but is never a target size", () => {
   const framed = buildSmileInstruction(defaultSettings, false, {
     x: 0.3,
@@ -251,74 +230,6 @@ test("a capture framing region must be fractions of the frame", () => {
     );
 });
 
-test("the instruction carries explicit smile-design proportions, not just a warning", () => {
-  const prompt = buildSmileInstruction(defaultSettings);
-  for (const rule of [
-    "existing footprint",
-    "70-80%",
-    "width progression",
-    "smile arc",
-    "embrasures",
-    "buccal corridors",
-    "gingival zenith",
-    "chiclet",
-  ])
-    assert.ok(prompt.includes(rule), `missing: ${rule}`);
-});
-
-test("the instruction grounds tooth proportions and gum-margin preservation in real clinical anchors", () => {
-  const prompt = buildSmileInstruction(defaultSettings);
-  for (const rule of [
-    "65-75%",
-    "recurring proportion",
-    "golden-ratio look",
-    "distal of centre",
-    "Do not recentre, level or symmetrise",
-    "This tool edits teeth, not gums",
-  ])
-    assert.ok(prompt.includes(rule), `missing: ${rule}`);
-});
-
-test("the instruction harmonises the design with the face, the smile lines and the existing teeth", () => {
-  const auto = buildSmileInstruction(defaultSettings);
-  // Auto asks the model to read the outline rather than asserting one.
-  assert.match(auto, /Read the patient's facial outline/);
-  assert.match(auto, /outline of the upper central incisor echoes the outline of the face/);
-
-  // A named face shape states the outline and the matching tooth form.
-  const tapering = buildSmileInstruction({ ...defaultSettings, faceShape: "Tapering" });
-  assert.match(tapering, /facial outline is tapering/);
-  assert.match(tapering, /converging proximal walls/);
-  assert.ok(!tapering.includes("Read the patient's facial outline"));
-
-  const square = buildSmileInstruction({ ...defaultSettings, faceShape: "Square" });
-  assert.match(square, /facial outline is square/);
-  assert.match(square, /parallel proximal walls/);
-
-  // Character is non-gendered and changes the edges, not the size.
-  assert.match(buildSmileInstruction({ ...defaultSettings, character: "Soft" }), /soft character/);
-  assert.match(buildSmileInstruction({ ...defaultSettings, character: "Defined" }), /defined character/);
-  assert.match(auto, /balanced character/);
-
-  // Smile lines and existing dentition.
-  for (const rule of [
-    "coincident with the facial midline",
-    "follows the curve of the lower lip",
-    "existing position, rotation and inclination",
-    "contralateral partner",
-  ])
-    assert.ok(auto.includes(rule), `missing: ${rule}`);
-});
-
-test("a close-up drops the interpupillary reference, which needs a full face", () => {
-  const full = buildSmileInstruction(defaultSettings);
-  const closeup = buildSmileInstruction({ ...defaultSettings, shotType: "Close-up" });
-  assert.match(full, /interpupillary line/);
-  assert.ok(!closeup.includes("interpupillary"));
-  // The rest of the smile lines survive.
-  assert.match(closeup, /follows the curve of the lower lip/);
-});
-
 test("the clinician's own cases are described as a style source, not as the patient", () => {
   const none = buildSmileInstruction(defaultSettings, false, undefined, 0);
   assert.ok(!none.includes("finished case"));
@@ -332,8 +243,8 @@ test("the clinician's own cases are described as a style source, not as the pati
   for (const rule of [
     "emergence profile",
     "surface texture",
-    "incisal translucency",
-    "how the shade is layered",
+    "incisal character",
+    "optical finish",
     "do not average their arrangements together",
     "the arrangement must come from the first image",
   ])

@@ -8,7 +8,7 @@ test('exports the generated selection rather than a different variant or edited 
   const result: GenerationResult = { image: 'test', mode: 'live', variationId: 'square', preferences };
   const other: SmileVariant = { label: 'Round', note: '', patch: {}, settings: defaultSettings, result: { ...result, variationId: 'round', preferences: undefined } };
   assert.deepEqual(getReportPreferences(result, [other]), preferences);
-  assert.deepEqual(preferenceRows(preferences.settings).slice(0, 3), [['Shade', 'Bleach'], ['Tooth shape', 'Square'], ['Treatment', 'Composite']]);
+  assert.deepEqual(preferenceRows(preferences.settings).slice(0, 3), [['Shade', 'Bleach'], ['Tooth shape', 'Square'], ['Treatment', defaultSettings.treatment]]);
   assert.equal(getReportPreferences({ ...result, preferences: undefined }, [other]), undefined);
   assert.deepEqual(getReportPreferences(other.result, [other])?.settings, defaultSettings);
 });
@@ -24,4 +24,13 @@ test('long report notes wrap without dropping text, including unbroken words and
   const lines = wrapText(ctx, text, 120);
   assert.ok(lines.every((line) => line.length <= 12));
   assert.equal(lines.join('').replaceAll(' ', ''), text.replace(/\s/g, ''));
+});
+
+test('shade-only reports do not claim the ignored shape or texture was applied', () => {
+  const rows = Object.fromEntries(preferenceRows({ ...defaultSettings, designIntent: 'Shade only', shape: 'Square', texture: 'Textured', intensity: 100 }));
+  assert.equal(rows['Tooth shape'], 'Unchanged (shade only)');
+  assert.equal(rows.Texture, 'Unchanged');
+  assert.equal(rows['Result intensity'], 'No shape change');
+  assert.equal(rows['Design goal'], 'Shade only');
+  assert.equal(rows.Treatment, undefined);
 });

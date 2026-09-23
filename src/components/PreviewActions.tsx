@@ -6,6 +6,7 @@ export function BottomActionBar({
   onNew,
   busy,
   saving,
+  anotherCost,
 }: {
   onAnother: () => void;
   onEdit: () => void;
@@ -13,12 +14,14 @@ export function BottomActionBar({
   onNew: () => void;
   busy: boolean;
   saving: boolean;
+  anotherCost?: string;
 }) {
   return (
     <div className="bottom-action-bar">
       <button className="action-button" disabled={busy} onClick={onAnother}>
         <Sparkles size={19} strokeWidth={1.5} />
-        Show me another
+        Three more options
+        {anotherCost && <small className="action-cost">{anotherCost}</small>}
       </button>
       <button className="action-button" disabled={busy} onClick={onEdit}>
         <Pencil size={19} strokeWidth={1.5} />

@@ -19,6 +19,7 @@ import {
 import { AppShell } from "@/components/AppShell";
 import { PhotoUploader } from "@/components/PhotoUploader";
 import { CameraSheet } from "@/components/CameraSheet";
+import { EditArea } from "@/components/EditArea";
 import { DesignControls } from "@/components/DesignControls";
 import { PatientPhoto } from "@/components/PatientPhoto";
 import { GenerationState } from "@/components/GenerationState";
@@ -27,13 +28,18 @@ import { ConsultView } from "@/components/ConsultView";
 import { Presentation } from "@/components/Presentation";
 import { BottomActionBar, Disclaimer } from "@/components/PreviewActions";
 import { CaseLog } from "@/components/CaseLog";
+import { ClinicianReview } from "@/components/ClinicianReview";
+import { ValidationPanel } from "@/components/ValidationPanel";
 import { CaseLibrary } from "@/components/CaseLibrary";
 import { Implications } from "@/components/Implications";
 import { SmileAnalysisPanel } from "@/components/SmileAnalysis";
 import { RevealVideoSheet } from "@/components/RevealVideoSheet";
 import {
   defaultSettings,
+  caseMaterials,
   type Photo,
+  type LibraryCase,
+  type PreviewPreferences,
   type Screen,
   type SmileSettings,
   type GenerationResult,
@@ -46,6 +52,11 @@ import { preparePhoto } from "@/lib/photos";
 import { assessResultScaleFromDataUrls } from "@/lib/resultCheck";
 import { getReportPreferences, preferenceRows } from "@/lib/report";
 import { useSmileTools } from "@/lib/useSmileTools";
+import { GenerationCosts, generationCostLabel } from "@/components/GenerationCosts";
+import { emptyCaseCosts, completeCost, type GenerationPricing, type ImageResolution } from "@/lib/generation/cost";
+import { isNoChangeDesign } from "@/lib/generation/designPlan";
+import { exceedsRequestLimit, previewFingerprint } from "@/lib/generation/requestPolicy";
+import { toothSummary } from "@/lib/teeth";
 import { imageSchema } from "@/lib/generation/schema";
 
 type Variant = SmileVariant;
@@ -58,10 +69,11 @@ const ANALYSIS_KEY = "smile.analysis";
 async function lockFace(
   photo: Photo,
   image: string,
-): Promise<Pick<GenerationResult, "image" | "faceLocked" | "lipsMoved">> {
+): Promise<Pick<GenerationResult, "image" | "faceLocked" | "lipsMoved" | "editAreaProtected">> {
   const { lockFaceOutsideLips } = await import("@/lib/face/mouthLock");
   const r = await lockFaceOutsideLips(photo.dataUrl, image);
-  return { image: r.image, faceLocked: r.locked, lipsMoved: r.lipsMoved };
+  const imageOut = photo.editMask ? await (await import("@/lib/editMask")).protectOutsideEditMask(photo.dataUrl, r.image, photo.editMask) : r.image;
+  return { image: imageOut, editAreaProtected: Boolean(photo.editMask), faceLocked: r.locked, lipsMoved: r.lipsMoved };
 }
 
 export default function Smile() {
@@ -69,8 +81,36 @@ export default function Smile() {
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [settings, setSettings] = useState(defaultSettings);
   const [result, setResult] = useState<GenerationResult | null>(null);
+  const [requestLimit, setRequestLimit] = useState(0);
+  const [batchPending, setBatchPending] = useState<{ label: string; note: string; patch: Partial<SmileSettings> }[] | null>(null);
+  const [costs, setCosts] = useState(emptyCaseCosts);
+  const [pricing, setPricing] = useState<GenerationPricing | null>(null);
+  const [resolution, setResolution] = useState<ImageResolution>("1K");
+  const [costsOpen, setCostsOpen] = useState(false);
+  const costSession = useRef(0);
+  const effectiveResolution = pricing?.supportsDraft ? resolution : "1K";
+  function resetCaseCosts() {
+    costSession.current += 1;
+    setCosts(emptyCaseCosts());
+    setResolution("1K");
+  }
+  function toggleCosts(open: boolean) {
+    setCostsOpen(open);
+    try { localStorage.setItem("smile.clinician-costs", String(open)); } catch { /* Device preference only. */ }
+  }
+  useEffect(() => {
+    let active = true;
+    try { setCostsOpen(localStorage.getItem("smile.clinician-costs") === "true"); } catch { /* Default closed. */ }
+    fetch("/api/generation-cost", { cache: "no-store" })
+      .then(async (r) => { if (!r.ok) throw new Error(); return r.json(); })
+      .then((p: GenerationPricing) => {
+        if (active && typeof p.model === "string" && typeof p.supportsDraft === "boolean") setPricing(p);
+      }).catch(() => {});
+    return () => { active = false; };
+  }, []);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [editAreaOpen, setEditAreaOpen] = useState(false);
   const [camera, setCamera] = useState(false);
   const [error, setError] = useState("");
   const [storageError, setStorageError] = useState(false);
@@ -88,6 +128,7 @@ export default function Smile() {
   const [patientName, setPatientName] = useState("");
   const [logOpen, setLogOpen] = useState(false);
   const [presenting, setPresenting] = useState(false);
+  const [validationCaseId, setValidationCaseId] = useState<string>();
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryCount, setLibraryCount] = useState(0);
   // Pinned cases override the automatic match, and are a chairside choice for
@@ -122,7 +163,11 @@ export default function Smile() {
     readCase()
       .then((c) => {
         if (active && c) {
+          setRequestLimit(c.requestLimit ?? 0);
+          setCosts(c.costs ?? emptyCaseCosts());
+          setResolution(c.resolution ?? "1K");
           setPhoto(c.photo);
+          setValidationCaseId(c.validationCaseId);
           setVariants(c.variants ?? []);
           setReference(c.reference ?? null);
           setTestMode(Boolean(c.testMode));
@@ -154,7 +199,11 @@ export default function Smile() {
       photo
         ? {
             photo,
+            costs,
+            requestLimit,
+            resolution,
             patientName,
+            validationCaseId,
             testMode,
             testPreview,
             reference,
@@ -165,7 +214,7 @@ export default function Smile() {
           }
         : null,
     ).catch(() => setStorageError(true));
-  }, [photo, settings, result, screen, ready, testMode, testPreview, reference, variants, patientName]);
+  }, [photo, settings, result, screen, ready, testMode, testPreview, reference, variants, patientName, costs, resolution, validationCaseId, requestLimit]);
 
   useEffect(() => {
     document.body.classList.toggle("consult-open", fullscreen);
@@ -192,8 +241,10 @@ export default function Smile() {
   }, [screen]);
 
   async function selectPhoto(p: Photo) {
+    setValidationCaseId(undefined);
     setVariants([]);
     setOptions(null);
+    if (testMode) resetCaseCosts();
     setPhoto(p);
     setResult(null);
     setTestMode(false);
@@ -236,6 +287,7 @@ export default function Smile() {
         ),
       ]);
       setVariants([]);
+      resetCaseCosts();
       setPhoto({ ...patient, isSample: true });
       setTestPreview(preview.dataUrl);
       setTestMode(true);
@@ -262,12 +314,27 @@ export default function Smile() {
     };
   }, [libraryOpen]);
 
+  async function startValidation(entry: LibraryCase) {
+    try {
+      const media = await (await import("@/lib/caseLibrary")).readLibraryMedia(entry.id);
+      if (!media?.beforeImage) throw new Error("Add a before photograph to this library case first.");
+      const blob = await (await fetch(media.beforeImage)).blob();
+      await selectPhoto(await preparePhoto(new File([blob], "Validation before.jpg", { type: blob.type })));
+      resetCaseCosts(); setTestMode(false); setReference(null); setPinnedCases([]); setPatientName("");
+      const selectedTeeth = entry.context?.teeth ?? defaultSettings.selectedTeeth;
+      setSettings({ ...defaultSettings, treatment: entry.material, selectedTeeth, toothPlans: selectedTeeth.map(tooth => ({ tooth, intent: "Auto", condition: "Natural" })), caseFeatures: entry.context?.features ?? [] });
+      setValidationCaseId(entry.id); setLibraryOpen(false); setScreen("design");
+    } catch (e) { setError(e instanceof Error ? e.message : "Validation case could not be opened."); }
+  }
+
   async function requestPreview(
     photoIn: Photo,
     settingsIn: SmileSettings,
     controller: AbortController,
   ): Promise<GenerationResult> {
-    const preferences = { settings: structuredClone(settingsIn), referenceUsed: Boolean(reference), testMode };
+    const started = performance.now();
+    const session = costSession.current;
+    const preferences: PreviewPreferences = { styleReferenceStatus: "off", styleReferenceCount: 0, settings: structuredClone(settingsIn), referenceUsed: Boolean(reference), testMode };
     if (testMode && testPreview) {
       await new Promise((resolve) => setTimeout(resolve, 1200));
       if (controller.signal.aborted) throw controller.signal.reason;
@@ -292,17 +359,30 @@ export default function Smile() {
           await listLibrary(),
           settingsIn.treatment,
           pinnedCases,
+          3,
+          settingsIn,
         );
-        styleReferences = await loadStyleReferences(chosen.map((c) => c.id));
+        const heldOutImage = validationCaseId ? (await (await import("@/lib/caseLibrary")).readLibraryMedia(validationCaseId))?.image : undefined;
+        styleReferences = await loadStyleReferences(chosen.filter(c => c.id !== validationCaseId).map((c) => c.id), heldOutImage);
+        preferences.styleReferenceCount = styleReferences.length;
+        preferences.styleReferenceStatus = styleReferences.length ? "used" : "no-match";
       } catch {
         styleReferences = [];
+        preferences.styleReferenceStatus = "unavailable";
       }
     }
+    if (controller.signal.aborted) throw controller.signal.reason;
+    const fingerprint = await previewFingerprint({ image: photoIn.dataUrl, editMask: photoIn.editMask, settings: settingsIn, resolution: effectiveResolution, provider: pricing?.model, reference: reference?.dataUrl, styleReferences });
+    const reusable = [result, ...variants.map(v => v.result)].find(r => r?.requestFingerprint === fingerprint);
+    if (reusable) return reusable;
+    if (exceedsRequestLimit(costs.requested, 1, requestLimit)) throw new Error("This case has reached its request allowance. Review Clinician costs before generating more.");
+    setCosts((c) => ({ ...c, requested: c.requested + 1 }));
     const r = await fetch("/api/generate-smile", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Smile-Request-Id": crypto.randomUUID() },
       body: JSON.stringify({
         originalImage: photoIn.dataUrl,
+        resolution: effectiveResolution,
         referenceImage: reference?.dataUrl,
         styleReferences: styleReferences.length ? styleReferences : undefined,
         framing: photoIn.framing,
@@ -327,6 +407,12 @@ export default function Smile() {
     )
       throw new Error("The preview could not be opened. Please try again.");
     let next = body as GenerationResult;
+    if (costSession.current === session) {
+      const receipt = next.mode === "mock"
+        ? { usd: 0, basis: "usage" as const, model: "mock", resolution: effectiveResolution }
+        : next.cost;
+      setCosts((c) => completeCost(c, receipt));
+    }
     if (next.mode === "live") {
       const { alignPreview } = await import("@/lib/photos");
       next = { ...next, ...(await lockFace(photoIn, await alignPreview(next.image, photoIn))) };
@@ -341,7 +427,7 @@ export default function Smile() {
         if (assessment) next = { ...next, scaleFlag: assessment.flag };
       }
     }
-    return { ...next, preferences };
+    return { ...next, preferences, requestFingerprint: fingerprint, elapsedSeconds: (performance.now() - started) / 1000 };
   }
 
   /** Every generated preview is logged locally so it can be found again later. */
@@ -362,7 +448,7 @@ export default function Smile() {
           mode: entryResult.mode,
           testMode,
           label,
-          summary: `${used.teeth} teeth · ${used.treatment} · ${used.targetShade} · ${used.shape}`,
+          summary: `${toothSummary(used)} · ${used.treatment} · ${used.targetShade} · ${used.shape}`,
           thumb,
         },
         { id, image: entryResult.image, originalImage: photo.dataUrl },
@@ -375,6 +461,7 @@ export default function Smile() {
   async function generate(override?: Partial<SmileSettings>) {
     if (!photo || busy || request.current) return;
     const used = override ? { ...settings, ...override } : settings;
+    if (isNoChangeDesign(used)) { setError("No change selected. Choose a different shade or design goal; no AI request was sent."); return; }
     if (override) setSettings(used);
     const controller = new AbortController();
     request.current = controller;
@@ -408,8 +495,11 @@ export default function Smile() {
 
   async function generateVariants(
     wanted: { label: string; note: string; patch: Partial<SmileSettings> }[],
+    confirmed = false,
   ) {
     if (!photo || busy || request.current) return;
+    if (!testMode && exceedsRequestLimit(costs.requested, wanted.length, requestLimit)) { setError("This batch could exceed your case request allowance. Review Clinician costs or create a single preview."); return; }
+    if (!testMode && !confirmed) { setBatchPending(wanted); return; }
     const controller = new AbortController();
     request.current = controller;
     setBusy(true);
@@ -461,9 +551,8 @@ export default function Smile() {
     ]);
 
   /**
-   * Classical face-shape / tooth-form correspondence. "Auto" leaves the
-   * clinician's chosen form alone rather than guessing at the facial outline
-   * here — the model reads it from the photograph instead.
+   * Optional style exploration. These presets remain subordinate to the
+   * selected goal and protected anatomy; they are not clinical proportions.
    */
   const FORM_FOR_FACE: Record<string, SmileSettings["shape"] | null> = {
     Auto: null,
@@ -475,17 +564,17 @@ export default function Smile() {
   const harmoniseStyles = () => {
     const matched = FORM_FOR_FACE[settings.faceShape] ?? settings.shape;
     const withNote = (extra: string): Partial<SmileSettings> => ({
-      notes: [settings.notes.trim(), extra].filter(Boolean).join(". "),
+      notes: [settings.notes.trim(), extra].filter(Boolean).join(". ").slice(0,400),
     });
     void generateVariants([
       {
         label: "Harmonious",
-        note: "Tooth form matched to the face.",
+        note: "Balanced form within your design goal.",
         patch: {
           shape: matched,
           character: "Balanced",
           ...withNote(
-            "Prioritise harmony with this patient's facial outline and existing teeth above any other stylistic goal",
+            "Use balanced line angles within the selected goal; the chosen tooth form takes precedence over face-style preferences",
           ),
         },
       },
@@ -511,25 +600,16 @@ export default function Smile() {
           ),
         },
       },
-      {
-        label: "Youthful",
-        note: "Dominant centrals, lively edges.",
-        patch: {
-          shape: matched,
-          character: "Soft",
-          ...withNote(
-            "Give the central incisors gentle dominance over the laterals and keep the incisal embrasures noticeably open, without lengthening any tooth past the lower lip line",
-          ),
-        },
-      },
     ]);
   };
+
+  const compareMaterials = () => void generateVariants(caseMaterials.map(treatment => ({ label: treatment, note: "Same selected goal, tooth plan and shade; material changes. Check contours across these independent illustrations.", patch: { treatment } })));
 
   const compareShapes = () =>
     void generateVariants([
       { label: "Square", note: "Defined, confident edges.", patch: { shape: "Square" } },
       { label: "Rounded", note: "Soft and natural.", patch: { shape: "Rounded" } },
-      { label: "Triangular", note: "Tapered and youthful.", patch: { shape: "Triangular" } },
+      { label: "Triangular", note: "Tapered, delicate form.", patch: { shape: "Triangular" } },
     ]);
 
   function selectOption(v: Variant) {
@@ -548,12 +628,16 @@ export default function Smile() {
 
   /** New Smile always starts clean: the previous patient's photo never carries over. */
   function startNewSmile() {
+    setValidationCaseId(undefined);
     newSmile();
     setScreen("photo");
   }
 
   function newSmile() {
+    setValidationCaseId(undefined);
+    setBatchPending(null);
     cancelGeneration();
+    resetCaseCosts();
     setPhoto(null);
     setResult(null);
     setReference(null);
@@ -562,6 +646,7 @@ export default function Smile() {
     setOptions(null);
     setVariants([]);
     setFullscreen(false);
+    setEditAreaOpen(false);
     setSettings({ ...defaultSettings });
     setError("");
     setSaved(false);
@@ -744,6 +829,7 @@ export default function Smile() {
                 photo={photo}
                 onPhoto={selectPhoto}
                 onRemove={() => {
+                  resetCaseCosts();
                   setPhoto(null);
                   setResult(null);
                   void persistCase(null).catch(() => setStorageError(true));
@@ -814,6 +900,7 @@ export default function Smile() {
                   onChange={(e) => setPatientName(e.target.value)}
                 />
               </div>
+              {validationCaseId && <p className="test-notice">Outcome validation · the actual after photo is held out. Set the actual treatment goal and shade before generating.</p>}
               <div className="design-layout">
                 <div className="photo-column">
                   {result ? (
@@ -842,15 +929,19 @@ export default function Smile() {
                     </button>
                     <span>
                       {testMode && <b>Test mode · </b>}
-                      {settings.teeth} upper teeth · {settings.targetShade}
+                      {toothSummary(settings)} · {settings.targetShade}
                     </span>
                   </div>
                 </div>
                 <DesignControls
+                  costs={{ pricing, resolution: effectiveResolution, onResolution: setResolution, costs, testMode, busy, open: costsOpen, onOpen: toggleCosts, requestLimit, onRequestLimit: setRequestLimit }}
+                  onEditArea={() => setEditAreaOpen(true)}
+                  hasEditArea={Boolean(photo.editMask)}
                   settings={settings}
                   onChange={setSettings}
                   onGenerate={() => void generate()}
                   onCompare={compareShapes}
+                  onCompareMaterials={compareMaterials}
                   onHarmonise={harmoniseStyles}
                   libraryCount={libraryCount}
                   pinnedCount={pinnedCases.length}
@@ -891,6 +982,7 @@ export default function Smile() {
                 <MoveHorizontal size={15} strokeWidth={1.6} />
                 Slide to compare, or overlay to line up the teeth
               </div>
+              {costsOpen && <p className="control-hint">Each adjustment: {generationCostLabel(pricing, effectiveResolution, 1, testMode)}</p>}
               <div className="adjust-row">
                 <span className="adjust-label">Not quite right?</span>
                 <button
@@ -927,7 +1019,7 @@ export default function Smile() {
                 />
                 <span className="analysis-toggle-text">
                   Smile analysis
-                  <small>Reference lines and measurements</small>
+                  <small>Relative facial reference lines</small>
                 </span>
               </label>
               {result.scaleFlag === "grew" && (
@@ -935,6 +1027,12 @@ export default function Smile() {
                   <span>Check the size</span>This result may show the teeth
                   larger or longer than the patient’s own — compare closely,
                   or try Softer, before presenting it.
+                </p>
+              )}
+              {!testMode && ["no-match", "unavailable"].includes(result.preferences?.styleReferenceStatus ?? "") && <p className="scale-notice" role="status"><span>No own-case references used</span>{result.preferences?.styleReferenceStatus === "unavailable" ? "The case library could not be opened for this result." : "No available reference matched the chosen treatment technique or pinned selection."} Add matching cases in the library to use them next time.</p>}
+              {result.mode === "live" && !testMode && (
+                <p className="scale-notice" role="status"><span>{result.editAreaProtected ? "Edit area protected" : result.faceLocked ? "Face protected — check dental anatomy" : "Automatic protection unavailable"}</span>
+                  {result.editAreaProtected ? "The original photo is restored outside your painted area. Check that the boundary excludes gums and untreated teeth, and review the design inside it." : result.faceLocked ? "Automatic protection covers the surrounding face, not individual teeth or gums. Compare gum margins, lower teeth and untreated teeth before presenting. Use Protect edit area for precise boundaries." : "The face could not be protected automatically. Inspect the whole result against the original, or use Protect edit area and generate again before presenting."}
                 </p>
               )}
               {result.lipsMoved && (
@@ -956,7 +1054,11 @@ export default function Smile() {
                   used.
                 </p>
               )}
+              <GenerationCosts pricing={pricing} resolution={effectiveResolution} onResolution={setResolution} costs={costs} testMode={testMode} busy={busy} open={costsOpen} onOpen={toggleCosts} requestLimit={requestLimit} onRequestLimit={setRequestLimit} />
+              {!testMode && result.mode === "live" && <ClinicianReview key={result.variationId} result={result} onReview={review => { const next = { ...result, review }; setResult(next); setVariants(vs => vs.map(v => v.result.variationId === next.variationId ? { ...v, result: next } : v)); }} />}
+              {validationCaseId && <ValidationPanel key={`${validationCaseId}:${result.variationId}`} caseId={validationCaseId} result={result} before={photo.dataUrl} />}
               <BottomActionBar
+                anotherCost={costsOpen ? generationCostLabel(pricing, effectiveResolution, 3, testMode) : undefined}
                 onAnother={showAnother}
                 onEdit={() => {
                   setScreen("design");
@@ -992,6 +1094,7 @@ export default function Smile() {
         </>
       )}
 
+      {editAreaOpen && photo && <EditArea photo={photo} onClose={() => setEditAreaOpen(false)} onSave={(mask) => { setPhoto({ ...photo, editMask: mask }); setEditAreaOpen(false); }} />}
       {camera && (
         <CameraSheet onCapture={selectPhoto} onClose={() => setCamera(false)} />
       )}
@@ -1067,6 +1170,7 @@ export default function Smile() {
         </div>
       )}
 
+      {batchPending && <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-label="Confirm generation batch"><div className="sheet"><h2>Create {batchPending.length} options?</h2><p className="sheet-sub">{generationCostLabel(pricing, effectiveResolution, batchPending.length, testMode)}. {pricing?.free ? "Mock previews have no AI generation charge." : "This is the image-output component; input, reference and thinking tokens cost extra."} Existing identical results may be reused without a new request.</p><p className="control-hint">Options are generated independently. Compare tooth contours and protected anatomy; geometry is not guaranteed to be identical.</p><button className="primary-button" onClick={() => { const wanted = batchPending; setBatchPending(null); void generateVariants(wanted, true); }}>Create {batchPending.length} options</button><button className="secondary-button" onClick={() => setBatchPending(null)}>Cancel</button></div></div>}
       {saveOpen && result && photo && (
         <div
           className="sheet-backdrop"
@@ -1107,6 +1211,7 @@ export default function Smile() {
                   <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
                 ))}
               </dl> : <p>This older preview has no saved preferences. Create a new preview to include them.</p>}
+              {result.review && <p className="report-notes"><strong>Reviewed by {result.review.reviewer}</strong>{result.review.notes}</p>}
               {reportPreferences?.settings.notes.trim() && <p className="report-notes"><strong>Notes</strong>{reportPreferences.settings.notes}</p>}
             </div>
             <div className="variation-list">
@@ -1199,6 +1304,7 @@ export default function Smile() {
           pinned={pinnedCases}
           onPinnedChange={setPinnedCases}
           onCountChange={setLibraryCount}
+          onValidate={entry => void startValidation(entry)}
         />
       )}
     </AppShell>

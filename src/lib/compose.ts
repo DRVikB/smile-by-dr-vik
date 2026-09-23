@@ -82,11 +82,12 @@ export async function composeReport(
   const contentW = width - margin * 2;
   const rows = preferences ? preferenceRows(preferences.settings) : [];
   if (preferences?.referenceUsed !== undefined) rows.push(["Reference smile", preferences.referenceUsed ? "Included" : "None"]);
+  if (result.review) rows.push(["Clinician review", `Reviewed by ${result.review.reviewer}`]);
   ctx.font = font(23);
   const rowLines = rows.map(([label, value]) => ({label, lines: wrapText(ctx, value, contentW / 2 - 28 * unit)}));
   const rowHeights = Array.from({length: Math.ceil(rows.length / 2)}, (_, i) =>
     58 * unit + Math.max(rowLines[i * 2].lines.length, rowLines[i * 2 + 1]?.lines.length ?? 0) * 30 * unit);
-  const notes = preferences?.settings.notes.trim();
+  const notes = [preferences?.settings.notes.trim(), result.review?.notes ? `Clinician review: ${result.review.notes}` : ""].filter(Boolean).join("\n");
   const noteLines = notes ? wrapText(ctx, notes, contentW) : [];
   const isDemo = testMode || preferences?.testMode || result.mode === "mock";
   const disclaimer = isDemo

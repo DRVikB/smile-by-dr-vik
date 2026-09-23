@@ -178,22 +178,11 @@ export function analysisRows(a: SmileAnalysis): AnalysisRow[] {
     value: `${round1(a.cantDeg)}°`,
     note: cant <= 2 ? "Reads level with the eyes" : "Mouth corners slope relative to the eyes",
   });
-  const offset = a.midlineOffsetMm ?? null;
+  const offset = a.smileWidthPx ? a.midlineOffsetPx / a.smileWidthPx * 100 : 0;
   rows.push({
     label: "Smile centre vs facial midline",
-    value:
-      offset === null
-        ? `${Math.round(Math.abs(a.midlineOffsetPx))} px`
-        : Math.abs(offset) < 0.5
-          ? "Centred"
-          : `${round1(offset)} mm ${offset > 0 ? "to photo right" : "to photo left"}`,
-    note: "Compare the dental midline between the centrals against the dashed line",
+    value: Math.abs(offset) < 1 ? "Centred" : `${round1(offset)}% of mouth width ${offset > 0 ? "to photo right" : "to photo left"}`,
+    note: "Mouth-centre guide, not a dental-midline measurement. No calibrated millimetres are available.",
   });
-  if (a.smileWidthMm !== null)
-    rows.push({
-      label: "Smile width",
-      value: `${Math.round(a.smileWidthMm)} mm`,
-      note: "Corner to corner of the mouth, approximate",
-    });
   return rows;
 }

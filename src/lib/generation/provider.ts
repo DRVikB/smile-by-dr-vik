@@ -3,6 +3,7 @@ import { GeminiSmileProvider } from "./gemini";
 import { GenerationError } from "./errors";
 import type { GenerationResult } from "../types";
 import { generationSchema, imageSchema, type GenerationInput } from "./schema";
+import { isNoChangeDesign } from "./designPlan";
 import { buildSmileInstruction } from "./prompt";
 export interface SmileImageProvider {
   readonly name: string;
@@ -121,5 +122,7 @@ export async function generateSmile(
   signal?: AbortSignal,
   provider = getSmileProvider(),
 ): Promise<GenerationResult> {
-  return provider.generate(generationSchema.parse(input), signal);
+  const parsed = generationSchema.parse(input);
+  if (isNoChangeDesign(parsed.settings)) throw new GenerationError("This selection makes no change. Select teeth to edit and choose a different shade or design goal.", 400, "generation_failed");
+  return provider.generate(parsed, signal);
 }

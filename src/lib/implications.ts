@@ -1,3 +1,4 @@
+import { toothSummary, activeToothPlans, resolvedToothIntent } from "./teeth";
 import type { GenerationResult, SmileSettings } from "./types";
 
 /**
@@ -32,7 +33,7 @@ export function impliesWhitening(settings: Pick<SmileSettings, "currentShade" | 
 
 export const CONFIRM_AT_ASSESSMENT = [
   "Bite and tooth wear",
-  "Gum health and gum levels — not changed in this preview",
+  "Gum health and gum levels — verify against the original",
   "Existing fillings, crowns and any decay",
   "Crowding or rotations that may suit aligners first",
   "Enamel quality and thickness",
@@ -42,40 +43,48 @@ export function treatmentImplications(
   settings: SmileSettings,
   result?: Pick<GenerationResult, "scaleFlag">,
 ): TreatmentImplications {
-  const n = settings.selectedTeeth.length || settings.teeth;
+  const contourTeeth = activeToothPlans(settings).filter(p => resolvedToothIntent(settings, p) !== "Shade only").map(p => p.tooth);
+  const shadeTeeth = activeToothPlans(settings).filter(p => resolvedToothIntent(settings, p) === "Shade only").map(p => p.tooth);
+  const selected = toothSummary({ selectedTeeth: contourTeeth.length ? contourTeeth : settings.selectedTeeth });
   const items: Implication[] = [];
 
+  if (activeToothPlans(settings).every(p => resolvedToothIntent(settings, p) === "Shade only")) {
+    items.push({ title: `Shade illustration on ${selected}`, detail: "Shows a colour preference while retaining tooth form. Whitening suitability, restoration matching and the achievable shade need clinical assessment." });
+    return { items, confirm: CONFIRM_AT_ASSESSMENT };
+  }
   items.push(
     settings.treatment === "Porcelain"
       ? {
-          title: `Porcelain veneers on ${n} upper teeth`,
+          title: `Porcelain veneers on ${selected}`,
           detail:
             "Usually needs some enamel shaping, which can’t be undone. Made by a lab, with temporary veneers in between — typically two or three visits.",
         }
       : {
-          title: `Composite bonding on ${n} upper teeth`,
+          title: `${settings.treatment === "Composite" ? "Composite" : settings.treatment} bonding on ${selected}`,
           detail:
             "Usually added to the tooth surface, so little or no enamel needs removing. Needs periodic polishing, and occasional repair or replacement over the years.",
         },
   );
 
-  if (n >= 8)
+  if (shadeTeeth.length) items.push({ title: `Shade illustration on ${toothSummary({ selectedTeeth: shadeTeeth })}`, detail: "Colour preference only on these teeth; not a recommendation for bonding or veneers. Existing restorations and whitening suitability need assessment." });
+
+  if (contourTeeth.some(id => [4, 5].includes(id % 10)))
     items.push({
       title: "Includes the premolars",
       detail:
-        "Treating the premolars broadens the smile. If they sit inward, a fuller result may need orthodontic alignment first, or more material.",
+        "The selected group includes premolars; treating them does not automatically broaden the smile. If they sit inward, a fuller result may need orthodontic alignment first, or more material.",
     });
 
-  if (impliesWhitening(settings))
+  if (activeToothPlans(settings).some(p => impliesWhitening({ currentShade: settings.currentShade, targetShade: p.targetShade ?? settings.targetShade })))
     items.push({
-      title: "Whitening first",
+      title: "Discuss whitening and shade matching",
       detail:
         "Bonding and porcelain don’t whiten, so natural teeth are usually whitened first and the shade matched afterwards — including untreated teeth that show when smiling.",
     });
 
-  if (settings.intensity >= 60)
+  if (settings.intensity >= 60 && settings.designIntent === "Reshape")
     items.push({
-      title: "A bigger change in shape",
+      title: "A planned change in shape",
       detail:
         "Worth a trial smile made from a wax-up, so the new shape can be tried in the mouth before anything is committed.",
     });

@@ -72,3 +72,23 @@ test('a photo chosen on the photo step keeps the clinician on that step after a 
   assert.equal(await readCase(), null);
   await persistCase(null);
 });
+
+test('cost estimates and detail selection survive refresh; Reset clears them with the photo', async () => {
+  const costs = { requested: 3, completed: 2, estimatedUsd: 0.14, imageOnly: 1, unpriced: 0 };
+  await persistCase({ photo, settings: defaultSettings, result: null, screen: 'design', costs, resolution: '512' });
+  const restored = await readCase();
+  assert.deepEqual(restored?.costs, costs);
+  assert.equal(restored?.resolution, '512');
+  await persistCase(null);
+  assert.equal(await readCase(), null);
+});
+
+test('painted edit area and treatment goal survive refresh without changing the original photo', async () => {
+  const protectedPhoto = { ...photo, editMask: photo.dataUrl };
+  await persistCase({ photo: protectedPhoto, settings: { ...defaultSettings, designIntent: 'Close gaps', treatment: 'Layered composite' }, result: null, screen: 'design' });
+  const restored = await readCase();
+  assert.deepEqual(restored?.photo, protectedPhoto);
+  assert.equal(restored?.settings.designIntent, 'Close gaps');
+  assert.equal(restored?.settings.treatment, 'Layered composite');
+  await persistCase(null);
+});

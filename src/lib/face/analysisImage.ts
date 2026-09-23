@@ -1,7 +1,7 @@
 import { drawAiTag } from "../aiTag";
 import { BRAND, tinted } from "../presentation";
 import { wrapText } from "../report";
-import { analyseSmile, analysisRows, IRIS_DIAMETER_MM, type Box, type SmileAnalysis } from "./analysis";
+import { analyseSmile, analysisRows, type Box, type SmileAnalysis } from "./analysis";
 import type { Point } from "./geometry";
 import { detectFace } from "./landmarks";
 
@@ -171,7 +171,7 @@ export async function composeAnalysis(
   const mouthH = Math.round(mouthW / mouthAspect);
   const rows = analysisRows(analysis);
   const notes =
-    `Lines are drawn from facial landmarks found on this device. Distances are approximate, scaled from an average iris (${IRIS_DIAMETER_MM} mm). ` +
+    "Lines are drawn from facial landmarks found on this device. Relative guides only: these do not measure teeth or gums, and no calibrated millimetre measurements are available. " +
     "For discussion — not for diagnosis or treatment planning.";
 
   const canvas = document.createElement("canvas");

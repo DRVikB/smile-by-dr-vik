@@ -48,15 +48,15 @@ test('the automatic match takes the newest matching cases and never more than th
   assert.deepEqual(chooseLibraryCases(all, 'Porcelain').map((c) => c.id), ['p1']);
 });
 
-test('a pinned selection overrides the automatic match, even across materials', () => {
+test('pinned cases take priority within the selected treatment without mixing techniques', () => {
   const all = [
     aCase('p1', 'Porcelain', 500),
     aCase('c1', 'Layered composite', 400),
     aCase('c2', 'Single-shade composite', 300),
   ];
-  // Pinning a porcelain case while designing composite must not be silently dropped.
-  assert.deepEqual(chooseLibraryCases(all, 'Composite', ['p1']).map((c) => c.id), ['p1']);
-  assert.deepEqual(chooseLibraryCases(all, 'Porcelain', ['c1', 'c2']).map((c) => c.id), ['c1', 'c2']);
+  // Pinning cannot override the treatment technique.
+  assert.deepEqual(chooseLibraryCases(all, 'Composite', ['p1']).map((c) => c.id), []);
+  assert.deepEqual(chooseLibraryCases(all, 'Porcelain', ['c1', 'c2']).map((c) => c.id), []);
   // A pinned id that no longer exists just drops out rather than erroring.
   assert.deepEqual(chooseLibraryCases(all, 'Composite', ['gone']), []);
 });
@@ -95,4 +95,11 @@ test('a library exports and imports whole, and a bad entry is skipped rather tha
   await assert.rejects(() => importLibrary({ version: 9, cases: [] }));
   await assert.rejects(() => importLibrary(null));
   await clearLibrary();
+});
+
+test('single-shade and layered references never mix, including manual pins', () => {
+  const all = [aCase('single', 'Single-shade composite', 1), aCase('layered', 'Layered composite', 2)];
+  assert.deepEqual(chooseLibraryCases(all, 'Single-shade composite').map(c => c.id), ['single']);
+  assert.deepEqual(chooseLibraryCases(all, 'Layered composite', ['single', 'layered']).map(c => c.id), ['layered']);
+  assert.equal(matchesTreatment('Single-shade composite', 'Layered composite'), false);
 });

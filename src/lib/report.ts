@@ -1,3 +1,4 @@
+import { activeToothPlans, resolvedToothIntent } from "./teeth";
 import type { GenerationResult, PreviewPreferences, SmileSettings, SmileVariant } from "./types";
 
 /** Export the settings used for this result, never a subsequently edited draft. */
@@ -9,14 +10,17 @@ export function getReportPreferences(result: GenerationResult, variants: SmileVa
 }
 
 export function preferenceRows(settings: SmileSettings): [string, string][] {
+  const colourOnly = activeToothPlans(settings).every(p => resolvedToothIntent(settings, p) === "Shade only");
   return [
     ["Shade", settings.targetShade],
-    ["Tooth shape", { Square: "Square", Rounded: "Round", Triangular: "Triangle" }[settings.shape]],
-    ["Treatment", settings.treatment],
+    ["Tooth shape", colourOnly ? "Unchanged (shade only)" : { Square: "Square", Rounded: "Round", Triangular: "Triangle" }[settings.shape]],
+    [colourOnly ? "Material reference" : "Treatment", settings.treatment],
+    ["Design goal", settings.designIntent ?? "Auto"],
     ["Selected teeth", `${settings.selectedTeeth.length} teeth · ${settings.selectedTeeth.join(", ")}`],
-    ["Texture", settings.texture],
-    ["Result intensity", `${settings.intensity}% · subtle to enhanced`],
+    ["Texture", colourOnly ? "Unchanged" : settings.texture],
+    ["Result intensity", colourOnly ? "No shape change" : `${settings.intensity}% · subtle to enhanced`],
     ["Photo type", settings.shotType],
+    ...(settings.toothPlans ? settings.toothPlans.map(p => [`Tooth ${p.tooth}`, `${p.condition === "Missing" ? "Missing · preserve" : `${p.condition} · ${resolvedToothIntent(settings, p)}`}${p.intent !== "Preserve" && p.condition !== "Missing" ? ` · ${p.targetShade ?? settings.targetShade}` : ""}`] as [string,string]) : []),
   ];
 }
 

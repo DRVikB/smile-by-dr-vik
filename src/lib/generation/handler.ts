@@ -1,3 +1,5 @@
+import { claimInMemory, validRequestId, type RequestClaim } from "./requestGuard";
+import { isNoChangeDesign } from "./designPlan";
 import { GenerationError } from "./errors";
 import { generationSchema } from "@/lib/generation/schema";
 import {
@@ -8,6 +10,7 @@ import {
 export async function handleGenerationRequest(
   request: Request,
   env?: ProviderEnvironment,
+  claim: RequestClaim = claimInMemory,
 ) {
   const headers = { "Cache-Control": "no-store" };
   if (!request.headers.get("content-type")?.includes("application/json"))
@@ -80,8 +83,20 @@ export async function handleGenerationRequest(
       { status: 400, headers },
     );
   try {
+    const provider = getSmileProvider(env);
+    if (isNoChangeDesign(parsed.data.settings)) return Response.json({ error: "No change selected. Choose teeth and a goal or shade that makes a change." }, { status: 400, headers });
+    const id = request.headers.get("X-Smile-Request-Id");
+    if (provider.name !== "mock" && !id) return Response.json({ error: "Refresh SMILE to update the app before generating. No AI request was sent." }, { status: 400, headers });
+    if (id) {
+      if (!validRequestId(id)) return Response.json({ error: "Invalid generation request identifier." }, { status: 400, headers });
+      try {
+        if (!await claim(id)) return Response.json({ error: "This request has already been submitted. Check the saved result before creating another preview; the earlier request may have incurred a charge.", code: "duplicate_request" }, { status: 409, headers });
+      } catch {
+        return Response.json({ error: "Generation paused because duplicate-request protection is unavailable. No AI request was sent. Please try again shortly.", code: "request_guard_unavailable" }, { status: 503, headers });
+      }
+    }
     return Response.json(
-      await generateSmile(parsed.data, request.signal, getSmileProvider(env)),
+      await generateSmile(parsed.data, request.signal, provider),
       { headers },
     );
   } catch (error) {

@@ -5,9 +5,10 @@ import { imageSchema } from "./schema";
 import { buildSmileInstruction } from "./prompt";
 import { GenerationError } from "./errors";
 import { imageDimensions } from "./openai";
+import { geminiCostReceipt, PRICED_GEMINI_MODEL } from "./cost";
 
-// Google "Nano Banana" family. Default to the current workhorse; override with
-// GEMINI_IMAGE_MODEL. Cheapest: gemini-2.5-flash-image. Premium: gemini-3-pro-image.
+// Google "Nano Banana" family. Keep the existing model unless GEMINI_IMAGE_MODEL
+// is explicitly configured; unknown models are not assigned a guessed tariff.
 export const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-image";
 export const GEMINI_IMAGE_TIMEOUT_MS = 240_000;
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -77,6 +78,9 @@ export class GeminiSmileProvider implements SmileImageProvider {
     const bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
     const dimensions = imageDimensions(bytes, mime);
     const model = this.options.model || DEFAULT_GEMINI_MODEL;
+    const resolution = input.resolution ?? "1K";
+    if (resolution === "512" && model !== PRICED_GEMINI_MODEL)
+      throw new GenerationError("Draft resolution is not available for this model. Choose Standard.", 400, "generation_failed");
 
     const requestParts: Array<{
       inlineData?: { mimeType: string; data: string };
@@ -118,6 +122,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
         responseModalities: ["IMAGE"],
         imageConfig: {
           aspectRatio: nearestAspectRatio(dimensions.width, dimensions.height),
+          ...(model === PRICED_GEMINI_MODEL ? { imageSize: resolution } : {}),
         },
       },
     };
@@ -232,6 +237,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
         502,
         "invalid_provider_image",
       );
-    return { image, mode: "live", variationId: crypto.randomUUID() };
+    return { image, mode: "live", variationId: crypto.randomUUID(),
+      cost: geminiCostReceipt(model, resolution, body?.usageMetadata) };
   }
 }

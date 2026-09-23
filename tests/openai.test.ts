@@ -43,7 +43,7 @@ test("OpenAI adapter sends a single authenticated image edit with all dental cho
       assert.deepEqual(Buffer.from(await file.arrayBuffer()), bytes);
       const prompt = String(form.get("prompt"));
       for (const token of [
-        "Composite",
+        defaultSettings.treatment,
         "Gently whiten",
         "Rounded",
         "35/100",
@@ -102,7 +102,7 @@ test("missing API key has an explicit setup error and never makes a request", as
   const response = await handleGenerationRequest(
     new Request("https://smile.test/api/generate-smile", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Smile-Request-Id": crypto.randomUUID() },
       body: JSON.stringify(input),
     }),
     { SMILE_PROVIDER: "openai" },

@@ -1,3 +1,4 @@
+import { handlePricingRequest } from "../src/lib/generation/pricing";
 import { handleGenerationRequest } from "../src/lib/generation/handler";
 import type { ProviderEnvironment } from "../src/lib/generation/provider";
 import html from "../.next/server/app/index.html";
@@ -7,6 +8,10 @@ interface Environment extends ProviderEnvironment {
 export default {
   async fetch(request: Request, env: Environment): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === "/api/generation-cost") {
+      if (request.method !== "GET") return new Response(null, { status: 405, headers: { Allow: "GET" } });
+      return handlePricingRequest(env);
+    }
     if (url.pathname === "/api/generate-smile") {
       if (request.method !== "POST")
         return Response.json(

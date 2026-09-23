@@ -45,7 +45,7 @@ test("Gemini adapter sends one authenticated generateContent edit with all denta
       assert.ok(typeof body.generationConfig.imageConfig.aspectRatio === "string");
       const prompt = String(parts[1].text);
       for (const token of [
-        "Composite",
+        defaultSettings.treatment,
         "Gently whiten",
         "Rounded",
         "35/100",
@@ -151,7 +151,7 @@ test("missing API key has an explicit setup error and never makes a request", as
   const response = await handleGenerationRequest(
     new Request("https://smile.test/api/generate-smile", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Smile-Request-Id": crypto.randomUUID() },
       body: JSON.stringify(input),
     }),
     { SMILE_PROVIDER: "gemini" },
@@ -279,4 +279,29 @@ test("a fourth style reference is never forwarded, even if one reaches the provi
     },
   });
   await provider.generate({ ...input, styleReferences: [style, style, style, style] });
+});
+
+test("draft resolution is sent in the single provider call and returned with a cost estimate", async () => {
+  let calls = 0;
+  const provider = new GeminiSmileProvider({ apiKey: "test", fetcher: async (_url, init) => {
+    calls++;
+    const body = JSON.parse(String(init?.body));
+    assert.equal(body.generationConfig.imageConfig.imageSize, "512");
+    return Response.json({ candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: PNG_1x1 } }] } }], usageMetadata: {
+      promptTokenCount: 1000, thoughtsTokenCount: 500,
+      candidatesTokensDetails: [{ modality: "IMAGE", tokenCount: 747 }],
+    } });
+  } });
+  const result = await provider.generate({ ...input, resolution: "512" });
+  assert.equal(calls, 1);
+  assert.equal(result.cost?.basis, "usage");
+  assert.equal(result.cost?.resolution, "512");
+  assert.ok(Math.abs(result.cost!.usd - 0.04682) < 1e-12);
+});
+
+test("unsupported model draft requests are rejected before any paid provider call", async () => {
+  let calls = 0;
+  const provider = new GeminiSmileProvider({ apiKey: "test", model: "gemini-3-pro-image", fetcher: async () => { calls++; throw new Error(); } });
+  await assert.rejects(() => provider.generate({ ...input, resolution: "512" }), /Draft resolution/);
+  assert.equal(calls, 0);
 });
