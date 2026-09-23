@@ -3044,3 +3044,5 @@ body.consult-open .consult { bottom: 0; }
 fieldset.clinical-form { border: 0; padding: 0; min-width: 0; }
 .tooth-grid { grid-template-columns: repeat(auto-fit,minmax(44px,1fr)); }
 .tooth-grid button { min-width: 44px; }
+
+.library-panel .log-head { position: sticky; top: -20px; z-index: 2; margin: -20px -20px 0; padding: 20px; background: #fcfbf9; border-bottom: 1px solid #e5e2dd; }
