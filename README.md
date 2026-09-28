@@ -1,4 +1,8 @@
-# Smile
+# SmileCompose
+
+Digital Smile Design · Designed by Dr Vik.
+
+Smile design, visualised.
 
 An iPad-first cosmetic dentistry visualisation prototype built with Next.js, TypeScript, React and Tailwind CSS.
 
@@ -13,9 +17,9 @@ Open http://localhost:3006. Without configuration the app uses the labelled demo
 
 ## Workflow
 
-Photo → Design → Generate → Compare. The app stores one temporary case in IndexedDB on the current browser. Edit preserves settings; regeneration creates a fresh request; New Smile deletes the local case. Images are resized to a maximum of 2048 pixels and converted to JPEG in the browser, removing original metadata. HEIC uses a lazy-loaded browser decoder. Input files are limited to 25 MB.
+Photo → Design → Generate → Compare. The app stores one temporary case in IndexedDB on the current browser. Edit preserves settings; regeneration creates a fresh request; Start New Design deletes the local case. Images are resized to a maximum of 2048 pixels and converted to JPEG in the browser, removing original metadata. HEIC uses a lazy-loaded browser decoder. Input files are limited to 25 MB.
 
-There is no patient database, analytics, authentication system or saved server upload. Browser storage persists across sessions until New Smile clears it. The API processes the photo in memory. The supplied sample portrait is AI-generated and does not depict a real patient.
+There is no patient database, analytics, authentication system or saved server upload. Browser storage persists across sessions until Start New Design clears it. The API processes the photo in memory. The supplied sample portrait is AI-generated and does not depict a real patient.
 
 ## Demo behaviour
 
@@ -107,6 +111,9 @@ Implement `SmileImageProvider` in `src/lib/generation/provider.ts`, or use the o
 
 ## Validate and build
 
+For Cloudflare hosting and the current live URL, see [CLOUDFLARE.md](CLOUDFLARE.md).
+For the iPhone and iPad app (Capacitor), see [IOS_SETUP.md](IOS_SETUP.md).
+
 ```sh
 npm test
 npm run typecheck
@@ -124,3 +131,9 @@ Automated adapter tests use a fake HTTP transport and never spend API credits. T
 ## Scope
 
 A visual communication MVP only. No authentication screens, clinical CAD, patient records, gingival editing, billing, lab workflows or practice-management integration.
+
+## SmileCompose identity
+
+The public product name is **SmileCompose**; its visual wordmark is **SMILECOMPOSE**. The creator signature is **Designed by Dr Vik**. Shared copy and canvas branding live in `src/lib/brand.ts`; palette tokens live in `src/app/globals.css` and component styling in `src/app/brand.css`.
+
+Regenerate the PWA icons and social preview with `node scripts/build-brand-assets.mjs`. The full-bleed installed icon uses `public/brand/smilecompose-app-icon.svg`; the in-app mark and social preview retain `smilecompose-symbol.svg`. The opaque PNG exports have a glass-inspired finish; native animated Liquid Glass layers are not part of the web-app icon format. Versioned icon filenames refresh installation artwork without changing the app identity. The rebrand preserves the existing database names, API routes, environment variable names, and deployment address so cases and integrations continue to work.

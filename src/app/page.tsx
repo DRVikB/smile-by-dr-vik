@@ -2,8 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
-  BookMarked,
   Check,
+  ChevronDown,
   Columns2,
   Film,
   ImagePlus,
@@ -14,19 +14,23 @@ import {
   Play,
   Plus,
   Rows2,
+  Settings,
   X,
 } from "lucide-react";
+import { BrandLaunch, BrandLockup, CreatorSignature } from "@/components/Brand";
 import { AppShell } from "@/components/AppShell";
+import { FloatingPanel } from "@/components/FloatingPanel";
 import { PhotoUploader } from "@/components/PhotoUploader";
 import { CameraSheet } from "@/components/CameraSheet";
 import { EditArea } from "@/components/EditArea";
 import { DesignControls } from "@/components/DesignControls";
 import { PatientPhoto } from "@/components/PatientPhoto";
 import { GenerationState } from "@/components/GenerationState";
-import { BeforeAfterSlider } from "@/components/BeforeAfterSlider";
+import { BeforeAfterSlider, type CompareMode } from "@/components/BeforeAfterSlider";
 import { ConsultView } from "@/components/ConsultView";
 import { Presentation } from "@/components/Presentation";
 import { BottomActionBar, Disclaimer } from "@/components/PreviewActions";
+import { PreviewCompactMenu } from "@/components/PreviewCompactMenu";
 import { CaseLog } from "@/components/CaseLog";
 import { ClinicianReview } from "@/components/ClinicianReview";
 import { ValidationPanel } from "@/components/ValidationPanel";
@@ -34,6 +38,7 @@ import { CaseLibrary } from "@/components/CaseLibrary";
 import { Implications } from "@/components/Implications";
 import { SmileAnalysisPanel } from "@/components/SmileAnalysis";
 import { RevealVideoSheet } from "@/components/RevealVideoSheet";
+import { AiProcessingConsentDialog } from "@/components/AiProcessingConsent";
 import {
   defaultSettings,
   caseMaterials,
@@ -44,9 +49,11 @@ import {
   type SmileSettings,
   type GenerationResult,
   type SmileVariant,
+  type Treatment,
+  type UploadAuthority,
 } from "@/lib/types";
 import { readCase, persistCase } from "@/lib/storage";
-import { addLogEntry } from "@/lib/caseLog";
+import { updateLogReview } from "@/lib/caseLog";
 import { thumbnail } from "@/lib/thumb";
 import { preparePhoto } from "@/lib/photos";
 import { assessResultScaleFromDataUrls } from "@/lib/resultCheck";
@@ -57,10 +64,41 @@ import { emptyCaseCosts, completeCost, type GenerationPricing, type ImageResolut
 import { isNoChangeDesign } from "@/lib/generation/designPlan";
 import { exceedsRequestLimit, previewFingerprint } from "@/lib/generation/requestPolicy";
 import { toothSummary } from "@/lib/teeth";
-import { imageSchema } from "@/lib/generation/schema";
+import { AI_CONSENT_VERSION, fingerprintPhotoForConsent, type AiProcessingConsent } from "@/lib/aiConsent";
+import { apiUrl } from "@/services/api/client";
+import { generateSmileImage } from "@/services/ai/smileImageService";
+import { getCaseRepository } from "@/services/cases/caseRepository";
+import { SmileGenerationError } from "@/services/ai/smileImageService";
+import { useAccount } from "@/components/account/AccountProvider";
+import { useCaseLibrary } from "@/components/caseLibrary/caseLibraryContext";
+import { StyleFeedback } from "@/components/caseLibrary/StyleFeedback";
+import { UserAvatar } from "@/components/profile/UserAvatar";
+import { Onboarding } from "@/components/onboarding/Onboarding";
+import { HomeGreeting, ProfileButton, RecentCases } from "@/components/home/HomeWorkspace";
+import { DOCUMENT_VERSIONS } from "@/config/legal";
 
 type Variant = SmileVariant;
 const ANALYSIS_KEY = "smile.analysis";
+const DEMO_MATERIAL_IMAGES: Record<Exclude<Treatment, "Composite">, string> = {
+  "Single-shade composite": "/demo-single-shade-composite.png",
+  "Layered composite": "/demo-storyboard-after.png",
+  Porcelain: "/demo-porcelain.png",
+};
+
+/** Let the full-screen generation view paint before image processing blocks Safari. */
+function waitForGenerationScreen(): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(fallback);
+      resolve();
+    };
+    const fallback = window.setTimeout(finish, 120);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(finish));
+  });
+}
 
 /**
  * Put the edit back onto the original photograph so only the mouth can
@@ -76,13 +114,23 @@ async function lockFace(
   return { image: imageOut, editAreaProtected: Boolean(photo.editMask), faceLocked: r.locked, lipsMoved: r.lipsMoved };
 }
 
+const ignoreCount = () => {};
+
 export default function Smile() {
   const [screen, setScreen] = useState<Screen>("start");
   const [photo, setPhoto] = useState<Photo | null>(null);
+  // Groups this case's visualisations; see SmileComposeCase in src/models/case.ts.
+  const [caseId, setCaseId] = useState("");
+  const [uploadAuthority, setUploadAuthority] = useState<UploadAuthority | null>(null);
   const [settings, setSettings] = useState(defaultSettings);
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [requestLimit, setRequestLimit] = useState(0);
   const [batchPending, setBatchPending] = useState<{ label: string; note: string; patch: Partial<SmileSettings> }[] | null>(null);
+  const [aiConsent, setAiConsent] = useState<AiProcessingConsent | null>(null);
+  const [pendingAiConsent, setPendingAiConsent] = useState<{
+    photoFingerprint: string;
+    action: { kind: "single"; override?: Partial<SmileSettings> } | { kind: "variants"; wanted: { label: string; note: string; patch: Partial<SmileSettings> }[] };
+  } | null>(null);
   const [costs, setCosts] = useState(emptyCaseCosts);
   const [pricing, setPricing] = useState<GenerationPricing | null>(null);
   const [resolution, setResolution] = useState<ImageResolution>("1K");
@@ -101,7 +149,7 @@ export default function Smile() {
   useEffect(() => {
     let active = true;
     try { setCostsOpen(localStorage.getItem("smile.clinician-costs") === "true"); } catch { /* Default closed. */ }
-    fetch("/api/generation-cost", { cache: "no-store" })
+    fetch(apiUrl("/api/generation-cost"), { cache: "no-store" })
       .then(async (r) => { if (!r.ok) throw new Error(); return r.json(); })
       .then((p: GenerationPricing) => {
         if (active && typeof p.model === "string" && typeof p.supportsDraft === "boolean") setPricing(p);
@@ -110,6 +158,8 @@ export default function Smile() {
   }, []);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [previewMode, setPreviewMode] = useState<CompareMode>("slide");
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [editAreaOpen, setEditAreaOpen] = useState(false);
   const [camera, setCamera] = useState(false);
   const [error, setError] = useState("");
@@ -127,10 +177,20 @@ export default function Smile() {
   const [testPreview, setTestPreview] = useState<string | null>(null);
   const [patientName, setPatientName] = useState("");
   const [logOpen, setLogOpen] = useState(false);
+  const [logEntry, setLogEntry] = useState<string | undefined>();
   const [presenting, setPresenting] = useState(false);
   const [validationCaseId, setValidationCaseId] = useState<string>();
+  // Device builds only: the older pin / validation / import tools for the on-device library.
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const [libraryCount, setLibraryCount] = useState(0);
+  const desktopReviewEligible = screen === "preview" && result?.mode === "live" && !testMode;
+  const resultVariationId = result?.variationId;
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 960px) and (orientation: landscape) and (hover: hover) and (pointer: fine)");
+    const update = () => setReviewOpen(Boolean(desktopReviewEligible && desktop.matches));
+    update();
+    desktop.addEventListener("change", update);
+    return () => desktop.removeEventListener("change", update);
+  }, [desktopReviewEligible, resultVariationId]);
   // Pinned cases override the automatic match, and are a chairside choice for
   // this session rather than something saved with the case.
   const [pinnedCases, setPinnedCases] = useState<string[]>([]);
@@ -152,9 +212,46 @@ export default function Smile() {
     }
   }
   useSmileTools({ screen, hasPhoto: !!photo, settings, busy }, setSettings);
+  const account = useAccount();
+  const caseLibrary = useCaseLibrary();
+  const { setLegacyTools } = caseLibrary;
+  useEffect(() => {
+    setLegacyTools(() => setLibraryOpen(true));
+    return () => setLegacyTools(null);
+  }, [setLegacyTools]);
+
+  /** Per-case clinician authority confirmation, kept with the case and (signed in) server-side. */
+  function confirmUploadAuthority() {
+    const record = { version: DOCUMENT_VERSIONS.upload_authority, confirmedAt: Date.now() };
+    setUploadAuthority(record);
+    if (caseId) void account.recordConsent({ type: "upload_authority", version: record.version, caseId });
+  }
+
+  /**
+   * Live generation needs a signed-in account with Pro (the server enforces
+   * this too). Test mode never needs an account. Returns false when a sheet
+   * was opened instead.
+   */
+  function accountReadyForGeneration(): boolean {
+    if (testMode || !account.configured) return true;
+    if (!account.user) { account.openAuth("signIn", "generate"); return false; }
+    if (!account.hasProAccess) { account.openPaywall(); return false; }
+    return true;
+  }
+
+  /** Route account-related refusals to the right sheet; other errors show as text. */
+  function showGenerationError(e: unknown, fallback: string) {
+    if (e instanceof SmileGenerationError && e.code === "auth_required") { account.openAuth("signIn", "generate"); return; }
+    if (e instanceof SmileGenerationError && e.code === "mfa_required") { account.openMfa("challenge"); return; }
+    if (e instanceof SmileGenerationError && (e.code === "subscription_required" || e.code === "no_active_allowance")) { void account.refresh(); account.openPaywall(); return; }
+    if (e instanceof SmileGenerationError && e.code === "allowance_exhausted") void account.refresh();
+    setError(e instanceof Error && e.name !== "TimeoutError" ? e.message : fallback);
+  }
   const replacement = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
   const request = useRef<AbortController | null>(null);
+  const logWrites = useRef(new Map<string, Promise<void>>());
+  const caseSession = useRef(0);
   const heading = useRef<HTMLHeadingElement>(null);
   const firstScreen = useRef(true);
 
@@ -163,6 +260,8 @@ export default function Smile() {
     readCase()
       .then((c) => {
         if (active && c) {
+          setCaseId(c.caseId ?? crypto.randomUUID());
+          setUploadAuthority(c.uploadAuthority ?? null);
           setRequestLimit(c.requestLimit ?? 0);
           setCosts(c.costs ?? emptyCaseCosts());
           setResolution(c.resolution ?? "1K");
@@ -173,6 +272,7 @@ export default function Smile() {
           setTestMode(Boolean(c.testMode));
           setTestPreview(c.testPreview ?? null);
           setPatientName(c.patientName ?? "");
+          setAiConsent(c.aiConsent ?? null);
           setSettings({ ...c.settings, targetShade:
             ["The same", "Whiten", "Bleach"].includes(c.settings.targetShade)
               ? c.settings.targetShade
@@ -198,11 +298,14 @@ export default function Smile() {
     void persistCase(
       photo
         ? {
+            caseId,
+            uploadAuthority,
             photo,
             costs,
             requestLimit,
             resolution,
             patientName,
+            aiConsent,
             validationCaseId,
             testMode,
             testPreview,
@@ -214,7 +317,7 @@ export default function Smile() {
           }
         : null,
     ).catch(() => setStorageError(true));
-  }, [photo, settings, result, screen, ready, testMode, testPreview, reference, variants, patientName, costs, resolution, validationCaseId, requestLimit]);
+  }, [caseId, uploadAuthority, photo, settings, result, screen, ready, testMode, testPreview, reference, variants, patientName, aiConsent, costs, resolution, validationCaseId, requestLimit]);
 
   useEffect(() => {
     document.body.classList.toggle("consult-open", fullscreen);
@@ -241,10 +344,23 @@ export default function Smile() {
   }, [screen]);
 
   async function selectPhoto(p: Photo) {
+    const nextCaseId = testMode || !caseId ? crypto.randomUUID() : caseId;
+    setCaseId(nextCaseId);
+    const nextSettings = testMode ? { ...defaultSettings } : settings;
+    const nextReference = testMode ? null : reference;
     setValidationCaseId(undefined);
+    setAiConsent(null);
+    setPendingAiConsent(null);
     setVariants([]);
     setOptions(null);
-    if (testMode) resetCaseCosts();
+    if (testMode) {
+      resetCaseCosts();
+      setRequestLimit(0);
+      setSettings(nextSettings);
+      setReference(null);
+      setPinnedCases([]);
+      setPatientName("");
+    }
     setPhoto(p);
     setResult(null);
     setTestMode(false);
@@ -253,7 +369,7 @@ export default function Smile() {
     setCamera(false);
     // Commit the selection immediately, even while still on the start screen.
     try {
-      await persistCase({ photo: p, settings, reference, result: null,
+      await persistCase({ caseId: nextCaseId, uploadAuthority, photo: p, settings: nextSettings, reference: nextReference, result: null, aiConsent: null,
         screen: screen === "start" || screen === "photo" ? "photo" : "design", testMode: false, testPreview: null });
     } catch {
       setStorageError(true);
@@ -262,12 +378,13 @@ export default function Smile() {
 
   async function openTestMode() {
     if (sampleBusy) return;
+    const session = caseSession.current;
     setSampleBusy(true);
     setError("");
     try {
       const [patientResponse, previewResponse] = await Promise.all([
-        fetch("/sample-smile.jpg"),
-        fetch("/test-smile-preview.jpg"),
+        fetch("/demo-storyboard-before.png"),
+        fetch(DEMO_MATERIAL_IMAGES["Single-shade composite"]),
       ]);
       if (!patientResponse.ok || !previewResponse.ok) throw new Error();
       const [patientBlob, previewBlob] = await Promise.all([
@@ -276,18 +393,18 @@ export default function Smile() {
       ]);
       const [patient, preview] = await Promise.all([
         preparePhoto(
-          new File([patientBlob], "Dr Vik test patient.jpg", {
-            type: "image/jpeg",
+          new File([patientBlob], "SmileCompose demo before.png", {
+            type: "image/png",
           }),
         ),
         preparePhoto(
-          new File([previewBlob], "Dr Vik test preview.jpg", {
-            type: "image/jpeg",
+          new File([previewBlob], "SmileCompose demo after.png", {
+            type: "image/png",
           }),
         ),
       ]);
-      setVariants([]);
-      resetCaseCosts();
+      if (caseSession.current !== session) return;
+      newSmile();
       setPhoto({ ...patient, isSample: true });
       setTestPreview(preview.dataUrl);
       setTestMode(true);
@@ -301,26 +418,17 @@ export default function Smile() {
     }
   }
 
-  useEffect(() => {
-    let live = true;
-    import("@/lib/caseLibrary")
-      .then((m) => m.listLibrary())
-      .then((all) => {
-        if (live) setLibraryCount(all.length);
-      })
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [libraryOpen]);
 
   async function startValidation(entry: LibraryCase) {
+    const session = caseSession.current;
     try {
       const media = await (await import("@/lib/caseLibrary")).readLibraryMedia(entry.id);
       if (!media?.beforeImage) throw new Error("Add a before photograph to this library case first.");
       const blob = await (await fetch(media.beforeImage)).blob();
-      await selectPhoto(await preparePhoto(new File([blob], "Validation before.jpg", { type: blob.type })));
-      resetCaseCosts(); setTestMode(false); setReference(null); setPinnedCases([]); setPatientName("");
+      const prepared = await preparePhoto(new File([blob], "Validation before.jpg", { type: blob.type }));
+      if (caseSession.current !== session) return;
+      newSmile();
+      setPhoto(prepared);
       const selectedTeeth = entry.context?.teeth ?? defaultSettings.selectedTeeth;
       setSettings({ ...defaultSettings, treatment: entry.material, selectedTeeth, toothPlans: selectedTeeth.map(tooth => ({ tooth, intent: "Auto", condition: "Natural" })), caseFeatures: entry.context?.features ?? [] });
       setValidationCaseId(entry.id); setLibraryOpen(false); setScreen("design");
@@ -331,15 +439,25 @@ export default function Smile() {
     photoIn: Photo,
     settingsIn: SmileSettings,
     controller: AbortController,
+    consentVersion?: string,
   ): Promise<GenerationResult> {
     const started = performance.now();
     const session = costSession.current;
     const preferences: PreviewPreferences = { styleReferenceStatus: "off", styleReferenceCount: 0, settings: structuredClone(settingsIn), referenceUsed: Boolean(reference), testMode };
-    if (testMode && testPreview) {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+    if (testMode) {
+      const material = settingsIn.treatment === "Composite"
+        ? "Single-shade composite"
+        : settingsIn.treatment;
+      const response = await fetch(DEMO_MATERIAL_IMAGES[material], {
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error("The demo material image couldn’t be loaded. Please try again.");
+      const blob = await response.blob();
+      const prepared = await preparePhoto(new File([blob], `${material}.png`, { type: "image/png" }));
+      await new Promise((resolve) => setTimeout(resolve, 900));
       if (controller.signal.aborted) throw controller.signal.reason;
       const { alignPreview } = await import("@/lib/photos");
-      const locked = await lockFace(photoIn, await alignPreview(testPreview, photoIn));
+      const locked = await lockFace(photoIn, await alignPreview(prepared.dataUrl, photoIn));
       return {
         ...locked,
         mode: "live",
@@ -347,11 +465,12 @@ export default function Smile() {
         preferences,
       };
     }
-    if (!navigator.onLine) throw new Error("You’re offline. Reconnect to create a preview; your current case is kept on this device.");
     // The clinician's own finished cases, attached so the preview matches their
-    // work. A library that can't be opened must never block a preview.
+    // work. Signed in, the server chooses them from the private Case Library
+    // (the app never builds that payload). Device builds attach them here.
+    // A library that can't be opened must never block a preview.
     let styleReferences: string[] = [];
-    if (settingsIn.libraryStyle) {
+    if (settingsIn.libraryStyle && caseLibrary.mode === "device") {
       try {
         const { chooseLibraryCases, listLibrary, loadStyleReferences } =
           await import("@/lib/caseLibrary");
@@ -376,46 +495,35 @@ export default function Smile() {
     const reusable = [result, ...variants.map(v => v.result)].find(r => r?.requestFingerprint === fingerprint);
     if (reusable) return reusable;
     if (exceedsRequestLimit(costs.requested, 1, requestLimit)) throw new Error("This case has reached its request allowance. Review Clinician costs before generating more.");
-    setCosts((c) => ({ ...c, requested: c.requested + 1 }));
-    const r = await fetch("/api/generate-smile", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Smile-Request-Id": crypto.randomUUID() },
-      body: JSON.stringify({
-        originalImage: photoIn.dataUrl,
-        resolution: effectiveResolution,
-        referenceImage: reference?.dataUrl,
-        styleReferences: styleReferences.length ? styleReferences : undefined,
-        framing: photoIn.framing,
-        settings: settingsIn,
-      }),
-      signal: AbortSignal.any([
-        controller.signal,
-        AbortSignal.timeout(255000),
-      ]),
-    }).catch((error: unknown) => {
-      if (controller.signal.aborted) throw error;
-      throw new Error("The image-generation service couldn’t be reached. Please check your connection and try again. Your current case remains on this device.");
+    const { prepareGenerationPhoto } = await import("@/lib/photos");
+    const requestCanvas = await prepareGenerationPhoto(photoIn);
+    if (controller.signal.aborted) throw controller.signal.reason;
+    let next = await generateSmileImage({
+      caseId,
+      originalImage: requestCanvas.photo.dataUrl,
+      sourceBounds: requestCanvas.sourceBounds,
+      framing: requestCanvas.photo.framing,
+      resolution: effectiveResolution,
+      referenceImage: reference?.dataUrl,
+      styleReferences,
+      settings: settingsIn,
+      consentVersion,
+    }, {
+      signal: controller.signal,
+      accessToken: await account.getAccessToken(),
+      onSubmitted: () => setCosts((c) => ({ ...c, requested: c.requested + 1 })),
     });
-    const body = await r.json().catch(() => { throw new Error("The image-generation service is unavailable. Your case is kept on this device. Please try again shortly."); });
-    if (!r.ok)
-      throw new Error(
-        body.error || "We couldn’t create your preview. Please try again.",
-      );
-    if (
-      !imageSchema.safeParse(body.image).success ||
-      !["mock", "live"].includes(body.mode)
-    )
-      throw new Error("The preview could not be opened. Please try again.");
-    let next = body as GenerationResult;
     if (costSession.current === session) {
       const receipt = next.mode === "mock"
         ? { usd: 0, basis: "usage" as const, model: "mock", resolution: effectiveResolution }
         : next.cost;
       setCosts((c) => completeCost(c, receipt));
     }
+    const { alignPreview } = await import("@/lib/photos");
+    const alignedImage = await alignPreview(next.image, photoIn, requestCanvas);
+    next = { ...next, image: alignedImage };
     if (next.mode === "live") {
-      const { alignPreview } = await import("@/lib/photos");
-      next = { ...next, ...(await lockFace(photoIn, await alignPreview(next.image, photoIn))) };
+      next = { ...next, ...(await lockFace(photoIn, alignedImage)) };
       // Advisory only, and only when there's a trustworthy anchor to check
       // against — an uploaded photo has no capture guide to measure from.
       if (photoIn.framing) {
@@ -427,6 +535,11 @@ export default function Smile() {
         if (assessment) next = { ...next, scaleFlag: assessment.flag };
       }
     }
+    if (settingsIn.libraryStyle && caseLibrary.mode === "cloud") {
+      const used = next.styleReferencesUsed?.count ?? 0;
+      preferences.styleReferenceCount = used;
+      preferences.styleReferenceStatus = used ? "used" : "no-match";
+    }
     return { ...next, preferences, requestFingerprint: fingerprint, elapsedSeconds: (performance.now() - started) / 1000 };
   }
 
@@ -435,56 +548,112 @@ export default function Smile() {
     entryResult: GenerationResult,
     used: SmileSettings,
     label?: string,
+    consent?: AiProcessingConsent | null,
   ) {
     if (!photo) return;
     const id = entryResult.variationId || crypto.randomUUID();
+    const writing = (async () => {
+      try {
+        const thumb = await thumbnail(entryResult.image);
+        await getCaseRepository().recordVisualisation(
+          {
+            id,
+            caseId: caseId || undefined,
+            patientName: patientName.trim(),
+            createdAt: Date.now(),
+            mode: entryResult.mode,
+            testMode,
+            label,
+            summary: `${toothSummary(used)} · ${used.treatment} · ${used.targetShade} · ${used.shape}`,
+            thumb,
+          },
+          { id, image: entryResult.image, originalImage: photo.dataUrl, preferences: entryResult.preferences ?? { settings: used, testMode }, review: entryResult.review, scaleFlag: entryResult.scaleFlag, aiConsent: testMode ? undefined : consent ?? aiConsent ?? undefined, generation: entryResult.generation },
+        );
+      } catch {
+        setStorageError(true);
+      }
+    })();
+    logWrites.current.set(id, writing);
+    await writing;
+    if (logWrites.current.get(id) === writing) logWrites.current.delete(id);
+  }
+
+  async function persistConsentBeforeGeneration(consent: AiProcessingConsent, casePhoto: Photo, caseSettings: SmileSettings) {
     try {
-      const thumb = await thumbnail(entryResult.image);
-      await addLogEntry(
-        {
-          id,
-          patientName: patientName.trim(),
-          createdAt: Date.now(),
-          mode: entryResult.mode,
-          testMode,
-          label,
-          summary: `${toothSummary(used)} · ${used.treatment} · ${used.targetShade} · ${used.shape}`,
-          thumb,
-        },
-        { id, image: entryResult.image, originalImage: photo.dataUrl },
-      );
+      await persistCase({
+        caseId,
+        uploadAuthority,
+        photo: casePhoto,
+        settings: caseSettings,
+        costs,
+        requestLimit,
+        resolution,
+        patientName,
+        aiConsent: consent,
+        validationCaseId,
+        testMode: false,
+        testPreview: null,
+        reference,
+        variants,
+        result,
+        screen: screen === "compare" ? "design" : screen,
+      });
+      return true;
     } catch {
-      // The log is a convenience — never let it interrupt a consultation.
+      setStorageError(true);
+      setError("This device couldn’t save the permission record, so no AI request was sent. Check local storage and try again.");
+      return false;
     }
   }
 
-  async function generate(override?: Partial<SmileSettings>) {
+  function reviewResult(review?: GenerationResult["review"]) {
+    if (!result) return;
+    const next = { ...result, review };
+    setResult(next);
+    setVariants(vs => vs.map(v => v.result.variationId === next.variationId ? { ...v, result: next } : v));
+    // The initial thumbnail/write may still be finishing. Preserve the review
+    // on that exact saved version without recreating a deliberately deleted case.
+    void (logWrites.current.get(next.variationId) ?? Promise.resolve())
+      .then(() => updateLogReview(next.variationId, review))
+      .catch(() => setStorageError(true));
+  }
+
+  async function generate(override?: Partial<SmileSettings>, approvedConsent?: AiProcessingConsent) {
     if (!photo || busy || request.current) return;
     const used = override ? { ...settings, ...override } : settings;
     if (isNoChangeDesign(used)) { setError("No change selected. Choose a different shade or design goal; no AI request was sent."); return; }
+    if (!accountReadyForGeneration()) return;
+    const consentForRequest = testMode ? null : approvedConsent ?? aiConsent;
+    if (!testMode) {
+      let photoFingerprint: string;
+      try { photoFingerprint = await fingerprintPhotoForConsent(photo.dataUrl, reference?.dataUrl); }
+      catch { setError("This device couldn’t verify the permission record. No AI request was sent. Please reload the app and try again."); return; }
+      if (consentForRequest?.version !== AI_CONSENT_VERSION || consentForRequest.photoFingerprint !== photoFingerprint) {
+        setPendingAiConsent({ photoFingerprint, action: { kind: "single", override } });
+        return;
+      }
+    }
     if (override) setSettings(used);
+    if (consentForRequest && !testMode && !await persistConsentBeforeGeneration(consentForRequest, photo, used)) return;
     const controller = new AbortController();
     request.current = controller;
     setBusy(true);
     setError("");
     setSaved(false);
     try {
+      await waitForGenerationScreen();
+      if (controller.signal.aborted) return;
       const [next] = await Promise.all([
-        requestPreview(photo, used, controller),
+        requestPreview(photo, used, controller, consentForRequest?.version),
         new Promise((resolve) => setTimeout(resolve, 2300)),
       ]);
       if (controller.signal.aborted) return;
       setVariants([]);
       setResult(next);
       setScreen("preview");
-      void logGenerated(next, used);
+      void logGenerated(next, used, undefined, consentForRequest);
     } catch (e) {
-      if (!controller.signal.aborted)
-        setError(
-          e instanceof Error && e.name !== "TimeoutError"
-            ? e.message
-            : "This preview took too long. Please try again.",
-        );
+      if (!controller.signal.aborted) showGenerationError(e, "This preview took too long. Please try again.");
     } finally {
       if (request.current === controller) {
         setBusy(false);
@@ -496,10 +665,23 @@ export default function Smile() {
   async function generateVariants(
     wanted: { label: string; note: string; patch: Partial<SmileSettings> }[],
     confirmed = false,
+    approvedConsent?: AiProcessingConsent,
   ) {
     if (!photo || busy || request.current) return;
+    if (!accountReadyForGeneration()) return;
     if (!testMode && exceedsRequestLimit(costs.requested, wanted.length, requestLimit)) { setError("This batch could exceed your case request allowance. Review Clinician costs or create a single preview."); return; }
     if (!testMode && !confirmed) { setBatchPending(wanted); return; }
+    const consentForRequest = testMode ? null : approvedConsent ?? aiConsent;
+    if (!testMode) {
+      let photoFingerprint: string;
+      try { photoFingerprint = await fingerprintPhotoForConsent(photo.dataUrl, reference?.dataUrl); }
+      catch { setError("This device couldn’t verify the permission record. No AI request was sent. Please reload the app and try again."); return; }
+      if (consentForRequest?.version !== AI_CONSENT_VERSION || consentForRequest.photoFingerprint !== photoFingerprint) {
+        setPendingAiConsent({ photoFingerprint, action: { kind: "variants", wanted } });
+        return;
+      }
+    }
+    if (consentForRequest && !testMode && !await persistConsentBeforeGeneration(consentForRequest, photo, settings)) return;
     const controller = new AbortController();
     request.current = controller;
     setBusy(true);
@@ -507,6 +689,9 @@ export default function Smile() {
     setSaved(false);
     const originalPhoto = photo;
     try {
+      await waitForGenerationScreen();
+      if (controller.signal.aborted) return;
+      const minimumDisplay = new Promise((resolve) => window.setTimeout(resolve, 1700));
       const settled = await Promise.allSettled(
         wanted.map(async (v) => ({
           ...v,
@@ -515,6 +700,7 @@ export default function Smile() {
             originalPhoto,
             { ...settings, ...v.patch },
             controller,
+            consentForRequest?.version,
           ),
         })),
       );
@@ -524,17 +710,14 @@ export default function Smile() {
         .map((x) => (x as PromiseFulfilledResult<Variant>).value);
       if (ok.length === 0)
         throw new Error("These options couldn’t be created. Please try again.");
+      await minimumDisplay;
+      if (controller.signal.aborted) return;
       setVariants(ok);
       setOptions(ok);
-      ok.forEach((v) => void logGenerated(v.result, v.settings, v.label));
+      ok.forEach((v) => void logGenerated(v.result, v.settings, v.label, consentForRequest));
       if (ok.length < wanted.length) setError(`${ok.length} of ${wanted.length} options were created. You can compare those now or try again.`);
     } catch (e) {
-      if (!controller.signal.aborted)
-        setError(
-          e instanceof Error && e.name !== "TimeoutError"
-            ? e.message
-            : "This took too long. Please try again.",
-        );
+      if (!controller.signal.aborted) showGenerationError(e, "This took too long. Please try again.");
     } finally {
       if (request.current === controller) {
         setBusy(false);
@@ -603,7 +786,7 @@ export default function Smile() {
     ]);
   };
 
-  const compareMaterials = () => void generateVariants(caseMaterials.map(treatment => ({ label: treatment, note: "Same selected goal, tooth plan and shade; material changes. Check contours across these independent illustrations.", patch: { treatment } })));
+  const compareMaterials = () => void generateVariants(caseMaterials.map(treatment => ({ label: treatment, note: testMode ? "Prepared material example on the same demo portrait. Other design controls do not change these demo images." : "Same selected goal, tooth plan and shade; material changes. Check contours across these independent illustrations.", patch: { treatment } })));
 
   const compareShapes = () =>
     void generateVariants([
@@ -634,10 +817,18 @@ export default function Smile() {
   }
 
   function newSmile() {
+    caseSession.current += 1;
+    setCaseId(crypto.randomUUID());
+    setUploadAuthority(null);
     setValidationCaseId(undefined);
     setBatchPending(null);
+    setPendingAiConsent(null);
+    setAiConsent(null);
     cancelGeneration();
     resetCaseCosts();
+    setRequestLimit(0);
+    setPatientName("");
+    setPinnedCases([]);
     setPhoto(null);
     setResult(null);
     setReference(null);
@@ -646,6 +837,12 @@ export default function Smile() {
     setOptions(null);
     setVariants([]);
     setFullscreen(false);
+    setPresenting(false);
+    setSaveOpen(false);
+    setVideoOpen(false);
+    setReviewOpen(false);
+    setCamera(false);
+    setPreviewMode("slide");
     setEditAreaOpen(false);
     setSettings({ ...defaultSettings });
     setError("");
@@ -662,7 +859,7 @@ export default function Smile() {
     setSaving(true);
     setError("");
     try {
-      const { composeBeforeAfter, downloadBlob } = await import("@/lib/compose");
+      const [{ composeBeforeAfter }, { saveFile }] = await Promise.all([import("@/lib/compose"), import("@/lib/share")]);
       const blob = await composeBeforeAfter(
         photo.dataUrl,
         result.image,
@@ -671,10 +868,12 @@ export default function Smile() {
         reportPreferences,
         testMode,
       );
-      downloadBlob(
+      const outcome = await saveFile(
         blob,
-        `smile-${layout === "split" ? "side-by-side" : "stacked"}-${new Date().toISOString().slice(0, 10)}.jpg`,
+        `smilecompose-${layout === "split" ? "side-by-side" : "stacked"}-${new Date().toISOString().slice(0, 10)}.jpg`,
+        "SmileCompose before and after",
       );
+      if (outcome === "cancelled") return;
       setSaved(true);
       setTimeout(() => setSaved(false), 4000);
     } catch {
@@ -694,14 +893,27 @@ export default function Smile() {
       ))}
     </div>
   ) : null;
-
-  const generation = busy ? (
-    <GenerationState onCancel={cancelGeneration} />
+  const selectedVariantLabel = variants.find(v => v.result.variationId === result?.variationId)?.label ?? "Choose a look";
+  const variantPicker = variants.length > 0 ? (
+    <details className="variant-picker">
+      <summary>Look · {selectedVariantLabel}<ChevronDown size={16} /></summary>
+      <div className="variant-picker-options" role="group" aria-label="Generated smile options">
+        {variants.map((v) => (
+          <button key={v.result.variationId} type="button" disabled={busy}
+            aria-pressed={result?.variationId === v.result.variationId}
+            onClick={(event) => {
+              (event.currentTarget.closest("details") as HTMLDetailsElement | null)?.removeAttribute("open");
+              selectOption(v);
+            }}>{v.label}</button>
+        ))}
+      </div>
+    </details>
   ) : null;
 
   return (
     <AppShell
       screen={screen}
+      testMode={testMode}
       onBack={
         screen === "photo"
           ? () => setScreen("start")
@@ -722,22 +934,17 @@ export default function Smile() {
       }
       action={
         <div className="nav-actions">
-          {testMode && <span className="test-mode-pill">Test mode</span>}
           <button
             className="nav-action"
             onClick={() => setLogOpen(true)}
-            aria-label="Open case log"
+            aria-label="Open cases"
           >
             <History size={16} strokeWidth={1.7} />
-            Log
+            Cases
           </button>
-          <button
-            className="nav-action"
-            onClick={() => setLibraryOpen(true)}
-            aria-label="Open case library"
-          >
-            <BookMarked size={16} strokeWidth={1.7} />
-            Library
+          <button className="nav-action" onClick={() => account.openSettings()} aria-label="Open profile and settings">
+            {account.initials ? <UserAvatar size="tiny" className="nav-avatar" initials={account.initials} url={account.avatarUrl} /> : <Settings size={16} strokeWidth={1.7} />}
+            Settings
           </button>
           {screen === "design" && (
             <button
@@ -756,9 +963,7 @@ export default function Smile() {
       }
     >
       {!ready ? (
-        <div className="restore-state" role="status">
-          Preparing your space…
-        </div>
+        <BrandLaunch />
       ) : (
         <>
           {screen === "start" && (
@@ -767,42 +972,36 @@ export default function Smile() {
                 <div
                   className="portrait-image"
                   role="img"
-                  aria-label="A natural smile photographed for Dr Vik"
+                  aria-label="Natural smile photography for SmileCompose"
                 />
               </div>
               <div className="portrait-top">
-                <span className="splash-lockup">
-                  <span className="wordmark">Smile</span>
-                </span>
-                <img
-                  className="portrait-logo"
-                  src="/dr-vik-logo.png"
-                  alt="Dr Vik"
-                />
+                <BrandLockup inverse />
+                <CreatorSignature inverse />
               </div>
+              <ProfileButton className="start-profile" />
               <div className="start-copy">
+                <HomeGreeting />
                 <h1 ref={heading} tabIndex={-1} className="splash-heading">
-                  A preview
+                  Smile design,
                   <br />
-                  of what’s
-                  <br />
-                  possible.
+                  visualised.
                 </h1>
                 <span className="splash-rule" aria-hidden="true" />
-                <p className="splash-sub">A smile that’s still you.</p>
+                <p className="splash-sub">Digital Smile Design</p>
                 <div className="splash-actions">
                   <button
                     className="splash-primary"
                     onClick={startNewSmile}
                   >
-                    New Smile <ArrowRight size={17} strokeWidth={1.8} />
+                    New Smile Design <ArrowRight size={17} strokeWidth={1.8} />
                   </button>
                   <button
                     className="splash-outline"
                     onClick={() => setLogOpen(true)}
                   >
                     <History size={16} strokeWidth={1.7} />
-                    Recent Cases
+                    Cases
                   </button>
                   <button
                     className="splash-quiet"
@@ -814,10 +1013,11 @@ export default function Smile() {
                     <span>no AI credits</span>
                   </button>
                 </div>
+                <RecentCases refreshKey={logOpen} onOpen={id => { setLogEntry(id); setLogOpen(true); }} onSeeAll={() => { setLogEntry(undefined); setLogOpen(true); }} />
               </div>
               <div className="hero-footer">
                 <p className="splash-tagline">
-                  Thoughtfully planned. Personally cared for.
+                  Plan · Visualise · Communicate · Transform
                 </p>
               </div>
             </section>
@@ -828,14 +1028,12 @@ export default function Smile() {
               <PhotoUploader
                 photo={photo}
                 onPhoto={selectPhoto}
-                onRemove={() => {
-                  resetCaseCosts();
-                  setPhoto(null);
-                  setResult(null);
-                  void persistCase(null).catch(() => setStorageError(true));
-                }}
+                onRemove={startNewSmile}
                 onContinue={() => setScreen("design")}
                 onCamera={() => setCamera(true)}
+                authorityConfirmed={Boolean(uploadAuthority)}
+                onConfirmAuthority={confirmUploadAuthority}
+                onLearnMore={account.openPrivacy}
               />
             </section>
           )}
@@ -850,9 +1048,11 @@ export default function Smile() {
                 accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif"
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
+                  const session = caseSession.current;
                   if (file) {
                     try {
-                      await selectPhoto(await preparePhoto(file));
+                      const prepared = await preparePhoto(file);
+                      if (caseSession.current === session) await selectPhoto(prepared);
                     } catch (err) {
                       setError(
                         err instanceof Error ? err.message : "Could not open photo.",
@@ -871,9 +1071,11 @@ export default function Smile() {
                 accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif"
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
+                  const session = caseSession.current;
                   if (file) {
                     try {
-                      setReference(await preparePhoto(file));
+                      const prepared = await preparePhoto(file);
+                      if (caseSession.current === session) setReference(prepared);
                     } catch (err) {
                       setError(
                         err instanceof Error
@@ -887,20 +1089,8 @@ export default function Smile() {
                 }}
               />
               <h1 ref={heading} tabIndex={-1} className="sr-only">
-                Choose your smile
+                Patient Smile Design
               </h1>
-              <div className="patient-field">
-                <label htmlFor="patient-name">Patient</label>
-                <input
-                  id="patient-name"
-                  type="text"
-                  value={patientName}
-                  maxLength={60}
-                  placeholder="Name or reference"
-                  onChange={(e) => setPatientName(e.target.value)}
-                />
-              </div>
-              {validationCaseId && <p className="test-notice">Outcome validation · the actual after photo is held out. Set the actual treatment goal and shade before generating.</p>}
               <div className="design-layout">
                 <div className="photo-column">
                   {result ? (
@@ -909,17 +1099,46 @@ export default function Smile() {
                         original={photo.dataUrl}
                         preview={result.image}
                         isMock={result.mode === "mock"}
+                        mode={previewMode}
+                        onModeChange={setPreviewMode}
                       />
-                      {generation}
                     </div>
                   ) : (
-                    <PatientPhoto photo={photo}>{generation}</PatientPhoto>
+                    <PatientPhoto photo={photo} />
                   )}
+                </div>
+                <FloatingPanel className="design-drawer" title="Design Controls" subtitle={`${settings.targetShade} · ${settings.treatment}`} desktopOpen>
+              {result && <div className="design-touch-compare">
+                <span className="compact-options-label">COMPARE</span>
+                <div className="compact-compare-switch" role="group" aria-label="Comparison style">
+                  <button type="button" aria-pressed={previewMode === "slide"} onClick={() => setPreviewMode("slide")}>Slide</button>
+                  <button type="button" aria-pressed={previewMode === "overlay"} onClick={() => setPreviewMode("overlay")}>Overlay</button>
+                </div>
+              </div>}
+              {validationCaseId && <p className="test-notice">Outcome validation · the actual after photo is held out. Set the actual treatment goal and shade before generating.</p>}
+              <div className="patient-field">
+                <label htmlFor="patient-name">Case ref.</label>
+                <input
+                  id="patient-name"
+                  type="text"
+                  value={patientName}
+                  maxLength={24}
+                  placeholder="Initials or reference, e.g. AB or Case 24"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  aria-describedby="patient-name-hint"
+                  onChange={(e) => setPatientName(e.target.value)}
+                />
+              </div>
+              <p id="patient-name-hint" className="control-hint">Stays on this device. Use initials or a practice reference — not full names, dates of birth, NHS numbers or contact details.</p>
                   <div className="photo-under">
                     <button
                       className="text-button"
                       disabled={busy}
-                      onClick={() => replacement.current?.click()}
+                      // A real patient photo needs this case's authority confirmation (e.g. leaving test mode).
+                      onClick={() => (uploadAuthority && !testMode ? replacement.current?.click() : startNewSmile())}
                     >
                       <ImagePlus size={15} strokeWidth={1.6} />
                       Replace photo
@@ -932,7 +1151,6 @@ export default function Smile() {
                       {toothSummary(settings)} · {settings.targetShade}
                     </span>
                   </div>
-                </div>
                 <DesignControls
                   costs={{ pricing, resolution: effectiveResolution, onResolution: setResolution, costs, testMode, busy, open: costsOpen, onOpen: toggleCosts, requestLimit, onRequestLimit: setRequestLimit }}
                   onEditArea={() => setEditAreaOpen(true)}
@@ -943,14 +1161,12 @@ export default function Smile() {
                   onCompare={compareShapes}
                   onCompareMaterials={compareMaterials}
                   onHarmonise={harmoniseStyles}
-                  libraryCount={libraryCount}
-                  pinnedCount={pinnedCases.length}
-                  onOpenLibrary={() => setLibraryOpen(true)}
                   busy={busy}
                   reference={reference}
                   onAddReference={() => referenceInput.current?.click()}
                   onClearReference={() => setReference(null)}
                 />
+                </FloatingPanel>
               </div>
             </section>
           )}
@@ -958,15 +1174,18 @@ export default function Smile() {
           {screen === "preview" && photo && result && (
             <section className="preview-screen">
               <h1 ref={heading} tabIndex={-1} className="sr-only">
-                Your Smile Preview
+                Smile Preview
               </h1>
               {variantTabs}
+              {variantPicker}
               <div className="preview-layout">
               <div className="preview-stage">
                 <BeforeAfterSlider
                   original={photo.dataUrl}
                   preview={result.image}
                   isMock={result.mode === "mock"}
+                  mode={previewMode}
+                  onModeChange={setPreviewMode}
                 />
                 <button
                   className="fullscreen-button"
@@ -975,8 +1194,8 @@ export default function Smile() {
                   <Maximize2 size={14} strokeWidth={1.8} />
                   Consultation view
                 </button>
-                {generation}
               </div>
+              <FloatingPanel className="review-drawer" title="Review & refine" subtitle={result.mode === "live" && !testMode ? "Check anatomy · options & treatment notes" : "Analysis, options & treatment notes"} open={reviewOpen} onOpenChange={setReviewOpen}>
               <div className="preview-side">
               <div className="comparison-hint">
                 <MoveHorizontal size={15} strokeWidth={1.6} />
@@ -1029,7 +1248,8 @@ export default function Smile() {
                   or try Softer, before presenting it.
                 </p>
               )}
-              {!testMode && ["no-match", "unavailable"].includes(result.preferences?.styleReferenceStatus ?? "") && <p className="scale-notice" role="status"><span>No own-case references used</span>{result.preferences?.styleReferenceStatus === "unavailable" ? "The case library could not be opened for this result." : "No available reference matched the chosen treatment technique or pinned selection."} Add matching cases in the library to use them next time.</p>}
+              {!testMode && ["no-match", "unavailable"].includes(result.preferences?.styleReferenceStatus ?? "") && <p className="scale-notice" role="status"><span>No Case Library references used</span>{result.preferences?.styleReferenceStatus === "unavailable" ? "Your Case Library could not be opened for this result." : "No close style match was found for this treatment and these teeth."} Add matching finished cases to your Case Library to use your style next time.</p>}
+              {!testMode && result.mode === "live" && result.preferences?.styleReferenceStatus === "used" && <StyleFeedback key={result.variationId} result={result} />}
               {result.mode === "live" && !testMode && (
                 <p className="scale-notice" role="status"><span>{result.editAreaProtected ? "Edit area protected" : result.faceLocked ? "Face protected — check dental anatomy" : "Automatic protection unavailable"}</span>
                   {result.editAreaProtected ? "The original photo is restored outside your painted area. Check that the boundary excludes gums and untreated teeth, and review the design inside it." : result.faceLocked ? "Automatic protection covers the surrounding face, not individual teeth or gums. Compare gum margins, lower teeth and untreated teeth before presenting. Use Protect edit area for precise boundaries." : "The face could not be protected automatically. Inspect the whole result against the original, or use Protect edit area and generate again before presenting."}
@@ -1050,13 +1270,34 @@ export default function Smile() {
               )}
               {testMode && (
                 <p className="test-notice">
-                  Test mode uses a prepared Dr Vik example, so no AI credits are
-                  used.
+                  Test mode uses three prepared material examples on the same
+                  face. No AI credits are used.
                 </p>
               )}
               <GenerationCosts pricing={pricing} resolution={effectiveResolution} onResolution={setResolution} costs={costs} testMode={testMode} busy={busy} open={costsOpen} onOpen={toggleCosts} requestLimit={requestLimit} onRequestLimit={setRequestLimit} />
-              {!testMode && result.mode === "live" && <ClinicianReview key={result.variationId} result={result} onReview={review => { const next = { ...result, review }; setResult(next); setVariants(vs => vs.map(v => v.result.variationId === next.variationId ? { ...v, result: next } : v)); }} />}
+              {!testMode && result.mode === "live" && <ClinicianReview key={result.variationId} result={result} onReview={reviewResult} />}
               {validationCaseId && <ValidationPanel key={`${validationCaseId}:${result.variationId}`} caseId={validationCaseId} result={result} before={photo.dataUrl} />}
+              {saved && (
+                <p className="save-status" role="status">
+                  <Check size={14} /> Image saved
+                </p>
+              )}
+              <Implications
+                settings={reportPreferences?.settings ?? settings}
+                result={result}
+              />
+              </div>
+              {analysisOn && (
+                <SmileAnalysisPanel
+                  before={photo.dataUrl}
+                  after={result.image}
+                  isDemo={result.mode === "mock" || testMode}
+                  patientName={patientName}
+                />
+              )}
+              <Disclaimer />
+              </FloatingPanel>
+              </div>
               <BottomActionBar
                 anotherCost={costsOpen ? generationCostLabel(pricing, effectiveResolution, 3, testMode) : undefined}
                 onAnother={showAnother}
@@ -1069,26 +1310,20 @@ export default function Smile() {
                 busy={busy}
                 saving={saving}
               />
-              {saved && (
-                <p className="save-status" role="status">
-                  <Check size={14} /> Image saved
-                </p>
-              )}
-              <Implications
-                settings={reportPreferences?.settings ?? settings}
-                result={result}
+              <PreviewCompactMenu
+                mode={previewMode}
+                onModeChange={setPreviewMode}
+                onConsult={() => { setReviewOpen(false); setFullscreen(true); }}
+                onReview={() => setReviewOpen(true)}
+                onAnother={showAnother}
+                onEdit={() => { setReviewOpen(false); setScreen("design"); setError(""); }}
+                onSave={() => setSaveOpen(true)}
+                onNew={startNewSmile}
+                anotherCost={costsOpen ? generationCostLabel(pricing, effectiveResolution, 3, testMode) : undefined}
+                busy={busy}
+                saving={saving}
               />
-              </div>
-              </div>
-              {analysisOn && (
-                <SmileAnalysisPanel
-                  before={photo.dataUrl}
-                  after={result.image}
-                  isDemo={result.mode === "mock" || testMode}
-                  patientName={patientName}
-                />
-              )}
-              <Disclaimer />
+
             </section>
           )}
         </>
@@ -1170,6 +1405,19 @@ export default function Smile() {
         </div>
       )}
 
+      {pendingAiConsent && photo && !testMode && (
+        <AiProcessingConsentDialog
+          photoFingerprint={pendingAiConsent.photoFingerprint}
+          onCancel={() => setPendingAiConsent(null)}
+          onConfirm={(consent) => {
+            const pending = pendingAiConsent;
+            setAiConsent(consent);
+            setPendingAiConsent(null);
+            if (pending.action.kind === "single") void generate(pending.action.override, consent);
+            else void generateVariants(pending.action.wanted, true, consent);
+          }}
+        />
+      )}
       {batchPending && <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-label="Confirm generation batch"><div className="sheet"><h2>Create {batchPending.length} options?</h2><p className="sheet-sub">{generationCostLabel(pricing, effectiveResolution, batchPending.length, testMode)}. {pricing?.free ? "Mock previews have no AI generation charge." : "This is the image-output component; input, reference and thinking tokens cost extra."} Existing identical results may be reused without a new request.</p><p className="control-hint">Options are generated independently. Compare tooth contours and protected anatomy; geometry is not guaranteed to be identical.</p><button className="primary-button" onClick={() => { const wanted = batchPending; setBatchPending(null); void generateVariants(wanted, true); }}>Create {batchPending.length} options</button><button className="secondary-button" onClick={() => setBatchPending(null)}>Cancel</button></div></div>}
       {saveOpen && result && photo && (
         <div
@@ -1190,7 +1438,7 @@ export default function Smile() {
                 <X size={16} />
               </button>
             </div>
-            <p className="sheet-sub">The images include the before and after photos, Dr Vik logo, smile preferences and what the treatment would involve. The video shows the new smile fading in.</p>
+            <p className="sheet-sub">The images include the before and after photos, SmileCompose branding, smile preferences and what the treatment would involve. The video shows the new smile fading in.</p>
             <div className="report-photo-pair" aria-label="Before and after report preview">
               <figure>
                 <img src={photo.dataUrl} alt="Before: original photograph" />
@@ -1204,7 +1452,7 @@ export default function Smile() {
             <div className="report-summary">
               <div className="report-summary-heading">
                 <span>Your smile preferences</span>
-                <img src="/dr-vik-logo.png" alt="Dr Vik" />
+                <BrandLockup />
               </div>
               {reportPreferences ? <dl>
                 {preferenceRows(reportPreferences.settings).map(([label, value]) => (
@@ -1268,7 +1516,7 @@ export default function Smile() {
           original={photo.dataUrl}
           preview={result.image}
           isMock={result.mode === "mock" || testMode}
-          variants={variantTabs}
+          variants={<>{variantTabs}{variantPicker}</>}
           onPresent={() => setPresenting(true)}
           onClose={() => setFullscreen(false)}
         />
@@ -1284,6 +1532,10 @@ export default function Smile() {
         />
       )}
 
+      {busy && photo && (
+        <GenerationState onCancel={cancelGeneration} testMode={testMode} photo={photo.dataUrl} />
+      )}
+
       {error && (
         <div className="global-error" role="alert">
           {error}
@@ -1293,20 +1545,21 @@ export default function Smile() {
         </div>
       )}
       {storageError && (
-        <p className="storage-note">
-          This browser isn’t saving your case locally. Your preview still works.
+        <p className="storage-note" role="status">
+          This device could not save all case data. Keep this preview open and save any images you need before closing the app.
         </p>
       )}
-      {logOpen && <CaseLog onClose={() => setLogOpen(false)} />}
+      {logOpen && <CaseLog initialEntryId={logEntry} onClose={() => { setLogOpen(false); setLogEntry(undefined); }} />}
       {libraryOpen && (
         <CaseLibrary
-          onClose={() => setLibraryOpen(false)}
+          onClose={() => { setLibraryOpen(false); void caseLibrary.refresh(); }}
           pinned={pinnedCases}
           onPinnedChange={setPinnedCases}
-          onCountChange={setLibraryCount}
+          onCountChange={ignoreCount}
           onValidate={entry => void startValidation(entry)}
         />
       )}
+      <Onboarding appReady={ready} onCreateFirst={startNewSmile} onOpenCases={() => { setLogEntry(undefined); setLogOpen(true); }} />
     </AppShell>
   );
 }

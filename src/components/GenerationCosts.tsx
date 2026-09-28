@@ -1,5 +1,5 @@
 "use client";
-import { formatUsd, PRICING_URL, type CaseCosts, type GenerationPricing, type ImageResolution } from "@/lib/generation/cost";
+import { formatUsd, type CaseCosts, type GenerationPricing, type ImageResolution } from "@/lib/generation/cost";
 
 export function generationCostLabel(pricing: GenerationPricing | null, resolution: ImageResolution, count: number, testMode: boolean): string {
   if (testMode || pricing?.free) return "No AI charge";
@@ -35,7 +35,7 @@ export function GenerationCosts({ pricing, resolution, onResolution, costs, test
       </div>}
       {!free && resolution === "512" && <p className="control-hint">Lower detail for exploring ideas. A new 1K generation costs extra and may vary; it is not an upscale of this draft.</p>}
       {onRequestLimit && <label className="control-hint">Case request limit<select className="design-select" disabled={busy} value={requestLimit ?? 0} onChange={e => onRequestLimit(Number(e.target.value))}>{[0,3,5,10,20].map(n => <option key={n} value={n}>{n ? `${n} requests per case` : "No limit"}</option>)}</select></label>}
-      <p className="control-hint">A device-local request allowance, not a hard dollar cap. Failed requests count because they may be charged. New Smile / Reset starts a new allowance.</p>
+      <p className="control-hint">A device-local request allowance, not a hard dollar cap. Failed requests count because they may be charged. Start New Design / Reset starts a new allowance.</p>
       <dl className="cost-lines">
         <div><dt>One preview / adjustment</dt><dd>{generationCostLabel(pricing, resolution, 1, testMode)}</dd></div>
         <div><dt>Three options</dt><dd>{generationCostLabel(pricing, resolution, 3, testMode)}</dd></div>
@@ -46,9 +46,9 @@ export function GenerationCosts({ pricing, resolution, onResolution, costs, test
       {(costs.imageOnly > 0 || costs.unpriced > 0) && <p className="control-hint">Some responses have incomplete pricing data. The recorded subtotal does not include all charges.</p>}
       <p className="control-hint">{free ? "Test previews have no AI charge." : "Image-output estimates; input/reference and thinking tokens cost extra. USD, excluding tax and hosting."}</p>
       <details className="cost-explainer"><summary>How costs work</summary>
-      <p className="control-hint">Recorded estimates use returned usage where available, not invoice data. Tracking starts with this update. Replacing the photo keeps the case total; New Smile / Reset clears it.</p>
+      <p className="control-hint">Recorded estimates use returned usage where available, not invoice data. Tracking starts with this update. Replacing the photo keeps the case total; Start New Design / Reset clears it.</p>
       <p className="control-hint">Choose your settings first, then create one preview. Three options send three requests. Switching existing options, comparison, analysis, video and saving need no extra AI generation.</p>
-      {!free && <p className="control-hint">{pricing?.model ?? "Pricing could not be loaded"} · <a href={PRICING_URL} target="_blank" rel="noreferrer">Google pricing</a>{pricing && ` · checked ${pricing.checkedAt}`}</p>}
+      {!free && <p className="control-hint">{pricing ? `Current AI image pricing · checked ${pricing.checkedAt}` : "Pricing could not be loaded"}</p>}
       </details>
     </div>}
   </div>;

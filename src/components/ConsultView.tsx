@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Play, Sparkles, X } from "lucide-react";
+import { BrandLockup, CreatorSignature } from "./Brand";
 import { ZoomPan } from "./ZoomPan";
 
 export type RevealPhase = "before" | "after" | "done";
@@ -69,7 +70,7 @@ export function ConsultView({
     >
       <img className="photo-backdrop" src={original} alt="" aria-hidden="true" />
       <div className="consult-frame">
-        <ZoomPan className="consult-media" label="">
+        <ZoomPan className="consult-media" label="" resetKey={preview}>
           <img src={original} alt="Your smile today" />
           <img
             className={`consult-layer${showPreview ? " shown" : ""}`}
@@ -81,11 +82,7 @@ export function ConsultView({
       <div className="consult-vignette" aria-hidden="true" />
 
       <div className="consult-top">
-        <div className="product-lockup product-lockup-inverse">
-          <span className="wordmark">Smile</span>
-          <span className="brand-divider" aria-hidden="true" />
-          <img className="dr-vik-mark" src="/dr-vik-logo.png" alt="Dr Vik" />
-        </div>
+        <BrandLockup inverse />
         <div className="consult-top-actions" onPointerDown={(e) => e.stopPropagation()}>
           {revealing ? (
             <button className="consult-close" onClick={skip}>
@@ -93,12 +90,21 @@ export function ConsultView({
             </button>
           ) : (
             <>
-              <button className="consult-close" onClick={() => setPhase("before")}>
-                <Play size={13} fill="currentColor" strokeWidth={1.7} /> Replay
-              </button>
-              <button className="consult-close" onClick={onPresent}>
-                <Sparkles size={14} strokeWidth={1.7} /> Before &amp; after
-              </button>
+              <div className="consult-extra-actions">
+                <button className="consult-close" onClick={() => setPhase("before")}>
+                  <Play size={13} fill="currentColor" strokeWidth={1.7} /> Replay
+                </button>
+                <button className="consult-close" onClick={onPresent}>
+                  <Sparkles size={14} strokeWidth={1.7} /> Before &amp; after
+                </button>
+              </div>
+              <details className="consult-compact-options">
+                <summary>Options</summary>
+                <div>
+                  <button type="button" onClick={() => setPhase("before")}>Replay reveal</button>
+                  <button type="button" onClick={onPresent}>Before &amp; after</button>
+                </div>
+              </details>
             </>
           )}
           <button className="consult-close" onClick={onClose}>
@@ -108,14 +114,14 @@ export function ConsultView({
       </div>
 
       <p className={`consult-serif${revealing ? " consult-serif-quiet" : ""}`}>
-        A more
+        Smile design,
         <br />
-        confident you
+        visualised.
       </p>
       {!revealing && <div className="consult-variants">{variants}</div>}
 
       <div className="consult-foot">
-        <span className="consult-practice">Dr Vik · London</span>
+        <CreatorSignature inverse className="consult-practice" />
         <span className="consult-hint">
           {phase === "before"
             ? "Your smile today"
@@ -125,7 +131,7 @@ export function ConsultView({
         </span>
         <span className="consult-meta">
           {isMock ? "Demo preview" : "AI illustration"}
-          <small>for discussion purposes only</small>
+          <small>Concept visualisation only</small>
         </span>
       </div>
     </div>

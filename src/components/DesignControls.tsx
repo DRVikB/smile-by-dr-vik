@@ -1,5 +1,5 @@
 "use client";
-import { BookMarked, Check, ImagePlus, Layers, Sparkles, Wand2, X } from "lucide-react";
+import { Check, ImagePlus, Layers, Sparkles, Wand2, X } from "lucide-react";
 import type {
   FaceShape,
   Photo,
@@ -15,8 +15,10 @@ import type {
 import { GenerationCosts, generationCostLabel, type GenerationCostsProps } from "./GenerationCosts";
 import { DESIGN_INTENTS, isNoChangeDesign, resolveDesignPlan } from "@/lib/generation/designPlan";
 import { ToothChart } from "./ToothChart";
-import { CaseFeatures } from "./CaseFeatures";
-import { upperTeeth } from "@/lib/types";
+import { upperTeeth, smileArcs, biteContexts } from "@/lib/types";
+import { canGuideSmileArc } from "@/lib/smilePrinciples";
+import { ClinicalDataFields } from "./ClinicalDataFields";
+import { YourStyle } from "./caseLibrary/YourStyle";
 
 const SHAPES: { name: string; shape: ToothShape; description: string }[] = [
   { name: "Square", shape: "Square", description: "Straight sides, flat edge" },
@@ -90,9 +92,6 @@ export function DesignControls({
   onCompareMaterials,
   onHarmonise,
   busy,
-  libraryCount,
-  pinnedCount,
-  onOpenLibrary,
   reference,
   onAddReference,
   onClearReference,
@@ -107,9 +106,6 @@ export function DesignControls({
   onCompareMaterials: () => void;
   onHarmonise: () => void;
   busy: boolean;
-  libraryCount: number;
-  pinnedCount: number;
-  onOpenLibrary: () => void;
   reference: Photo | null;
   onAddReference: () => void;
   onClearReference: () => void;
@@ -122,7 +118,7 @@ export function DesignControls({
   }
   return (
     <aside className="design-panel">
-      <h2 className="design-panel-title">Smile design</h2>
+      <h2 className="design-panel-title">Design Controls</h2>
       <div className="design-scroll">
         <GenerationCosts {...costs} />
         <fieldset disabled={busy} className="design-fieldset" aria-label="Smile design controls">
@@ -157,7 +153,7 @@ export function DesignControls({
 
             <div className="control-group">
               <div className="control-label">Tooth shape</div>
-              <div className="tooth-card-row" role="group" aria-label="Tooth shape">
+              <div className="tooth-card-row" role="group" aria-label="Tooth Shape">
                 {SHAPES.map((s) => (
                   <button key={s.shape} type="button" className="tooth-card"
                     aria-pressed={settings.shape === s.shape}
@@ -265,34 +261,28 @@ export function DesignControls({
                 value={settings.notes}
                 onChange={(e) => change("notes", e.target.value)}
               />
+              <p className="control-hint">Design instructions only. Notes are sent with the photo for AI processing, so don’t include names or other identifying details.</p>
             </div>
-            <div className="control-group">
-              <div className="control-label">
-                <span>My style</span>
-                <button type="button" className="text-button" onClick={onOpenLibrary}>
-                  <BookMarked size={14} strokeWidth={1.7} /> Case library
-                </button>
+            <details className="smile-principles">
+              <summary>Smile principles <span>Arc &amp; bite context</span></summary>
+              <div className="control-group">
+                <label className="control-label" htmlFor="smile-arc">Smile arc</label>
+                <select id="smile-arc" className="design-select" value={settings.smileArc ?? "Preserve existing"} onChange={e => change("smileArc", e.target.value as SmileSettings["smileArc"])}>
+                  {smileArcs.map(arc => <option key={arc}>{arc}</option>)}
+                </select>
+                <p className="control-hint">The lower lip guides curvature, not tooth length. Existing edges stay protected unless you specify planned changes to those teeth in Notes.</p>
+                {!canGuideSmileArc(settings) && settings.smileArc && settings.smileArc !== "Preserve existing" && <p className="control-hint" role="status">This preference is not applied: use a full-face photo with upper teeth set to Auto or Reshape. Shade-only, gap closure and local repairs retain the existing arc.</p>}
               </div>
-              <CaseFeatures value={settings.caseFeatures ?? []} onChange={v => change("caseFeatures", v)} />
-              <p className="control-hint">Starting conditions guide reference matching; they do not authorise treatment or diagnose the photograph.</p>
-              <label className="style-toggle">
-                <input
-                  type="checkbox"
-                  checked={settings.libraryStyle}
-                  onChange={(e) => change("libraryStyle", e.target.checked)}
-                />
-                <span>Match my own finished cases</span>
-              </label>
-              <p className="control-hint">
-                {libraryCount === 0
-                  ? "Your library is empty — add your own bonding and porcelain cases and previews will follow their contour, texture and finish."
-                  : !settings.libraryStyle
-                    ? `${libraryCount} ${libraryCount === 1 ? "case" : "cases"} saved, not being used for this preview.`
-                    : pinnedCount > 0
-                      ? `Only pinned cases matching ${settings.treatment.toLowerCase()} will be used. Other materials are excluded.`
-                      : `Up to three of your ${settings.treatment.toLowerCase()} cases will be sent with this photo.`}
-              </p>
-            </div>
+              <div className="control-group">
+                <label className="control-label" htmlFor="bite-context">Bite finding · clinician entered</label>
+                <select id="bite-context" className="design-select" value={settings.biteContext ?? "Not assessed"} onChange={e => change("biteContext", e.target.value as SmileSettings["biteContext"])}>
+                  {biteContexts.map(bite => <option key={bite}>{bite}</option>)}
+                </select>
+                <p className="control-hint">A smile photo cannot establish bite clearance. Recording a finding does not simulate its correction. Use Notes for assessed limitations.</p>
+              </div>
+              <ClinicalDataFields settings={settings} onChange={onChange} />
+            </details>
+            <YourStyle settings={settings} onChange={onChange} />
             <div className="control-group">
               <div className="control-label">
                 <span>Reference photo</span>
@@ -354,7 +344,7 @@ export function DesignControls({
           disabled={busy || isNoChangeDesign(settings)}
         >
           <Sparkles size={17} strokeWidth={1.5} />
-          {busy ? "Creating your preview…" : "Create Preview"}
+          {busy ? "Creating your visualisation…" : "Generate Smile"}
           {costs.open && !busy && <small className="action-cost">{generationCostLabel(costs.pricing, costs.resolution, 1, costs.testMode)}</small>}
         </button>
       </div>

@@ -22,12 +22,15 @@ export function SmileAnalysisPanel({
   const [blob, setBlob] = useState<Blob | null>(null);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     let live = true;
     let made = "";
     setUrl(null);
+    setBlob(null);
     setError("");
+    setNote("");
     import("@/lib/face/analysisImage")
       .then(({ composeAnalysis }) => composeAnalysis(before, after, { isDemo }))
       .then((b) => {
@@ -51,14 +54,18 @@ export function SmileAnalysisPanel({
   }, [before, after, isDemo]);
 
   async function share() {
-    if (!blob) return;
+    if (!blob || sharing) return;
+    setSharing(true);
     setNote("");
+    setError("");
     const stem = patientName?.trim() ? `-${patientName.trim().replace(/[^\p{L}\p{N}]+/gu, "-")}` : "";
     try {
-      const outcome = await shareFile(blob, `smile-analysis${stem}.jpg`, "Smile analysis");
+      const outcome = await shareFile(blob, `smilecompose-analysis${stem}.jpg`, "Smile analysis");
       if (outcome === "downloaded") setNote("Saved to your downloads.");
     } catch {
       setError("That couldn’t be shared.");
+    } finally {
+      setSharing(false);
     }
   }
 
@@ -66,8 +73,8 @@ export function SmileAnalysisPanel({
     <section className="analysis-panel" aria-label="Smile analysis">
       <div className="analysis-head">
         <h2>Smile analysis</h2>
-        <button className="text-button" onClick={() => void share()} disabled={!blob}>
-          <Share2 size={15} strokeWidth={1.6} /> Save or send
+        <button className="text-button" onClick={() => void share()} disabled={!blob || sharing}>
+          <Share2 size={15} strokeWidth={1.6} /> {sharing ? "Preparing…" : "Save or send"}
         </button>
       </div>
       {url ? (
@@ -77,6 +84,7 @@ export function SmileAnalysisPanel({
           {error || "Reading the face…"}
         </p>
       )}
+      {url && error && <p className="analysis-status" role="alert">{error}</p>}
       {note && <p className="analysis-status" role="status">{note}</p>}
     </section>
   );

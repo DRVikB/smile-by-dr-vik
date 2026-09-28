@@ -4,6 +4,10 @@ export type Screen = "start" | "photo" | "design" | "compare" | "preview";
 export type TeethCount = 4 | 6 | 8 | 10;
 export type Treatment = "Composite" | "Single-shade composite" | "Layered composite" | "Porcelain";
 export type DesignIntent = "Auto" | "Shade only" | "Repair edges" | "Close gaps" | "Reshape";
+export const smileArcs = ["Preserve existing", "Follow lower lip", "Flatter", "More curved"] as const;
+export type SmileArc = typeof smileArcs[number];
+export const biteContexts = ["Not assessed", "Deep bite", "Edge-to-edge", "Open bite", "Crossbite", "Other concern"] as const;
+export type BiteContext = typeof biteContexts[number];
 export type ToothCondition = "Natural" | "Restored" | "Missing";
 export interface ToothPlan {
   tooth: number;
@@ -72,12 +76,22 @@ export interface LibraryExport {
   cases: (LibraryCase & { image: string; thumb: string; beforeImage?: string })[];
 }
 export interface SmileSettings {
+  clinicalData?: {
+    overbiteMm?: number;
+    overjetMm?: number;
+    restorativeSpace?: "Not assessed" | "Limited / uncertain" | "Assessed for planned changes";
+    constraints?: string;
+    patientPriorities?: string;
+  };
   teeth: TeethCount;
   selectedTeeth: number[];
   toothPlans?: ToothPlan[];
   caseFeatures?: CaseFeature[];
   treatment: Treatment;
   designIntent?: DesignIntent;
+  smileArc?: SmileArc;
+  /** Clinician-entered context, never inferred from a smile photograph. */
+  biteContext?: BiteContext;
   currentShade: CurrentShade;
   targetShade: TargetShade;
   shape: ToothShape;
@@ -123,10 +137,23 @@ export interface PreviewPreferences {
   styleReferenceCount?: number;
   testMode?: boolean;
 }
+/** Where a visualisation came from. Stored with results; never shown as UI copy. */
+export interface GenerationMetadata {
+  provider: string;
+  model: string;
+  promptVersion: string;
+  generatedAt: string;
+  mode?: import("./generation/modes").GenerationMode;
+}
 export interface GenerationResult {
+  generation?: GenerationMetadata;
   elapsedSeconds?: number;
   review?: ClinicianReview;
   requestFingerprint?: string;
+  /** The app's request id for this generation (links optional style feedback). */
+  requestId?: string;
+  /** How many Case Library references the server attached, and which cases. */
+  styleReferencesUsed?: { count: number; caseIds: string[] };
   cost?: import("./generation/cost").CostReceipt;
   preferences?: PreviewPreferences;
   image: string;
@@ -151,6 +178,8 @@ export interface SmileVariant {
 }
 export interface CaseLogEntry {
   id: string;
+  /** Groups visualisations of the same case. Absent on entries saved before cases existed. */
+  caseId?: string;
   patientName: string;
   createdAt: number;
   mode: "mock" | "live";
@@ -158,18 +187,39 @@ export interface CaseLogEntry {
   label?: string;
   summary: string;
   thumb: string;
+  /** Archived: hidden from the main list, kept on this device. */
+  archivedAt?: number;
+  /** In Recently Deleted: permanently removed after RECENTLY_DELETED_DAYS. */
+  deletedAt?: number;
 }
 export interface CaseLogMedia {
   id: string;
   image: string;
   originalImage: string;
+  /** Optional for legacy cases, which stored only the two images. */
+  preferences?: PreviewPreferences;
+  /** Review belongs to this saved image version, not the editable draft. */
+  review?: ClinicianReview;
+  scaleFlag?: GenerationResult["scaleFlag"];
+  /** Local clinician attestation for the AI processing used to make this image. */
+  aiConsent?: import("./aiConsent").AiProcessingConsent;
+  generation?: GenerationMetadata;
+}
+/** The clinician's per-case confirmation of authority to process this patient's media. */
+export interface UploadAuthority {
+  version: string;
+  confirmedAt: number;
 }
 export interface SmileCase {
+  /** Stable ID for the working case; see SmileComposeCase in src/models/case.ts. */
+  caseId?: string;
+  uploadAuthority?: UploadAuthority | null;
   validationCaseId?: string;
   requestLimit?: number;
   costs?: import("./generation/cost").CaseCosts;
   resolution?: import("./generation/cost").ImageResolution;
   patientName?: string;
+  aiConsent?: import("./aiConsent").AiProcessingConsent | null;
   variants?: SmileVariant[];
   reference?: Photo | null;
   testMode?: boolean;
@@ -190,6 +240,8 @@ export const defaultSettings: SmileSettings = {
   selectedTeeth: upperTeeth[8],
   treatment: "Single-shade composite",
   designIntent: "Auto",
+  smileArc: "Preserve existing",
+  biteContext: "Not assessed",
   currentShade: "A2",
   targetShade: "Whiten",
   shape: "Rounded",
@@ -197,6 +249,8 @@ export const defaultSettings: SmileSettings = {
   shotType: "Full face",
   faceShape: "Auto",
   character: "Balanced",
+  // On by default: matching Case Library references are sent only when the
+  // clinician has added cases (with authority confirmed) and one matches.
   libraryStyle: true,
   intensity: 35,
   notes: "",

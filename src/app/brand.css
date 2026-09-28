@@ -1,0 +1,117 @@
+/* SmileCompose identity. Layout and interaction rules remain in their existing stylesheets. */
+.sc-lockup { display: inline-flex; align-items: center; gap: 10px; color: var(--text-primary); white-space: nowrap; flex-shrink: 0; }
+.sc-symbol { width: 32px; height: 32px; flex: none; filter: var(--mark-filter); }
+.sc-wordmark { font-family: var(--font-sans); font-weight: 400; font-size: 18px; letter-spacing: .19em; line-height: 1.2; }
+.sc-lockup-inverse { color: var(--sc-ivory); }
+.sc-lockup-inverse .sc-symbol { filter: brightness(0) invert(1); }
+.sc-signature { font-size: 12px; color: var(--sc-text-muted); letter-spacing: .04em; }
+.sc-home-signature { color: #faf9f6cf; font-size: 12px; letter-spacing: .035em; }
+.portrait-top .sc-symbol { width: 38px; height: 38px; }
+.portrait-top .sc-wordmark { font-size: clamp(16px, 2vw, 23px); letter-spacing: .2em; }
+.splash-heading { font-size: clamp(37px, 5.3vw, 64px); line-height: 1.1; }
+.splash-sub { font-family: var(--font-sans); font-style: normal; font-size: 12px; letter-spacing: .18em; text-transform: uppercase; }
+.splash-tagline { letter-spacing: .13em; line-height: 1.7; }
+.splash-rule { background: var(--sc-gold); }
+.app-header { background: var(--toolbar-background); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); }
+.sc-launch { position: fixed; z-index: 1000; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 24px; background: var(--background); color: var(--text-primary); }
+/* Same layout as the native launch screen (ios/App/App/Base.lproj/LaunchScreen.storyboard): bronze artwork reads in Light and Dark. */
+.sc-launch { gap: 0; padding-bottom: 16px; }
+.sc-launch-symbol { width: 96px; height: 96px; margin-bottom: 24px; }
+.sc-launch .sc-wordmark { font-size: 26px; font-weight: 300; letter-spacing: .2em; margin-right: -.2em; }
+.sc-launch .sc-signature { margin-top: -10px; }
+.primary-button, .photo-primary, .splash-primary, .compact-dock-save { background: var(--accent); color: var(--on-accent); box-shadow: none; font-weight: 500; }
+.primary-button:hover:not(:disabled), .photo-primary:hover:not(:disabled), .splash-primary:hover:not(:disabled), .compact-dock-save:hover:not(:disabled) { background: var(--accent-hover); color: var(--on-accent); box-shadow: none; }
+.segmented button.selected, .segmented button[aria-pressed="true"], .variant-picker-options button[aria-pressed="true"], .compact-compare-switch button[aria-pressed="true"] { background: var(--selected-fill); color: var(--on-selected); box-shadow: none; }
+.tooth-card[aria-pressed="true"] { border-color: var(--accent); background: var(--card); transform: none; box-shadow: inset 0 0 0 1px var(--accent); }
+.tooth-card-check { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+input[type="range"] { accent-color: var(--accent); }
+.style-toggle input { accent-color: var(--accent-text); }
+.test-mode-pill, .log-pill { background: var(--control-background); color: var(--text-secondary); }
+.test-notice, .demo-notice, .save-status { color: var(--accent-text); }
+.floating-panel, .sheet, .log-panel, .library-panel, .camera-sheet, .compact-options-popover, .variant-picker-options, .consult-compact-options > div { background: var(--sc-panel); border-color: var(--sc-panel-border); color: var(--text-primary); box-shadow: var(--shadow); }
+.floating-panel { border-radius: var(--r-panel); }
+.app-shell .design-panel .panel-actions { background: var(--surface-solid); border-color: var(--separator); }
+.app-shell .preview-screen > .bottom-action-bar, .compact-preview-dock { background: var(--sc-panel); border-color: var(--sc-panel-border); box-shadow: var(--shadow); }
+.compact-dock-options, .compact-options-heading button, .compact-compare-switch { background: var(--control-background); color: var(--text-primary); }
+/* The in-app report preview matches the exported report: brand "paper" in both themes. */
+.report-summary { background: var(--sc-ivory); color: var(--sc-charcoal); }
+.report-summary dt { color: #706356 !important; }
+.report-summary .sc-symbol { filter: none; }
+.report-summary .sc-lockup, .report-summary dd, .report-summary h3, .report-summary strong { color: var(--sc-charcoal); }
+.compact-option-row, .compact-option-row svg, .compact-options-label, .floating-panel-toggle small { color: var(--sc-text-muted); }
+.compact-option-row { border-color: var(--sc-panel-border); }
+.report-summary { border-color: rgba(160, 143, 126, .24); }
+.report-summary .sc-lockup { gap: 7px; }
+.report-summary .sc-symbol { width: 23px; height: 23px; }
+.report-summary .sc-wordmark { font-size: 12px; letter-spacing: .1em; }
+.compare-label { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+.photo-heading { font-family: var(--font-sans); font-size: clamp(29px, 4vw, 42px); font-weight: 400; letter-spacing: -.025em; }
+.generation-splash .sc-wordmark { font-size: clamp(16px, 2vw, 22px); }
+.sc-composing-symbol { width: 56px; height: 56px; margin-bottom: 22px; filter: brightness(0) invert(1); animation: sc-compose-breathe 3.2s ease-in-out infinite; }
+.generation-splash-eyebrow { display: block; }
+.generation-splash-steps .is-current .generation-splash-step-mark { border-color: var(--sc-gold); box-shadow: none; }
+.generation-splash-progress-track > span { background: var(--sc-gold); }
+.generation-splash-footer { letter-spacing: .13em; }
+@keyframes sc-compose-breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@media (max-width: 700px) {
+  .sc-lockup { gap: 7px; }
+  .sc-symbol { width: 25px; height: 25px; }
+  .sc-wordmark { font-size: 14px; letter-spacing: .1em; }
+  .app-header .nav-group { gap: 8px; }
+  .app-shell .test-mode-pill { font-size: 8px; padding: 3px 6px; min-height: 22px; }
+  .portrait-top .sc-symbol { width: 28px; height: 28px; }
+  .portrait-top .sc-wordmark { font-size: 16px; letter-spacing: .13em; }
+  .portrait-top { flex-wrap: wrap; gap: 12px; }
+  .sc-home-signature { font-size: 10px; }
+  .consult-top .sc-wordmark { font-size: 12px; letter-spacing: .08em; }
+  .consult-top .sc-symbol { width: 23px; height: 23px; }
+  .consult-top { padding-inline: 14px; }
+  .consult-top-actions { gap: 5px; }
+  .consult-close, .consult-compact-options > summary { padding-inline: 10px; }
+  .report-summary > div:first-child { flex-wrap: wrap; gap: 12px; }
+  .generation-splash .sc-wordmark { font-size: 14px; letter-spacing: .1em; }
+  .generation-splash .sc-symbol { width: 26px; height: 26px; }
+  .generation-splash-actions { gap: 0; }
+  .sc-composing-symbol { width: 42px; height: 42px; margin-bottom: 16px; }
+  .generation-splash-footer { font-size: 8px; letter-spacing: .08em; }
+}
+@media (max-width: 370px) {
+  .app-shell .test-mode-pill { position: absolute; left: 66px; top: calc(53px + env(safe-area-inset-top)); font-size: 8px; min-height: 14px; }
+  .app-shell[data-screen="photo"] .test-mode-pill { position: static; font-size: 7px; }
+  .app-header .sc-wordmark { font-size: 12px; }
+  .consult-top .sc-symbol { display: none; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .sc-composing-symbol { display: none; }
+  .generation-splash-content { padding-top: 76px; }
+}
+@media (prefers-reduced-motion: reduce) { .sc-composing-symbol { animation: none; } }
+/* Native disclosure keeps clinical choices compact on touch screens. */
+.smile-principles { border: 1px solid var(--sc-panel-border); border-radius: 16px; padding: 0 14px; margin: 0 0 20px; }
+.smile-principles > summary { cursor: pointer; padding: 16px 0; min-height: 48px; font-size: 14px; }
+.smile-principles > summary span { display: block; padding-top: 5px; color: var(--sc-text-muted); font-size: 12px; }
+.smile-principles .design-select { width: 100%; min-height: 44px; font-size: 16px; }
+.saved-case-viewer { position: fixed; inset: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; overflow: hidden; background: #191816; color: white; }
+.saved-case-viewer::backdrop { background: #191816; }
+.saved-case-viewer .comparison { width: 100%; height: 100%; min-height: 0; border-radius: 0; }
+.saved-case-header { position: absolute; inset: 0 0 auto; z-index: 10; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: calc(env(safe-area-inset-top, 0px) + 16px) max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px)); background: linear-gradient(#0009, transparent); }
+.saved-case-header .icon-button { flex-shrink: 0; color: white; background: #2229; }
+.saved-case-viewer .compare-mode { top: calc(env(safe-area-inset-top, 0px) + 82px); left: max(16px, env(safe-area-inset-left, 0px)); }
+.saved-case-caption { position: absolute; bottom: 0; left: 0; right: 0; padding: 12px 20px calc(env(safe-area-inset-bottom, 0px) + 12px); text-align: center; font-size: 13px; background: linear-gradient(transparent, #000b); pointer-events: none; }
+.saved-case-viewer .compare-label { bottom: calc(env(safe-area-inset-bottom, 0px) + 52px); }
+.clinical-data-fields { display: grid; gap: 12px; }
+.clinical-data-fields label { display: grid; gap: 6px; font-size: 13px; }
+.clinical-data-fields input { width: 100%; min-height: 44px; font-size: 16px; }
+.clinical-measurement { display: grid; gap: 6px; }
+.clinical-measurement-input { display: flex; gap: 8px; }
+.clinical-measurement-input input { min-width: 0; flex: 1; }
+.clinical-sign-toggle { flex: 0 0 44px; min-height: 44px; border: 1px solid var(--border); border-radius: 10px; background: var(--control-background); color: var(--text-primary); font-size: 22px; touch-action: manipulation; }
+.comparison .overlay-controls { display: grid; grid-template-columns: 44px minmax(60px, 1fr) 44px 42px; align-items: center; gap: 4px; width: min(330px, calc(100% - 28px)); padding: 4px 8px; pointer-events: auto; z-index: 8; border-radius: 30px; text-transform: none; letter-spacing: normal; background: #24211de8; color: #fff; }
+.overlay-controls button { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; touch-action: manipulation; color: inherit; }
+.overlay-controls button:disabled { opacity: .35; }
+.overlay-controls input[type="range"] { position: static; width: 100%; min-width: 0; height: 44px; margin: 0; opacity: 1; accent-color: #d4b585; cursor: pointer; touch-action: none; }
+.overlay-controls button:focus-visible, .overlay-controls input:focus-visible { outline: 2px solid #d4b585; outline-offset: 2px; }
+.overlay-percentage { font-size: 12px; font-variant-numeric: tabular-nums; text-align: center; }
+
+/* Disabled primary actions: clearly unavailable, still readable, in both themes */
+.primary-button:disabled, .photo-primary:disabled, .compact-dock-save:disabled { background: var(--control-background); color: var(--text-tertiary); box-shadow: inset 0 0 0 1px var(--border); opacity: 1; }

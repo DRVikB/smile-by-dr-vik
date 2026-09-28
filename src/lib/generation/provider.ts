@@ -1,12 +1,23 @@
 import { OpenAISmileProvider } from "./openai";
 import { GeminiSmileProvider } from "./gemini";
 import { GenerationError } from "./errors";
+import { parseServiceAccount, vertexTransport } from "./googleTransport";
 import type { GenerationResult } from "../types";
 import { generationSchema, imageSchema, type GenerationInput } from "./schema";
 import { isNoChangeDesign } from "./designPlan";
-import { buildSmileInstruction } from "./prompt";
+import { buildSmileInstruction, SMILE_PROMPT_VERSION } from "./prompt";
+/**
+ * Server-side AI provider contract. The app never calls a provider directly:
+ * UI → SmileImageService (client) → /api/generate-smile → getSmileProvider().
+ * GeminiSmileProvider is the production implementation.
+ */
 export interface SmileImageProvider {
   readonly name: string;
+  /** Vendor and model recorded in generation metadata. */
+  readonly vendor?: string;
+  readonly model?: string;
+  /** False when required server credentials are missing; checked before any request. */
+  readonly configured?: boolean;
   generate(
     input: GenerationInput,
     signal?: AbortSignal,
@@ -15,6 +26,7 @@ export interface SmileImageProvider {
 /** Honest no-op simulation: never invent an anatomical edit to a patient photo. */
 export class MockSmileProvider implements SmileImageProvider {
   readonly name = "mock";
+  readonly model = "mock";
   async generate(input: GenerationInput): Promise<GenerationResult> {
     return {
       image: input.originalImage,
@@ -26,6 +38,7 @@ export class MockSmileProvider implements SmileImageProvider {
 /** Optional server-only adapter contract. The endpoint returns { image: dataUrl }. */
 export class HttpSmileProvider implements SmileImageProvider {
   readonly name = "http";
+  readonly model = "custom-http";
   constructor(
     private endpoint: string,
     private apiKey: string,
@@ -44,7 +57,7 @@ export class HttpSmileProvider implements SmileImageProvider {
       },
       body: JSON.stringify({
         ...input,
-        instruction: buildSmileInstruction(input.settings),
+        instruction: buildSmileInstruction(input.settings, Boolean(input.referenceImage), input.framing, input.styleReferences?.length ?? 0, input.sourceBounds),
         variationId: crypto.randomUUID(),
       }),
       signal: signal
@@ -68,6 +81,32 @@ export interface ProviderEnvironment {
   SMILE_PROVIDER?: string;
   SMILE_PROVIDER_URL?: string;
   SMILE_PROVIDER_API_KEY?: string;
+  /** Vertex AI (SMILE_PROVIDER=vertex). */
+  VERTEX_PROJECT_ID?: string;
+  VERTEX_LOCATION?: string;
+  GOOGLE_SERVICE_ACCOUNT_JSON?: string;
+  /**
+   * Owner's confirmation of which Google data terms govern patient processing:
+   * "paid" (Gemini Developer API, paid tier, Google Cloud DPA) or "vertex".
+   * Live Google generation is refused until this is set deliberately.
+   */
+  SMILE_GEMINI_DATA_TERMS?: string;
+  /** OpenAI adapter: "api" confirms OpenAI API business terms and DPA are in place. Not a V1 processor. */
+  SMILE_OPENAI_DATA_TERMS?: string;
+  /** Custom HTTP backend: "confirmed" once its processing terms are documented. Not a V1 processor. */
+  SMILE_PROVIDER_DATA_TERMS?: string;
+}
+
+/**
+ * The owner confirmation each live provider needs before patient photos are
+ * sent to it (see docs/SUBPROCESSORS.md). Null for the mock provider.
+ */
+export function providerDataTermsRequirement(provider: SmileImageProvider): { variable: keyof ProviderEnvironment; value: string } | null {
+  if (provider.vendor === "google")
+    return { variable: "SMILE_GEMINI_DATA_TERMS", value: (provider as { service?: string }).service === "vertex" ? "vertex" : "paid" };
+  if (provider.vendor === "openai") return { variable: "SMILE_OPENAI_DATA_TERMS", value: "api" };
+  if (provider.name === "http") return { variable: "SMILE_PROVIDER_DATA_TERMS", value: "confirmed" };
+  return null;
 }
 /** Read deployment secrets at request time, outside Netlify's automatic AI key names. */
 export function readProviderEnvironment(): ProviderEnvironment {
@@ -87,11 +126,19 @@ export function readProviderEnvironment(): ProviderEnvironment {
     SMILE_PROVIDER: read("SMILE_PROVIDER"),
     SMILE_PROVIDER_URL: read("SMILE_PROVIDER_URL"),
     SMILE_PROVIDER_API_KEY: read("SMILE_PROVIDER_API_KEY"),
+    VERTEX_PROJECT_ID: read("VERTEX_PROJECT_ID"),
+    VERTEX_LOCATION: read("VERTEX_LOCATION"),
+    GOOGLE_SERVICE_ACCOUNT_JSON: read("GOOGLE_SERVICE_ACCOUNT_JSON"),
+    SMILE_GEMINI_DATA_TERMS: read("SMILE_GEMINI_DATA_TERMS"),
+    SMILE_OPENAI_DATA_TERMS: read("SMILE_OPENAI_DATA_TERMS"),
+    SMILE_PROVIDER_DATA_TERMS: read("SMILE_PROVIDER_DATA_TERMS"),
   };
 }
 export function getSmileProvider(
   env: ProviderEnvironment = readProviderEnvironment(),
 ): SmileImageProvider {
+  // Preview and Final generation modes currently share GEMINI_IMAGE_MODEL.
+  // To vary the model per mode, pass the request's generationMode here.
   const mode =
     env.SMILE_PROVIDER ||
     ((env.SMILE_GEMINI_API_KEY || env.GEMINI_API_KEY) ? "gemini" : env.OPENAI_API_KEY ? "openai" : "unconfigured");
@@ -99,6 +146,16 @@ export function getSmileProvider(
     return new GeminiSmileProvider({
       apiKey: (env.SMILE_GEMINI_API_KEY || env.GEMINI_API_KEY || "").trim(),
       model: env.GEMINI_IMAGE_MODEL,
+    });
+  if (mode === "vertex")
+    return new GeminiSmileProvider({
+      apiKey: "",
+      model: env.GEMINI_IMAGE_MODEL,
+      transport: vertexTransport({
+        projectId: env.VERTEX_PROJECT_ID ?? "",
+        location: env.VERTEX_LOCATION ?? "global",
+        account: parseServiceAccount(env.GOOGLE_SERVICE_ACCOUNT_JSON),
+      }),
     });
   if (mode === "openai")
     return new OpenAISmileProvider({
@@ -124,5 +181,15 @@ export async function generateSmile(
 ): Promise<GenerationResult> {
   const parsed = generationSchema.parse(input);
   if (isNoChangeDesign(parsed.settings)) throw new GenerationError("This selection makes no change. Select teeth to edit and choose a different shade or design goal.", 400, "generation_failed");
-  return provider.generate(parsed, signal);
+  const result = await provider.generate(parsed, signal);
+  return {
+    ...result,
+    generation: {
+      provider: provider.vendor ?? provider.name,
+      model: provider.model ?? provider.name,
+      promptVersion: SMILE_PROMPT_VERSION,
+      generatedAt: new Date().toISOString(),
+      mode: parsed.generationMode,
+    },
+  };
 }

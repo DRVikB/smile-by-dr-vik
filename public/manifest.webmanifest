@@ -1,28 +1,28 @@
 {
   "id": "/",
-  "name": "SMILE by Dr Vik",
-  "short_name": "SMILE",
-  "description": "Visualise and discuss your smile with Dr Vik.",
+  "name": "SmileCompose",
+  "short_name": "SmileCompose",
+  "description": "Digital Smile Design",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#D0BEAC",
-  "theme_color": "#f5f5f7",
+  "background_color": "#FAF9F6",
+  "theme_color": "#FAF9F6",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "/brand/icon-192-glass-v2.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/brand/icon-512-glass-v2.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-512-maskable.png",
+      "src": "/brand/icon-512-maskable-glass-v2.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

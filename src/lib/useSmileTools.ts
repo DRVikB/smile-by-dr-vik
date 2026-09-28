@@ -40,7 +40,7 @@ export function useSmileTools(
       {
         name: "read_smile_design",
         description:
-          "Read the current Smile screen and design choices without exposing the patient photograph.",
+          "Read the current SmileCompose screen and design choices without exposing the patient photograph.",
         inputSchema: {
           type: "object",
           properties: {},

@@ -1,16 +1,17 @@
+import { drawBrandLockup, SMILECOMPOSE } from "./brand";
 import { jpegToPdf } from "./pdf";
 import { drawAiTag } from "./aiTag";
 
 /**
- * The DR ViK before/after page: near-black, champagne gold, editorial serif.
+ * The SmileCompose before/after page: charcoal, muted gold, editorial serif.
  * Composed at A4 landscape proportions so the same artwork serves the
  * chairside screen and the take-away PDF without a second layout.
  */
 export const BRAND = {
-  ink: "#0A0A0A",
-  gold: "#C9A96E",
-  paper: "#F4F1EC",
-  muted: "rgba(244, 241, 236, 0.58)",
+  ink: SMILECOMPOSE.colors.charcoal,
+  gold: SMILECOMPOSE.colors.gold,
+  paper: SMILECOMPOSE.colors.ivory,
+  muted: "rgba(250, 249, 246, 0.76)",
 } as const;
 
 /** A4 landscape at roughly 210 dpi. */
@@ -93,10 +94,9 @@ export async function composePresentation(
   after: string,
   options: PresentationOptions = {},
 ): Promise<Blob> {
-  const [b, a, logo] = await Promise.all([
+  const [b, a] = await Promise.all([
     loadImage(before),
     loadImage(after),
-    loadImage("/dr-vik-logo.png"),
   ]);
 
   const canvas = document.createElement("canvas");
@@ -116,29 +116,21 @@ export async function composePresentation(
   const margin = 130;
   const contentW = PAGE_W - margin * 2;
 
-  // Header: wordmark left, the mark right.
+  // Header: product identity left, subtle creator signature right.
   ctx.textBaseline = "top";
   ctx.fillStyle = BRAND.paper;
-  ctx.font = serif(58);
-  ctx.letterSpacing = "14px";
-  ctx.fillText("SMILE", margin, 104);
-  ctx.letterSpacing = "0px";
-
-  const logoW = 268;
-  const logoH = (logoW * logo.naturalHeight) / logo.naturalWidth;
-  ctx.drawImage(
-    tinted(logo, BRAND.paper, logoW * 2, logoH * 2),
-    PAGE_W - margin - logoW,
-    92,
-    logoW,
-    logoH,
-  );
+  drawBrandLockup(ctx, margin, 89, 920, BRAND.paper);
+  ctx.font = sans(26);
+  ctx.fillStyle = BRAND.muted;
+  ctx.textAlign = "right";
+  ctx.fillText(SMILECOMPOSE.signature, PAGE_W - margin, 116);
+  ctx.textAlign = "left";
 
   ctx.fillStyle = BRAND.gold;
   ctx.fillRect(margin, 206, 78, 2);
 
   // A gold hairline just inside the page edge, so the sheet reads as a piece.
-  ctx.strokeStyle = "rgba(201, 169, 110, 0.32)";
+  ctx.strokeStyle = `${BRAND.gold}52`;
   ctx.lineWidth = 2;
   ctx.strokeRect(44, 44, PAGE_W - 88, PAGE_H - 88);
 
@@ -151,7 +143,7 @@ export async function composePresentation(
   const right = drawContained(ctx, a, margin + cellW + gap, cellY, cellW, cellH);
   if (!options.isDemo) drawAiTag(ctx, right);
   // The gold rule hugs the preview photograph itself, not its cell.
-  ctx.strokeStyle = "rgba(201, 169, 110, 0.55)";
+  ctx.strokeStyle = `${BRAND.gold}8C`;
   ctx.lineWidth = 2;
   ctx.strokeRect(right.x - 9, right.y - 9, right.w + 18, right.h + 18);
 
@@ -163,13 +155,13 @@ export async function composePresentation(
     ctx.fillText(label.toUpperCase(), x, captionY);
     ctx.letterSpacing = "0px";
   };
-  caption(left.x, "Today", false);
-  caption(right.x, options.isDemo ? "Demo preview" : "Your smile preview", true);
+  caption(left.x, "Before", false);
+  caption(right.x, options.isDemo ? "After · Demo" : "After · Concept", true);
 
   // The line.
   ctx.fillStyle = BRAND.paper;
   ctx.font = serif(78, "italic");
-  ctx.fillText("A smile that’s still you.", margin, captionY + 78);
+  ctx.fillText(SMILECOMPOSE.tagline, margin, captionY + 78);
 
   // Footer.
   const footY = PAGE_H - 168;
@@ -187,7 +179,7 @@ export async function composePresentation(
 
   const note = options.isDemo
     ? "Demo preview — sample imagery, not a patient result."
-    : "Digital smile simulation, for discussion only. It shows tooth shape and shade — not gum position, tooth movement or bite. The final result may differ following assessment and treatment planning.";
+    : SMILECOMPOSE.disclaimer;
   ctx.font = sans(23);
   const words = note.split(" ");
   let line = "";
@@ -205,7 +197,7 @@ export async function composePresentation(
   ctx.textAlign = "right";
   ctx.fillStyle = BRAND.gold;
   ctx.font = sans(25, 500);
-  ctx.fillText("drvik.co.uk", PAGE_W - margin, footY + 36);
+  ctx.fillText(SMILECOMPOSE.descriptor, PAGE_W - margin, footY + 36);
   ctx.textAlign = "left";
 
   return new Promise<Blob>((resolve, reject) =>
@@ -226,10 +218,10 @@ export async function presentationPdf(
   const jpeg = await composePresentation(before, after, options);
   const bytes = new Uint8Array(await jpeg.arrayBuffer());
   const pdf = jpegToPdf(bytes, PAGE_W, PAGE_H, {
-    background: [10 / 255, 10 / 255, 10 / 255],
+    background: [60 / 255, 60 / 255, 60 / 255],
     title: options.patientName
-      ? `Smile preview — ${options.patientName}`
-      : "Smile preview",
+      ? `SmileCompose preview — ${options.patientName}`
+      : "SmileCompose preview",
   });
   return new Blob([bytes_to_buffer(pdf)], { type: "application/pdf" });
 }

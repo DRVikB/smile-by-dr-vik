@@ -1,18 +1,22 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { Download, Search, Trash2, X } from "lucide-react";
+import { Archive, Download, Search, Sparkles, Trash2, X, ScanEye } from "lucide-react";
+import { SavedCaseViewer } from "./SavedCaseViewer";
 import type { CaseLogEntry, CaseLogMedia } from "@/lib/types";
 import {
-  clearLog,
-  deleteLogEntry,
   formatLogDate,
-  listLog,
+  listActiveLog,
   logFileName,
   matchesQuery,
+  moveAllToRecentlyDeleted,
+  moveToRecentlyDeleted,
+  purgeRecentlyDeleted,
   readLogMedia,
+  setCaseArchived,
 } from "@/lib/caseLog";
+import { RECENTLY_DELETED_DAYS } from "@/config/cases";
 
-export function CaseLog({ onClose }: { onClose: () => void }) {
+export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; initialEntryId?: string }) {
   const [entries, setEntries] = useState<CaseLogEntry[] | null>(null);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<{
@@ -21,13 +25,19 @@ export function CaseLog({ onClose }: { onClose: () => void }) {
   } | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [error, setError] = useState("");
+  const [viewing, setViewing] = useState(false);
+  const [mediaError, setMediaError] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [openedInitial, setOpenedInitial] = useState(false);
 
   const refresh = useCallback(() => {
-    listLog()
+    purgeRecentlyDeleted()
+      .catch(() => 0)
+      .then(() => listActiveLog())
       .then(setEntries)
       .catch(() => {
         setEntries([]);
-        setError("The case log couldn’t be opened on this device.");
+        setError("Cases couldn’t be opened on this device.");
       });
   }, []);
   useEffect(() => refresh(), [refresh]);
@@ -36,31 +46,57 @@ export function CaseLog({ onClose }: { onClose: () => void }) {
   const shown = all.filter((entry) => matchesQuery(entry, query));
 
   async function openEntry(entry: CaseLogEntry) {
+    setMediaError(false);
     setOpen({ entry, media: null });
     const media = await readLogMedia(entry.id).catch(() => null);
     setOpen((cur) =>
       cur && cur.entry.id === entry.id ? { entry, media } : cur,
     );
+    if (!media) setMediaError(true);
   }
 
+  // Opened from Home › Recent Cases.
+  useEffect(() => {
+    if (openedInitial || !initialEntryId || !entries) return;
+    setOpenedInitial(true);
+    const entry = entries.find(e => e.id === initialEntryId);
+    if (entry) void openEntry(entry);
+  }, [entries, initialEntryId, openedInitial]);
+
   async function remove(id: string) {
-    await deleteLogEntry(id).catch(() =>
-      setError("That case couldn’t be deleted."),
-    );
-    setOpen(null);
-    refresh();
+    try {
+      await moveToRecentlyDeleted(id);
+      setOpen(null);
+      setNotice(`Moved to Recently Deleted. You can restore it from Settings › Case Library for ${RECENTLY_DELETED_DAYS} days.`);
+      refresh();
+    } catch {
+      setError("That case couldn’t be deleted. Please try again.");
+    }
+  }
+
+  async function archive(id: string) {
+    try {
+      await setCaseArchived(id, true);
+      setOpen(null);
+      setNotice("Case archived. Find it in Settings › Case Library › Archived Cases.");
+      refresh();
+    } catch {
+      setError("That case couldn’t be archived. Please try again.");
+    }
   }
 
   async function saveEntry(entry: CaseLogEntry, media: CaseLogMedia) {
     try {
-      const { composeBeforeAfter, downloadBlob } = await import("@/lib/compose");
+      const [{ composeBeforeAfter }, { saveFile }] = await Promise.all([import("@/lib/compose"), import("@/lib/share")]);
       const blob = await composeBeforeAfter(
         media.originalImage,
         media.image,
         "split",
-        { image: media.image, mode: entry.mode, variationId: entry.id },
+        { image: media.image, mode: entry.mode, variationId: entry.id, review: media.review, scaleFlag: media.scaleFlag },
+        media.preferences,
+        Boolean(entry.testMode),
       );
-      downloadBlob(blob, `${logFileName(entry)}.jpg`);
+      await saveFile(blob, `smilecompose-${logFileName(entry)}.jpg`, "SmileCompose before and after");
     } catch {
       setError("That image couldn’t be saved.");
     }
@@ -71,12 +107,12 @@ export function CaseLog({ onClose }: { onClose: () => void }) {
       className="sheet-backdrop"
       role="dialog"
       aria-modal="true"
-      aria-label="Case log"
+      aria-label="Cases"
       onClick={onClose}
     >
       <div className="log-panel" onClick={(e) => e.stopPropagation()}>
         <div className="log-head">
-          <h2>Case log</h2>
+          <h2>Cases</h2>
           <button className="icon-button" onClick={onClose} aria-label="Close">
             <X size={16} />
           </button>
@@ -90,7 +126,7 @@ export function CaseLog({ onClose }: { onClose: () => void }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by patient, date or treatment"
-            aria-label="Search the case log"
+            aria-label="Search cases"
           />
           {query && (
             <button onClick={() => setQuery("")} aria-label="Clear search">
@@ -107,15 +143,20 @@ export function CaseLog({ onClose }: { onClose: () => void }) {
             </button>
           </p>
         )}
+        {notice && <p className="save-status" role="status">{notice}</p>}
 
         {entries === null ? (
-          <p className="log-empty">Opening your case log…</p>
+          <p className="log-empty">Opening your cases…</p>
         ) : shown.length === 0 ? (
-          <p className="log-empty">
-            {all.length === 0
-              ? "No previews logged yet. Every preview you create is saved here."
-              : "No cases match that search."}
-          </p>
+          all.length === 0 ? (
+            <div className="empty-state">
+              <span className="empty-state-icon" aria-hidden="true"><Sparkles size={22} strokeWidth={1.5} /></span>
+              <p className="empty-state-title">No smile designs yet</p>
+              <p className="empty-state-body">Upload a patient photograph to begin visualising treatment possibilities. Your saved designs will appear here.</p>
+            </div>
+          ) : (
+            <p className="log-empty">No cases match that search.</p>
+          )
         ) : (
           <ul className="log-list">
             {shown.map((entry) => (
@@ -150,16 +191,21 @@ export function CaseLog({ onClose }: { onClose: () => void }) {
           {all.length > 0 &&
             (confirmClear ? (
               <span className="log-confirm">
-                Delete all {all.length}?
+                Move all {all.length} to Recently Deleted?
                 <button
                   className="text-button danger"
                   onClick={async () => {
-                    await clearLog().catch(() => {});
-                    setConfirmClear(false);
-                    refresh();
+                    try {
+                      await moveAllToRecentlyDeleted();
+                      setConfirmClear(false);
+                      setNotice(`Moved to Recently Deleted for ${RECENTLY_DELETED_DAYS} days.`);
+                      refresh();
+                    } catch {
+                      setError("The cases couldn’t be deleted. Please try again.");
+                    }
                   }}
                 >
-                  Delete
+                  Move
                 </button>
                 <button
                   className="text-button"
@@ -173,7 +219,7 @@ export function CaseLog({ onClose }: { onClose: () => void }) {
                 className="text-button"
                 onClick={() => setConfirmClear(true)}
               >
-                Clear log
+                Clear cases
               </button>
             ))}
         </div>
@@ -203,6 +249,7 @@ export function CaseLog({ onClose }: { onClose: () => void }) {
                 <X size={16} />
               </button>
             </div>
+            {error && <p className="error-message" role="alert">{error}<button onClick={() => setError("")} aria-label="Dismiss error"><X size={14} /></button></p>}
             {open.media ? (
               <div className="log-pair">
                 <figure>
@@ -214,14 +261,17 @@ export function CaseLog({ onClose }: { onClose: () => void }) {
                   <figcaption>
                     {open.entry.testMode || open.entry.mode === "mock"
                       ? "Demo preview"
-                      : "Dr Vik preview"}
+                      : "SmileCompose preview"}
                   </figcaption>
                 </figure>
               </div>
             ) : (
-              <p className="log-empty">Loading images…</p>
+              <p className="log-empty">{mediaError ? "The saved images are unavailable on this device." : "Loading images…"}</p>
             )}
             <div className="log-detail-actions">
+              <button className="primary-button" disabled={!open.media} onClick={() => setViewing(true)}>
+                <ScanEye size={18} /> Reopen comparison
+              </button>
               <button
                 className="secondary-button"
                 disabled={!open.media}
@@ -231,6 +281,10 @@ export function CaseLog({ onClose }: { onClose: () => void }) {
               >
                 <Download size={16} strokeWidth={1.6} />
                 Save before &amp; after
+              </button>
+              <button className="text-button" onClick={() => void archive(open.entry.id)}>
+                <Archive size={15} strokeWidth={1.6} />
+                Archive
               </button>
               <button
                 className="text-button danger"
@@ -243,6 +297,7 @@ export function CaseLog({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       )}
+      {viewing && open?.media && <SavedCaseViewer entry={open.entry} media={open.media} onClose={() => setViewing(false)} />}
     </div>
   );
 }

@@ -36,6 +36,9 @@ test("whitening is flagged only when the target is lighter than today", () => {
 test("intensity sets expectations at both ends, and the size check carries through", () => {
   assert.ok(titles({ ...defaultSettings, intensity: 80, designIntent: "Reshape" }).includes("A planned change in shape"));
   assert.ok(titles({ ...defaultSettings, intensity: 20 }).includes("A subtle refinement"));
+  const subtle = treatmentImplications({ ...defaultSettings, intensity: 20 }).items.find(i => i.title === "A subtle refinement");
+  assert.match(subtle!.detail, /was requested/);
+  assert.match(subtle!.detail, /does not verify/);
   const mid = titles({ ...defaultSettings, intensity: 40 });
   assert.ok(!mid.includes("A planned change in shape") && !mid.includes("A subtle refinement"));
   assert.ok(titles(defaultSettings, { scaleFlag: "grew" }).includes("Longer or larger than today"));

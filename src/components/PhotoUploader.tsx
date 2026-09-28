@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   Camera,
@@ -12,6 +12,8 @@ import {
 import type { Photo } from "@/lib/types";
 import { SMILE_GUIDE } from "@/lib/types";
 import { preparePhoto } from "@/lib/photos";
+import { isNativeApp } from "@/native/platform";
+import { UPLOAD_AUTHORITY_TEXT } from "@/config/legal";
 
 const TIPS = [
   "Natural smile",
@@ -33,27 +35,63 @@ export function PhotoUploader({
   onContinue,
   onCamera,
   onRemove,
+  authorityConfirmed,
+  onConfirmAuthority,
+  onLearnMore,
 }: {
   photo: Photo | null;
   onPhoto: (photo: Photo) => void | Promise<void>;
   onContinue: () => void;
   onCamera: () => void;
   onRemove: () => void;
+  /** The clinician has confirmed authority to process this case's patient media. */
+  authorityConfirmed: boolean;
+  onConfirmAuthority: () => void;
+  onLearnMore: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const pending = useRef(false);
+  const mounted = useRef(false);
+  // Resolved after mount: the page is prerendered, so render the web UI first.
+  const [native, setNative] = useState(false);
+  useEffect(() => {
+    mounted.current = true;
+    setNative(isNativeApp());
+    return () => { mounted.current = false; };
+  }, []);
+
+  /** Apple's system photo picker: no full Photo Library permission needed. */
+  async function chooseFromPhotos() {
+    if (pending.current) return;
+    setError("");
+    try {
+      const { pickNativePhoto } = await import("@/native/photos");
+      const file = await pickNativePhoto();
+      if (file) await receive(file);
+    } catch (e) {
+      if (mounted.current) setError(e instanceof Error ? e.message : "We couldn’t open that photo.");
+    }
+  }
 
   async function receive(file?: File) {
-    if (!file) return;
+    if (!file || pending.current) return;
+    if (!authorityConfirmed) {
+      setError("Confirm your authority to process this patient’s information first.");
+      return;
+    }
+    pending.current = true;
     setBusy(true);
     setError("");
     try {
-      await onPhoto(await preparePhoto(file));
+      const prepared = await preparePhoto(file);
+      if (mounted.current) await onPhoto(prepared);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "We couldn’t open that photo.");
+      if (mounted.current) setError(e instanceof Error ? e.message : "We couldn’t open that photo.");
     } finally {
-      setBusy(false);
+      pending.current = false;
+      if (mounted.current) setBusy(false);
       if (input.current) input.current.value = "";
     }
   }
@@ -78,7 +116,10 @@ export function PhotoUploader({
 
       <div className="photo-stage">
         {photo ? (
-          <img src={photo.dataUrl} alt="Selected patient photo" />
+          <>
+            <img className="photo-backdrop" src={photo.dataUrl} alt="" aria-hidden="true" />
+            <img className="photo-stage-original" src={photo.dataUrl} alt="Selected patient photo" />
+          </>
         ) : (
           <div className="photo-stage-empty">
             <span
@@ -104,13 +145,24 @@ export function PhotoUploader({
 
       <div className="photo-aside">
         <h1 className="photo-heading">
-          Let’s start
-          <br />
-          with a photo.
+          Add Patient Photo
         </h1>
         <p className="photo-sub">
-          A clear, front-facing smile in good lighting gives the best results.
+          Upload or capture a clear smile photograph to begin.
         </p>
+
+        {!photo && (
+          <div className={`upload-authority${authorityConfirmed ? " confirmed" : ""}`}>
+            <p className="control-hint">
+              Patient media is processed to create your SmileCompose visualisation. Only upload information you are authorised to process.{" "}
+              <button type="button" className="inline-link" onClick={onLearnMore}>Learn more</button>
+            </p>
+            <label className="ai-consent-check">
+              <input type="checkbox" checked={authorityConfirmed} disabled={authorityConfirmed} onChange={e => { if (e.target.checked) onConfirmAuthority(); }} />
+              <span>{UPLOAD_AUTHORITY_TEXT}</span>
+            </label>
+          </div>
+        )}
 
         {photo ? (
           <>
@@ -139,7 +191,7 @@ export function PhotoUploader({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => input.current?.click()}
+                onClick={() => native ? void chooseFromPhotos() : input.current?.click()}
               >
                 <ImagePlus size={15} /> Change
               </button>
@@ -156,21 +208,35 @@ export function PhotoUploader({
           </>
         ) : (
           <>
-            <button className="photo-primary" onClick={onCamera} disabled={busy}>
+            <button className="photo-primary" onClick={onCamera} disabled={busy || !authorityConfirmed}>
               <Camera size={17} strokeWidth={1.7} />
               Take Photo
             </button>
+            {native && (
+              <button
+                className="photo-outline"
+                disabled={busy || !authorityConfirmed}
+                onClick={() => void chooseFromPhotos()}
+              >
+                {busy ? (
+                  <LoaderCircle className="spin" size={17} />
+                ) : (
+                  <ImagePlus size={17} strokeWidth={1.7} />
+                )}
+                {busy ? "Preparing…" : "Choose from Photos"}
+              </button>
+            )}
             <button
               className="photo-outline"
-              disabled={busy}
+              disabled={busy || !authorityConfirmed}
               onClick={() => input.current?.click()}
             >
-              {busy ? (
+              {busy && !native ? (
                 <LoaderCircle className="spin" size={17} />
               ) : (
                 <Upload size={17} strokeWidth={1.7} />
               )}
-              {busy ? "Preparing…" : "Upload Photo"}
+              {busy && !native ? "Preparing…" : native ? "Choose File" : "Upload Photo"}
             </button>
           </>
         )}

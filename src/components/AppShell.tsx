@@ -1,14 +1,16 @@
-import { FullscreenControl } from "./FullscreenControl";
-import { ChevronLeft } from "lucide-react";
+import { BrandLockup } from "./Brand";
+import { ChevronLeft, Ellipsis } from "lucide-react";
 import type { Screen } from "@/lib/types";
 export function AppShell({
   screen,
+  testMode = false,
   onBack,
   action,
   step,
   children,
 }: {
   screen: Screen;
+  testMode?: boolean;
   onBack?: () => void;
   action?: React.ReactNode;
   /** Where the clinician is in the flow. Only ever counts screens that exist. */
@@ -16,7 +18,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-screen={screen}>
       {screen !== "start" && <header className="app-header">
         <div className="nav-group">
           {onBack && (
@@ -24,11 +26,7 @@ export function AppShell({
               <ChevronLeft size={21} strokeWidth={1.7} />
             </button>
           )}
-          <div className="product-lockup">
-            <span className="wordmark">Smile</span>
-            <span className="brand-divider" aria-hidden="true" />
-            <img className="dr-vik-mark" src="/dr-vik-logo.png" alt="Dr Vik" />
-          </div>
+          <BrandLockup inverse={screen === "design" || screen === "preview"} />
         </div>
         {step ? (
           <div className="nav-step">
@@ -47,10 +45,19 @@ export function AppShell({
             </span>
           </div>
         ) : null}
-        {action}
+        {testMode && <span className="test-mode-pill">Test mode</span>}
+        {screen === "photo" ? <>
+          <div className="photo-desktop-actions">{action}</div>
+          <details className="app-menu photo-mobile-menu">
+            <summary aria-label="More options"><Ellipsis size={22} /></summary>
+            {action}
+          </details>
+        </> : screen === "design" || screen === "preview" ? <details className="app-menu" key={screen}>
+          <summary aria-label="More options"><Ellipsis size={22} /></summary>
+          {action}
+        </details> : action}
       </header>}
       <main>{children}</main>
-      <FullscreenControl />
     </div>
   );
 }

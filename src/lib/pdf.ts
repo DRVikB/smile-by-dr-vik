@@ -70,7 +70,7 @@ export function jpegToPdf(
     `q\n${n(box.width)} 0 0 ${n(box.height)} ${n(box.x)} ${n(box.y)} cm\n/Im0 Do\nQ\n`;
   const contentBytes = encoder.encode(content);
 
-  const title = (options.title ?? "Smile preview").replace(/[\\()]/g, "");
+  const title = (options.title ?? "SmileCompose preview").replace(/[\\()]/g, "");
   const objects: Uint8Array[] = [
     encoder.encode("<< /Type /Catalog /Pages 2 0 R >>"),
     encoder.encode("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
@@ -92,7 +92,7 @@ export function jpegToPdf(
       contentBytes,
       encoder.encode("\nendstream"),
     ]),
-    encoder.encode(`<< /Title (${title}) /Producer (Smile by Dr Vik) >>`),
+    encoder.encode(`<< /Title (${title}) /Producer (SmileCompose) >>`),
   ];
 
   const parts: Uint8Array[] = [latin1("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n")];

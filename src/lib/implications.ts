@@ -47,6 +47,9 @@ export function treatmentImplications(
   const shadeTeeth = activeToothPlans(settings).filter(p => resolvedToothIntent(settings, p) === "Shade only").map(p => p.tooth);
   const selected = toothSummary({ selectedTeeth: contourTeeth.length ? contourTeeth : settings.selectedTeeth });
   const items: Implication[] = [];
+  if (settings.biteContext && settings.biteContext !== "Not assessed") {
+    items.push({ title: `Recorded bite finding: ${settings.biteContext}`, detail: "Entered by the clinician. This photograph-based illustration does not establish bite correction or restorative clearance. Confirm the bite and any orthodontic or restorative plan separately before agreeing the proposed tooth contours." });
+  }
 
   if (activeToothPlans(settings).every(p => resolvedToothIntent(settings, p) === "Shade only")) {
     items.push({ title: `Shade illustration on ${selected}`, detail: "Shows a colour preference while retaining tooth form. Whitening suitability, restoration matching and the achievable shade need clinical assessment." });
@@ -92,7 +95,7 @@ export function treatmentImplications(
     items.push({
       title: "A subtle refinement",
       detail:
-        "Stays close to the current tooth size and shape — usually the most conservative way to get there.",
+        "A subtle refinement was requested. Compare the generated tooth size and shape with the original; the intensity setting does not verify how much the AI changed or what treatment is achievable.",
     });
 
   if (result?.scaleFlag === "grew")

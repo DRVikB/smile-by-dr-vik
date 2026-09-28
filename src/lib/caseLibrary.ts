@@ -11,6 +11,7 @@ import { z } from "zod";
 import { supportedTeeth } from "./teeth";
 import { caseFeatures, adjunctTreatments } from "./types";
 import { caseMaterials } from "./types";
+import { findMatchingStyleReferences, materialCompatible, type StyleReferenceCandidate } from "./styleMatching";
 
 export const contextSchema = z.object({
   features: z.array(z.enum(caseFeatures)).max(6),
@@ -70,16 +71,14 @@ function settled(tx: IDBTransaction): Promise<void> {
 }
 
 /** Match the explicit technique; only legacy generic composite pools both. */
-export function matchesTreatment(
-  material: CaseMaterial,
-  treatment: Treatment,
-): boolean {
-  return treatment === "Composite" ? material !== "Porcelain" : material === treatment;
+export function matchesTreatment(material: CaseMaterial, treatment: Treatment): boolean {
+  return materialCompatible(material, treatment);
 }
 
 /**
- * Which cases to attach. A pinned selection always wins, so a chairside
- * override is never replaced by an automatic match. Incompatible materials are excluded.
+ * Which device-library cases to attach (local builds without accounts; signed-in
+ * clinicians' references are chosen on the server). Uses the shared matcher in
+ * styleMatching.ts. A pinned selection always wins within a compatible material.
  */
 export function chooseLibraryCases(
   all: LibraryCase[],
@@ -88,12 +87,15 @@ export function chooseLibraryCases(
   limit = MAX_STYLE_REFERENCES,
   settings?: Pick<SmileSettings, "caseFeatures" | "selectedTeeth">,
 ): LibraryCase[] {
-  const newestFirst = all.filter(c => !c.validationOnly).sort((a, b) => referenceScore(b, settings) - referenceScore(a, settings) || b.addedAt - a.addedAt);
   if (pinned.length > 0)
-    return newestFirst.filter((c) => pinned.includes(c.id) && matchesTreatment(c.material, treatment)).slice(0, limit);
-  return newestFirst
-    .filter((c) => matchesTreatment(c.material, treatment))
-    .slice(0, limit);
+    return all.filter(c => !c.validationOnly && pinned.includes(c.id) && matchesTreatment(c.material, treatment))
+      .sort((a, b) => referenceScore(b, settings) - referenceScore(a, settings) || b.addedAt - a.addedAt).slice(0, limit);
+  const matches = findMatchingStyleReferences(all.map(toCandidate), { treatment, selectedTeeth: settings?.selectedTeeth ?? [], caseFeatures: settings?.caseFeatures }, limit);
+  return matches.map(m => all.find(c => c.id === m.id)!).filter(Boolean);
+}
+
+export function toCandidate(c: LibraryCase): StyleReferenceCandidate {
+  return { id: c.id, material: c.material, teethTreated: c.context?.teeth, startingConditions: c.context?.features, createdAt: c.addedAt, validationOnly: c.validationOnly };
 }
 
 export function isCaseMaterial(value: unknown): value is CaseMaterial {

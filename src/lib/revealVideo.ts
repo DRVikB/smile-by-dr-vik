@@ -1,5 +1,6 @@
 import { drawAiTag } from "./aiTag";
-import { BRAND, tinted } from "./presentation";
+import { drawBrandLockup, SMILECOMPOSE } from "./brand";
+import { BRAND } from "./presentation";
 
 /**
  * A short reveal video made on the device: the patient's own smile, then the
@@ -77,7 +78,7 @@ export async function recordReveal(
   const type = pickVideoType((t) => MediaRecorder.isTypeSupported(t));
   if (!type) throw new Error("This browser can’t record video.");
 
-  const [b, a, logo] = await Promise.all([loadImage(before), loadImage(after), loadImage("/dr-vik-logo.png")]);
+  const [b, a] = await Promise.all([loadImage(before), loadImage(after)]);
   const { width, height } = videoSize(b.naturalWidth, b.naturalHeight);
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -85,9 +86,7 @@ export async function recordReveal(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("This browser can’t record video.");
 
-  const logoW = Math.round(width * 0.2);
-  const logoH = Math.round((logoW * logo.naturalHeight) / logo.naturalWidth);
-  const mark = tinted(logo, BRAND.paper, logoW * 2, logoH * 2);
+  const logoW = Math.round(width * 0.48);
   const fx = (options.focus?.x ?? 0.5) * width;
   const fy = (options.focus?.y ?? 0.62) * height;
   const fontPx = Math.round(Math.min(width, height) * 0.032);
@@ -114,7 +113,11 @@ export async function recordReveal(
     shade.addColorStop(1, "rgba(10,10,10,0.55)");
     ctx.fillStyle = shade;
     ctx.fillRect(0, height * 0.72, width, height * 0.28);
-    ctx.drawImage(mark, width - logoW - fontPx * 1.4, fontPx * 1.4, logoW, logoH);
+    drawBrandLockup(ctx, fontPx * 1.4, fontPx * 1.4, logoW, BRAND.paper);
+    ctx.font = `400 ${Math.round(fontPx * 0.64)}px -apple-system, Arial, sans-serif`;
+    ctx.fillStyle = BRAND.paper;
+    ctx.textBaseline = "top";
+    ctx.fillText(SMILECOMPOSE.signature, fontPx * 1.4, fontPx * 1.4 + logoW / 10 + 8);
 
     ctx.font = `500 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif`;
     ctx.textBaseline = "bottom";

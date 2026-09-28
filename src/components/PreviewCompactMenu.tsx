@@ -1,0 +1,151 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import {
+  Download,
+  Maximize2,
+  Pencil,
+  Plus,
+  SlidersHorizontal,
+  Sparkles,
+  X,
+} from "lucide-react";
+import type { CompareMode } from "./BeforeAfterSlider";
+
+export function PreviewCompactMenu({
+  mode,
+  onModeChange,
+  onConsult,
+  onReview,
+  onAnother,
+  onEdit,
+  onSave,
+  onNew,
+  anotherCost,
+  busy,
+  saving,
+}: {
+  mode: CompareMode;
+  onModeChange: (mode: CompareMode) => void;
+  onConsult: () => void;
+  onReview: () => void;
+  onAnother: () => void;
+  onEdit: () => void;
+  onSave: () => void;
+  onNew: () => void;
+  anotherCost?: string;
+  busy: boolean;
+  saving: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const optionsButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (open) closeButton.current?.focus();
+  }, [open]);
+
+  function choose(action: () => void) {
+    setOpen(false);
+    action();
+  }
+
+  function closeMenu() {
+    setOpen(false);
+    optionsButton.current?.focus();
+  }
+
+  return (
+    <>
+      {open && (
+        <button
+          type="button"
+          className="compact-options-backdrop"
+          aria-label="Close preview options"
+          onClick={closeMenu}
+        />
+      )}
+      <div className="compact-preview-dock">
+        {open && (
+          <div
+            className="compact-options-popover"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Preview options"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                closeMenu();
+              }
+              if (event.key === "Tab") {
+                const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
+                if (event.shiftKey && document.activeElement === buttons[0]) {
+                  event.preventDefault();
+                  buttons.at(-1)?.focus();
+                } else if (!event.shiftKey && document.activeElement === buttons.at(-1)) {
+                  event.preventDefault();
+                  buttons[0]?.focus();
+                }
+              }
+            }}
+          >
+            <div className="compact-options-heading">
+              <h2>Preview options</h2>
+              <button ref={closeButton} type="button" aria-label="Close options" onClick={closeMenu}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="compact-options-group">
+              <span className="compact-options-label">COMPARE</span>
+              <div className="compact-compare-switch" role="group" aria-label="Comparison style">
+                <button type="button" aria-pressed={mode === "slide"} onClick={() => onModeChange("slide")}>
+                  Slide
+                </button>
+                <button type="button" aria-pressed={mode === "overlay"} onClick={() => onModeChange("overlay")}>
+                  Overlay
+                </button>
+              </div>
+              <button className="compact-option-row" type="button" onClick={() => choose(onConsult)}>
+                <Maximize2 size={19} />
+                <span>Consultation view</span>
+              </button>
+            </div>
+            <div className="compact-options-group">
+              <span className="compact-options-label">REFINE &amp; CONTINUE</span>
+              <button className="compact-option-row" type="button" onClick={() => choose(onReview)}>
+                <SlidersHorizontal size={19} />
+                <span>Review &amp; refine</span>
+              </button>
+              <button className="compact-option-row" type="button" disabled={busy} onClick={() => choose(onAnother)}>
+                <Sparkles size={19} />
+                <span>Three more options{anotherCost && <small>{anotherCost}</small>}</span>
+              </button>
+              <button className="compact-option-row" type="button" disabled={busy} onClick={() => choose(onEdit)}>
+                <Pencil size={19} />
+                <span>Edit smile design</span>
+              </button>
+              <button className="compact-option-row" type="button" disabled={busy} onClick={() => choose(onNew)}>
+                <Plus size={19} />
+                <span>Start New Design</span>
+              </button>
+            </div>
+          </div>
+        )}
+        <button className="compact-dock-save" type="button" disabled={busy || saving} onClick={onSave}>
+          <Download size={19} strokeWidth={1.7} />
+          {saving ? "Saving…" : "Save Image"}
+        </button>
+        <button
+          ref={optionsButton}
+          className="compact-dock-options"
+          type="button"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          <SlidersHorizontal size={19} strokeWidth={1.7} />
+          Options
+        </button>
+      </div>
+    </>
+  );
+}

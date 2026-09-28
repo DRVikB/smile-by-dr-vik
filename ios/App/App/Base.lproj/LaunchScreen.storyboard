@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="17132" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
+    <device id="retina4_7" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="17105"/>
+        <capability name="Named colors" minToolsVersion="9.0"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <!--SmileCompose launch (same composition as the web BrandLaunch): symbol, wordmark, "Designed By" + Dr Vik logo.
+            Artwork is bundled PNGs in brand bronze (Launch/, from scripts/render-launch-artwork.swift); text uses named colours that follow Light and Dark.
+            Launch screens here don't render asset-catalog images or attributed text with named colours, so: plain labels, and thin spaces (U+2009) for the wordmark's tracking.-->
+        <scene sceneID="EHf-IW-A2E">
+            <objects>
+                <viewController id="01J-lp-oVM" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="LaunchSymbol" translatesAutoresizingMaskIntoConstraints="NO" id="Sym-Bl-001" userLabel="Symbol">
+                                <rect key="frame" x="139.5" y="236.5" width="96" height="96"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="96" id="Sym-w"/>
+                                    <constraint firstAttribute="height" constant="96" id="Sym-h"/>
+                                </constraints>
+                            </imageView>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="S M I L E C O M P O S E" textAlignment="center" lineBreakMode="clip" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="Wrd-Mk-002" userLabel="Wordmark">
+                                <rect key="frame" x="44" y="356.5" width="287" height="31"/>
+                                <fontDescription key="fontDescription" type="system" weight="light" pointSize="26"/>
+                                <color key="textColor" name="LaunchText"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="Crt-Rw-003" userLabel="Creator">
+                                <rect key="frame" x="120" y="403.5" width="135" height="27"/>
+                                <subviews>
+                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Designed By" textAlignment="natural" lineBreakMode="clip" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="Crt-Lb-004" userLabel="Designed By">
+                                        <rect key="frame" x="0.0" y="7" width="62" height="13"/>
+                                        <fontDescription key="fontDescription" type="system" pointSize="11"/>
+                                        <color key="textColor" name="LaunchSubtle"/>
+                                        <nil key="highlightedColor"/>
+                                    </label>
+                                    <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="LaunchSignature" translatesAutoresizingMaskIntoConstraints="NO" id="Crt-Im-005" userLabel="Dr Vik">
+                                        <rect key="frame" x="71" y="0.0" width="64" height="27"/>
+                                        <constraints>
+                                            <constraint firstAttribute="width" constant="64" id="Sig-w"/>
+                                            <constraint firstAttribute="height" constant="27" id="Sig-h"/>
+                                        </constraints>
+                                    </imageView>
+                                </subviews>
+                                <constraints>
+                                    <constraint firstItem="Crt-Lb-004" firstAttribute="leading" secondItem="Crt-Rw-003" secondAttribute="leading" id="Crt-c1"/>
+                                    <constraint firstItem="Crt-Im-005" firstAttribute="leading" secondItem="Crt-Lb-004" secondAttribute="trailing" constant="9" id="Crt-c2"/>
+                                    <constraint firstAttribute="trailing" secondItem="Crt-Im-005" secondAttribute="trailing" id="Crt-c3"/>
+                                    <constraint firstItem="Crt-Im-005" firstAttribute="top" secondItem="Crt-Rw-003" secondAttribute="top" id="Crt-c4"/>
+                                    <constraint firstAttribute="bottom" secondItem="Crt-Im-005" secondAttribute="bottom" id="Crt-c5"/>
+                                    <constraint firstItem="Crt-Lb-004" firstAttribute="centerY" secondItem="Crt-Im-005" secondAttribute="centerY" id="Crt-c6"/>
+                                </constraints>
+                            </view>
+                        </subviews>
+                        <viewLayoutGuide key="safeArea" id="Saf-Ar-003"/>
+                        <color key="backgroundColor" name="LaunchBackground"/>
+                        <constraints>
+                            <constraint firstItem="Wrd-Mk-002" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="C01-wm-cx"/>
+                            <constraint firstItem="Wrd-Mk-002" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" constant="30" id="C02-wm-cy"/>
+                            <constraint firstItem="Sym-Bl-001" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="C03-sy-cx"/>
+                            <constraint firstItem="Wrd-Mk-002" firstAttribute="top" secondItem="Sym-Bl-001" secondAttribute="bottom" constant="24" id="C04-sy-gap"/>
+                            <constraint firstItem="Crt-Rw-003" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="C05-cr-cx"/>
+                            <constraint firstItem="Crt-Rw-003" firstAttribute="top" secondItem="Wrd-Mk-002" secondAttribute="bottom" constant="16" id="C06-cr-gap"/>
+                        </constraints>
+                    </view>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="53" y="375"/>
+        </scene>
+    </scenes>
+    <resources>
+        <image name="LaunchSymbol" width="96" height="96"/>
+        <image name="LaunchSignature" width="64" height="27"/>
+        <namedColor name="LaunchBackground">
+            <color red="0.98039215686274506" green="0.97647058823529409" blue="0.96470588235294119" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </namedColor>
+        <namedColor name="LaunchSubtle">
+            <color red="0.62745098039215685" green="0.5607843137254902" blue="0.49411764705882355" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </namedColor>
+        <namedColor name="LaunchText">
+            <color red="0.23529411764705882" green="0.23529411764705882" blue="0.23529411764705882" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </namedColor>
+    </resources>
+</document>

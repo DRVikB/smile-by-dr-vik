@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="pearl" x1="160" y1="0" x2="824" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFEFB"/><stop offset=".48" stop-color="#F0EBE3"/><stop offset="1" stop-color="#CFC4B4"/>
+    </linearGradient>
+    <radialGradient id="light" cx="0" cy="0" r="1" gradientTransform="translate(224 160) rotate(48) scale(990 730)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="white" stop-opacity=".96"/><stop offset="1" stop-color="white" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="310" y1="376" x2="652" y2="710" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#736C61"/><stop offset=".32" stop-color="#494941"/><stop offset=".68" stop-color="#282C29"/><stop offset="1" stop-color="#626259"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="288" y1="400" x2="720" y2="690" gradientUnits="userSpaceOnUse">
+      <stop stop-color="white" stop-opacity=".88"/><stop offset=".48" stop-color="white" stop-opacity=".12"/><stop offset="1" stop-color="#D3C4AC" stop-opacity=".6"/>
+    </linearGradient>
+    <filter id="shadow" x="100" y="280" width="824" height="580" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="20"/>
+    </filter>
+  </defs>
+  <!-- Opaque, full-bleed artwork. The operating system supplies the outer mask. -->
+  <path fill="url(#pearl)" d="M0 0h1024v1024H0z"/>
+  <path fill="url(#light)" d="M0 0h1024v1024H0z"/>
+  <path d="M0 0h1024v234C700 146 430 558 0 478Z" fill="white" opacity=".24"/>
+  <path d="M0 478C430 558 700 146 1024 234" stroke="white" stroke-opacity=".34" stroke-width="2"/>
+  <!-- The alignment guides retain the original SmileCompose identity. -->
+  <path d="M512 210V814M190 441H834" stroke="white" stroke-opacity=".72" stroke-width="10" stroke-linecap="round" transform="translate(0 3)"/>
+  <path d="M512 210V814M190 441H834" stroke="#A1947F" stroke-opacity=".44" stroke-width="8" stroke-linecap="round"/>
+  <path d="M216 405C322 744 702 744 808 405" stroke="#625747" stroke-opacity=".26" stroke-width="84" stroke-linecap="round" filter="url(#shadow)" transform="translate(0 22)"/>
+  <!-- One large, softly lit smile, without the old nested-square border. -->
+  <path d="M216 405C322 744 702 744 808 405" stroke="url(#glass)" stroke-width="80" stroke-linecap="round"/>
+  <path d="M216 405C322 744 702 744 808 405" stroke="url(#rim)" stroke-width="2" stroke-linecap="round" transform="translate(0 -35)"/>
+</svg>

@@ -1,3 +1,4 @@
+import { drawBrandLockup, SMILECOMPOSE } from "./brand";
 import type { GenerationResult, PreviewPreferences } from "./types";
 import { preferenceRows, wrapText } from "./report";
 import { drawAiTag } from "./aiTag";
@@ -64,8 +65,8 @@ export async function composeReport(
   before?: string,
   layout: ComposeLayout = "split",
 ): Promise<Blob> {
-  const [a, b, logo] = await Promise.all([
-    loadImage(after), before ? loadImage(before) : undefined, loadImage("/dr-vik-logo.png"),
+  const [a, b] = await Promise.all([
+    loadImage(after), before ? loadImage(before) : undefined,
   ]);
   const width = b && layout === "split" ? 2000 : 1200;
   const unit = width / 1200;
@@ -92,7 +93,7 @@ export async function composeReport(
   const isDemo = testMode || preferences?.testMode || result.mode === "mock";
   const disclaimer = isDemo
     ? "DEMO PREVIEW · Sample imagery. The selected preferences are illustrative only."
-    : "Digital smile simulation for discussion only. The final clinical result may differ following assessment, treatment planning and material selection.";
+    : SMILECOMPOSE.disclaimer;
   ctx.font = font(20);
   const disclaimerLines = wrapText(ctx, disclaimer, contentW);
   // What getting there would involve: rules-based, so it adds no AI cost.
@@ -114,18 +115,18 @@ export async function composeReport(
     + (notes ? 65 * unit + noteLines.length * 31 * unit : 0) + implicationsH + 54 * unit + disclaimerLines.length * 28 * unit;
   canvas.width = width;
   canvas.height = Math.ceil(headerH + imagesH + reportH);
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = SMILECOMPOSE.colors.ivory;
   ctx.fillRect(0, 0, width, canvas.height);
   ctx.textBaseline = "top";
-  ctx.fillStyle = "#1d1d1f";
-  ctx.font = font(34, 500);
-  ctx.fillText("S M I L E", margin, 39 * unit);
-  ctx.fillStyle = "#6e6e73";
+  ctx.fillStyle = SMILECOMPOSE.colors.charcoal;
+  drawBrandLockup(ctx, margin, 35 * unit, 465 * unit);
+  ctx.fillStyle = "#706356";
   ctx.font = font(21);
-  ctx.fillText("Your smile preview", margin, 91 * unit);
-  const logoW = 195 * unit;
-  const logoH = logoW * logo.naturalHeight / logo.naturalWidth;
-  ctx.drawImage(logo, width - margin - logoW, (headerH - logoH) / 2, logoW, logoH);
+  ctx.fillText("Smile Preview", margin, 99 * unit);
+  ctx.textAlign = "right";
+  ctx.font = font(18);
+  ctx.fillText(SMILECOMPOSE.signature, width - margin, 57 * unit);
+  ctx.textAlign = "left";
 
   const drawPhoto = (img: HTMLImageElement, x: number, y: number, label: string) => {
     // Fit the whole photograph so unusually tall uploads are never cropped.
@@ -137,16 +138,16 @@ export async function composeReport(
     pill(ctx, x + 24 * unit, y + 24 * unit, label, "rgba(9,12,20,.72)", "#ffffff", 22 * unit);
     return { x: x + (cellW - w) / 2, y: y + (cellH - h) / 2, w, h };
   };
-  if (b) drawPhoto(b, 0, headerH, "Original");
+  if (b) drawPhoto(b, 0, headerH, "BEFORE");
   const afterBox = drawPhoto(a, b && layout === "split" ? cellW + gap : 0,
-    headerH + (b && layout === "stacked" ? cellH + gap : 0), isDemo ? "Demo preview" : "Smile preview");
+    headerH + (b && layout === "stacked" ? cellH + gap : 0), isDemo ? "AFTER · DEMO" : "AFTER · CONCEPT");
   if (!isDemo) drawAiTag(ctx, afterBox);
 
   const reportY = headerH + imagesH;
-  ctx.fillStyle = "#f5f5f7";
+  ctx.fillStyle = SMILECOMPOSE.colors.ivory;
   ctx.fillRect(0, reportY, width, reportH);
   ctx.textBaseline = "top";
-  ctx.fillStyle = "#1d1d1f";
+  ctx.fillStyle = SMILECOMPOSE.colors.charcoal;
   ctx.font = font(34, 500);
   ctx.fillText("Your smile preferences", margin, reportY + 42 * unit);
   let y = reportY + 114 * unit;
@@ -155,44 +156,44 @@ export async function composeReport(
       const row = rowLines[index * 2 + col];
       if (!row) continue;
       const x = margin + col * contentW / 2;
-      ctx.fillStyle = "#6e6e73"; ctx.font = font(19);
+      ctx.fillStyle = "#706356"; ctx.font = font(19);
       ctx.fillText(row.label, x, y);
-      ctx.fillStyle = "#1d1d1f"; ctx.font = font(23, 500);
+      ctx.fillStyle = SMILECOMPOSE.colors.charcoal; ctx.font = font(23, 500);
       row.lines.forEach((line, i) => ctx.fillText(line, x, y + 29 * unit + i * 30 * unit));
     }
     y += height;
   });
   if (!preferences) {
-    ctx.font = font(22); ctx.fillStyle = "#6e6e73";
+    ctx.font = font(22); ctx.fillStyle = "#706356";
     wrapText(ctx, "Preferences were not recorded for this older preview. Create a new preview to include them.", contentW)
       .forEach((line, i) => ctx.fillText(line, margin, y + i * 30 * unit));
     y += 100 * unit;
   }
   if (notes) {
-    ctx.font = font(19); ctx.fillStyle = "#6e6e73"; ctx.fillText("Notes", margin, y);
-    ctx.font = font(23); ctx.fillStyle = "#1d1d1f";
+    ctx.font = font(19); ctx.fillStyle = "#706356"; ctx.fillText("Notes", margin, y);
+    ctx.font = font(23); ctx.fillStyle = SMILECOMPOSE.colors.charcoal;
     noteLines.forEach((line, i) => ctx.fillText(line, margin, y + 31 * unit + i * 31 * unit));
     y += 65 * unit + noteLines.length * 31 * unit;
   }
   if (implications) {
-    ctx.fillStyle = "#d2d2d7"; ctx.fillRect(margin, y + 4 * unit, contentW, unit);
-    ctx.fillStyle = "#1d1d1f"; ctx.font = font(28, 500);
+    ctx.fillStyle = SMILECOMPOSE.colors.stone; ctx.fillRect(margin, y + 4 * unit, contentW, unit);
+    ctx.fillStyle = SMILECOMPOSE.colors.charcoal; ctx.font = font(28, 500);
     ctx.fillText("What this would take", margin, y + 30 * unit);
     y += 80 * unit;
     for (const block of implicationBlocks) {
-      ctx.fillStyle = "#1d1d1f"; ctx.font = font(22, 600);
+      ctx.fillStyle = SMILECOMPOSE.colors.charcoal; ctx.font = font(22, 600);
       ctx.fillText(block.title, margin, y);
-      ctx.fillStyle = "#6e6e73"; ctx.font = font(21);
+      ctx.fillStyle = "#706356"; ctx.font = font(21);
       block.lines.forEach((line, i) => ctx.fillText(line, margin, y + 36 * unit + i * 29 * unit));
       y += 36 * unit + block.lines.length * 29 * unit + 14 * unit;
     }
     y += 12 * unit;
-    ctx.fillStyle = "#1d1d1f"; ctx.font = font(21);
+    ctx.fillStyle = SMILECOMPOSE.colors.charcoal; ctx.font = font(21);
     confirmLines.forEach((line, i) => ctx.fillText(line, margin, y + i * 29 * unit));
     y += confirmLines.length * 29 * unit + 24 * unit;
   }
-  ctx.fillStyle = "#d2d2d7"; ctx.fillRect(margin, y + 4 * unit, contentW, unit);
-  ctx.fillStyle = "#6e6e73"; ctx.font = font(20);
+  ctx.fillStyle = SMILECOMPOSE.colors.stone; ctx.fillRect(margin, y + 4 * unit, contentW, unit);
+  ctx.fillStyle = "#706356"; ctx.font = font(20);
   disclaimerLines.forEach((line, i) => ctx.fillText(line, margin, y + 28 * unit + i * 28 * unit));
   return new Promise<Blob>((resolve, reject) => canvas.toBlob(
     (blob) => blob ? resolve(blob) : reject(new Error("Could not save image.")), "image/jpeg", 0.95));

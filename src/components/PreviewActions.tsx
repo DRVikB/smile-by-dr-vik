@@ -1,3 +1,4 @@
+import { SMILECOMPOSE } from "@/lib/brand";
 import { Download, Pencil, Plus, Sparkles } from "lucide-react";
 export function BottomActionBar({
   onAnother,
@@ -37,7 +38,7 @@ export function BottomActionBar({
       </button>
       <button className="action-button" disabled={busy} onClick={onNew}>
         <Plus size={19} strokeWidth={1.5} />
-        New Smile
+        New Design
       </button>
     </div>
   );
@@ -45,10 +46,7 @@ export function BottomActionBar({
 export function Disclaimer() {
   return (
     <p className="disclaimer">
-      Digital smile simulation for visual communication only. It shows tooth shape
-      and shade — not gum position, tooth movement or bite. The final clinical
-      result may differ following assessment, treatment planning and material
-      selection.
+      {SMILECOMPOSE.disclaimer}
     </p>
   );
 }

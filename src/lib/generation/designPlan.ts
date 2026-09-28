@@ -3,10 +3,17 @@ import type { DesignIntent, SmileSettings, Treatment } from "../types";
 
 export const DESIGN_INTENTS: DesignIntent[] = ["Auto", "Shade only", "Repair edges", "Close gaps", "Reshape"];
 
+/** Edge permissions follow each tooth's resolved goal, never the material preset. */
+export function toothLengthPolicy(intent: DesignIntent | "Preserve") {
+  if (intent === "Preserve" || intent === "Shade only" || intent === "Close gaps") return "preserve";
+  if (intent === "Repair edges") return "local-repair";
+  return "explicit-request";
+}
+
 const GOALS: Record<DesignIntent, { summary: string; instruction: string }> = {
   Auto: {
     summary: "Use notes and visible anatomy; otherwise refine conservatively.",
-    instruction: "AUTO: Choose the smallest change supported by the visible selected teeth and the clinician's notes. If notes explicitly request colour only, follow SHADE ONLY: change colour without changing outlines, edge positions, texture or contacts. If notes explicitly request edge repair, follow REPAIR EDGES: add only at the visibly chipped or worn incisal edge; do not close gaps. If notes explicitly request gap closure, follow CLOSE GAPS: permit proximal additions only into visible gaps between selected existing teeth; do not lengthen their edges. If both are explicitly requested, combine those local permissions without moving teeth. If notes explicitly request broader reshaping, allow modest visible contour changes within the existing arch, preserving roots/axes and gums. Without a clear request, retain overall dimensions, gaps, tooth positions and wear; refine only small surface/contour irregularities. Never invent a problem or a missing tooth to justify an edit. Treat negated requests as prohibitions, not as permission. If the notes conflict or the requested extent cannot be judged, preserve that feature instead of guessing.",
+    instruction: "AUTO: Choose the smallest change supported by the visible selected teeth and the clinician's notes. If notes explicitly request colour only, follow SHADE ONLY: change colour without changing outlines, edge positions, texture or contacts. If notes explicitly request edge repair, follow REPAIR EDGES: add only at the visibly chipped or worn incisal edge; do not close gaps. If notes explicitly request gap closure, follow CLOSE GAPS: permit proximal additions only into visible gaps between selected existing teeth; do not lengthen their edges. If both are explicitly requested, combine those local permissions without moving teeth. If notes explicitly request broader reshaping, allow modest visible contour changes within the existing arch, preserving roots/axes and gums; reshaping alone does not permit extra tooth length. Without a clear request, retain overall dimensions, gaps, tooth positions and wear; refine only small surface/contour irregularities. Never invent a problem or a missing tooth to justify an edit. Treat negated requests as prohibitions, not as permission. If the notes conflict or the requested extent cannot be judged, preserve that feature instead of guessing.",
   },
   "Shade only": {
     summary: "Change shade; keep tooth shape, edges, texture and gaps unchanged.",
@@ -14,7 +21,7 @@ const GOALS: Record<DesignIntent, { summary: string; instruction: string }> = {
   },
   "Repair edges": {
     summary: "Allow local edge additions; preserve gaps, tooth positions and gums.",
-    instruction: "REPAIR EDGES: Permit local incisal additions only where a selected existing tooth shows chipping or wear and the clinician requests repair. The original silhouette may extend at that damaged edge; it is not a universal no-growth boundary. Use that tooth's remaining anatomy and a visible intact counterpart as references, not an instruction to mirror the smile. Keep proximal width and gaps unchanged. Do not lengthen an intact tooth or reconstruct a whole missing tooth. If no supported edge repair is visible, preserve the edge.",
+    instruction: "REPAIR EDGES: Permit local incisal additions only where a selected existing tooth shows chipping or wear and the clinician requests repair. The original silhouette may extend at that damaged edge; it is not a universal no-growth boundary. Fill only the local defect up to the supported continuation of that tooth's surviving edge; do not lower its entire edge. An intact counterpart may inform the repair, but is not an instruction to lengthen both central incisors or mirror the smile. Keep proximal width and gaps unchanged. Do not lengthen an intact tooth or reconstruct a whole missing tooth. If no supported edge repair is visible, preserve the edge.",
   },
   "Close gaps": {
     summary: "Allow additions into visible gaps; preserve edge length and gum tissue.",
@@ -22,7 +29,7 @@ const GOALS: Record<DesignIntent, { summary: string; instruction: string }> = {
   },
   Reshape: {
     summary: "Allow planned contour changes; preserve tooth positions, gums and arch.",
-    instruction: "RESHAPE: Permit modest changes to incisal and proximal contours of selected existing teeth, following the requested form and clinician's notes. Growth is allowed only where that specific design requires it, within the visible mouth opening and existing arch. Do not expand the whole arch, move roots/axes, level the gums or enlarge all teeth simply to increase intensity. Do not reconstruct missing or heavily broken-down teeth from guesswork. Where feasibility depends on unseen bite, preparation or thickness, choose the smaller visible change and leave clinical feasibility for assessment.",
+    instruction: "RESHAPE: Permit modest changes to incisal and proximal contours of selected existing teeth, following the requested form and clinician's notes. Keep existing incisal edge positions by default. Extra length requires an explicit clinician request to lengthen the particular tooth; a shape preset, symmetry request or general request to improve the smile is not permission. Choose the smallest supported change within the visible mouth opening and existing arch. Do not expand the whole arch, move roots/axes, level the gums or enlarge all teeth simply to increase intensity. Do not reconstruct missing or heavily broken-down teeth from guesswork. Where feasibility depends on unseen bite, preparation or thickness, choose the smaller visible change and leave clinical feasibility for assessment.",
   },
 };
 

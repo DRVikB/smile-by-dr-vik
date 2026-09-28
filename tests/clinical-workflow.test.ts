@@ -101,6 +101,9 @@ test('reusable result fingerprint changes with resolution, references or edit ma
   assert.notEqual(first,await previewFingerprint({...input,resolution:'512'}));
   assert.notEqual(first,await previewFingerprint({...input,editMask:png}));
   assert.notEqual(first,await previewFingerprint({...input,references:[png]}));
+  const oldBytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(input)));
+  const oldFingerprint = Array.from(new Uint8Array(oldBytes), b => b.toString(16).padStart(2,'0')).join('');
+  assert.notEqual(first, oldFingerprint, 'results made under old design rules must not be silently reused');
 });
 
 test('identical tooth rules are grouped to keep paid prompt input small', () => {

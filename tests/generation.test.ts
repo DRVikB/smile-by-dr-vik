@@ -223,11 +223,21 @@ test("a capture framing region must be fractions of the frame", () => {
     { x: -0.1, y: 0.5, width: 0.4, height: 0.2 },
     { x: 0.3, y: 0.5, width: 1.4, height: 0.2 },
     { x: 0.3, y: 0.5, width: 0.4 },
+    { x: 0.8, y: 0.5, width: 0.4, height: 0.2 },
+    { x: 0.3, y: 0.9, width: 0.4, height: 0.2 },
+    { x: 0, y: 0, width: 0, height: 1 },
+    { x: 0, y: 0, width: 1, height: 0 },
   ])
     assert.equal(
       generationSchema.safeParse({ ...input, framing }).success,
       false,
     );
+});
+
+test("source bounds must describe a nonempty region inside the supplied canvas", () => {
+  assert.equal(generationSchema.safeParse({ ...input, sourceBounds: { x: 0.1, y: 0, width: 0.9, height: 1 } }).success, true);
+  for (const sourceBounds of [{ x: 0.1, y: 0, width: 1, height: 1 }, { x: 0, y: 0, width: 1, height: 0 }])
+    assert.equal(generationSchema.safeParse({ ...input, sourceBounds }).success, false);
 });
 
 test("the clinician's own cases are described as a style source, not as the patient", () => {
@@ -236,7 +246,7 @@ test("the clinician's own cases are described as a style source, not as the pati
   assert.ok(!none.includes("Image order"));
 
   const three = buildSmileInstruction(defaultSettings, false, undefined, 3);
-  assert.match(three, /the first image is the patient to edit/);
+  assert.match(three, /the first image is the SOURCE PATIENT to edit/);
   assert.match(three, /next 3 images are finished cases/);
   assert.match(three, /Edit only the first image/);
   // Style only: contour, texture, layering — never the other patients' arrangement.
@@ -257,7 +267,7 @@ test("the clinician's own cases are described as a style source, not as the pati
   assert.ok(!one.includes("images are finished cases"));
 
   // Out-of-range counts are clamped, never rendered literally.
-  assert.match(buildSmileInstruction(defaultSettings, false, undefined, 99), /following 3 images|next 3 images/);
+  assert.match(buildSmileInstruction(defaultSettings, false, undefined, 99), /following 5 images|next 5 images/);
   assert.ok(!buildSmileInstruction(defaultSettings, false, undefined, -2).includes("Image order"));
 });
 

@@ -39,13 +39,18 @@ export function CameraSheet({
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef<{ distance: number; scale: number } | null>(null);
   const lastTap = useRef(0);
+  const tap = useRef<{ id: number; x: number; y: number; time: number } | null>(null);
+  const mounted = useRef(false);
+  const capturing = useRef(false);
 
   useEffect(() => {
+    mounted.current = true;
     const before = document.activeElement as HTMLElement | null;
     sheet.current?.focus();
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
+      mounted.current = false;
       document.body.style.overflow = overflow;
       before?.focus();
     };
@@ -59,6 +64,10 @@ export function CameraSheet({
     // A camera swap has a different field of view, so any zoom the
     // clinician dialled in for the other camera no longer applies.
     setZoom(DEFAULT_ZOOM[facing]);
+    pointers.current.clear();
+    pinch.current = null;
+    tap.current = null;
+    lastTap.current = 0;
     async function start() {
       try {
         if (!navigator.mediaDevices?.getUserMedia) throw new Error();
@@ -130,7 +139,11 @@ export function CameraSheet({
   function onPointerDown(e: React.PointerEvent) {
     if (!ready) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    tap.current = pointers.current.size === 1
+      ? { id: e.pointerId, x: e.clientX, y: e.clientY, time: Date.now() }
+      : null;
     if (pointers.current.size === 2) {
+      lastTap.current = 0;
       const [a, b] = [...pointers.current.values()];
       pinch.current = {
         distance: Math.hypot(a.x - b.x, a.y - b.y),
@@ -145,6 +158,10 @@ export function CameraSheet({
 
   function onPointerMove(e: React.PointerEvent) {
     if (!pointers.current.has(e.pointerId)) return;
+    if (tap.current && Math.hypot(e.clientX - tap.current.x, e.clientY - tap.current.y) > 8) {
+      tap.current = null;
+      lastTap.current = 0;
+    }
     const previous = pointers.current.get(e.pointerId)!;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -190,6 +207,12 @@ export function CameraSheet({
     if (pointers.current.size < 2) pinch.current = null;
     if (!wasTracked) return;
 
+    // Two finger releases after a pinch are not a double tap. Neither are
+    // a completed pan, a long hold, or a gesture cancelled by the browser.
+    const isTap = e.type !== "pointercancel" && tap.current?.id === e.pointerId && Date.now() - tap.current.time < 320;
+    tap.current = null;
+    if (!isTap) { lastTap.current = 0; return; }
+
     const now = Date.now();
     if (now - lastTap.current < 320) {
       const { w, h } = stageSize();
@@ -202,7 +225,8 @@ export function CameraSheet({
   }
 
   async function capture() {
-    if (!video.current || !stage.current || !ready) return;
+    if (!video.current || !stage.current || !ready || capturing.current) return;
+    capturing.current = true;
     setBusy(true);
     try {
       const v = video.current;
@@ -219,6 +243,11 @@ export function CameraSheet({
       canvas.height = Math.max(1, Math.round(sh));
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error();
+      // Match the selfie preview after applying the same zoom/pan crop.
+      if (facing === "user") {
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+      }
       ctx.drawImage(v, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
       const blob = await new Promise<Blob>((resolve, reject) =>
         canvas.toBlob(
@@ -230,11 +259,12 @@ export function CameraSheet({
       const photo = await preparePhoto(
         new File([blob], "smile-photo.jpg", { type: "image/jpeg" }),
       );
-      await onCapture({ ...photo, framing: SMILE_GUIDE });
+      if (mounted.current) await onCapture({ ...photo, framing: SMILE_GUIDE });
     } catch {
-      setError("We couldn’t capture that photo. Please try again.");
+      if (mounted.current) setError("We couldn’t capture that photo. Please try again.");
     } finally {
-      setBusy(false);
+      capturing.current = false;
+      if (mounted.current) setBusy(false);
     }
   }
 
@@ -321,11 +351,8 @@ export function CameraSheet({
           <div
             className="camera-zoom-inner"
             style={{
-              // A selfie feels wrong unmirrored, so the front camera's preview
-              // is flipped for a natural look-in-a-mirror feel — purely a CSS
-              // mirror of the display. The saved photo still comes straight
-              // from the raw video pixels in capture() below, so it stays
-              // true-to-life (unflipped) like the back camera and uploads.
+              // The front preview and captured pixels share the same mirror.
+              // Zoom/pan coordinates are kept in the raw video's space.
               transform: `${facing === "user" ? "scaleX(-1) " : ""}translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})`,
             }}
           >
@@ -394,16 +421,19 @@ export function CameraSheet({
           className="sr-only"
           onChange={async (e) => {
             const file = e.target.files?.[0];
-            if (file) {
+            if (file && !capturing.current) {
+              capturing.current = true;
               setBusy(true);
               try {
-                await onCapture(await preparePhoto(file));
+                const prepared = await preparePhoto(file);
+                if (mounted.current) await onCapture(prepared);
               } catch (err) {
-                setError(
+                if (mounted.current) setError(
                   err instanceof Error ? err.message : "Could not open photo.",
                 );
               } finally {
-                setBusy(false);
+                capturing.current = false;
+                if (mounted.current) setBusy(false);
                 if (nativeInput.current) nativeInput.current.value = "";
               }
             }

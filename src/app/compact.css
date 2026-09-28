@@ -1,0 +1,207 @@
+/* Keep patient photos central on touch devices; desktop retains the full toolbar. */
+.variant-picker,
+.compact-preview-dock,
+.compact-options-backdrop,
+.consult-compact-options { display: none; }
+.consult-extra-actions { display: flex; gap: 8px; }
+.photo-mobile-menu { display: none; }
+.design-touch-compare { display: none; }
+
+@media (any-pointer: coarse), (max-width: 700px) {
+  .photo-desktop-actions { display: none; }
+  .photo-mobile-menu { display: block; }
+  .app-shell[data-screen="photo"] .app-header { display: flex; flex-wrap: nowrap; gap: 8px; padding: 10px 16px; }
+  .app-shell[data-screen="photo"] .nav-group { gap: 7px; }
+  .app-shell[data-screen="photo"] .nav-step { display: none; }
+  .app-shell[data-screen="photo"] .test-mode-pill { min-height: 23px; padding-inline: 7px; font-size: 9px; }
+  .app-shell[data-screen="photo"] .app-menu > summary { color: var(--text-primary); background: var(--control-background); border-color: var(--border); }
+  .app-shell .design-screen .zoompan-hint,
+  .app-shell .design-screen .photo-label,
+  .app-shell .design-screen .sample-photo-label,
+  .app-shell .design-screen .compare-mode,
+  .app-shell .design-screen .preview-stage .photo-framing-toggle,
+  .consult .photo-framing-toggle { display: none; }
+  .design-touch-compare { display: block; margin: 0 0 12px; }
+  .design-touch-compare .compact-option-row { margin-top: 3px; }
+  .design-screen .photo-framing-toggle {
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    right: 16px;
+    padding: 0;
+  }
+  .design-screen .photo-framing-text { display: none; }
+  .consult-top { flex-wrap: nowrap; gap: 8px; }
+  .app-shell .preview-screen > .variant-tabs,
+  .consult-variants .variant-tabs,
+  .app-shell .preview-screen .compare-mode,
+  .app-shell .preview-screen .photo-framing-toggle,
+  .app-shell .preview-screen .fullscreen-button,
+  .app-shell .preview-screen > .bottom-action-bar,
+  .app-shell .preview-screen .zoompan-hint { display: none; }
+
+  .app-shell .preview-screen > .variant-picker {
+    display: block;
+    position: absolute;
+    z-index: 13;
+    top: calc(var(--photo-header) + 9px);
+    left: max(16px, env(safe-area-inset-left));
+    max-width: calc(100% - 32px);
+  }
+  .variant-picker > summary {
+    display: inline-flex;
+    min-width: 138px;
+    max-width: 100%;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 15px;
+    border: 1px solid #ffffff69;
+    border-radius: 100px;
+    background: #171512ac;
+    color: #fff;
+    font-size: 12px;
+    line-height: 1.2;
+    list-style: none;
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+  .variant-picker > summary::-webkit-details-marker { display: none; }
+  .variant-picker[open] > summary svg { transform: rotate(180deg); }
+  .variant-picker-options {
+    display: grid;
+    gap: 4px;
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    width: min(280px, calc(100vw - 32px));
+    padding: 7px;
+    border: 1px solid var(--glass-border);
+    border-radius: 17px;
+    background: var(--sc-panel);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-lg);
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
+  }
+  .variant-picker-options button {
+    min-height: 44px;
+    padding: 9px 11px;
+    border-radius: 11px;
+    color: inherit;
+    font-size: 13px;
+    text-align: left;
+  }
+  .variant-picker-options button[aria-pressed="true"] { background: var(--selected-fill); color: var(--on-selected); }
+
+  .app-shell .preview-screen > .review-drawer:not(.is-open) { display: none; }
+  .app-shell .preview-screen > .preview-layout .review-drawer:not(.is-open) { display: none; }
+  .app-shell .preview-screen .review-drawer.is-open {
+    display: flex;
+    flex-direction: column;
+    z-index: 21;
+    bottom: calc(91px + env(safe-area-inset-bottom));
+    max-height: calc(100dvh - var(--photo-header) - 112px - env(safe-area-inset-bottom));
+  }
+  .app-shell .preview-screen .review-drawer .floating-panel-toggle { flex-shrink: 0; }
+  .app-shell .preview-screen .review-drawer .floating-panel-body {
+    min-height: 0;
+    flex: 1 1 auto;
+    max-height: min(58dvh, 550px);
+  }
+  .app-shell .preview-screen .compare-label { bottom: calc(104px + env(safe-area-inset-bottom)); }
+
+  .compact-preview-dock {
+    display: flex;
+    position: absolute;
+    z-index: 24;
+    bottom: max(16px, env(safe-area-inset-bottom));
+    left: 50%;
+    width: min(440px, calc(100% - 32px));
+    gap: 8px;
+    transform: translateX(-50%);
+    padding: 7px;
+    border: 1px solid var(--glass-border);
+    border-radius: 19px;
+    background: var(--sc-panel);
+    box-shadow: 0 12px 35px #0003;
+    -webkit-backdrop-filter: blur(22px);
+    backdrop-filter: blur(22px);
+  }
+  .compact-preview-dock > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    min-height: 50px;
+    border-radius: 13px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .compact-dock-save { flex: 1.1; background: var(--accent); color: var(--on-accent); }
+  .compact-dock-options { flex: 1; background: var(--control-background); color: var(--text-primary); }
+  .compact-options-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 23;
+    width: 100%;
+    height: 100%;
+    background: var(--scrim);
+  }
+  .compact-options-popover {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 10px);
+    width: min(410px, calc(100vw - 32px));
+    max-height: min(74dvh, 570px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 14px 18px;
+    border: 1px solid var(--glass-border);
+    border-radius: 22px;
+    background: var(--glass-strong);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-lg);
+    -webkit-backdrop-filter: blur(25px);
+    backdrop-filter: blur(25px);
+  }
+  .compact-options-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .compact-options-heading h2 { margin: 0; font-size: 18px; font-weight: 600; }
+  .compact-options-heading button { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: var(--control-background); color: var(--text-primary); }
+  .compact-options-group + .compact-options-group { border-top: 1px solid var(--separator); margin-top: 8px; padding-top: 8px; }
+  .compact-options-label { display: block; margin: 5px 3px 8px; color: var(--sc-text-muted); font-size: 10px; letter-spacing: .22em; }
+  .compact-compare-switch { display: flex; gap: 4px; padding: 4px; border-radius: 13px; background: var(--control-background); }
+  .compact-compare-switch button { flex: 1; min-height: 44px; border-radius: 10px; font-size: 13px; }
+  .compact-compare-switch button[aria-pressed="true"] { background: var(--surface-elevated); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+  .compact-option-row { display: flex; width: 100%; min-height: 44px; align-items: center; gap: 14px; padding: 8px 6px; border-bottom: 1px solid var(--separator); color: var(--text-primary); text-align: left; }
+  .compact-option-row:last-child { border-bottom: 0; }
+  .compact-option-row svg { flex: none; color: var(--text-secondary); }
+  .compact-option-row span { display: grid; gap: 2px; }
+  .compact-option-row small { color: var(--sc-text-muted); font-size: 11px; }
+  .compact-option-row[aria-pressed="true"] span { font-weight: 600; }
+
+  .consult-variants .variant-picker { display: block; }
+  .consult-variants { width: auto; max-width: calc(100% - 32px); left: 16px; transform: none; }
+  .consult-extra-actions { display: none; }
+  .consult-compact-options { display: block; position: relative; }
+  .consult-compact-options > summary { display: grid; min-height: 44px; place-items: center; padding: 8px 14px; border: 1px solid #ffffff70; border-radius: 100px; background: #17151280; color: #fff; font-size: 12px; list-style: none; }
+  .consult-compact-options > summary::-webkit-details-marker { display: none; }
+  .consult-compact-options > div { display: grid; position: absolute; top: calc(100% + 8px); right: 0; width: 190px; padding: 6px; border-radius: 14px; background: var(--glass-strong); color: var(--text-primary); border: 1px solid var(--glass-border); box-shadow: var(--shadow-lg); }
+  .consult-compact-options > div button { min-height: 44px; padding: 9px 12px; border-radius: 9px; text-align: left; font-size: 12px; }
+  .consult-compact-options > div button:hover { background: var(--hover); }
+  .consult-top-actions { width: auto; flex-wrap: nowrap; }
+}
+
+@media (any-pointer: coarse) and (orientation: landscape) and (max-height: 500px),
+       (max-width: 700px) and (orientation: landscape) and (max-height: 500px) {
+  .app-shell .preview-screen > .variant-picker { top: calc(var(--photo-header) + 3px); left: 16px; }
+  .compact-preview-dock { width: min(380px, calc(100% - 32px)); right: 16px; left: auto; transform: none; bottom: max(10px, env(safe-area-inset-bottom)); }
+  .compact-preview-dock > button { min-height: 44px; }
+  .compact-options-popover { max-height: calc(100dvh - 90px - env(safe-area-inset-top)); }
+  .app-shell .preview-screen .review-drawer.is-open { right: 16px; left: auto; transform: none; bottom: 78px; }
+  .app-shell .preview-screen .compare-label { bottom: 80px; }
+  .app-shell .preview-screen .preview-label { left: auto; right: 16px; }
+}

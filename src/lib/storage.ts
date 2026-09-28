@@ -1,6 +1,7 @@
 import { validCaseCosts } from "./generation/cost";
 import type { SmileCase } from "./types";
 import { imageSchema, settingsSchema } from "./generation/schema";
+import { AI_CONSENT_VERSION } from "./aiConsent";
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open("smile-temporary-case", 1);
@@ -56,10 +57,16 @@ export async function readCase(): Promise<SmileCase | null> {
           return;
         }
         if (typeof c.validationCaseId !== "string") delete c.validationCaseId;
+        if (typeof c.caseId !== "string" || !c.caseId) delete c.caseId;
+        if (c.uploadAuthority && (typeof c.uploadAuthority.version !== "string" || !Number.isFinite(c.uploadAuthority.confirmedAt))) delete c.uploadAuthority;
         if (![0,3,5,10,20].includes(c.requestLimit)) delete c.requestLimit;
         if (c.costs !== undefined && !validCaseCosts(c.costs)) delete c.costs;
         if (c.resolution !== undefined && !["512", "1K"].includes(c.resolution)) delete c.resolution;
         if (typeof c.patientName !== "string") delete c.patientName;
+        if (c.aiConsent !== null && c.aiConsent !== undefined &&
+            (c.aiConsent.version !== AI_CONSENT_VERSION ||
+             !/^[a-f0-9]{64}$/.test(c.aiConsent.photoFingerprint) ||
+             !Number.isFinite(c.aiConsent.confirmedAt))) delete c.aiConsent;
         if (c.screen === "preview" && !c.result) c.screen = "design";
         resolve(c);
       };

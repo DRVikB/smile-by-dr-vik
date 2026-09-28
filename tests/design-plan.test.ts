@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { defaultSettings, type Treatment } from "../src/lib/types";
-import { DESIGN_INTENTS, isNoChangeDesign, resolveDesignPlan } from "../src/lib/generation/designPlan";
+import { DESIGN_INTENTS, isNoChangeDesign, resolveDesignPlan, toothLengthPolicy } from "../src/lib/generation/designPlan";
 import { buildSmileInstruction } from "../src/lib/generation/prompt";
 import { settingsSchema } from "../src/lib/generation/schema";
 import { generateSmile } from "../src/lib/generation/provider";
@@ -81,4 +81,60 @@ test("no-change shade requests are rejected before provider invocation", async (
   let calls = 0;
   await assert.rejects(() => generateSmile({ originalImage: "data:image/png;base64,iVBORw0KGgo=", settings }, undefined, { name: "sentinel", generate: async () => { calls++; throw new Error("must not run"); } }), /makes no change/);
   assert.equal(calls, 0);
+});
+
+test("edge permissions distinguish preservation, local repair and explicit requests", () => {
+  for (const intent of ["Preserve", "Shade only", "Close gaps"] as const)
+    assert.equal(toothLengthPolicy(intent), "preserve");
+  assert.equal(toothLengthPolicy("Repair edges"), "local-repair");
+  for (const intent of ["Auto", "Reshape"] as const)
+    assert.equal(toothLengthPolicy(intent), "explicit-request");
+});
+
+test("individual goals keep repair permission off the neighbouring central incisor", () => {
+  const prompt = buildSmileInstruction({ ...defaultSettings, designIntent: "Reshape", selectedTeeth: [11, 21, 31], toothPlans: [
+    { tooth: 11, intent: "Repair edges", condition: "Natural" },
+    { tooth: 21, intent: "Shade only", condition: "Natural" },
+    { tooth: 31, intent: "Auto", condition: "Natural" },
+  ], notes: "Make the smile perfect" });
+  assert.match(prompt, /EDGE PERMISSION FDI 11: Only fill a visibly supported/);
+  assert.match(prompt, /EDGE PERMISSION FDI 21: Keep incisal edge positions and tooth length unchanged/);
+  assert.match(prompt, /EDGE PERMISSION FDI 31: Keep incisal edge positions unchanged unless clinician notes explicitly request/);
+});
+
+test("all material presets preserve front-tooth length even at maximum intensity", () => {
+  for (const treatment of ["Single-shade composite", "Layered composite", "Porcelain"] as const) {
+    const prompt = buildSmileInstruction({ ...defaultSettings, treatment, designIntent: "Reshape", intensity: 100 }, true, undefined, 3);
+    assert.match(prompt, /TOOTH LENGTH BASELINE/);
+    assert.match(prompt, /Lip coverage is not a short-tooth defect/);
+    assert.match(prompt, /Generic reshaping, brighter shade, ideal proportions or symmetry do not authorise extra length/);
+    assert.match(prompt, /undo any extra length not expressly allowed/);
+    assert.doesNotMatch(prompt, /Evaluate central dominance/);
+  }
+});
+
+test("mixed goals scope repair, shade and reshape permissions to their own teeth", () => {
+  const prompt = buildSmileInstruction({ ...defaultSettings, designIntent: "Shade only", texture: "Textured", selectedTeeth: [11, 21, 31], toothPlans: [
+    { tooth: 11, intent: "Repair edges", condition: "Natural" },
+    { tooth: 21, intent: "Auto", condition: "Natural" },
+    { tooth: 31, intent: "Reshape", condition: "Natural" },
+    { tooth: 41, intent: "Preserve", condition: "Natural" },
+  ] });
+  const scopes = [...prompt.matchAll(/GOAL SCOPE FDI ([\d, ]+): ([\s\S]*?) END GOAL SCOPE\./g)];
+  assert.equal(scopes.length, 3);
+  assert.match(scopes.find(scope => scope[1] === "11")![2], /REPAIR EDGES:/);
+  assert.match(scopes.find(scope => scope[1] === "21")![2], /SHADE ONLY:/);
+  assert.match(scopes.find(scope => scope[1] === "31")![2], /RESHAPE:/);
+  assert.equal(scopes.some(scope => scope[1].includes("41")), false);
+  assert.match(prompt, /MATERIAL SCOPE: For shade-only FDI 21/);
+  assert.match(prompt, /CONTOUR AND TEXTURE SCOPE:.*only to FDI 11, 31/);
+  for (const scope of scopes) assert.match(scope[2], /only to these teeth, not to any other selected tooth/);
+  assert.equal(prompt.split("SHADE ONLY: Change only").length - 1, 1);
+});
+
+test("a global goal overridden on every active tooth does not leak into the model instruction", () => {
+  const prompt = buildSmileInstruction({ ...defaultSettings, designIntent: "Reshape", selectedTeeth: [11], toothPlans: [{ tooth: 11, intent: "Shade only", condition: "Natural" }] });
+  assert.doesNotMatch(prompt, /RESHAPE: Permit/);
+  assert.doesNotMatch(prompt, /Tooth morphology preference|Texture preference:/);
+  assert.match(prompt, /GOAL SCOPE FDI 11:.*SHADE ONLY:/);
 });

@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { upperTeeth, caseFeatures } from "../types";
+import { upperTeeth, caseFeatures, smileArcs, biteContexts } from "../types";
 import { supportedTeeth } from "../teeth";
+import { generationModes } from "./modes";
 const toothId = z.number().int().refine(id => supportedTeeth.includes(id));
 export const imageSchema = z
   .string()
@@ -17,12 +18,21 @@ export const imageSchema = z
   }, "Image content does not match its type.");
 export const settingsSchema = z
   .object({
+    clinicalData: z.object({
+      overbiteMm: z.number().finite().min(-20).max(20).optional(),
+      overjetMm: z.number().finite().min(-20).max(20).optional(),
+      restorativeSpace: z.enum(["Not assessed", "Limited / uncertain", "Assessed for planned changes"]).optional(),
+      constraints: z.string().max(1000).optional(),
+      patientPriorities: z.string().max(300).optional(),
+    }).optional(),
     teeth: z.union([z.literal(4), z.literal(6), z.literal(8), z.literal(10)]),
     selectedTeeth: z.array(toothId).max(28),
     caseFeatures: z.array(z.enum(caseFeatures)).max(6).optional(),
     toothPlans: z.array(z.object({ tooth: toothId, intent: z.enum(["Auto", "Preserve", "Shade only", "Repair edges", "Close gaps", "Reshape"]), condition: z.enum(["Natural", "Restored", "Missing"]), targetShade: z.enum(["The same", "Whiten", "Bleach"]).optional() })).max(28).optional(),
     treatment: z.enum(["Composite", "Single-shade composite", "Layered composite", "Porcelain"]),
     designIntent: z.enum(["Auto", "Shade only", "Repair edges", "Close gaps", "Reshape"]).optional(),
+    smileArc: z.enum(smileArcs).optional(),
+    biteContext: z.enum(biteContexts).optional(),
     currentShade: z.enum(["A3", "A2", "A1", "B1"]),
     targetShade: z.enum(["The same", "Whiten", "Bleach", "A1", "B1", "BL3", "BL2", "BL1"]),
     shape: z.enum(["Square", "Rounded", "Triangular"]),
@@ -30,7 +40,8 @@ export const settingsSchema = z
     shotType: z.enum(["Full face", "Close-up"]),
     faceShape: z.enum(["Auto", "Square", "Ovoid", "Tapering"]),
     character: z.enum(["Soft", "Balanced", "Defined"]),
-    libraryStyle: z.boolean().default(true),
+    // Off unless the clinician switches it on: other patients' photos are sent only then.
+    libraryStyle: z.boolean().default(false),
     intensity: z.number().int().min(0).max(100),
     notes: z.string().max(400).default(""),
   })
@@ -48,9 +59,9 @@ const fraction = z.number().min(0).max(1);
 export const framingSchema = z.object({
   x: fraction,
   y: fraction,
-  width: fraction,
-  height: fraction,
-});
+  width: fraction.positive(),
+  height: fraction.positive(),
+}).refine(region => region.x + region.width <= 1 + 1e-6 && region.y + region.height <= 1 + 1e-6, "The photo region must stay inside the image.");
 /**
  * Style references are downscaled before sending: three of them plus the
  * patient photograph must still fit inside the request body cap.
@@ -62,9 +73,12 @@ export const styleImageSchema = imageSchema.refine(
 export const generationSchema = z.object({
   originalImage: imageSchema,
   resolution: z.enum(["512", "1K"]).optional(),
+  generationMode: z.enum(generationModes).optional(),
+  caseId: z.string().max(100).regex(/^[\w-]+$/).optional(),
   referenceImage: imageSchema.optional(),
   styleReferences: z.array(styleImageSchema).max(3).optional(),
   framing: framingSchema.optional(),
+  sourceBounds: framingSchema.optional(),
   settings: settingsSchema,
 });
 export type GenerationInput = z.infer<typeof generationSchema>;

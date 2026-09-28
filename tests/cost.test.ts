@@ -4,6 +4,8 @@ import { completeCost, emptyCaseCosts, geminiCostReceipt, imageOutputCost, PRICE
 import { generationPricing, handlePricingRequest } from "../src/lib/generation/pricing";
 import { generationSchema } from "../src/lib/generation/schema";
 import { defaultSettings } from "../src/lib/types";
+import { previewFingerprint } from "../src/lib/generation/requestPolicy";
+import { DEFAULT_IMAGE_MODEL } from "../src/lib/generation/openai";
 
 test("standard and draft estimates use the published image token tariff, multiplied for all three options", () => {
   assert.equal(imageOutputCost("1K"), 0.0672);
@@ -59,4 +61,14 @@ test("only the supported economical resolutions are accepted by the API schema",
   assert.equal(generationSchema.safeParse(input).success, true);
   assert.equal(generationSchema.safeParse({ ...input, resolution: "512" }).success, true);
   assert.equal(generationSchema.safeParse({ ...input, resolution: "4K" }).success, false);
+});
+
+test("OpenAI pricing identifies the actual configured model so cached previews change with it", async () => {
+  const first = generationPricing({ SMILE_PROVIDER: "openai" });
+  const second = generationPricing({ SMILE_PROVIDER: "openai", OPENAI_IMAGE_MODEL: "gpt-image-2-2026-04-21" });
+  assert.equal(first.model, DEFAULT_IMAGE_MODEL);
+  assert.equal(second.model, "gpt-image-2-2026-04-21");
+  assert.notEqual(await previewFingerprint({ provider: first.model }), await previewFingerprint({ provider: second.model }));
+  assert.equal(first.outputUsd, null);
+  assert.equal(second.outputUsd, null);
 });

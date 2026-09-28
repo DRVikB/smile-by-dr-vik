@@ -1,0 +1,13 @@
+# Security headers for static assets (Cloudflare Workers Static Assets / Netlify syntax).
+# The HTML app shell at "/" gets these plus a Content-Security-Policy from the Worker.
+/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: SAMEORIGIN
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+# Legal pages are static HTML with no scripts.
+/privacy.html
+  Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'
+/terms.html
+  Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'

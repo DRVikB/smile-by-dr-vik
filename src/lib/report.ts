@@ -1,4 +1,5 @@
 import { activeToothPlans, resolvedToothIntent } from "./teeth";
+import { smileArcSummary } from "./smilePrinciples";
 import type { GenerationResult, PreviewPreferences, SmileSettings, SmileVariant } from "./types";
 
 /** Export the settings used for this result, never a subsequently edited draft. */
@@ -20,6 +21,13 @@ export function preferenceRows(settings: SmileSettings): [string, string][] {
     ["Texture", colourOnly ? "Unchanged" : settings.texture],
     ["Result intensity", colourOnly ? "No shape change" : `${settings.intensity}% · subtle to enhanced`],
     ["Photo type", settings.shotType],
+    ...(settings.smileArc ? [["Smile arc preference", smileArcSummary(settings)] as [string, string]] : []),
+    ...(settings.biteContext ? [["Bite context (clinician entered)", `${settings.biteContext} · bite correction not validated`] as [string, string]] : []),
+    ...(settings.clinicalData?.overbiteMm !== undefined ? [["Measured overbite (clinician entered)", `${settings.clinicalData.overbiteMm} mm`] as [string, string]] : []),
+    ...(settings.clinicalData?.overjetMm !== undefined ? [["Measured overjet (clinician entered)", `${settings.clinicalData.overjetMm} mm`] as [string, string]] : []),
+    ...(settings.clinicalData?.restorativeSpace ? [["Restorative space (clinician entered)", settings.clinicalData.restorativeSpace] as [string, string]] : []),
+    ...(settings.clinicalData?.constraints?.trim() ? [["Clinical constraints", settings.clinicalData.constraints.trim()] as [string, string]] : []),
+    ...(settings.clinicalData?.patientPriorities?.trim() ? [["Patient priorities", settings.clinicalData.patientPriorities.trim()] as [string, string]] : []),
     ...(settings.toothPlans ? settings.toothPlans.map(p => [`Tooth ${p.tooth}`, `${p.condition === "Missing" ? "Missing · preserve" : `${p.condition} · ${resolvedToothIntent(settings, p)}`}${p.intent !== "Preserve" && p.condition !== "Missing" ? ` · ${p.targetShade ?? settings.targetShade}` : ""}`] as [string,string]) : []),
   ];
 }

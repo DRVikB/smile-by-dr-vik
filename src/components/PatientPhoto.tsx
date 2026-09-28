@@ -11,7 +11,7 @@ export function PatientPhoto({
     <div className="patient-photo">
       <img className="photo-backdrop" src={photo.dataUrl} alt="" aria-hidden="true" />
       <div className="photo-frame">
-        <ZoomPan className="photo-zoom">
+        <ZoomPan className="photo-zoom" resetKey={photo.dataUrl}>
           <img src={photo.dataUrl} alt="Original smiling patient photograph" />
         </ZoomPan>
       </div>

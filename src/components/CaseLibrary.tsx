@@ -121,12 +121,8 @@ export function CaseLibrary({
       const blob = new Blob([JSON.stringify(data)], {
         type: "application/json",
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `smile-case-library_${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const { saveFile } = await import("@/lib/share");
+      await saveFile(blob, `smilecompose-case-library_${new Date().toISOString().slice(0, 10)}.json`, "SmileCompose case library");
     } catch {
       setError("The library couldn’t be exported.");
     }
@@ -259,11 +255,11 @@ export function CaseLibrary({
         {cases === null ? (
           <p className="log-empty">Opening your case library…</p>
         ) : all.length === 0 ? (
-          <p className="log-empty">
-            No cases yet. Add photographs of your own finished bonding and
-            porcelain, and previews will follow their contour, texture and
-            finish.
-          </p>
+          <div className="empty-state">
+            <span className="empty-state-icon" aria-hidden="true"><ImagePlus size={22} strokeWidth={1.5} /></span>
+            <p className="empty-state-title">No library cases yet</p>
+            <p className="empty-state-body">Add photographs of your own finished bonding and porcelain, and previews will follow their contour, texture and finish.</p>
+          </div>
         ) : (
           <>
             <p className="library-note">

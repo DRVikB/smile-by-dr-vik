@@ -1,5 +1,6 @@
 import { drawAiTag } from "../aiTag";
-import { BRAND, tinted } from "../presentation";
+import { drawBrandLockup, SMILECOMPOSE } from "../brand";
+import { BRAND } from "../presentation";
 import { wrapText } from "../report";
 import { analyseSmile, analysisRows, type Box, type SmileAnalysis } from "./analysis";
 import type { Point } from "./geometry";
@@ -147,10 +148,9 @@ export async function composeAnalysis(
   after: string,
   options: { isDemo?: boolean } = {},
 ): Promise<Blob> {
-  const [b, a, logo, beforePts, afterPts] = await Promise.all([
+  const [b, a, beforePts, afterPts] = await Promise.all([
     loadImage(before),
     loadImage(after),
-    loadImage("/dr-vik-logo.png"),
     detectFace(before),
     detectFace(after),
   ]);
@@ -191,15 +191,14 @@ export async function composeAnalysis(
   ctx.fillRect(0, 0, WIDTH, canvas.height);
   ctx.textBaseline = "top";
   ctx.fillStyle = BRAND.paper;
-  ctx.font = `44px "New York", "Iowan Old Style", Georgia, serif`;
-  ctx.letterSpacing = "10px";
-  ctx.fillText("SMILE", MARGIN, 58);
-  ctx.letterSpacing = "0px";
+  drawBrandLockup(ctx, MARGIN, 42, 660, BRAND.paper);
   ctx.fillStyle = BRAND.muted;
   ctx.font = sans(24);
   ctx.fillText("Smile analysis", MARGIN, 116);
-  const logoW = 190, logoH = (logoW * logo.naturalHeight) / logo.naturalWidth;
-  ctx.drawImage(tinted(logo, BRAND.paper, logoW * 2, logoH * 2), WIDTH - MARGIN - logoW, 60, logoW, logoH);
+  ctx.textAlign = "right";
+  ctx.font = sans(21);
+  ctx.fillText(SMILECOMPOSE.signature, WIDTH - MARGIN, 69);
+  ctx.textAlign = "left";
 
   // Face overview, on the illustrated smile.
   let y = headerH;

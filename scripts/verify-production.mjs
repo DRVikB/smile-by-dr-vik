@@ -8,8 +8,8 @@ async function files(dir) {
   return (await Promise.all(entries.map(e => e.isDirectory() ? files(`${dir}/${e.name}`) : [`${dir}/${e.name}`]))).flat();
 }
 const manifest = JSON.parse(await readFile('dist/client/manifest.webmanifest', 'utf8'));
-assert.equal(manifest.name, 'SMILE by Dr Vik');
-assert.equal(manifest.short_name, 'SMILE');
+assert.equal(manifest.name, 'SmileCompose');
+assert.equal(manifest.short_name, 'SmileCompose');
 assert.equal(manifest.display, 'standalone');
 assert.equal(manifest.start_url, '/');
 for (const [name, size] of [['icon-192.png',192], ['icon-512.png',512], ['apple-touch-icon.png',180], ['favicon-32.png',32]]) {
@@ -17,12 +17,24 @@ for (const [name, size] of [['icon-192.png',192], ['icon-512.png',512], ['apple-
   assert.equal(info.width, size); assert.equal(info.height, size);
 }
 const html = await readFile('.next/server/app/index.html','utf8');
-for (const expected of ['manifest.webmanifest', 'apple-touch-icon.png', 'apple-mobile-web-app-capable', 'viewport-fit=cover']) assert.ok(html.includes(expected), expected);
+for (const expected of ['manifest.webmanifest', 'rel="apple-touch-icon"', 'apple-mobile-web-app-capable', 'viewport-fit=cover']) assert.ok(html.includes(expected), expected);
+// Validate the actual versioned installation assets referenced by the page.
+for (const tag of html.match(/<link\b[^>]*rel="(?:apple-touch-icon|icon)"[^>]*>/g) ?? []) {
+  const href = /href="([^"]+)"/.exec(tag)?.[1];
+  const size = /sizes="(\d+)x(\d+)"/.exec(tag);
+  assert.ok(href?.startsWith('/') && size, `Invalid icon link: ${tag}`);
+  const info = await sharp(`dist/client${href}`).metadata();
+  assert.equal(info.width, Number(size[1]));
+  assert.equal(info.height, Number(size[2]));
+}
 const sourceFiles = (await files('src')).filter(f => /\.(ts|tsx)$/.test(f));
 for (const f of sourceFiles) {
   const content = await readFile(f, 'utf8');
   assert.ok(!/https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)/.test(content), `Local URL in ${f}`);
-  assert.ok(!/NEXT_PUBLIC_\w*(KEY|SECRET|TOKEN)/.test(content), `Public secret name in ${f}`);
+  // Only provider-designated public client keys may be NEXT_PUBLIC_: the Supabase
+  // anon key (Row Level Security) and the RevenueCat public Apple SDK key.
+  const publicKeys = content.replace(/NEXT_PUBLIC_(SUPABASE_ANON_KEY|REVENUECAT_IOS_API_KEY)\b/g, '');
+  assert.ok(!/NEXT_PUBLIC_\w*(KEY|SECRET|TOKEN)/.test(publicKeys), `Public secret name in ${f}`);
 }
 let secrets = [];
 for (const file of ['.env', '.env.local', '.env.production', '.env.production.local']) {

@@ -1,0 +1,62 @@
+/* Account, paywall, settings and privacy sheets. Uses the SmileCompose tokens. */
+.account-backdrop { z-index: 90; }
+.privacy-backdrop { z-index: 96; }
+.account-sheet { width: min(460px, 100%); padding: clamp(20px, 4vw, 28px); }
+.account-sheet h2 { margin: 4px 0 8px; font-family: var(--font-display); font-size: clamp(24px, 4vw, 30px); font-weight: 400; line-height: 1.12; }
+.account-sheet h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-secondary); }
+.account-stack { display: grid; gap: 12px; margin-top: 14px; }
+.account-stack > button { width: 100%; }
+.account-field { display: grid; gap: 6px; font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.account-field input { min-height: 48px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--input-background); color: var(--text-primary); font: inherit; font-size: 16px; }
+.account-field input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.account-field small { color: var(--text-secondary); font-weight: 400; }
+.account-links { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
+.account-divider { display: flex; align-items: center; gap: 12px; margin: 2px 0; color: var(--text-secondary); font-size: 12px; }
+.account-divider::before, .account-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.account-sheet .control-hint a, .paywall-legal a, .inline-link { color: var(--text-primary); text-decoration: underline; text-underline-offset: 2px; }
+.inline-link { padding: 0; font: inherit; background: none; border: 0; cursor: pointer; }
+/* An inline text link inside a sentence: keep the line height (the coarse-pointer 44px rule would break the line). */
+.control-hint .inline-link, p .inline-link { min-height: 0; display: inline; line-height: inherit; }
+
+/* Sign in with Apple: black style, system font, at least as prominent as other options. */
+.apple-signin-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 50px; padding: 0 20px; border: 0; border-radius: var(--r-button); background: var(--apple-button-bg); color: var(--apple-button-fg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif; font-size: 17px; font-weight: 500; cursor: pointer; }
+.apple-signin-button:disabled { opacity: .55; }
+
+.paywall-features { display: grid; gap: 9px; margin: 12px 0 4px; padding: 0; list-style: none; font-size: 14px; line-height: 1.4; color: var(--text-primary); }
+.paywall-features li { display: flex; gap: 9px; align-items: flex-start; }
+.paywall-features svg { flex: none; margin-top: 2px; color: var(--accent-text); }
+.plan-options { display: grid; gap: 10px; }
+.plan-option { display: grid; gap: 3px; width: 100%; padding: 14px 16px; text-align: left; border: 1.5px solid var(--border); border-radius: 16px; background: var(--card); color: var(--text-primary); cursor: pointer; }
+.plan-option.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.plan-name { font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary); }
+.plan-price { font-size: 22px; font-weight: 500; }
+.plan-price small { font-size: 14px; color: var(--text-secondary); font-weight: 400; }
+.plan-note { font-size: 13px; color: var(--text-secondary); }
+.paywall-terms { margin: 0; font-size: 12px; }
+.paywall-offer { margin: 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px; font-size: 14px; color: var(--text-secondary); }
+.paywall-legal { margin: 16px 0 0; text-align: center; font-size: 13px; color: var(--text-secondary); }
+
+.settings-section { display: grid; gap: 10px; padding: 16px 0; border-top: 1px solid var(--border); }
+.settings-section:first-of-type { border-top: 0; }
+.settings-rows { display: grid; gap: 8px; margin: 0; }
+.settings-rows div { display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr); gap: 12px; font-size: 14px; }
+.settings-rows dt { color: var(--text-secondary); }
+.settings-rows dd { margin: 0; overflow-wrap: anywhere; }
+.settings-actions { display: grid; gap: 8px; }
+.settings-confirm { display: grid; gap: 10px; margin: 4px 0 8px; padding: 16px; border: 1px solid color-mix(in srgb, var(--destructive) 35%, transparent); border-radius: 16px; background: var(--destructive-surface); }
+.danger-text { color: var(--destructive); }
+.primary-button.danger-button, .primary-button.danger-button:hover:not(:disabled) { background: var(--destructive-fill); color: var(--on-destructive); }
+.primary-button.danger-button:hover:not(:disabled) { background: var(--destructive-fill-hover); }
+
+.privacy-sheet { width: min(720px, 100%); height: min(86svh, 900px); display: flex; flex-direction: column; }
+.privacy-frame { flex: 1; width: 100%; border: 0; border-radius: 12px; background: var(--surface-solid); color-scheme: normal; }
+.account-notice { z-index: 97; }
+
+@media (max-width: 520px) {
+  .settings-rows div { grid-template-columns: 1fr; gap: 2px; }
+}
+.mfa-qr { display: block; width: 180px; height: 180px; margin: 8px auto; background: #fff; border-radius: 12px; padding: 8px; }
+.mfa-secret { word-break: break-all; font-size: 12px; }
+.upload-authority { display: grid; gap: 4px; margin: 4px 0 12px; }
+.upload-authority .control-hint { margin: 0; }
+.upload-authority.confirmed .ai-consent-check { opacity: .7; }

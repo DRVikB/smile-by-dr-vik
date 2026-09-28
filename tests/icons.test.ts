@@ -42,19 +42,27 @@ test('the home screen name is short enough for iOS not to truncate it', () => {
   assert.ok(title!.length <= 12, `"${title}" is ${title!.length} characters; iOS truncates around 12`);
 });
 
-test('the launch background matches the icon, so there is no white flash', () => {
-  // Sampled from the icon's own tile, so the splash and the icon are one colour.
-  assert.equal(manifest.background_color.toLowerCase(), '#d0beac');
+test('the launch background retains the brand ivory', () => {
+  assert.equal(manifest.background_color.toLowerCase(), '#faf9f6');
 });
 
-test('the app icon is the real artwork, not a placeholder', () => {
-  // The supplied artwork is warm; the old placeholder was neutral grey. A flat
-  // or near-grey icon means a build has quietly reverted it.
-  const b = readFileSync('public/icon-512.png');
-  assert.ok(b.length > 40_000, 'icon-512.png is too small to be the artwork');
+test('the app icon is opaque and the smile remains legible at installation sizes', async () => {
+  const sharp = (await import('sharp')).default;
+  const { data, info } = await sharp('public/icon-512.png').raw().toBuffer({ resolveWithObject: true });
+  assert.equal(info.channels, 3, 'the OS should mask an opaque square, without transparent padding');
+  let darkPixels = 0;
+  for (let i = 0; i < data.length; i += info.channels)
+    if (data[i] < 100 && data[i + 1] < 100 && data[i + 2] < 100) darkPixels++;
+  assert.ok(darkPixels > info.width * info.height * .035, 'the symbol is missing or too small');
+  assert.ok(darkPixels < info.width * info.height / 4, 'the background should remain mostly ivory');
   assert.ok(existsSync('public/icon-1024.png'), 'the 1024 master is missing');
-  assert.ok(
-    existsSync('public/brand/dr-vik-app-icon-source.png'),
-    'the untouched source artwork should stay in the repo',
-  );
+  assert.ok(existsSync('public/brand/smilecompose-symbol.svg'), 'the original vector mark is missing');
+  for (const size of [152, 167, 180]) {
+    const name = size === 180 ? 'apple-touch-icon-glass-v2.png' : `apple-touch-icon-${size}-glass-v2.png`;
+    assert.deepEqual(pngSize(`public/brand/${name}`), { width: size, height: size });
+  }
+  for (const icon of manifest.icons) {
+    const metadata = await sharp(`public${icon.src}`).metadata();
+    assert.equal(metadata.hasAlpha, false, `${icon.src} must be full-bleed and opaque`);
+  }
 });

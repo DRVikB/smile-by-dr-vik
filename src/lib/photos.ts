@@ -1,5 +1,6 @@
-import type { Photo } from "./types";
+import type { Framing, Photo } from "./types";
 import { assessPhotoQuality } from "./photoQuality";
+import { frameWithinCanvas, generationCanvas } from "./generationCanvas";
 export async function preparePhoto(file: File): Promise<Photo> {
   if (file.size > 25 * 1024 * 1024)
     throw new Error("Choose a photo smaller than 25 MB.");
@@ -71,10 +72,33 @@ export async function preparePhoto(file: File): Promise<Photo> {
   }
 }
 
-/** Compensate only for the provider's 16px size rounding; never stretch a reframed face. */
+/** Temporary provider-compatible canvas. The saved original stays untouched. */
+export async function prepareGenerationPhoto(original: Photo): Promise<{ photo: Photo; sourceBounds: Framing }> {
+  const layout = generationCanvas(original.width, original.height);
+  const source = layout.sourceBounds;
+  if (layout.width === original.width && layout.height === original.height && source.x === 0 && source.y === 0 && source.width === 1 && source.height === 1)
+    return { photo: original, sourceBounds: source };
+  const image = new Image();
+  image.src = original.dataUrl;
+  await image.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = layout.width; canvas.height = layout.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("The photo could not be prepared for generation.");
+  ctx.fillStyle = "#808080";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(image, source.x * canvas.width, source.y * canvas.height, source.width * canvas.width, source.height * canvas.height);
+  return { sourceBounds: source, photo: { ...original,
+    dataUrl: canvas.toDataURL("image/jpeg", 0.95), width: canvas.width, height: canvas.height,
+    framing: original.framing ? frameWithinCanvas(original.framing, source) : undefined,
+  } };
+}
+
+/** Undo known request padding and small provider rounding; reject reframed output. */
 export async function alignPreview(
   dataUrl: string,
   original: Photo,
+  requestCanvas?: { photo: Photo; sourceBounds: Framing },
 ): Promise<string> {
   const image = new Image();
   image.src = dataUrl;
@@ -82,7 +106,7 @@ export async function alignPreview(
   const difference = Math.abs(
     image.naturalWidth /
       image.naturalHeight /
-      (original.width / original.height) -
+      ((requestCanvas?.photo.width ?? original.width) / (requestCanvas?.photo.height ?? original.height)) -
       1,
   );
   if (difference > 0.03)
@@ -94,6 +118,9 @@ export async function alignPreview(
   canvas.height = original.height;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("The preview could not be prepared.");
-  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  const source = requestCanvas?.sourceBounds ?? { x: 0, y: 0, width: 1, height: 1 };
+  ctx.drawImage(image, source.x * image.naturalWidth, source.y * image.naturalHeight,
+    source.width * image.naturalWidth, source.height * image.naturalHeight,
+    0, 0, canvas.width, canvas.height);
   return canvas.toDataURL("image/jpeg", 0.95);
 }

@@ -3,7 +3,6 @@
  * Keep unknown models unpriced rather than applying another model's tariff.
  */
 export const PRICING_DATE = "2026-09-22";
-export const PRICING_URL = "https://ai.google.dev/gemini-api/docs/pricing";
 export type ImageResolution = "512" | "1K";
 export const PRICED_GEMINI_MODEL = "gemini-3.1-flash-image";
 export const OUTPUT_TOKENS = { "512": 747, "1K": 1120 } as const;

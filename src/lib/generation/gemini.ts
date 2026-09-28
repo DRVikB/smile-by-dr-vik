@@ -1,3 +1,4 @@
+import { MAX_STYLE_REFERENCE_LIMIT } from "@/lib/styleMatching";
 import type { SmileImageProvider } from "./provider";
 import type { GenerationInput } from "./schema";
 import type { GenerationResult } from "../types";
@@ -6,48 +7,24 @@ import { buildSmileInstruction } from "./prompt";
 import { GenerationError } from "./errors";
 import { imageDimensions } from "./openai";
 import { geminiCostReceipt, PRICED_GEMINI_MODEL } from "./cost";
+import { nearestAspectRatio } from "../generationCanvas";
+import { developerTransport, type GoogleTransport } from "./googleTransport";
+import { safeLog } from "@/server/redact";
+export { nearestAspectRatio } from "../generationCanvas";
 
 // Google "Nano Banana" family. Keep the existing model unless GEMINI_IMAGE_MODEL
 // is explicitly configured; unknown models are not assigned a guessed tariff.
 export const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-image";
 export const GEMINI_IMAGE_TIMEOUT_MS = 240_000;
-const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 type GeminiOptions = {
   apiKey: string;
+  /** Vertex AI or the Developer API; defaults to the Developer API with apiKey. */
+  transport?: GoogleTransport;
   model?: string;
   fetcher?: typeof fetch;
   timeoutMs?: number;
 };
-
-// Supported Gemini output aspect ratios, as ratio (width / height).
-const ASPECT_RATIOS: ReadonlyArray<[string, number]> = [
-  ["21:9", 21 / 9],
-  ["16:9", 16 / 9],
-  ["3:2", 3 / 2],
-  ["4:3", 4 / 3],
-  ["5:4", 5 / 4],
-  ["1:1", 1],
-  ["4:5", 4 / 5],
-  ["3:4", 3 / 4],
-  ["2:3", 2 / 3],
-  ["9:16", 9 / 16],
-];
-
-/** Pick the supported aspect ratio closest to the source photo's proportions. */
-export function nearestAspectRatio(width: number, height: number): string {
-  const target = Math.log(width / height);
-  let best = ASPECT_RATIOS[0];
-  let bestDelta = Infinity;
-  for (const entry of ASPECT_RATIOS) {
-    const delta = Math.abs(Math.log(entry[1]) - target);
-    if (delta < bestDelta) {
-      bestDelta = delta;
-      best = entry;
-    }
-  }
-  return best[0];
-}
 
 type GeminiPart = {
   text?: string;
@@ -56,16 +33,23 @@ type GeminiPart = {
 
 export class GeminiSmileProvider implements SmileImageProvider {
   readonly name = "gemini";
+  readonly vendor = "google";
   private readonly fetcher: typeof fetch;
+  get model() { return this.options.model || DEFAULT_GEMINI_MODEL; }
+  get configured() { return this.transport.configured; }
+  /** "developer" (Gemini Developer API) or "vertex" (Google Cloud Vertex AI). */
+  get service() { return this.transport.kind; }
+  private readonly transport: GoogleTransport;
   constructor(private readonly options: GeminiOptions) {
     this.fetcher = options.fetcher ?? ((input, init) => globalThis.fetch(input, init));
+    this.transport = options.transport ?? developerTransport(options.apiKey);
   }
 
   async generate(
     input: GenerationInput,
     signal?: AbortSignal,
   ): Promise<GenerationResult> {
-    if (!this.options.apiKey.trim())
+    if (!this.transport.configured)
       throw new GenerationError(
         "Google Gemini isn’t connected yet. Add the app’s Gemini API key to enable smile generation.",
         503,
@@ -88,6 +72,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
     }> = [{ inlineData: { mimeType: mime, data: encoded } }];
     if (input.referenceImage) {
       const [refPrefix, refData] = input.referenceImage.split(",");
+      imageDimensions(Uint8Array.from(atob(refData), c => c.charCodeAt(0)), refPrefix.includes("image/png") ? "image/png" : "image/jpeg");
       requestParts.push({
         inlineData: {
           mimeType: refPrefix.includes("image/png") ? "image/png" : "image/jpeg",
@@ -96,9 +81,10 @@ export class GeminiSmileProvider implements SmileImageProvider {
       });
     }
     // The clinician's own finished cases, so the preview matches their work.
-    const styleReferences = (input.styleReferences ?? []).slice(0, 3);
+    const styleReferences = (input.styleReferences ?? []).slice(0, MAX_STYLE_REFERENCE_LIMIT);
     for (const reference of styleReferences) {
       const [stylePrefix, styleData] = reference.split(",");
+      imageDimensions(Uint8Array.from(atob(styleData), c => c.charCodeAt(0)), stylePrefix.includes("image/png") ? "image/png" : "image/jpeg");
       requestParts.push({
         inlineData: {
           mimeType: stylePrefix.includes("image/png")
@@ -114,6 +100,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
         Boolean(input.referenceImage),
         input.framing,
         styleReferences.length,
+        input.sourceBounds,
       ),
     });
     const requestBody = {
@@ -132,14 +119,15 @@ export class GeminiSmileProvider implements SmileImageProvider {
     );
     let response: Response;
     try {
+      const authHeaders = await this.transport.headers(this.fetcher);
       response = await this.fetcher(
-        `${API_BASE}/${encodeURIComponent(model)}:generateContent`,
+        this.transport.url(model),
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Cache-Control": "no-store",
-            "x-goog-api-key": this.options.apiKey,
+            ...authHeaders,
           },
           body: JSON.stringify(requestBody),
           signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
@@ -148,7 +136,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
     } catch (error) {
       // Record only a category, never request bodies, photos or credentials.
       const reason = error instanceof Error ? error.message : "";
-      console.error("Gemini transport failure", {
+      safeLog("error", "gemini_transport_failure", {
         category: /illegal invocation|this reference/i.test(reason) ? "runtime_binding"
           : /cache.*not implemented/i.test(reason) ? "runtime_cache_option"
           : timeout.aborted ? "timeout" : signal?.aborted ? "cancelled" : "network",
@@ -170,7 +158,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
     if (!response.ok) {
       const body = await response.json().catch(() => null);
       const reason = body?.error?.details?.find((detail: { reason?: string }) => typeof detail?.reason === "string")?.reason;
-      console.error("Gemini provider rejected request", {
+      safeLog("error", "gemini_provider_rejected", {
         status: response.status,
         category: ["API_KEY_INVALID", "API_KEY_EXPIRED", "API_KEY_SERVICE_BLOCKED", "API_KEY_HTTP_REFERRER_BLOCKED", "API_KEY_IP_ADDRESS_BLOCKED"].includes(reason)
           ? reason : "provider_rejected",

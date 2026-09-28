@@ -9,8 +9,10 @@ import {
   logFileName,
   readLogMedia,
   searchLog,
+  updateLogReview,
 } from "../src/lib/caseLog";
 import type { CaseLogEntry, CaseLogMedia } from "../src/lib/types";
+import { defaultSettings } from "../src/lib/types";
 
 const png =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
@@ -35,6 +37,18 @@ const media = (id: string): CaseLogMedia => ({
   id,
   image: png,
   originalImage: png,
+});
+
+test("reopening retains exact image pairs and new preferences without guessing legacy settings", async () => {
+  const settings = { ...defaultSettings, clinicalData: { overbiteMm: 5, constraints: "Preserve incisal edges" } };
+  await addLogEntry(entry("saved-preferences", "Demo", 10), { ...media("saved-preferences"), preferences: { settings } });
+  const saved = await readLogMedia("saved-preferences");
+  assert.equal(saved?.originalImage, png);
+  assert.equal(saved?.image, png);
+  assert.deepEqual(saved?.preferences?.settings, settings);
+  await addLogEntry(entry("legacy-view", "Demo", 11), media("legacy-view"));
+  assert.equal((await readLogMedia("legacy-view"))?.preferences, undefined);
+  await clearLog();
 });
 
 test("every generated preview is logged and listed newest first", async () => {
@@ -86,4 +100,26 @@ test("saved file names carry the patient name with a sortable date and time", ()
     /^Sarah-Wells_2026-09-16_\d{4}$/,
   );
   assert.match(logFileName(entry("b", "   ", 0)), /^Unnamed_/);
+});
+
+test("review notes stay with the saved image and clearing review preserves images and preferences", async () => {
+  await clearLog();
+  const preferences = { settings: defaultSettings };
+  await addLogEntry(entry("reviewed", "Patient", 1000), { ...media("reviewed"), preferences, scaleFlag: "grew" });
+  const review = { reviewer: "Dr Vik", reviewedAt: 2000, notes: "Check the original lower teeth." };
+  assert.equal(await updateLogReview("reviewed", review), true);
+  let saved = await readLogMedia("reviewed");
+  assert.deepEqual(saved?.review, review);
+  assert.deepEqual(saved?.preferences, preferences);
+  assert.equal(saved?.scaleFlag, "grew");
+  assert.equal(saved?.originalImage, png);
+  assert.equal(saved?.image, png);
+  assert.equal(await updateLogReview("reviewed"), true);
+  saved = await readLogMedia("reviewed");
+  assert.equal(saved?.review, undefined);
+  assert.equal(saved?.image, png);
+  await deleteLogEntry("reviewed");
+  assert.equal(await updateLogReview("reviewed", review), false);
+  assert.equal(await readLogMedia("reviewed"), null);
+  assert.equal((await listLog()).length, 0);
 });

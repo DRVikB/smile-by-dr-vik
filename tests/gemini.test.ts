@@ -92,7 +92,7 @@ test("a reference image is sent as an extra part and noted in the prompt", async
       assert.equal(parts[0].inlineData.mimeType, "image/jpeg");
       assert.equal(parts[1].inlineData.mimeType, "image/png");
       const text = String(parts[2].text);
-      assert.ok(text.includes("the first image is the patient to edit"));
+      assert.ok(text.includes("the first image is the SOURCE PATIENT to edit"));
       assert.ok(text.includes("smile the patient likes"));
       assert.ok(!text.includes("finished case"));
       return Response.json({
@@ -132,6 +132,23 @@ test("nearestAspectRatio keeps portrait, square and landscape framing", () => {
   assert.equal(nearestAspectRatio(1600, 900), "16:9");
   assert.equal(nearestAspectRatio(900, 1600), "9:16");
   assert.equal(nearestAspectRatio(1200, 1500), "4:5");
+});
+
+test("Gemini receives source-canvas protection and rejects invalid reference dimensions without a call", async () => {
+  let calls = 0;
+  const provider = new GeminiSmileProvider({ apiKey: "test", fetcher: async (_url, init) => {
+    calls++;
+    const parts = JSON.parse(String(init?.body)).contents[0].parts;
+    assert.match(String(parts.at(-1).text), /SOURCE CANVAS/);
+    assert.match(String(parts.at(-1).text), /Neutral padding outside that rectangle must remain exactly unchanged/);
+    return Response.json({ candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: PNG_1x1 } }] } }] });
+  } });
+  await provider.generate({ ...input, sourceBounds: { x: 0, y: 0.1, width: 1, height: 0.8 } });
+  const invalid = Buffer.from(PNG_1x1, "base64"); invalid.writeUInt32BE(0, 16);
+  await assert.rejects(provider.generate({ ...input, referenceImage: `data:image/png;base64,${invalid.toString("base64")}` }), GenerationError);
+  await assert.rejects(provider.generate({ ...input, styleReferences: [`data:image/png;base64,${invalid.toString("base64")}`] }), GenerationError);
+  await assert.rejects(provider.generate({ ...input, originalImage: `data:image/png;base64,${invalid.toString("base64")}` }), GenerationError);
+  assert.equal(calls, 1);
 });
 
 test("missing API key has an explicit setup error and never makes a request", async () => {
@@ -236,7 +253,7 @@ test("default Gemini fetch preserves the Workers global receiver and avoids unsu
 });
 
 test("the clinician's own cases are sent as extra parts after the patient's reference", async () => {
-  const style = "data:image/jpeg;base64,/9j/" + "A".repeat(40);
+  const style = input.originalImage;
   const provider = new GeminiSmileProvider({
     apiKey: "test",
     fetcher: async (_url, init) => {
@@ -263,14 +280,14 @@ test("the clinician's own cases are sent as extra parts after the patient's refe
   });
 });
 
-test("a fourth style reference is never forwarded, even if one reaches the provider", async () => {
-  const style = "data:image/jpeg;base64,/9j/" + "A".repeat(40);
+test("a sixth style reference is never forwarded, even if one reaches the provider", async () => {
+  const style = input.originalImage;
   const provider = new GeminiSmileProvider({
     apiKey: "test",
     fetcher: async (_url, init) => {
       const parts = JSON.parse(String(init?.body)).contents[0].parts;
-      assert.equal(parts.length, 5); // patient + 3 styles + instruction
-      assert.ok(String(parts[4].text).includes("next 3 images are finished cases"));
+      assert.equal(parts.length, 7); // patient + 5 styles (the maximum) + instruction
+      assert.ok(String(parts[6].text).includes("next 5 images are finished cases"));
       return Response.json({
         candidates: [
           { content: { parts: [{ inlineData: { mimeType: "image/png", data: PNG_1x1 } }] } },
@@ -278,7 +295,7 @@ test("a fourth style reference is never forwarded, even if one reaches the provi
       });
     },
   });
-  await provider.generate({ ...input, styleReferences: [style, style, style, style] });
+  await provider.generate({ ...input, styleReferences: Array(6).fill(style) });
 });
 
 test("draft resolution is sent in the single provider call and returned with a cost estimate", async () => {

@@ -24,6 +24,7 @@ export function RevealVideoSheet({
   const [video, setVideo] = useState<{ blob: Blob; url: string; extension: string } | null>(null);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -59,14 +60,18 @@ export function RevealVideoSheet({
   }, [before, after, isDemo]);
 
   async function send() {
-    if (!video) return;
+    if (!video || sharing) return;
+    setSharing(true);
+    setError("");
     setNote("");
     const stem = patientName?.trim() ? `-${patientName.trim().replace(/[^\p{L}\p{N}]+/gu, "-")}` : "";
     try {
-      const outcome = await shareFile(video.blob, `smile-reveal${stem}.${video.extension}`, "Your smile preview");
+      const outcome = await shareFile(video.blob, `smilecompose-reveal${stem}.${video.extension}`, "Your SmileCompose preview");
       if (outcome === "downloaded") setNote("Saved to your downloads.");
     } catch {
-      setError("That couldn’t be shared.");
+      setError("The video couldn’t be sent or saved. Please try again.");
+    } finally {
+      setSharing(false);
     }
   }
 
@@ -82,12 +87,15 @@ export function RevealVideoSheet({
         <p className="sheet-sub">Their smile today, with the illustration fading in. Made on this device — no AI credits.</p>
         {video ? (
           <video className="reveal-video" src={video.url} autoPlay muted loop playsInline controls />
-        ) : (
-          <p className="analysis-status" role="status">{error || "Making the video…"}</p>
+        ) : !error ? (
+          <p className="analysis-status" role="status">Making the video…</p>
+        ) : null}
+        {error && (
+          <p className="analysis-status" role="alert">{error}</p>
         )}
         <div className="video-actions">
-          <button className="video-send" onClick={() => void send()} disabled={!video}>
-            <Share2 size={16} strokeWidth={1.7} /> Send or save
+          <button className="video-send" onClick={() => void send()} disabled={!video || sharing}>
+            <Share2 size={16} strokeWidth={1.7} /> {sharing ? "Opening…" : "Send or save"}
           </button>
         </div>
         {note && <p className="analysis-status" role="status">{note}</p>}

@@ -45,17 +45,19 @@ export function Presentation({
     };
   }, [before, after, patientName, isDemo]);
 
-  const fileStem = `smile-preview${patientName?.trim() ? `-${patientName.trim().replace(/[^\p{L}\p{N}]+/gu, "-")}` : ""}`;
+  const fileStem = `smilecompose-preview${patientName?.trim() ? `-${patientName.trim().replace(/[^\p{L}\p{N}]+/gu, "-")}` : ""}`;
 
   async function share() {
+    if (busy) return;
     setBusy("share");
+    setError("");
     setNote("");
     try {
       const blob = await composePresentation(before, after, { patientName, isDemo });
       const outcome = await shareFile(
         blob,
         `${fileStem}.jpg`,
-        "Your smile preview",
+        "Your SmileCompose preview",
       );
       if (outcome === "downloaded")
         setNote("This browser can’t open the share sheet, so it downloaded instead.");
@@ -67,14 +69,16 @@ export function Presentation({
   }
 
   async function savePdf() {
+    if (busy) return;
     setBusy("pdf");
+    setError("");
     setNote("");
     try {
       const blob = await presentationPdf(before, after, { patientName, isDemo });
       const outcome = await shareFile(
         blob,
         `${fileStem}.pdf`,
-        "Your smile preview",
+        "Your SmileCompose preview",
       );
       if (outcome === "downloaded") setNote("Saved to your downloads.");
     } catch {

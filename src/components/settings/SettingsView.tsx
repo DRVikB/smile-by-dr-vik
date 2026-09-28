@@ -1,0 +1,180 @@
+"use client";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BadgeCheck, BookMarked, ChevronLeft, FolderOpen, Info, LifeBuoy, Palette, ShieldCheck, UserRound } from "lucide-react";
+import { useAccount } from "@/components/account/AccountProvider";
+import { CasesSection, ManageCasesPage } from "./CasesSettings";
+import { CaseLibrarySection } from "./CaseLibrarySettings";
+import { PrivacySection } from "./PrivacySettings";
+import { EditProfilePage, ProfileHeader, ProfileSection } from "./ProfileSettings";
+import { SubscriptionSection } from "./SubscriptionSettings";
+import { AboutSection, HelpPage, SupportSection } from "./SupportSettings";
+import { AppearanceSection } from "./AppearanceSettings";
+import {
+  Avatar, ConfirmDialog, SettingsContext, useMediaQuery, useOnline,
+  type ConfirmRequest, type SettingsNav, type SettingsPage, type SettingsSection,
+} from "./settingsParts";
+
+export type { SettingsSection } from "./settingsParts";
+
+const SECTIONS: { key: SettingsSection; label: string; Icon: typeof UserRound }[] = [
+  { key: "profile", label: "Profile", Icon: UserRound },
+  { key: "subscription", label: "Subscription & Usage", Icon: BadgeCheck },
+  { key: "cases", label: "Cases", Icon: FolderOpen },
+  { key: "library", label: "Case Library", Icon: BookMarked },
+  { key: "appearance", label: "Appearance", Icon: Palette },
+  { key: "privacy", label: "Privacy & Data", Icon: ShieldCheck },
+  { key: "support", label: "Support", Icon: LifeBuoy },
+  { key: "about", label: "About", Icon: Info },
+];
+
+const PAGE_TITLES = { editProfile: "Edit Profile", help: "Help" } as const;
+const CASE_TITLES = { active: "Manage Cases", archived: "Archived Cases", deleted: "Recently Deleted" } as const;
+
+function pageTitle(page: SettingsPage): string {
+  return page.kind === "cases" ? CASE_TITLES[page.filter] : PAGE_TITLES[page.kind];
+}
+
+function SectionContent({ section, withHeader }: { section: SettingsSection; withHeader: boolean }) {
+  switch (section) {
+    case "profile": return <>{withHeader && <ProfileHeader />}<ProfileSection /></>;
+    case "subscription": return <SubscriptionSection />;
+    case "cases": return <CasesSection />;
+    case "library": return <CaseLibrarySection />;
+    case "appearance": return <AppearanceSection />;
+    case "privacy": return <PrivacySection />;
+    case "support": return <SupportSection />;
+    case "about": return <AboutSection />;
+  }
+}
+
+/**
+ * Settings: one place for Profile, Subscription & Usage, Cases (patient
+ * cases on this device), Case Library (style references), Appearance,
+ * Privacy & Data, Support and About.
+ * iPhone (narrow): a grouped list with pushed sub-pages.
+ * iPad / desktop (≥ 768 px): a sidebar of sections and a detail pane.
+ */
+export function SettingsView({ initialSection, onClose, onSectionChange }: {
+  initialSection?: SettingsSection;
+  onClose: () => void;
+  onSectionChange?: (section: SettingsSection) => void;
+}) {
+  const account = useAccount();
+  const wide = useMediaQuery("(min-width: 768px)");
+  const online = useOnline();
+  const [section, setSection] = useState<SettingsSection>(initialSection ?? "profile");
+  const [page, setPage] = useState<SettingsPage | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
+  const [message, setMessage] = useState("");
+  const scroller = useRef<HTMLDivElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => { heading.current?.focus(); }, []);
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(() => setMessage(""), 4500);
+    return () => window.clearTimeout(timer);
+  }, [message]);
+
+  // Narrow layout: bring the requested section into view.
+  useEffect(() => {
+    if (wide || page || !initialSection || initialSection === "profile") return;
+    document.getElementById(`settings-${initialSection}`)?.scrollIntoView({ block: "start" });
+  }, [wide, page, initialSection]);
+
+  const select = useCallback((next: SettingsSection) => {
+    setSection(next);
+    setPage(null);
+    onSectionChange?.(next);
+  }, [onSectionChange]);
+
+  const back = useCallback(() => setPage(null), []);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (confirm) setConfirm(null);
+      else if (page) setPage(null);
+      else onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [confirm, page, onClose]);
+
+  const nav = useMemo<SettingsNav>(() => ({
+    openPage: next => { setPage(next); scroller.current?.scrollTo({ top: 0 }); },
+    confirm: setConfirm,
+    say: setMessage,
+    online,
+  }), [online]);
+
+  const pageBody = page && (
+    page.kind === "editProfile" ? <EditProfilePage onDone={back} />
+      : page.kind === "cases" ? <ManageCasesPage key={page.filter} initialFilter={page.filter} />
+        : <HelpPage />
+  );
+  const detailTitle = page ? pageTitle(page) : SECTIONS.find(s => s.key === section)?.label ?? "Settings";
+  const planLine = !account.user ? (account.configured ? "Not signed in" : "On this device") : account.hasProAccess ? "SmileCompose Pro" : "Free";
+
+  return (
+    <SettingsContext.Provider value={nav}>
+      <div className="settings-backdrop" onClick={onClose}>
+        <div className={`settings-panel ${wide ? "split" : "stack"}`} role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={e => e.stopPropagation()}>
+          {wide ? (
+            <>
+              <aside className="settings-sidebar">
+                <h2 id="settings-title" ref={heading} tabIndex={-1} className="settings-sidebar-title">Settings</h2>
+                <button type="button" className="settings-sidebar-profile" onClick={() => select("profile")} aria-label="Profile">
+                  <Avatar initials={account.initials} url={account.avatarUrl} size="small" />
+                  <span>
+                    <strong>{account.displayName ?? (account.user ? "Your account" : "SmileCompose")}</strong>
+                    <small>{planLine}</small>
+                  </span>
+                </button>
+                <nav aria-label="Settings sections">
+                  <ul className="settings-sidebar-list">
+                    {SECTIONS.map(({ key, label, Icon }) => (
+                      <li key={key}>
+                        <button type="button" aria-current={section === key && !page ? "page" : section === key ? "true" : undefined} onClick={() => select(key)}>
+                          <Icon size={18} strokeWidth={1.6} aria-hidden="true" />{label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+              </aside>
+              <section className="settings-detail" aria-label={detailTitle}>
+                <header className="settings-detail-head">
+                  {page ? <button type="button" className="settings-back" onClick={back} aria-label="Back"><ChevronLeft size={20} strokeWidth={1.8} /></button> : <span className="settings-back-spacer" />}
+                  <h3 className="settings-detail-title">{detailTitle}</h3>
+                  <button type="button" className="settings-done" onClick={onClose}>Done</button>
+                </header>
+                <div className="settings-detail-body" ref={scroller}>
+                  {pageBody ?? <SectionContent section={section} withHeader />}
+                </div>
+              </section>
+            </>
+          ) : (
+            <>
+              <header className="settings-top">
+                {page ? <button type="button" className="settings-back" onClick={back} aria-label="Back to Settings"><ChevronLeft size={20} strokeWidth={1.8} />Settings</button> : <span className="settings-back-spacer" />}
+                <h2 id="settings-title" ref={heading} tabIndex={-1}>{page ? pageTitle(page) : "Settings"}</h2>
+                <button type="button" className="settings-done" onClick={onClose}>Done</button>
+              </header>
+              <div className="settings-scroll" ref={scroller}>
+                {pageBody ?? (
+                  <>
+                    <ProfileHeader />
+                    {SECTIONS.map(({ key }) => <SectionContent key={key} section={key} withHeader={false} />)}
+                  </>
+                )}
+              </div>
+            </>
+          )}
+          {message && <p className="settings-toast" role="status">{message}</p>}
+          {confirm && <ConfirmDialog request={confirm} onDone={result => { setConfirm(null); if (result) setMessage(result); }} />}
+        </div>
+      </div>
+    </SettingsContext.Provider>
+  );
+}

@@ -58,22 +58,27 @@ export function ZoomPan({
   className = "",
   maxScale = 5,
   label = "Pinch to zoom",
+  overlay,
+  resetKey,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode | ((state: ZoomState) => React.ReactNode);
   className?: string;
   maxScale?: number;
   label?: string;
+  overlay?: React.ReactNode;
+  resetKey?: string;
 }) {
   const frame = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<ZoomState>(IDENTITY);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef<{ distance: number; scale: number } | null>(null);
   const lastTap = useRef(0);
+  const tap = useRef<{ id: number; x: number; y: number; time: number } | null>(null);
 
   const reset = useCallback(() => setState(IDENTITY), []);
 
   // A new photo or preview should never inherit the previous one's zoom.
-  useEffect(() => reset(), [children, reset]);
+  useEffect(() => reset(), [resetKey, reset]);
 
   const size = () => {
     const box = frame.current?.getBoundingClientRect();
@@ -82,6 +87,9 @@ export function ZoomPan({
 
   function onPointerDown(e: React.PointerEvent) {
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    tap.current = pointers.current.size === 1
+      ? { id: e.pointerId, x: e.clientX, y: e.clientY, time: Date.now() }
+      : null;
     if (pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()];
       pinch.current = {
@@ -90,6 +98,7 @@ export function ZoomPan({
       };
     }
     if (state.scale > 1 || pointers.current.size === 2) {
+      e.preventDefault();
       (e.target as Element).setPointerCapture?.(e.pointerId);
       e.stopPropagation();
     }
@@ -97,6 +106,10 @@ export function ZoomPan({
 
   function onPointerMove(e: React.PointerEvent) {
     if (!pointers.current.has(e.pointerId)) return;
+    if (tap.current && Math.hypot(e.clientX - tap.current.x, e.clientY - tap.current.y) > 8) {
+      tap.current = null;
+      lastTap.current = 0;
+    }
     const previous = pointers.current.get(e.pointerId)!;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -131,6 +144,10 @@ export function ZoomPan({
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinch.current = null;
 
+    const isTap = e.type !== "pointercancel" && tap.current?.id === e.pointerId && Date.now() - tap.current.time < 320;
+    tap.current = null;
+    if (!isTap) { lastTap.current = 0; return; }
+
     // Double tap toggles between fit and a close look.
     const now = Date.now();
     if (now - lastTap.current < 320) {
@@ -148,7 +165,7 @@ export function ZoomPan({
   return (
     <div
       ref={frame}
-      className={`zoompan${zoomed ? " zoomed" : ""} ${className}`.trim()}
+      className={`zoompan${zoomed ? " zoomed" : ""} photo-fit ${className}`.trim()}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -160,23 +177,16 @@ export function ZoomPan({
           transform: `translate(${state.x}px, ${state.y}px) scale(${state.scale})`,
         }}
       >
-        {children}
+        {typeof children === "function" ? children(state) : children}
       </div>
-      {zoomed ? (
-        <button
-          type="button"
-          className="zoompan-reset"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={reset}
-        >
-          <Minimize2 size={14} strokeWidth={1.8} />
-          {Math.round(state.scale * 10) / 10}× · Fit
-        </button>
-      ) : (
-        <span className="zoompan-hint" aria-hidden="true">
-          {label}
-        </span>
-      )}
+      {overlay}
+      {zoomed && <button type="button" className="photo-framing-toggle"
+        aria-label="Show whole photo"
+        onPointerDown={e => e.stopPropagation()}
+        onClick={reset}>
+        <Minimize2 size={14} /> <span className="photo-framing-text">Show whole photo</span>
+      </button>}
+      {!zoomed && <span className="zoompan-hint" aria-hidden="true">{label}</span>}
     </div>
   );
 }

@@ -32,6 +32,7 @@ export async function deleteValidationRecords(caseId: string) {
 }
 export async function exportValidationRecords() {
   const records = await validationRecords();
-  const url = URL.createObjectURL(new Blob([JSON.stringify({ version: 1, description: "Clinician ratings, not a validated clinical accuracy score. 1 = poor, 5 = close match. No patient photographs included.", records }, null, 2)], { type: "application/json" }));
-  const a = document.createElement("a"); a.href = url; a.download = "smile-validation-scores.json"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const blob = new Blob([JSON.stringify({ version: 1, description: "Clinician ratings, not a validated clinical accuracy score. 1 = poor, 5 = close match. No patient photographs included.", records }, null, 2)], { type: "application/json" });
+  const { saveFile } = await import("./share");
+  await saveFile(blob, "smilecompose-validation-scores.json", "SmileCompose validation scores");
 }

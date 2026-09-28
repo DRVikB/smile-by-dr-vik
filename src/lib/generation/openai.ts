@@ -1,3 +1,4 @@
+import { MAX_STYLE_REFERENCE_LIMIT } from "@/lib/styleMatching";
 import type { SmileImageProvider } from "./provider";
 import type { GenerationInput } from "./schema";
 import type { GenerationResult } from "../types";
@@ -22,8 +23,15 @@ export function imageDimensions(
   mime: string,
 ): { width: number; height: number } {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (mime === "image/png" && bytes.length >= 24)
-    return { width: view.getUint32(16), height: view.getUint32(20) };
+  const dimensions = (width: number, height: number) => {
+    if (!width || !height || width * height > 100_000_000)
+      throw new GenerationError("This photo has invalid or oversized dimensions. Please upload another JPG or PNG.", 400, "invalid_image");
+    return { width, height };
+  };
+  if (mime === "image/png" && bytes.length >= 33
+    && view.getUint32(0) === 0x89504e47 && view.getUint32(4) === 0x0d0a1a0a
+    && view.getUint32(8) === 13 && view.getUint32(12) === 0x49484452)
+    return dimensions(view.getUint32(16), view.getUint32(20));
   if (mime === "image/jpeg" && bytes[0] === 0xff && bytes[1] === 0xd8) {
     let offset = 2;
     while (offset + 4 <= bytes.length) {
@@ -42,10 +50,7 @@ export function imageDimensions(
         ].includes(marker) &&
         length >= 7
       ) {
-        return {
-          height: view.getUint16(offset + 3),
-          width: view.getUint16(offset + 5),
-        };
+        return dimensions(view.getUint16(offset + 5), view.getUint16(offset + 3));
       }
       offset += length;
     }
@@ -83,7 +88,10 @@ export function outputSize(width: number, height: number): string {
 
 export class OpenAISmileProvider implements SmileImageProvider {
   readonly name = "openai";
+  readonly vendor = "openai";
   private readonly fetcher: typeof fetch;
+  get model() { return this.options.model || DEFAULT_IMAGE_MODEL; }
+  get configured() { return Boolean(this.options.apiKey.trim()); }
   constructor(private readonly options: OpenAIOptions) {
     this.fetcher = options.fetcher ?? ((input, init) => globalThis.fetch(input, init));
   }
@@ -110,13 +118,22 @@ export class OpenAISmileProvider implements SmileImageProvider {
       new Blob([bytes], { type: mime }),
       mime === "image/png" ? "smile.png" : "smile.jpg",
     );
-    form.set("prompt", buildSmileInstruction(input.settings, false, input.framing));
+    const styleReferences = (input.styleReferences ?? []).slice(0, MAX_STYLE_REFERENCE_LIMIT);
+    const references = [...(input.referenceImage ? [input.referenceImage] : []), ...styleReferences];
+    for (const [index, reference] of references.entries()) {
+      const [referencePrefix, referenceData] = reference.split(",");
+      const referenceMime = referencePrefix.includes("image/png") ? "image/png" : "image/jpeg";
+      const referenceBytes = Uint8Array.from(atob(referenceData), c => c.charCodeAt(0));
+      imageDimensions(referenceBytes, referenceMime);
+      form.append("image[]", new Blob([referenceBytes], { type: referenceMime }), `reference-${index + 1}.${referenceMime === "image/png" ? "png" : "jpg"}`);
+    }
+    form.set("prompt", buildSmileInstruction(input.settings, Boolean(input.referenceImage), input.framing, styleReferences.length, input.sourceBounds));
     form.set("n", "1");
     form.set("size", outputSize(dimensions.width, dimensions.height));
     form.set("quality", "high");
     form.set("output_format", "jpeg");
     form.set("output_compression", "95");
-    // gpt-image-2 preserves input detail during edits; input_fidelity is optional.
+    // gpt-image-2 uses high input fidelity automatically and disallows this override.
     const timeout = AbortSignal.timeout(
       this.options.timeoutMs ?? OPENAI_IMAGE_TIMEOUT_MS,
     );
