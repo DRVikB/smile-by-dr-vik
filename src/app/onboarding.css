@@ -22,7 +22,7 @@
 .ob-layout { flex: 1 0 auto; display: flex; flex-direction: column; animation: ob-in 420ms var(--ease) both; }
 .ob-visual {
   --inset: 24px; --inset-top: calc(env(safe-area-inset-top) + 20px);
-  position: relative; flex: none; height: clamp(300px, 52dvh, 600px); overflow: hidden;
+  position: relative; flex: none; height: clamp(200px, 52dvh, 600px); overflow: hidden;
   background: #1A1714; color: #FAF9F6;
 }
 .ob-sheet {
@@ -33,6 +33,14 @@
 .ob-sheet > * { width: min(100%, 560px); margin-inline: auto; }
 .has-hero .ob-sheet { margin-top: -28px; border-radius: 28px 28px 0 0; box-shadow: 0 -14px 30px -22px rgba(0, 0, 0, .5); }
 .is-plain .ob-sheet { padding-top: calc(env(safe-area-inset-top) + 16px); }
+/* Pages with a picture never scroll as a whole: the picture stays put and only the card's content scrolls. */
+.onboarding.has-hero { overflow: hidden; }
+.has-hero.ob-frame { height: 100%; }
+.has-hero .ob-layout { flex: 1 1 auto; min-height: 0; }
+.has-hero .ob-sheet { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+/* How it works fills the page: the cards share the height left above Continue. */
+.is-plain .ob-body { flex: 1 1 auto; grid-template-rows: minmax(0, 1fr) auto; }
+.is-plain .how-visual { grid-auto-rows: minmax(132px, 1fr); }
 
 .ob-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 22px; }
 .ob-brand { display: inline-flex; align-items: center; gap: 12px; }
@@ -235,7 +243,7 @@
   .ob-visual, .ob-welcome .ob-visual { --inset: 40px; --inset-top: calc(env(safe-area-inset-top) + 32px); --lift: 140px; height: min(62dvh, 800px); }
   .has-hero .ob-visual { -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent); mask-image: linear-gradient(180deg, #000 78%, transparent); }
   .has-hero .ob-sheet, .ob-frame.ob-welcome.has-hero .ob-sheet {
-    flex: none; width: min(640px, calc(100% - 64px)); margin: calc(-1 * 140px) auto calc(env(safe-area-inset-bottom) + 32px);
+    flex: 0 1 auto; width: min(640px, calc(100% - 64px)); margin: calc(-1 * 140px) auto calc(env(safe-area-inset-bottom) + 32px);
     padding: 32px 40px 36px; border-radius: 32px; box-shadow: 0 40px 90px -40px rgba(0, 0, 0, .7);
   }
   .ob-frame.ob-welcome.has-hero .ob-sheet { padding-top: 36px; }
@@ -251,9 +259,14 @@
   .ob-visual .reveal-tag.before { left: max(40px, calc(50% - 320px)); }
   .ob-visual .reveal-tag.after { right: max(40px, calc(50% - 320px)); }
   .pro-hero .reveal-handle, .pro-hero .reveal-tag { top: calc(100% - var(--lift) - 70px); bottom: auto; }
+  .ob-visual .pro-hero .reveal-tag.before { left: auto; }
+  .ob-visual .pro-hero .reveal-tag.after { right: auto; }
   .ob-frame[data-step="styleLibrary"] .ob-visual .style-stage { padding-bottom: calc(var(--lift) + 48px); }
-  .how-visual { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .how-card { min-height: 150px; }
+  /* Four wide cards, one above the other, filling the page */
+  .how-visual { grid-template-columns: minmax(0, 1fr); }
+  .is-plain .ob-title { max-width: 18ch; }
+  .is-plain .ob-actions { justify-items: center; }
+  .is-plain .ob-actions .ob-button { max-width: 440px; }
   .ob-cta { max-width: 440px; }
 }
 
@@ -262,14 +275,14 @@
 @media (min-width: 700px) and (orientation: landscape) {
   .has-hero.ob-frame { background: #141210; }
   .ob-visual { --inset: max(clamp(24px, 3vw, 40px), env(safe-area-inset-left)); --inset-top: calc(env(safe-area-inset-top) + var(--inset)); }
-  .has-hero .ob-layout { display: grid; grid-template: auto / minmax(0, 1fr); min-height: 100dvh; }
+  .has-hero .ob-layout { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); height: 100dvh; }
   /* The picture stays put while a long page (the plans) scrolls. */
   .has-hero .ob-visual {
     grid-area: 1 / 1; position: sticky; top: 0; align-self: start; justify-self: start; width: 66%; height: 100dvh; min-height: 0;
     -webkit-mask-image: linear-gradient(90deg, #000 72%, transparent); mask-image: linear-gradient(90deg, #000 72%, transparent);
   }
   .has-hero .ob-sheet, .ob-frame.ob-welcome.has-hero .ob-sheet {
-    grid-area: 1 / 1; justify-self: end; align-self: start; width: min(480px, 44%); min-height: calc(100dvh - 48px);
+    grid-area: 1 / 1; justify-self: end; align-self: start; width: min(480px, 44%); height: calc(100dvh - 48px);
     margin: 24px max(24px, env(safe-area-inset-right)) 24px 0; padding: 30px 36px 32px;
     border-radius: 30px; box-shadow: 0 40px 90px -40px rgba(0, 0, 0, .75);
   }
@@ -296,7 +309,7 @@
   .is-plain .ob-title { max-width: 18ch; }
   .is-plain .ob-copy { max-width: 52ch; }
   .how-visual { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-  .how-card { min-height: 150px; }
+  .is-plain .how-visual { grid-auto-rows: minmax(150px, 1fr); }
   .is-plain .ob-actions { justify-items: center; }
   .is-plain .ob-actions .ob-button { max-width: 420px; }
 }
