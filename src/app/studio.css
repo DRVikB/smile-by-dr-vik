@@ -57,7 +57,7 @@ h1 { font-weight: 400; letter-spacing: var(--title-tracking); }
 
 /* ---------- wordmark: letter-spaced SMILECOMPOSE, no symbol in the chrome ---------- */
 .sc-lockup .sc-symbol { display: none; }
-.report-summary .sc-lockup .sc-symbol { display: block; }
+.report-summary .sc-lockup .sc-symbol { display: inline-grid; }
 .sc-lockup .sc-wordmark { font-weight: 500; font-size: 13px; letter-spacing: .32em; margin-right: -.32em; }
 .portrait-top .sc-wordmark { font-size: 13px; letter-spacing: .34em; }
 .app-header .sc-wordmark,
@@ -520,12 +520,16 @@ input[type="checkbox"][role="switch"],
   transition: transform 300ms var(--spring), box-shadow 220ms var(--ease-soft), opacity 200ms;
 }
 .photo-option:active:not(:disabled) { transform: scale(.98); }
-.photo-option:disabled { opacity: .5; cursor: not-allowed; }
+/* Until the authority statement is confirmed: the photographs stay clear; only the action looks unavailable. */
+.photo-option:disabled { opacity: 1; cursor: not-allowed; }
+.photo-option:disabled .photo-option-go { opacity: .4; }
+.photo-option:disabled .photo-option-text strong { color: var(--text-secondary); }
 .photo-option-text { display: grid; gap: 3px; }
 .photo-option-text strong { font-family: var(--font-display); font-size: 22px; font-weight: 400; letter-spacing: -.01em; line-height: 1.1; }
 .photo-option-text small { font-size: 13px; line-height: 1.4; color: var(--text-secondary); }
 .photo-option-visual { position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 16px; background: #1A1714; }
-.photo-option-capture img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 38%; }
+/* Positioned so the sample smile sits inside the guide rectangle (SMILE_GUIDE: centre 61.5% down). */
+.photo-option-capture img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 23%; }
 .photo-option-corner { position: absolute; width: 18px; height: 18px; border: 2px solid rgba(255, 255, 255, .92); }
 .photo-option-corner.tl { top: 10px; left: 10px; border-right: 0; border-bottom: 0; border-radius: 6px 0 0 0; }
 .photo-option-corner.tr { top: 10px; right: 10px; border-left: 0; border-bottom: 0; border-radius: 0 6px 0 0; }
@@ -571,6 +575,7 @@ input[type="checkbox"][role="switch"],
   .photo-option { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 14px; row-gap: 12px; align-items: center; }
   .photo-option .icon-tile { grid-row: 1; }
   .photo-option-visual { grid-column: 1 / -1; aspect-ratio: 16 / 9; }
+  .photo-option-capture img { object-position: 50% 36%; } /* the 16:9 card crops more: keep the smile in the guide */
   .photo-option-gallery { grid-template-columns: repeat(6, 1fr); aspect-ratio: auto; }
   .photo-option-gallery img { aspect-ratio: 1; }
   .photo-option-go { top: 20px; right: 18px; bottom: auto; width: 36px; height: 36px; }
@@ -616,3 +621,44 @@ input[type="checkbox"][role="switch"],
 /* Photo step preview: the same fill-and-zoom frame as the Studio */
 .photo-stage .photo-stage-zoom { z-index: 1; }
 .photo-stage .photo-stage-zoom img { width: 100%; height: 100%; }
+
+/* ============================================================
+   Allowance: always-visible count and low-usage announcements
+   ============================================================ */
+.allowance-ring-track { stroke: color-mix(in srgb, currentColor 22%, transparent); }
+.allowance-ring-fill { stroke: var(--accent); transition: stroke-dasharray 500ms var(--ease-soft); }
+.level-low .allowance-ring-fill { stroke: #D9A441; }
+.level-critical .allowance-ring-fill, .level-empty .allowance-ring-fill { stroke: #D2694F; }
+
+.allowance-pill {
+  display: inline-flex; align-items: center; gap: 9px; align-self: flex-start; min-height: 40px; margin-top: 14px; padding: 0 14px 0 10px;
+  border-radius: 999px; font-size: 14px; font-weight: 500; color: var(--text-primary);
+  background: var(--surface-elevated); box-shadow: var(--shadow-sm);
+}
+.allowance-pill small { font-size: 13px; font-weight: 400; color: var(--text-secondary); }
+.allowance-pill.on-photo {
+  color: #FAF7F2; background: rgba(250, 247, 242, .14); box-shadow: inset 0 0 0 1px rgba(250, 247, 242, .28);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+}
+.allowance-pill.on-photo small { color: rgba(250, 247, 242, .7); }
+
+.allowance-line { margin: 0; text-align: center; font-size: 13px; color: var(--text-secondary); }
+.allowance-line.level-critical, .allowance-line.level-empty { color: var(--destructive); }
+
+.allowance-banner {
+  display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: 16px;
+  color: var(--text-primary); background: var(--card); box-shadow: var(--shadow-sm); animation: rise-in 360ms var(--ease-soft) both;
+}
+.allowance-banner p { flex: 1; min-width: 0; margin: 0; font-size: 13.5px; line-height: 1.4; }
+.allowance-banner.level-low { box-shadow: inset 3px 0 0 #D9A441, var(--shadow-sm); }
+.allowance-banner.level-critical, .allowance-banner.level-empty { box-shadow: inset 3px 0 0 #D2694F, var(--shadow-sm); }
+.allowance-banner-action { flex: none; min-height: 34px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--accent-text); background: var(--accent-soft); }
+.allowance-banner-close { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: var(--text-secondary); background: none; }
+.app-shell .allowance-banner-close { min-width: 30px; min-height: 30px; }
+.allowance-banner.on-photo {
+  margin-bottom: 18px; color: #FAF7F2; background: rgba(20, 16, 12, .55); box-shadow: inset 0 0 0 1px rgba(250, 247, 242, .2);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+}
+.allowance-banner.on-photo .allowance-banner-action { color: #1A1714; background: var(--accent-gradient); }
+.allowance-banner.on-photo .allowance-banner-close { color: rgba(250, 247, 242, .75); }
+@media (prefers-reduced-motion: reduce) { .allowance-banner { animation: none; } }

@@ -10,7 +10,7 @@
     </dependencies>
     <scenes>
         <!--SmileCompose launch (same composition as the web BrandLaunch): symbol, wordmark, "Designed By" + Dr Vik logo.
-            Artwork is bundled PNGs in brand bronze (Launch/, from scripts/render-launch-artwork.swift); text uses named colours that follow Light and Dark.
+            Artwork is bundled PNGs (Launch/, from scripts/render-launch-artwork.swift): the Home Screen app icon itself, and the Dr Vik logo in brand bronze; text uses named colours that follow Light and Dark.
             Launch screens here don't render asset-catalog images or attributed text with named colours, so: plain labels, and thin spaces (U+2009) for the wordmark's tracking.-->
         <scene sceneID="EHf-IW-A2E">
             <objects>

@@ -25,10 +25,9 @@ import { AccountVisual, GreetingPreview, HowItWorksVisual, ProValueVisual, Ready
  * should be, and resumable. It collects no professional details; the only
  * patient images are finished cases the clinician chooses to add.
  */
-export function Onboarding({ appReady, onCreateFirst, onOpenCases }: {
+export function Onboarding({ appReady, onCreateFirst }: {
   appReady: boolean;
   onCreateFirst: () => void;
-  onOpenCases: () => void;
 }) {
   const account = useAccount();
   const { configured, user, status, statusState, hasProAccess } = account;
@@ -84,7 +83,7 @@ export function Onboarding({ appReady, onCreateFirst, onOpenCases }: {
   }, [decision, local, userId, save, complete, showingReady]);
 
   if (dismissed) return null;
-  if (showingReady) return <ReadyStep name={account.displayName} onCreate={() => { setDismissed(true); onCreateFirst(); }} onCases={() => { setDismissed(true); onOpenCases(); }} onLibrary={() => setDismissed(true)} />;
+  if (showingReady) return <ReadyStep name={account.displayName} onCreate={() => { setDismissed(true); onCreateFirst(); }} onLibrary={() => setDismissed(true)} />;
   if (!ready) return local && !local.completedAt ? <Loading /> : null;
   if (!decision || decision.kind === "none" || decision.kind === "done" || decision.kind === "completeSilently") return null;
   if (decision.kind === "loading") return <Loading label="Loading your workspace…" />;
@@ -358,7 +357,7 @@ function SubscriptionStep({ configured, onDefer }: { configured: boolean; onDefe
   );
 }
 
-function ReadyStep({ name, onCreate, onCases, onLibrary }: { name: string | null; onCreate: () => void; onCases: () => void; onLibrary: () => void }) {
+function ReadyStep({ name, onCreate, onLibrary }: { name: string | null; onCreate: () => void; onLibrary: () => void }) {
   const heading = useFocusHeading("ready");
   const library = useCaseLibrary();
   const hasLibrary = (library.cases?.length ?? 0) > 0;
@@ -374,9 +373,8 @@ function ReadyStep({ name, onCreate, onCases, onLibrary }: { name: string | null
         <div className="ob-body">
           <div className="ob-actions">
             <button className="primary-button ob-button" onClick={onCreate}>Create Your First Smile</button>
-            {library.mode === "signedOut"
-              ? <button className="secondary-button ob-button" onClick={onCases}>View Cases</button>
-              : <button className="secondary-button ob-button" onClick={() => { onLibrary(); library.open({ add: !hasLibrary }); }}>{hasLibrary ? "Open Case Library" : "Add to Case Library"}</button>}
+            {/* A new clinician has no cases to view yet: offer the style library instead (signing in first if needed). */}
+            <button className="secondary-button ob-button" onClick={() => { onLibrary(); library.open({ add: !hasLibrary }); }}>{hasLibrary ? "Open Case Library" : "Add Reference Cases"}</button>
           </div>
         </div>
       </div>

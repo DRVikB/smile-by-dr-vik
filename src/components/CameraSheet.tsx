@@ -74,8 +74,10 @@ export function CameraSheet({
         const s = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: facing },
-            width: { ideal: 1920 },
-            height: { ideal: 1440 },
+            // Ask for the camera's best stream; the browser picks the nearest it supports.
+            // (The iOS app uses the native camera instead, for full-quality stills.)
+            width: { ideal: 4032 },
+            height: { ideal: 3024 },
           },
           audio: false,
         });

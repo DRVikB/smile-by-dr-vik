@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="150 176 724 724" fill="none">
+  <!-- The mark from the Dark app icon (scripts/render-app-icons.swift), without its tile: for Dark and over photographs. -->
+  <defs>
+    <linearGradient id="gold" x1="215" y1="380" x2="810" y2="700" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EBD7B4"/><stop offset="1" stop-color="#B48E58"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="288" y1="426" x2="720" y2="716" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1A1714" stop-opacity=".85"/><stop offset=".48" stop-color="#1A1714" stop-opacity=".55"/><stop offset="1" stop-color="#1A1714" stop-opacity=".8"/>
+    </linearGradient>
+    <filter id="shadow" x="100" y="300" width="824" height="620" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+  <path d="M512 251.5V856.5M270 481.5H755" stroke="#8C7F71" stroke-opacity=".5" stroke-width="17" stroke-linecap="round"/>
+  <path d="M215 431.5C336.5 769 687.5 769 809 431.5" stroke="black" stroke-opacity=".45" stroke-width="82" stroke-linecap="round" filter="url(#shadow)" transform="translate(0 18)"/>
+  <path d="M215 431.5C336.5 769 687.5 769 809 431.5" stroke="url(#gold)" stroke-width="82" stroke-linecap="round"/>
+  <!-- The rim line, as on the Dark icon: fine charcoal on the champagne (the Light icon's is pale on charcoal). -->
+  <path d="M215 431.5C336.5 769 687.5 769 809 431.5" stroke="url(#rim)" stroke-width="2.5" stroke-linecap="round" transform="translate(0 -36)"/>
+</svg>

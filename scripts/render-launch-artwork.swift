@@ -1,10 +1,12 @@
 // Renders the iOS launch-screen artwork into ios/App/App/Launch/:
-//   LaunchSymbol@2x/@3x.png     the SmileCompose symbol (96 pt)
+//   LaunchSymbol@2x/@3x.png     the Home Screen app icon itself (96 pt), so the logo is the same everywhere
+//   public/brand/smilecompose-launch-icon.png  the same, for the web launch view (BrandLaunch)
 //   LaunchSignature@2x/@3x.png  the Dr Vik logo (66 × 27 pt)
 // Bundled PNGs rather than asset-catalog images: the launch-screen renderer
 // did not draw asset-catalog images on the iOS 27 simulator, while bundled
-// files render reliably. Loose files have no Dark variant, so the artwork uses
-// the brand bronze, which reads on both the Ivory and charcoal backgrounds;
+// files render reliably. Loose files have no Dark variant: the app icon brings its own
+// ground, so it reads on both the Ivory and charcoal backgrounds; the Dr Vik logo uses
+// the brand bronze, which reads on both;
 // the wordmark and "Designed By" are labels in named colours that follow
 // Light and Dark (LaunchText, LaunchSubtle).
 // Run from the repository root: swift scripts/render-launch-artwork.swift
@@ -34,23 +36,19 @@ func png(width: CGFloat, height: CGFloat, scale: CGFloat, draw: (CGContext) -> V
   return rep.representation(using: .png, properties: [:])!
 }
 
-/// public/brand/smilecompose-symbol.svg (viewBox 100), drawn at `size` points. The arc and its
-/// reference lines sit 2.5 units below centre, as on the app icon, so the smile reads centred in the tile.
+/// The Home Screen app icon (AppIcon-1024.png), rounded as iOS shows it, with a hairline edge so it
+/// holds its shape on the Ivory background.
+guard let appIcon = NSImage(contentsOf: root.appendingPathComponent("ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png")) else { fatalError("AppIcon-1024.png not found") }
 func symbol(_ cg: CGContext, size: CGFloat) {
-  cg.scaleBy(x: size / 100, y: size / 100)
-  let frame = NSBezierPath(roundedRect: NSRect(x: 7, y: 7, width: 86, height: 86), xRadius: 24, yRadius: 24)
-  frame.lineWidth = 2.8
-  bronze.setStroke(); frame.stroke()
-  let cross = NSBezierPath()
-  cross.move(to: NSPoint(x: 50, y: 25.5)); cross.line(to: NSPoint(x: 50, y: 79.5))
-  cross.move(to: NSPoint(x: 23, y: 49.5)); cross.line(to: NSPoint(x: 77, y: 49.5))
-  cross.lineWidth = 1.6
-  bronze.withAlphaComponent(0.5).setStroke(); cross.stroke()
-  let smile = NSBezierPath()
-  smile.move(to: NSPoint(x: 28, y: 45.5))
-  smile.curve(to: NSPoint(x: 72, y: 45.5), controlPoint1: NSPoint(x: 37, y: 70.5), controlPoint2: NSPoint(x: 63, y: 70.5))
-  smile.lineWidth = 4.2; smile.lineCapStyle = .round
-  bronze.setStroke(); smile.stroke()
+  let rect = NSRect(x: 0, y: 0, width: size, height: size)
+  let tile = NSBezierPath(roundedRect: rect, xRadius: size * 0.2237, yRadius: size * 0.2237)
+  NSGraphicsContext.saveGraphicsState()
+  tile.addClip()
+  appIcon.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
+  NSGraphicsContext.restoreGraphicsState()
+  let edge = NSBezierPath(roundedRect: rect.insetBy(dx: 0.25, dy: 0.25), xRadius: size * 0.2237 - 0.25, yRadius: size * 0.2237 - 0.25)
+  edge.lineWidth = 0.5
+  NSColor(srgbRed: 60 / 255, green: 48 / 255, blue: 36 / 255, alpha: 0.14).setStroke(); edge.stroke()
 }
 
 func tinted(_ image: NSImage, _ color: NSColor) -> NSImage {
@@ -76,4 +74,6 @@ for scale in [2, 3] as [CGFloat] {
                     respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
   }.write(to: out.appendingPathComponent("LaunchSignature@\(Int(scale))x.png"))
 }
+try! png(width: symbolSize, height: symbolSize, scale: 3) { symbol($0, size: symbolSize) }
+  .write(to: root.appendingPathComponent("public/brand/smilecompose-launch-icon.png"))
 print("LaunchSymbol \(Int(symbolSize)) pt, LaunchSignature \(Int(logoWidth))×\(Int(logoHeight)) pt")

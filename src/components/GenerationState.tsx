@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BrandLockup } from "./Brand";
+import { BrandLockup, SmileMark } from "./Brand";
 import { SMILECOMPOSE } from "@/lib/brand";
 import { Check, X } from "lucide-react";
 
@@ -69,7 +69,7 @@ export function GenerationState({
 
       <div className="generation-splash-content">
         <div className="generation-splash-copy">
-          <img className="sc-composing-symbol" src="/brand/smilecompose-symbol.svg" alt="" aria-hidden="true" />
+          <SmileMark className="sc-composing-symbol" onDark />
           <span className="generation-splash-eyebrow">Digital smile design</span>
           <h2 id="generation-title">Composing<br />your smile…</h2>
           <p>

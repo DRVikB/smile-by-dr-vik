@@ -66,6 +66,14 @@ values ('<your Supabase user UUID>', 100, 'Owner device testing', 'owner');
 
 Revoke with `update public.access_overrides set revoked_at = now() where user_id = '<uuid>';`. Find your UUID under Authentication → Users after signing in once.
 
+## When the paid Apple Developer team is active
+
+Features that a free Personal Team cannot sign, each switched on in Xcode (select the target → Signing & Capabilities):
+
+1. **Sign in with Apple** (target `App`): restore `ios/App/App/App.entitlements` from commit `06d289e` (key `com.apple.developer.applesignin` = `Default`) and select the paid team.
+2. **Widget greeting** (targets `App` and `SmileComposeWidgetExtension`): + Capability → **App Groups** → add `group.uk.co.drvik.smilecompose` on both. The app already writes the clinician's preferred name there (`ShortcutsPlugin.setWidgetName`); without the group the widget shows its generic text ("New smile design") instead of "Welcome, Dr Vik." Only the clinician's own name is shared, never patient information.
+3. Select the paid team for both targets (`App`, `SmileComposeWidgetExtension`); the widget's bundle ID is `uk.co.drvik.smilecompose.widget`.
+
 ## Warning: the project folder is synced by iCloud Drive
 
 `~/Documents` is in iCloud Drive (Desktop & Documents). iCloud creates duplicate files such as `chunk 2.js` inside build output (`.next`, `dist`, `ios/App/App/public`), which previously broke the typecheck and put stale copies into the iOS bundle. `npm run ios:sync` now removes them from the iOS bundle, and `rm -rf .next dist` clears the others. For reliable builds, move the repository to a folder that isn't synced (for example `~/Developer/smile`).

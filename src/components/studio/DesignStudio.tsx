@@ -7,6 +7,7 @@ import { DESIGN_INTENTS, isNoChangeDesign, resolveDesignPlan } from "@/lib/gener
 import { canGuideSmileArc } from "@/lib/smilePrinciples";
 import { toothSummary } from "@/lib/teeth";
 import { GenerationCosts, allowanceLabel, type GenerationCostsProps } from "@/components/GenerationCosts";
+import { AllowanceBanner, AllowanceLine } from "@/components/account/Allowance";
 import { SegmentedControl, SHAPES, ToothForm } from "./StudioParts";
 import { ToothChart } from "@/components/ToothChart";
 import { ClinicalDataFields } from "@/components/ClinicalDataFields";
@@ -335,6 +336,7 @@ export function DesignStudio({
               <h3>Review</h3>
               <p>Check the design, then generate. Tap a step to change it.</p>
             </header>
+            {!costs.testMode && <AllowanceBanner />}
             <div className="studio-review" role="list">
               {summary.map(({ id, value }) => {
                 const step = TABS.find(t => t.id === id)!;
@@ -365,6 +367,7 @@ export function DesignStudio({
         </fieldset>
 
         <div className="studio-generate">
+          {tab === "review" && !costs.testMode && <AllowanceLine />}
           {tab === "review" && noChange && <p className="control-hint">No change selected: select teeth to edit and choose a different shade or design goal. No generation is needed.</p>}
           <div className="studio-steps-nav">
             {previous && <button type="button" className="secondary-button studio-back" onClick={() => go(previous.id)} aria-label={`Back to ${previous.label}`}>

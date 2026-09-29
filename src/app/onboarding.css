@@ -237,43 +237,141 @@
 .ob-ready .ob-head { justify-items: center; text-align: center; }
 .ob-ready .ob-copy { max-width: none; }
 
-/* iPad portrait: visual panel across the top ---------------- */
+/* iPad: the visual is a full-bleed photograph — the whole left half in
+   landscape, the full width across the top in portrait — with the design
+   callouts laid over it, rather than a card floating in a panel. */
+@media (min-width: 700px) {
+  .ob-visual {
+    --inset: clamp(24px, 3vw, 36px); --inset-top: var(--inset);
+    position: relative; overflow: hidden; padding: 0; border-radius: 0; border: 0;
+    background: #1A1714; color: #FAF9F6;
+  }
+  .ob-visual > .ob-stage, .ob-visual > .greeting-preview, .ob-visual > .how-visual { width: 100%; height: 100%; }
+  .ob-visual .ob-stage { display: block; padding: 0; --card-w: 100%; }
+  .ob-visual .ob-chip { font-size: 13.5px; padding: 10px 16px; }
+
+  /* Before / after (Welcome, Subscription): the photograph is the panel */
+  .ob-visual .reveal-card { position: absolute; inset: 0; width: auto; }
+  .ob-visual .reveal-card.hero::before { display: none; }
+  .ob-visual .reveal-frame { height: 100%; aspect-ratio: auto; border-radius: 0; box-shadow: none; }
+  .ob-visual .reveal-img { object-position: 50% 24%; }
+  .ob-visual .reveal-handle { width: 40px; height: 40px; }
+  .ob-visual .reveal-handle::after { inset: 13px; }
+  .ob-visual .reveal-tag, .ob-visual .pro-stage .reveal-tag { top: var(--inset-top); bottom: auto; padding: 7px 14px; font-size: 12px; }
+  .ob-visual .reveal-tag.before, .ob-visual .pro-stage .reveal-tag.before { left: var(--inset); }
+  .ob-visual .reveal-tag.after, .ob-visual .pro-stage .reveal-tag.after { right: var(--inset); }
+  .ob-visual .welcome-stage .chip-spec { top: 32%; right: var(--inset); }
+  .ob-visual .welcome-stage .chip-note { bottom: 11%; left: var(--inset); }
+  .ob-visual .pro-callouts { position: absolute; z-index: 2; left: var(--inset); right: var(--inset); bottom: var(--inset); display: grid; justify-items: start; gap: 10px; }
+
+  /* Personalise and Ready: the workspace, full size */
+  .ob-visual .greeting-preview, .ob-visual .workspace-preview { aspect-ratio: auto; border-radius: 0; box-shadow: none; }
+  .ob-visual .workspace-preview { position: absolute; inset: 0; width: auto; animation: ob-photo-in 900ms var(--ease) both; }
+  .ob-visual .greeting-preview-image, .ob-visual .workspace-preview-image { object-position: 64% 50%; }
+  .ob-visual .greeting-preview::after, .ob-visual .workspace-preview::after {
+    background: linear-gradient(180deg, rgba(12, 11, 10, .45) 0%, rgba(12, 11, 10, 0) 24%, rgba(12, 11, 10, 0) 40%, rgba(12, 11, 10, .88) 100%);
+  }
+  .ob-visual .greeting-preview-top { top: var(--inset-top); left: var(--inset); right: var(--inset); }
+  .ob-visual .greeting-preview-top .sc-symbol { width: 28px; height: 28px; }
+  .ob-visual .greeting-preview-top .sc-wordmark { font-size: 12px; }
+  .ob-visual .greeting-preview-avatar { width: 46px; height: 46px; font-size: 15px; }
+  .ob-visual :is(.greeting-preview-copy, .workspace-preview-copy) { left: var(--inset); right: var(--inset); bottom: calc(var(--inset) + 6px); max-width: none; gap: 10px; }
+  .ob-visual :is(.greeting-preview-hello, .workspace-hello) { font-size: 17px; }
+  .ob-visual :is(.greeting-preview-title, .workspace-title) { font-size: clamp(36px, 4.4vw, 54px); line-height: 1.02; }
+  .ob-visual :is(.greeting-preview-cta, .workspace-cta) { margin-top: 10px; padding: 12px 22px; font-size: 15px; }
+  .ob-visual .ready-ring { position: absolute; z-index: 2; top: var(--inset-top); left: var(--inset); width: 58px; height: 58px; }
+  .ob-visual .ready-ring-track { stroke: rgba(250, 249, 246, .32); }
+  .ob-visual :is(.ready-ring-draw, .ready-check) { stroke: var(--sc-gold); }
+  .ob-visual .workspace-recent { top: var(--inset-top); right: var(--inset); bottom: auto; gap: 8px; }
+  .ob-visual .workspace-recent img { width: 58px; height: 58px; border-radius: 14px; }
+  .ob-visual .workspace-recent span { width: 30px; height: 30px; }
+
+  /* Account: the card over the finished concept */
+  .ob-visual .account-stage { display: grid; place-items: end center; padding: var(--inset); background: url("/onboarding/portrait-after.jpg") 50% 24% / cover; }
+  .ob-visual .account-stage::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(12, 11, 10, 0) 45%, rgba(12, 11, 10, .55) 100%); }
+  .ob-visual .account-card { width: min(100%, 400px); color: var(--text-primary); animation: ob-in 560ms var(--ease) 200ms both; } /* the panel's text is white; the card is not */
+  .ob-visual .account-card::before { display: none; }
+
+  /* Case Library: the flow over the workspace photograph */
+  .ob-visual .style-stage { display: grid; place-items: center; padding: var(--inset); --card-w: min(100%, 440px); background: url("/smile-hero-dr-vik-v2.png") 64% 50% / cover; }
+  .ob-visual .style-stage::before { content: ""; position: absolute; inset: 0; z-index: -1; background: rgba(12, 11, 10, .62); }
+  .ob-visual :is(.style-flow-label, .style-result figcaption) { color: rgba(250, 249, 246, .86); }
+  .ob-visual .style-result figcaption svg { color: var(--sc-gold); }
+  .ob-visual .style-result { width: min(100%, 340px); }
+  .ob-visual .style-engine-line, .ob-visual .style-engine-line:last-child { background: linear-gradient(rgba(250, 249, 246, .2), var(--sc-gold)); }
+  .ob-visual .style-engine-mark { background: rgba(250, 249, 246, .94); color: #1C1A17; }
+  .ob-visual .style-engine-mark svg { color: #A6824E; }
+
+  /* What the app can do: four large photographs, edge to edge */
+  .ob-visual > .how-visual { grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 3px; }
+  .ob-visual .how-card { min-height: 0; flex-direction: column; justify-content: flex-end; border-radius: 0; background: #1A1714; box-shadow: none; color: #FAF9F6; }
+  .ob-visual .how-card::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(180deg, rgba(12, 11, 10, 0) 36%, rgba(12, 11, 10, .86) 100%); }
+  .ob-visual .how-card-media { inset: 0; -webkit-mask-image: none; mask-image: none; }
+  .ob-visual .how-media-capture { object-position: 50% 30%; }
+  .ob-visual .how-media-compose { object-position: 66% 50%; }
+  .ob-visual .how-media-split img { transform: scale(1.55); }
+  .ob-visual .how-card-share .how-card-media { inset: 0; display: grid; place-items: center; padding: 11% 13% 40%; }
+  .ob-visual .how-card-share .how-card-media::before { content: ""; position: absolute; inset: -30px; z-index: -1; background: url("/onboarding/smile-after.jpg") 50% 40% / cover; filter: blur(22px) brightness(.6); }
+  .ob-visual .how-media-tablet { transform: rotate(-5deg); }
+  .ob-visual .how-card-text { width: 100%; padding: 0 var(--inset) var(--inset); gap: 4px; }
+  .ob-visual .how-card-text .icon-tile { margin-bottom: 12px; }
+  .ob-visual .how-card-text strong { font-size: clamp(24px, 2.6vw, 30px); }
+  .ob-visual .how-card-text > span:last-child { max-width: 26ch; font-size: 14px; color: rgba(250, 249, 246, .82); }
+  .ob-visual .how-card-go { display: none; }
+}
+@keyframes ob-photo-in { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: none; } }
+
+/* iPad portrait: the photograph across the full width, content below ---- */
 @media (min-width: 700px) and (orientation: portrait) {
-  .ob-layout { width: min(720px, 100%); grid-template-areas: "visual" "head" "body"; grid-template-rows: auto auto auto; row-gap: 28px; padding-top: 22px; align-content: center; }
-  .ob-visual { min-height: min(46dvh, 560px); padding: clamp(24px, 4vw, 44px); border-radius: 34px; background: radial-gradient(70% 60% at 50% 45%, var(--ob-glow), transparent 70%), var(--ob-panel); border: 1px solid var(--border); }
-  .ob-head, .ob-body { width: min(540px, 100%); justify-self: center; }
-  .ob-stage { --card-w: min(100%, 360px, calc(36dvh * .87)); }
-  .greeting-preview { width: min(100%, 540px); }
-  .pro-stage { grid-template-columns: minmax(0, 300px) minmax(0, 260px); justify-content: center; gap: 28px; }
+  .ob-frame { padding-left: 0; padding-right: 0; }
+  .ob-top { padding: 0 max(32px, env(safe-area-inset-right)) 0 max(32px, env(safe-area-inset-left)); }
+  .ob-frame[data-step] .ob-layout {
+    width: 100%; padding-top: 16px; align-content: start;
+    grid-template-columns: minmax(0, 1fr); grid-template-areas: "visual" "head" "body"; grid-template-rows: auto auto auto; row-gap: 32px;
+  }
+  .ob-frame.ob-welcome { padding-top: 0; }
+  .ob-frame.ob-welcome .ob-layout { padding-top: 0; }
+  .ob-visual { height: min(50dvh, 640px); }
+  .ob-welcome .ob-visual { --inset-top: calc(env(safe-area-inset-top) + var(--inset)); height: min(58dvh, 720px); }
+  .ob-head, .ob-body { width: min(560px, calc(100% - 64px)); justify-self: center; }
   .ob-welcome .ob-head { text-align: center; justify-items: center; }
   .ob-welcome .ob-copy { max-width: 32ch; }
   .ob-cta { max-width: 420px; }
+  .ob-visual .reveal-handle { top: 80%; }
+  /* A wide, short panel: the account card becomes a bar along the bottom */
+  .ob-visual .account-card { width: 100%; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); align-items: center; gap: 16px; padding: 16px 18px; }
+  .ob-visual .account-card-note { display: none; }
+  .ob-visual .account-devices li { padding: 10px 4px; }
 }
 
-/* iPad landscape (and large phones sideways): split, visual on the left */
+/* iPad landscape (and large phones sideways): the photograph is the left half */
 @media (min-width: 700px) and (orientation: landscape) {
-  .ob-layout {
-    width: min(1120px, 100%); padding-top: 16px;
-    grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr);
-    grid-template-rows: 1fr auto auto 1fr;
-    grid-template-areas: "visual ." "visual head" "visual body" "visual .";
-    column-gap: clamp(28px, 5vw, 76px); row-gap: 24px;
+  .ob-frame { padding: 0; }
+  .ob-top {
+    position: absolute; z-index: 3; top: calc(env(safe-area-inset-top) + 18px); left: 50%; right: 0; width: auto; margin: 0;
+    padding: 0 max(40px, env(safe-area-inset-right)) 0 clamp(40px, 6vw, 80px);
   }
-  .ob-visual { align-self: stretch; min-height: min(660px, calc(100dvh - 120px)); padding: clamp(20px, 3vw, 44px); border-radius: 34px; background: radial-gradient(70% 60% at 50% 45%, var(--ob-glow), transparent 70%), var(--ob-panel); border: 1px solid var(--border); }
-  .ob-head, .ob-body { max-width: 440px; }
-  .ob-stage { --card-w: min(100%, 420px, calc(58dvh * .87)); }
-  .ob-welcome .ob-layout { padding-top: 0; }
+  .ob-frame[data-step] .ob-layout {
+    flex: 1 0 auto; width: 100%; min-height: 100dvh; margin: 0; padding: 0; align-content: stretch;
+    grid-template-columns: 50% minmax(0, 1fr);
+    grid-template-rows: minmax(calc(env(safe-area-inset-top) + 76px), 1fr) auto auto minmax(40px, 1fr);
+    grid-template-areas: "visual ." "visual head" "visual body" "visual .";
+    column-gap: 0; row-gap: 24px;
+  }
+  /* The photograph stays put while a long step (the plans) scrolls. */
+  .ob-visual {
+    position: sticky; top: 0; align-self: start; height: 100dvh; min-height: 0;
+    --inset: max(clamp(24px, 3vw, 36px), env(safe-area-inset-left)); --inset-top: calc(env(safe-area-inset-top) + var(--inset));
+  }
+  .ob-visual .reveal-handle { top: 66%; }
+  .ob-head, .ob-body { width: min(440px, calc(100% - 2 * clamp(40px, 6vw, 80px))); justify-self: center; }
   .ob-welcome .ob-body { justify-items: start; }
-  .greeting-preview { width: min(100%, 560px); aspect-ratio: 4 / 3.1; }
-  .pro-stage { grid-template-columns: minmax(0, 1fr); justify-items: center; }
-  .pro-stage .reveal-card { width: min(100%, 320px, calc(46dvh * .87)); }
-  .pro-callouts { grid-template-columns: repeat(auto-fit, minmax(170px, max-content)); justify-content: center; }
   .ob-ready .ob-head { justify-items: start; text-align: left; }
 }
 @media (min-width: 700px) and (orientation: landscape) and (max-height: 520px) {
-  .ob-visual { min-height: calc(100dvh - 90px); }
   .ob-display { font-size: 40px; }
   .ob-title { font-size: 30px; }
+  .ob-visual > .how-visual { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); }
 }
 
 /* Motion ----------------------------------------------------- */
@@ -284,6 +382,7 @@
 @keyframes workspace-rise { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   .ob-layout, .how-card, .workspace-preview, .float-a, .float-b, .float-c, .how-step { animation: none; }
+  .ob-visual :is(.workspace-preview, .account-card) { animation: none; }
   .reveal-card.animate { animation: none; --split: 50%; }
   .ready-ring-draw, .ready-check { animation: none; stroke-dashoffset: 0; }
   .onboarding-loading-mark { animation-duration: 3s; }

@@ -23,8 +23,8 @@ func color(_ hex: UInt32, _ alpha: CGFloat = 1) -> CGColor {
 /// middle): a U's open top reads high, so this is where it looks centred in the tile.
 let markOffset: CGFloat = 41.5
 
-func arcPath() -> CGPath {
-  let s: CGFloat = 13.5, dx: CGFloat = -163, dy: CGFloat = -190.5 + markOffset
+func arcPath(shift: CGFloat = 0) -> CGPath {
+  let s: CGFloat = 13.5, dx: CGFloat = -163, dy: CGFloat = -190.5 + markOffset + shift
   let p = { (x: CGFloat, y: CGFloat) in CGPoint(x: x * s + dx, y: y * s + dy) }
   let path = CGMutablePath()
   path.move(to: p(28, 43))
@@ -37,6 +37,8 @@ struct Palette {
   let arcStart: UInt32, arcEnd: UInt32
   let lines: UInt32, linesAlpha: CGFloat
   let shadow: CGFloat
+  /// The Light icon's rim line along the inside of the arc.
+  var rim = false
 }
 
 func render(_ file: String, _ palette: Palette) {
@@ -79,6 +81,17 @@ func render(_ file: String, _ palette: Palette) {
   ctx.drawLinearGradient(arcGradient, start: CGPoint(x: 215, y: 380), end: CGPoint(x: 810, y: 700), options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
   ctx.restoreGState()
 
+  // The rim line, as on the Light icon but inverted: a fine charcoal line just inside the arc's upper edge,
+  // dark on the champagne as the Light icon's is pale on the charcoal.
+  if palette.rim {
+    ctx.saveGState()
+    ctx.addPath(arcPath(shift: -36)); ctx.setLineWidth(2.5); ctx.setLineCap(.round)
+    ctx.replacePathWithStrokedPath(); ctx.clip()
+    let g = CGGradient(colorsSpace: space, colors: [color(0x1A1714, 0.85), color(0x1A1714, 0.55), color(0x1A1714, 0.8)] as CFArray, locations: [0, 0.48, 1])!
+    ctx.drawLinearGradient(g, start: CGPoint(x: 288, y: 426), end: CGPoint(x: 720, y: 716), options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+    ctx.restoreGState()
+  }
+
   guard let image = ctx.makeImage(),
         let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else { fatalError("encode") }
   try! data.write(to: URL(fileURLWithPath: "\(outDir)/\(file)"))
@@ -86,6 +99,6 @@ func render(_ file: String, _ palette: Palette) {
 }
 
 render("AppIcon-1024-dark.png", Palette(groundTop: 0x2C2824, groundBottom: 0x121110, arcStart: 0xEBD7B4, arcEnd: 0xB48E58,
-                                        lines: 0x8C7F71, linesAlpha: 0.38, shadow: 0.45))
+                                        lines: 0x8C7F71, linesAlpha: 0.38, shadow: 0.45, rim: true))
 render("AppIcon-1024-tinted.png", Palette(groundTop: 0x000000, groundBottom: 0x000000, arcStart: 0xFFFFFF, arcEnd: 0xD6D6D6,
                                           lines: 0x7A7A7A, linesAlpha: 0.7, shadow: 0))

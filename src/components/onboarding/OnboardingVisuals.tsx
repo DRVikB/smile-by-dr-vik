@@ -21,14 +21,23 @@ const STYLE_CASES = [
   { src: "/onboarding/case-single-shade.jpg", label: "Single shade" },
 ];
 const NEW_DESIGN = "/onboarding/new-design.jpg";
+/** iPad: the reveal fills half the screen, so it uses the full-resolution frames of the same case. */
+const BEFORE_LARGE = "/onboarding/portrait-before.jpg";
+const AFTER_LARGE = "/onboarding/portrait-after.jpg";
+const TABLET = "(min-width: 700px)";
+
+function RevealPhoto({ src, large, className }: { src: string; large?: string; className: string }) {
+  const img = <img className={className} src={src} alt="" draggable={false} />;
+  return large ? <picture><source media={TABLET} srcSet={large} />{img}</picture> : img;
+}
 
 /** Before / after of the sample case with an animated reveal. */
 export function SmileReveal({ animate = true, size = "hero" }: { animate?: boolean; size?: "hero" | "compact" }) {
   return (
     <figure className={`reveal-card ${size}${animate ? " animate" : ""}`}>
       <div className="reveal-frame">
-        <img className="reveal-img" src={BEFORE} alt="" draggable={false} />
-        <img className="reveal-img reveal-after" src={AFTER} alt="" draggable={false} />
+        <RevealPhoto className="reveal-img" src={BEFORE} large={size === "hero" ? BEFORE_LARGE : undefined} />
+        <RevealPhoto className="reveal-img reveal-after" src={AFTER} large={size === "hero" ? AFTER_LARGE : undefined} />
         <span className="reveal-divider" aria-hidden="true"><span className="reveal-handle" /></span>
         <span className="reveal-tag before" aria-hidden="true">Before</span>
         <span className="reveal-tag after" aria-hidden="true">Concept</span>

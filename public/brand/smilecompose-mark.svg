@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="150 176 724 724" fill="none">
+  <!-- The mark from the Home Screen app icon (smilecompose-app-icon.svg, as placed in AppIcon-1024.png), without its tile.
+       Reference lines are thickened for small sizes, as in the widget artwork (scripts/render-widget-art.swift). -->
+  <defs>
+    <linearGradient id="glass" x1="310" y1="402" x2="652" y2="736" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#736C61"/><stop offset=".32" stop-color="#494941"/><stop offset=".68" stop-color="#282C29"/><stop offset="1" stop-color="#626259"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="288" y1="426" x2="720" y2="716" gradientUnits="userSpaceOnUse">
+      <stop stop-color="white" stop-opacity=".88"/><stop offset=".48" stop-color="white" stop-opacity=".12"/><stop offset="1" stop-color="#D3C4AC" stop-opacity=".6"/>
+    </linearGradient>
+    <filter id="shadow" x="100" y="300" width="824" height="600" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="20"/>
+    </filter>
+  </defs>
+  <path d="M512 236V840M190 467H834" stroke="white" stroke-opacity=".72" stroke-width="24" stroke-linecap="round" transform="translate(0 3)"/>
+  <path d="M512 236V840M190 467H834" stroke="#A1947F" stroke-opacity=".6" stroke-width="19" stroke-linecap="round"/>
+  <path d="M216 431C322 770 702 770 808 431" stroke="#625747" stroke-opacity=".26" stroke-width="84" stroke-linecap="round" filter="url(#shadow)" transform="translate(0 22)"/>
+  <path d="M216 431C322 770 702 770 808 431" stroke="url(#glass)" stroke-width="80" stroke-linecap="round"/>
+  <path d="M216 431C322 770 702 770 808 431" stroke="url(#rim)" stroke-width="2" stroke-linecap="round" transform="translate(0 -35)"/>
+</svg>

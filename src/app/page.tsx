@@ -47,6 +47,7 @@ import { AiProcessingConsentDialog } from "@/components/AiProcessingConsent";
 import {
   defaultSettings,
   caseMaterials,
+  SMILE_GUIDE,
   type Photo,
   type LibraryCase,
   type PreviewPreferences,
@@ -58,6 +59,9 @@ import {
   type UploadAuthority,
 } from "@/lib/types";
 import { readCase, persistCase } from "@/lib/storage";
+import { isNativeApp } from "@/native/platform";
+import { takeNativePhoto } from "@/native/photos";
+import type { ShortcutAction } from "@/native/shortcuts";
 import { updateLogReview } from "@/lib/caseLog";
 import { thumbnail } from "@/lib/thumb";
 import { preparePhoto } from "@/lib/photos";
@@ -81,6 +85,7 @@ import { StyleFeedback } from "@/components/caseLibrary/StyleFeedback";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { Onboarding } from "@/components/onboarding/Onboarding";
 import { HomeHeadline, ProfileButton, RecentCases } from "@/components/home/HomeWorkspace";
+import { AllowanceBanner, AllowancePill } from "@/components/account/Allowance";
 import { DOCUMENT_VERSIONS } from "@/config/legal";
 
 type Variant = SmileVariant;
@@ -412,6 +417,41 @@ export default function Smile() {
         screen: screen === "start" || screen === "photo" ? "photo" : "design", testMode: false, testPreview: null });
     } catch {
       setStorageError(true);
+    }
+  }
+
+  // Home Screen quick actions: queued until the saved case has been restored, so neither overwrites the other.
+  const [shortcut, setShortcut] = useState<ShortcutAction | null>(null);
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    let stop: (() => void) | undefined;
+    let live = true;
+    void import("@/native/shortcuts")
+      .then(({ onShortcut }) => onShortcut(action => setShortcut(action)))
+      .then(remove => { if (live) stop = remove; else remove(); })
+      .catch(() => { /* quick actions are a convenience */ });
+    return () => { live = false; stop?.(); };
+  }, []);
+  useEffect(() => {
+    if (!ready || !shortcut) return;
+    const action = shortcut;
+    setShortcut(null);
+    if (action === "new") startNewSmile();
+    else if (action === "cases") { setLogEntry(undefined); setLogOpen(true); }
+    else void openTestMode();
+    // Runs once per queued action; the handlers read current state when called.
+  }, [ready, shortcut]);
+
+  /** In the iOS app, the iPhone camera itself (full quality); in a browser, the in-page camera sheet. */
+  async function openCamera() {
+    if (!isNativeApp()) { setCamera(true); return; }
+    try {
+      const file = await takeNativePhoto(SMILE_GUIDE);
+      if (!file) return;
+      const prepared = await preparePhoto(file);
+      await selectPhoto({ ...prepared, framing: SMILE_GUIDE });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The camera couldn’t be opened.");
     }
   }
 
@@ -1013,6 +1053,7 @@ export default function Smile() {
               </div>
               <ProfileButton className="start-profile" />
               <div className="start-copy">
+                <AllowanceBanner className="on-photo" />
                 <HomeHeadline headingRef={heading} />
                 <div className="splash-actions">
                   <button
@@ -1038,6 +1079,7 @@ export default function Smile() {
                     <span>no AI credits</span>
                   </button>
                 </div>
+                <AllowancePill className="on-photo" />
                 <RecentCases refreshKey={logOpen} onOpen={id => { setLogEntry(id); setLogOpen(true); }} onSeeAll={() => { setLogEntry(undefined); setLogOpen(true); }} />
               </div>
               <div className="hero-footer">
@@ -1055,7 +1097,7 @@ export default function Smile() {
                 onPhoto={selectPhoto}
                 onRemove={startNewSmile}
                 onContinue={() => setScreen("design")}
-                onCamera={() => setCamera(true)}
+                onCamera={() => void openCamera()}
                 onSample={() => void openTestMode()}
                 sampleBusy={sampleBusy}
                 authorityConfirmed={Boolean(uploadAuthority)}
@@ -1584,7 +1626,7 @@ export default function Smile() {
           onValidate={entry => void startValidation(entry)}
         />
       )}
-      <Onboarding appReady={ready} onCreateFirst={startNewSmile} onOpenCases={() => { setLogEntry(undefined); setLogOpen(true); }} />
+      <Onboarding appReady={ready} onCreateFirst={startNewSmile} />
     </AppShell>
   );
 }

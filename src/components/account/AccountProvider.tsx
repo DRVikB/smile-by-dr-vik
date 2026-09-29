@@ -21,6 +21,7 @@ import { PrivacyNoticeSheet, type LegalDocument } from "./PrivacyNoticeSheet";
 import { DocumentsSheet } from "./DocumentsSheet";
 import { MfaSheet, type MfaMode } from "./MfaSheet";
 import { setDesignerName } from "@/lib/brand";
+import { crossedAnnouncement } from "@/lib/allowance";
 
 type Sheet = { kind: "auth"; mode: AuthMode; reason?: string } | { kind: "paywall" } | { kind: "settings"; section?: SettingsSection }
   | { kind: "privacy"; back: Sheet; document: LegalDocument } | { kind: "documents" } | { kind: "mfa"; mode: MfaMode; back: Sheet } | null;
@@ -338,6 +339,22 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
   const shownName = nameToShow(names);
   // Patient-facing exports credit the clinician by the name they chose.
   useEffect(() => setDesignerName(names.preferredName || names.fullName), [names.preferredName, names.fullName]);
+  // A one-off heads-up as generations take the allowance down to 10, 5, 3, 1 and 0.
+  const lastRemaining = useRef<number | null>(null);
+  useEffect(() => {
+    const g = status?.generations;
+    if (!g || !hasProAccess) { lastRemaining.current = null; return; }
+    const trial = status?.source === "subscription" && Boolean(status?.subscription?.trial);
+    const message = crossedAnnouncement(lastRemaining.current, g.remaining, g.included + g.purchased, trial);
+    lastRemaining.current = g.remaining;
+    if (message) setNotice(message);
+  }, [status, hasProAccess]);
+
+  // The Home Screen widget greets the clinician by the same name the app uses (cleared on sign-out).
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    void import("@/native/shortcuts").then(({ setWidgetName }) => setWidgetName(shownName));
+  }, [shownName]);
   // "Dr Vik" → DV; with no preferred name, the full account name ("Vikas Bajaj" → VB).
   const initials = initialsOf(names.preferredName || names.fullName || shownName);
   const avatarUrl = userId ? status?.avatarUrl ?? null : null;
