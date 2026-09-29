@@ -66,7 +66,6 @@ h1 { font-weight: 400; letter-spacing: var(--title-tracking); }
 .report-summary .sc-wordmark { font-size: 11px; letter-spacing: .2em; margin-right: 0; }
 .ob-top .sc-wordmark,
 .ob-welcome .ob-head .sc-wordmark { font-size: 12px; letter-spacing: .32em; }
-.greeting-preview-top .sc-wordmark { font-size: 9px; letter-spacing: .28em; }
 
 /* ---------- buttons: champagne capsule, white capsule ---------- */
 .primary-button,
@@ -167,7 +166,7 @@ input[type="checkbox"][role="switch"],
 .splash-outline { min-height: 54px; font-size: 16px; font-weight: 500; }
 /* The secondary action reads as a light pill over the dark photograph. */
 .start-screen .splash-outline {
-  color: #FAF7F2; background: rgba(250, 247, 242, .14); box-shadow: inset 0 0 0 1px rgba(250, 247, 242, .32);
+  color: #FAF7F2; background: rgba(250, 247, 242, .06); box-shadow: inset 0 0 0 1px rgba(250, 247, 242, .5);
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
 }
 .splash-quiet { font-size: 14px; color: rgba(250, 247, 242, .66); }
@@ -508,7 +507,10 @@ input[type="checkbox"][role="switch"],
 .photo-start .photo-heading { font-size: clamp(36px, 7vw, 52px); letter-spacing: var(--display-tracking); line-height: 1.02; }
 .photo-start .photo-sub { margin: 0; font-size: 16px; max-width: none; }
 .photo-start .upload-authority { margin: 0; gap: 6px; }
-.photo-start .ai-consent-check { margin: 0; padding: 14px 16px; border: 0; border-radius: 18px; background: var(--card); box-shadow: var(--shadow-sm); font-size: 13.5px; line-height: 1.45; }
+.photo-start .ai-consent-check { align-items: center; gap: 14px; margin: 0; padding: 14px 16px; border: 0; border-radius: 18px; background: var(--card); box-shadow: var(--shadow-sm); font-size: 13.5px; line-height: 1.45; }
+.photo-start .ai-consent-check input { width: 20px; height: 20px; margin: 0; }
+/* A small icon on a soft disc, leading the rows of the photo step */
+.photo-row-icon { display: grid; flex: none; place-items: center; width: 38px; height: 38px; border-radius: 50%; color: var(--badge-fg); background: var(--badge-bg); }
 .photo-start .upload-authority .control-hint { padding: 0 4px; }
 .photo-start-note { margin: -6px 4px 0; }
 
@@ -522,7 +524,7 @@ input[type="checkbox"][role="switch"],
 .photo-option:active:not(:disabled) { transform: scale(.98); }
 /* Until the authority statement is confirmed: the photographs stay clear; only the action looks unavailable. */
 .photo-option:disabled { opacity: 1; cursor: not-allowed; }
-.photo-option:disabled .photo-option-go { opacity: .4; }
+.photo-option:disabled .photo-option-go { opacity: .5; }
 .photo-option:disabled .photo-option-text strong { color: var(--text-secondary); }
 .photo-option-text { display: grid; gap: 3px; }
 .photo-option-text strong { font-family: var(--font-display); font-size: 22px; font-weight: 400; letter-spacing: -.01em; line-height: 1.1; }
@@ -536,35 +538,44 @@ input[type="checkbox"][role="switch"],
 .photo-option-corner.bl { bottom: 10px; left: 10px; border-right: 0; border-top: 0; border-radius: 0 0 0 6px; }
 .photo-option-corner.br { bottom: 10px; right: 10px; border-left: 0; border-top: 0; border-radius: 0 0 6px 0; }
 .photo-option-guide { position: absolute; border: 1.5px dashed rgba(255, 255, 255, .85); border-radius: 8px; }
-.photo-option-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; background: var(--control-background); }
+/* The camera's shutter, at the foot of the preview */
+.photo-option-shutter { position: absolute; left: 50%; bottom: 12px; width: 30px; height: 30px; transform: translateX(-50%); border-radius: 50%; background: rgba(255, 255, 255, .28); box-shadow: 0 0 0 2.5px rgba(255, 255, 255, .92); }
+/* A mosaic of the library: a portrait and a wide shot above, a wide shot, a detail and a portrait below */
+.photo-option-gallery { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; background: var(--control-background); }
 .photo-option-gallery img { width: 100%; height: 100%; min-height: 0; object-fit: cover; border-radius: 10px; }
-.photo-option-go {
-  position: absolute; right: 26px; bottom: 26px; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
-  color: var(--on-accent); background: var(--accent-gradient); box-shadow: 0 6px 14px -6px rgba(120, 88, 40, .6);
-}
+.photo-option-gallery img:nth-child(1) { grid-column: 1 / 6; object-position: 50% 32%; }
+.photo-option-gallery img:nth-child(2) { grid-column: 6 / 13; }
+.photo-option-gallery img:nth-child(3) { grid-column: 1 / 6; }
+.photo-option-gallery img:nth-child(4) { grid-column: 6 / 9; }
+.photo-option-gallery img:nth-child(5) { grid-column: 9 / 13; object-position: 50% 32%; }
+.photo-option-go { position: absolute; top: 22px; right: 18px; display: grid; place-items: center; color: var(--text-tertiary); }
 .photo-secondary-row button {
   min-height: 42px; padding: 0 16px; border: 0; border-radius: 999px;
   color: var(--text-primary); background: var(--card); box-shadow: var(--shadow-sm); font-size: 14px;
 }
-.photo-file-link { justify-self: center; font-size: 14px; color: var(--accent-text); }
+/* "Choose a file instead", between two hairlines */
+.photo-file-link { display: flex; align-items: center; gap: 16px; justify-self: center; width: min(300px, 100%); font-size: 14px; color: var(--accent-text); }
+.photo-file-link::before, .photo-file-link::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 
 .photo-sample {
-  display: flex; align-items: center; gap: 12px; justify-self: stretch; min-height: 58px; padding: 0 20px;
-  border-radius: 999px; color: var(--text-primary); background: var(--card); box-shadow: var(--shadow-sm); text-align: left;
+  display: flex; align-items: center; gap: 14px; justify-self: stretch; min-height: 64px; padding: 0 18px 0 14px;
+  border-radius: 18px; color: var(--text-primary); background: var(--card); box-shadow: var(--shadow-sm); text-align: left;
 }
-.photo-sample > svg:first-child { color: var(--accent-text); }
 .photo-sample span { flex: 1; display: grid; font-size: 15px; font-weight: 500; }
+.photo-sample .photo-row-icon { flex: none; display: grid; }
 .photo-sample small { font-size: 12px; font-weight: 400; color: var(--text-secondary); }
 .photo-sample > svg:last-child { color: var(--text-tertiary); }
 
-.photo-tips-disclosure { padding: 0 16px; border-radius: 18px; background: var(--card); box-shadow: var(--shadow-sm); }
+.photo-tips-disclosure { padding: 0 18px 0 14px; border-radius: 18px; background: var(--card); box-shadow: var(--shadow-sm); }
 .photo-tips-disclosure > summary {
-  display: flex; align-items: center; justify-content: space-between; min-height: 52px;
+  display: flex; align-items: center; gap: 14px; min-height: 64px;
   list-style: none; cursor: pointer; font-size: 15px; font-weight: 500;
 }
 .photo-tips-disclosure > summary::-webkit-details-marker { display: none; }
-.photo-tips-disclosure > summary svg { color: var(--text-tertiary); transition: transform 240ms var(--ease-soft); }
-.photo-tips-disclosure[open] > summary svg { transform: rotate(180deg); }
+.photo-tips-disclosure > summary > span:nth-child(2) { flex: 1; }
+.photo-tips-disclosure > summary > svg { color: var(--text-tertiary); transition: transform 240ms var(--ease-soft); }
+.photo-tips-disclosure[open] > summary > svg { transform: rotate(180deg); }
+.photo-tips-disclosure[open] > ul, .photo-tips-disclosure[open] > p { margin-left: 52px; }
 .photo-tips-disclosure ul { display: grid; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
 .photo-tips-disclosure li { display: flex; align-items: center; gap: 9px; font-size: 14px; color: var(--text-secondary); }
 .photo-tips-disclosure li svg { flex: none; color: var(--accent-text); }
@@ -576,10 +587,11 @@ input[type="checkbox"][role="switch"],
   .photo-option .icon-tile { grid-row: 1; }
   .photo-option-visual { grid-column: 1 / -1; aspect-ratio: 16 / 9; }
   .photo-option-capture img { object-position: 50% 36%; } /* the 16:9 card crops more: keep the smile in the guide */
-  .photo-option-gallery { grid-template-columns: repeat(6, 1fr); aspect-ratio: auto; }
-  .photo-option-gallery img { aspect-ratio: 1; }
-  .photo-option-go { top: 20px; right: 18px; bottom: auto; width: 36px; height: 36px; }
-  .photo-option-text { padding-right: 40px; }
+  .photo-option-gallery { grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: auto; aspect-ratio: auto; }
+  .photo-option-gallery img, .photo-option-gallery img:nth-child(n) { grid-column: auto; aspect-ratio: 1; }
+  .photo-option-go { top: 26px; right: 18px; }
+  .photo-option-shutter { width: 22px; height: 22px; bottom: 8px; box-shadow: 0 0 0 2px rgba(255, 255, 255, .92); }
+  .photo-option-text { padding-right: 28px; }
 }
 @media (prefers-reduced-motion: reduce) { .photo-start { animation: none; } }
 

@@ -51,7 +51,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
   ): Promise<GenerationResult> {
     if (!this.transport.configured)
       throw new GenerationError(
-        "Google Gemini isn’t connected yet. Add the app’s Gemini API key to enable smile generation.",
+        "Smile generation isn’t available right now. Please try again later, or explore a sample case in the meantime.",
         503,
         "provider_not_configured",
       );

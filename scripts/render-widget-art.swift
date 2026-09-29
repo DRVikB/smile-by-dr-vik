@@ -11,6 +11,9 @@
 // WidgetSmile:  the Home screen's hero photograph (public/smile-hero-dr-vik-v2.png — the app's own
 //               artwork, not a patient), cropped to the smile. Light lifts the dark studio backdrop
 //               towards ivory so the photo melts into the silk; Dark keeps the original.
+// SampleBefore/SampleAfter: the app's sample case (public/demo-storyboard-before.png and demo-porcelain.png,
+//               the same frames as the onboarding reveal — not a patient), cropped around the smile.
+// DrVikLogo:    public/dr-vik-logo.png as a template image, tinted by the widget for Light and Dark.
 import AppKit
 import CoreGraphics
 import Foundation
@@ -229,3 +232,39 @@ for (name, size, guides) in [("SmileMark", 360, CGFloat(2.4)), ("SmileMarkLarge"
     }
     """.write(to: dir.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
 }
+
+// MARK: - The sample case and the Dr Vik logo
+
+/// Draws `source` (cropped to `crop`, top-left origin) into a `width` × `height` bitmap, keeping alpha.
+func resample(_ file: String, crop: CGRect? = nil, width: Int, height: Int) -> CGImage {
+    let image = NSImage(contentsOf: root.appendingPathComponent(file))!
+    var rect = CGRect(origin: .zero, size: image.size)
+    var cg = image.cgImage(forProposedRect: &rect, context: nil, hints: nil)!
+    if let crop { cg = cg.cropping(to: crop)! }
+    let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                        space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    ctx.interpolationQuality = .high
+    ctx.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+    return ctx.makeImage()!
+}
+
+func singleImageSet(_ name: String, file: String, template: Bool = false) {
+    let dir = catalog.appendingPathComponent("\(name).imageset")
+    try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let properties = template ? ",\n  \"properties\" : { \"template-rendering-intent\" : \"template\" }" : ""
+    try! """
+    {
+      "images" : [ { "filename" : "\(file)", "idiom" : "universal" } ],
+      "info" : { "author" : "xcode", "version" : 1 }\(properties)
+    }
+    """.write(to: dir.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
+}
+
+// Forehead to below the chin, centred on the smile (the frames are 1092 × 1440 and aligned).
+let sampleCrop = CGRect(x: 0, y: 177, width: 1092, height: 1000)
+for (name, file) in [("SampleBefore", "public/demo-storyboard-before.png"), ("SampleAfter", "public/demo-porcelain.png")] {
+    singleImageSet(name, file: "\(name).jpg")
+    writeJPEG(resample(file, crop: sampleCrop, width: 900, height: 824), catalog.appendingPathComponent("\(name).imageset/\(name).jpg"), quality: 0.84)
+}
+singleImageSet("DrVikLogo", file: "DrVikLogo.png", template: true)
+writePNG(resample("public/dr-vik-logo.png", width: 286, height: 120), catalog.appendingPathComponent("DrVikLogo.imageset/DrVikLogo.png"))

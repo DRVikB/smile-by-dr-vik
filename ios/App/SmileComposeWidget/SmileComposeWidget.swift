@@ -63,6 +63,11 @@ private struct Type {
     var arrow: CGFloat { 30 * k }
     var mark: CGFloat { 40 * k }
     var gap: CGFloat { 7 * k }
+    // Large and extra large: the brand lockup, the "Designed By" signature and the before/after tags.
+    var brand: CGFloat { 12 * k }
+    var caption: CGFloat { 10.5 * k }
+    var lockupMark: CGFloat { 32 * k }
+    var signature: CGFloat { 18 * k }
 }
 
 /// The mark from the Home Screen app icon (Light: the charcoal glass arc; Dark: the champagne arc).
@@ -161,6 +166,65 @@ private struct Pills: View {
     }
 }
 
+/// The brand lockup, as in the app: the icon's mark and the letter-spaced wordmark.
+private struct Lockup: View {
+    let t: Type, p: Palette
+    var body: some View {
+        HStack(spacing: 10 * t.k) {
+            AppMark().frame(width: t.lockupMark, height: t.lockupMark)
+            Text("SMILECOMPOSE").font(.system(size: t.brand, weight: .semibold)).tracking(t.brand * 0.32).foregroundStyle(p.text).lineLimit(1)
+        }
+    }
+}
+
+/// "Designed By" and the Dr Vik logo, with the logo's "DR" centred on the label's line as elsewhere in the app.
+private struct Signature: View {
+    let t: Type, p: Palette
+    var body: some View {
+        HStack(alignment: .center, spacing: 7 * t.k) {
+            Text("Designed By").font(.system(size: t.caption)).foregroundStyle(p.wordmark)
+            Image("DrVikLogo").renderingMode(.template).resizable().scaledToFit()
+                .frame(height: t.signature).foregroundStyle(p.text)
+                .offset(y: -t.signature * 0.045)
+        }
+    }
+}
+
+/// The sample case, before and as a concept, split down the middle like the reveal in the app.
+private struct BeforeAfter: View {
+    let t: Type
+    /// Below the smile, on the chin, as in the app's reveal, so the handle never covers the teeth.
+    var handleAt: CGFloat = 0.74
+    var leadingInset: CGFloat = 16
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width, h = geo.size.height
+            ZStack {
+                Image("SampleBefore").resizable().scaledToFill().frame(width: w, height: h).clipped()
+                Image("SampleAfter").resizable().scaledToFill().frame(width: w, height: h).clipped()
+                    .mask(HStack(spacing: 0) { Color.clear; Color.black })
+                Rectangle().fill(Color.white.opacity(0.92)).frame(width: 1.5, height: h).position(x: w / 2, y: h / 2)
+                Circle().fill(rgb(0xFBF8F2)).frame(width: 24 * t.k, height: 24 * t.k)
+                    .overlay(Circle().fill(rgb(0xC9A46A)).padding(8 * t.k))
+                    .shadow(color: .black.opacity(0.28), radius: 6, y: 2)
+                    .position(x: w / 2, y: h * handleAt)
+            }
+            .overlay(alignment: .topLeading) { Tag(text: "Before", t: t).padding(.leading, leadingInset).padding(.top, 16 * t.k) }
+            .overlay(alignment: .topTrailing) { Tag(text: "Concept", t: t).padding(.trailing, 16 * t.k).padding(.top, 16 * t.k) }
+        }
+    }
+}
+
+private struct Tag: View {
+    let text: String, t: Type
+    var body: some View {
+        Text(text).font(.system(size: t.caption, weight: .semibold)).foregroundStyle(.white)
+            .padding(.horizontal, 9 * t.k).padding(.vertical, 4 * t.k)
+            .background(Capsule().fill(Color.black.opacity(0.4)))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.22), lineWidth: 0.7))
+    }
+}
+
 private struct ArrowButton: View {
     let t: Type, p: Palette
     var body: some View {
@@ -201,16 +265,32 @@ private struct WideBackground: View {
     }
 }
 
-/// Large: the smile across the top, fading down into the satin.
+/// Large: the before/after across the top, fading down into the satin.
 private struct TallBackground: View {
     var body: some View {
         GeometryReader { geo in
+            let t = Type(k: min(1, geo.size.width / 364))
             ZStack(alignment: .top) {
                 Silk(name: "SilkWide")
-                Image("WidgetSmile").resizable().scaledToFill()
-                    .frame(width: geo.size.width, height: geo.size.height * 0.68).clipped()
-                    .mask(LinearGradient(stops: [.init(color: .black, location: 0.55), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
-                    .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.45)], startPoint: .leading, endPoint: .trailing))
+                BeforeAfter(t: t, handleAt: 0.76)
+                    .frame(width: geo.size.width, height: geo.size.height * 0.56)
+                    .mask(LinearGradient(stops: [.init(color: .black, location: 0.62), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+            }
+        }
+    }
+}
+
+/// Extra large: the before/after fills the right half, fading into the satin on its left.
+private struct ShowcaseBackground: View {
+    var body: some View {
+        GeometryReader { geo in
+            let t = Type(k: min(1, geo.size.height / 330))
+            let panel = geo.size.width * 0.5
+            ZStack(alignment: .trailing) {
+                Silk(name: "SilkWide")
+                BeforeAfter(t: t, leadingInset: panel * 0.16 + 6)
+                    .frame(width: panel, height: geo.size.height)
+                    .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.16)], startPoint: .leading, endPoint: .trailing))
             }
         }
     }
@@ -269,13 +349,12 @@ private struct SmallView: View {
     }
 }
 
-/// Medium (and iPad extra large): the greeting, three actions, and the smile.
+/// Medium: the greeting, three actions, and the smile.
 private struct WideView: View {
     let p: Palette, name: String?
-    var reference: CGFloat = 138
     var body: some View {
         GeometryReader { geo in
-            let t = Type(k: min(1, geo.size.height / reference))
+            let t = Type(k: min(1, geo.size.height / 138))
             HStack(alignment: .center, spacing: 10 * t.k) {
                 VStack(alignment: .leading, spacing: 0) {
                     AppMark().frame(width: t.mark, height: t.mark)
@@ -294,24 +373,49 @@ private struct WideView: View {
     }
 }
 
-/// Large: the smile across the top; the greeting and the three actions beneath it.
+/// Large: the sample case's before/after across the top (in the background); beneath it the brand
+/// lockup, the greeting and signature, and the three actions.
 private struct LargeView: View {
     let p: Palette, name: String?
     var body: some View {
         GeometryReader { geo in
             let t = Type(k: min(1, geo.size.width / 332))
-            VStack(alignment: .leading, spacing: 0) {
-                AppMark().frame(width: t.mark, height: t.mark)
-                Spacer(minLength: 8)
+            VStack(alignment: .leading, spacing: 12 * t.k) {
+                Spacer(minLength: 0)
+                Lockup(t: t, p: p)
                 HStack(alignment: .bottom, spacing: 12 * t.k) {
-                    VStack(alignment: .leading, spacing: 8 * t.k) {
+                    VStack(alignment: .leading, spacing: 12 * t.k) {
                         Greeting(name: name, t: t, colour: p.text)
-                        Wordmark(t: t, colour: p.wordmark)
+                        Signature(t: t, p: p)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     Pills(t: t, p: p).frame(width: min(geo.size.width * 0.45, 150 * t.k))
                 }
             }
+        }
+        .widgetURL(Action.new.url)
+    }
+}
+
+/// Extra large (iPad): the brand lockup, greeting, actions and signature on the left; the sample case's
+/// before/after fills the right half (in the background).
+private struct ExtraLargeView: View {
+    let p: Palette, name: String?
+    var body: some View {
+        GeometryReader { geo in
+            let t = Type(k: min(1, geo.size.height / 300))
+            VStack(alignment: .leading, spacing: 0) {
+                Lockup(t: t, p: p)
+                Spacer(minLength: 10)
+                HStack(alignment: .center, spacing: 18 * t.k) {
+                    Greeting(name: name, t: t, colour: p.text).frame(maxWidth: .infinity, alignment: .leading)
+                    Pills(t: t, p: p).frame(width: 150 * t.k)
+                }
+                Spacer(minLength: 10)
+                Signature(t: t, p: p)
+            }
+            .frame(width: geo.size.width * 0.45, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
         .widgetURL(Action.new.url)
     }
@@ -363,7 +467,7 @@ private struct WidgetView: View {
         case .systemLarge:
             LargeView(p: p, name: entry.name).widgetBackground { TallBackground() }
         case .systemExtraLarge:
-            WideView(p: p, name: entry.name, reference: 300).widgetBackground { WideBackground(photoWidth: 0.62) }
+            ExtraLargeView(p: p, name: entry.name).widgetBackground { ShowcaseBackground() }
         default:
             SmallView(p: p, name: entry.name).widgetBackground { Silk(name: "SilkSquare") }
         }

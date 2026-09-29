@@ -5,8 +5,9 @@ import { useAccount } from "@/components/account/AccountProvider";
 import { AppleSignInButton } from "@/components/account/AppleSignInButton";
 import { PrivacyLink, TermsLink } from "@/components/account/LegalLinks";
 import { ProPlans } from "@/components/account/ProPlans";
-import { BrandLockup, CreatorSignature } from "@/components/Brand";
-import { NAME_LIMITS, initials as initialsOf, normaliseName } from "@/lib/profile";
+import { BrandLockup, CreatorSignature, SmileMark } from "@/components/Brand";
+import { SMILECOMPOSE } from "@/lib/brand";
+import { NAME_LIMITS, greeting, initials as initialsOf, normaliseName } from "@/lib/profile";
 import {
   ONBOARDING_PROGRESS, onboardingDecision, readLocalOnboarding, updateAccountFlags, writeLocalOnboarding,
   type AccountOnboardingFlags, type LocalOnboarding, type OnboardingStep,
@@ -17,7 +18,7 @@ import { AddReferenceCases, materialShort } from "@/components/caseLibrary/CaseL
 import { useCaseLibrary } from "@/components/caseLibrary/caseLibraryContext";
 import { ProfilePhotoEditor } from "@/components/profile/ProfilePhotoEditor";
 import { UserAvatar } from "@/components/profile/UserAvatar";
-import { AccountVisual, GreetingPreview, HowItWorksVisual, ProValueVisual, ReadyVisual, StyleLibraryVisual, WelcomeVisual } from "./OnboardingVisuals";
+import { HeroPhoto, HowItWorksVisual, ProHero, StyleLibraryVisual, WelcomeVisual } from "./OnboardingVisuals";
 
 /**
  * First-run onboarding: Welcome → Account → Personalise → How it works →
@@ -83,7 +84,7 @@ export function Onboarding({ appReady, onCreateFirst }: {
   }, [decision, local, userId, save, complete, showingReady]);
 
   if (dismissed) return null;
-  if (showingReady) return <ReadyStep name={account.displayName} onCreate={() => { setDismissed(true); onCreateFirst(); }} onLibrary={() => setDismissed(true)} />;
+  if (showingReady) return <ReadyStep configured={configured} name={account.displayName} onCreate={() => { setDismissed(true); onCreateFirst(); }} onLibrary={() => setDismissed(true)} />;
   if (!ready) return local && !local.completedAt ? <Loading /> : null;
   if (!decision || decision.kind === "none" || decision.kind === "done" || decision.kind === "completeSilently") return null;
   if (decision.kind === "loading") return <Loading label="Loading your workspace…" />;
@@ -138,28 +139,35 @@ function Progress({ step, configured }: { step: OnboardingStep; configured: bool
 
 /**
  * Onboarding page layout.
- * iPhone: headline, visual, then actions, in one focused column.
- * iPad landscape: visual panel on the left, content on the right.
- * iPad portrait: visual panel across the top, content below.
+ * With a hero picture — iPhone and iPad portrait: the picture full bleed across the top and the content
+ * on an ivory sheet that rises over its foot; iPad landscape: the picture is the left half, the content
+ * the right. Without one (How it works) the content is a single column.
+ * The sheet opens with the wordmark (and the app icon's mark, `mark`) and the progress dashes.
  */
-function Frame({ step, configured, visual, head, children, progress = true }: {
+function Frame({ step, configured, hero, head, children, progress = true, mark = false }: {
   step: OnboardingStep;
   configured: boolean;
-  visual: React.ReactNode;
+  hero?: React.ReactNode;
   head: React.ReactNode;
   children: React.ReactNode;
   progress?: boolean;
+  mark?: boolean;
 }) {
   return (
-    <div className="onboarding ob-frame" data-step={step}>
-      <div className="ob-top">
-        <BrandLockup />
-        {progress && <Progress step={step} configured={configured} />}
-      </div>
+    <div className={`onboarding ob-frame ${hero ? "has-hero" : "is-plain"}`} data-step={step}>
       <div className="ob-layout" key={step}>
-        <div className="ob-visual">{visual}</div>
-        <div className="ob-head">{head}</div>
-        <div className="ob-body">{children}</div>
+        {hero && <div className="ob-visual">{hero}</div>}
+        <div className="ob-sheet">
+          <div className="ob-top">
+            <span className="ob-brand" aria-label={SMILECOMPOSE.name}>
+              {mark && <SmileMark className="ob-brand-mark" />}
+              <span className="sc-wordmark" aria-hidden="true">{SMILECOMPOSE.wordmark}</span>
+            </span>
+            {progress && <Progress step={step} configured={configured} />}
+          </div>
+          <div className="ob-head">{head}</div>
+          <div className="ob-body">{children}</div>
+        </div>
       </div>
     </div>
   );
@@ -168,17 +176,23 @@ function Frame({ step, configured, visual, head, children, progress = true }: {
 function WelcomeStep({ onStart }: { onStart: () => void }) {
   const heading = useFocusHeading("welcome");
   return (
-    <div className="onboarding ob-frame ob-welcome" data-step="welcome">
+    <div className="onboarding ob-frame has-hero ob-welcome" data-step="welcome">
       <div className="ob-layout">
         <div className="ob-visual"><WelcomeVisual /></div>
-        <div className="ob-head">
-          <BrandLockup />
-          <h1 ref={heading} tabIndex={-1} className="ob-display">Smile design,<br />visualised.</h1>
-          <p className="ob-copy">Create realistic smile visualisations for clearer aesthetic consultations.</p>
-        </div>
-        <div className="ob-body">
-          <button className="primary-button ob-cta" onClick={onStart}>Get Started <ArrowRight size={17} strokeWidth={1.8} /></button>
-          <CreatorSignature />
+        <div className="ob-sheet">
+          <div className="ob-head">
+            {/* The app icon's mark over the letter-spaced wordmark, centred. */}
+            <span className="ob-welcome-brand" aria-label={SMILECOMPOSE.name}>
+              <SmileMark className="ob-welcome-mark" />
+              <span className="sc-wordmark" aria-hidden="true">{SMILECOMPOSE.wordmark}</span>
+            </span>
+            <h1 ref={heading} tabIndex={-1} className="ob-display">Smile design,<br />visualised.</h1>
+            <p className="ob-copy">Create realistic smile visualisations for clearer, more considered aesthetic consultations.</p>
+          </div>
+          <div className="ob-body">
+            <button className="primary-button ob-cta" onClick={onStart}>Get Started <ArrowRight size={18} strokeWidth={1.7} /></button>
+            <CreatorSignature className="ob-welcome-signature" />
+          </div>
         </div>
       </div>
     </div>
@@ -204,7 +218,7 @@ function AccountStep({ configured, name, onDefer }: { configured: boolean; name:
   }
 
   return (
-    <Frame step="account" configured={configured} visual={<AccountVisual name={name} />} head={<>
+    <Frame step="account" configured={configured} mark hero={<HeroPhoto photo="portrait" eyebrow={greeting(name)} title="Your plan goes where you do." />} head={<>
       <h1 ref={heading} tabIndex={-1} className="ob-title">Your SmileCompose account</h1>
       <p className="ob-copy">Keep your subscription and generation allowance with you on iPhone, iPad and the web. Patient cases stay securely on this device.</p>
     </>}>
@@ -251,7 +265,7 @@ function PersonaliseStep({ configured, returning, initial, accountName, onSkip, 
   }
 
   return (
-    <Frame step="personalise" configured={configured} visual={<GreetingPreview name={name} avatarUrl={avatarUrl} />} head={<>
+    <Frame step="personalise" configured={configured} hero={<HeroPhoto photo="smile" eyebrow="Personal touch" title="Greeted by name, every time." />} head={<>
       <h1 ref={heading} tabIndex={-1} className="ob-title">What should SmileCompose call you?</h1>
       <p className="ob-copy">{returning ? "Welcome back. " : ""}Choose how your name appears throughout the app. You can change this anytime.</p>
     </>}>
@@ -283,10 +297,11 @@ function PersonaliseStep({ configured, returning, initial, accountName, onSkip, 
 function HowItWorksStep({ configured, onContinue }: { configured: boolean; onContinue: () => void }) {
   const heading = useFocusHeading("how");
   return (
-    <Frame step="howItWorks" configured={configured} visual={<HowItWorksVisual />} head={<>
+    <Frame step="howItWorks" configured={configured} head={<>
       <h1 ref={heading} tabIndex={-1} className="ob-title">A smarter way to design beautiful smiles.</h1>
       <p className="ob-copy">From capture to consultation, in one seamless workflow. Patient photos stay on this device until you choose to generate.</p>
     </>}>
+      <HowItWorksVisual />
       <div className="ob-actions">
         <button className="primary-button ob-button" onClick={onContinue}>Continue</button>
       </div>
@@ -304,7 +319,7 @@ function StyleLibraryStep({ configured, onContinue }: { configured: boolean; onC
   if (added !== null) {
     const own = (library.cases ?? []).filter(c => c.thumbnailUrl).map(c => ({ src: c.thumbnailUrl!, label: materialShort(c.material) }));
     return (
-      <Frame step="styleLibrary" configured={configured} visual={<StyleLibraryVisual own={own} />} head={<>
+      <Frame step="styleLibrary" configured={configured} hero={<StyleLibraryVisual own={own} />} head={<>
         <h1 ref={heading} tabIndex={-1} className="ob-title">Your style library is ready</h1>
         <p className="ob-copy">{added} reference {added === 1 ? "case" : "cases"} added. You can add more, edit tags or remove cases anytime in Settings → Case Library.</p>
       </>}>
@@ -317,7 +332,7 @@ function StyleLibraryStep({ configured, onContinue }: { configured: boolean; onC
 
   if (adding) {
     return (
-      <Frame step="styleLibrary" configured={configured} visual={<StyleLibraryVisual />} head={<>
+      <Frame step="styleLibrary" configured={configured} hero={<StyleLibraryVisual />} head={<>
         <h1 ref={heading} tabIndex={-1} className="ob-title">Add your finished cases</h1>
         <p className="ob-copy">Choose close-up photographs of finished bonding or porcelain work. Nothing is added until you confirm.</p>
       </>}>
@@ -329,7 +344,7 @@ function StyleLibraryStep({ configured, onContinue }: { configured: boolean; onC
   }
 
   return (
-    <Frame step="styleLibrary" configured={configured} visual={<StyleLibraryVisual />} head={<>
+    <Frame step="styleLibrary" configured={configured} hero={<StyleLibraryVisual />} head={<>
       <p className="ob-eyebrow">Your style · Case Library</p>
       <h1 ref={heading} tabIndex={-1} className="ob-title">Make SmileCompose look like you.</h1>
       <p className="ob-copy">Add examples of your finished bonding and porcelain cases. SmileCompose can use them as private visual references when creating new designs, helping results reflect your preferred contour, texture and finish.</p>
@@ -345,7 +360,7 @@ function StyleLibraryStep({ configured, onContinue }: { configured: boolean; onC
 function SubscriptionStep({ configured, onDefer }: { configured: boolean; onDefer: () => void }) {
   const heading = useFocusHeading("subscription");
   return (
-    <Frame step="subscription" configured={configured} visual={<ProValueVisual />} head={<>
+    <Frame step="subscription" configured={configured} hero={<ProHero />} head={<>
       <p className="ob-eyebrow">SmileCompose Pro</p>
       <h1 ref={heading} tabIndex={-1} className="ob-title">Every consultation, visualised.</h1>
     </>}>
@@ -357,27 +372,20 @@ function SubscriptionStep({ configured, onDefer }: { configured: boolean; onDefe
   );
 }
 
-function ReadyStep({ name, onCreate, onLibrary }: { name: string | null; onCreate: () => void; onLibrary: () => void }) {
+function ReadyStep({ configured, name, onCreate, onLibrary }: { configured: boolean; name: string | null; onCreate: () => void; onLibrary: () => void }) {
   const heading = useFocusHeading("ready");
   const library = useCaseLibrary();
   const hasLibrary = (library.cases?.length ?? 0) > 0;
   return (
-    <div className="onboarding ob-frame ob-ready" data-step="ready">
-      <div className="ob-top"><BrandLockup /></div>
-      <div className="ob-layout">
-        <div className="ob-visual"><ReadyVisual name={name} /></div>
-        <div className="ob-head">
-          <h1 ref={heading} tabIndex={-1} className="ob-title">You’re all set{name ? `, ${name}` : ""}.</h1>
-          <p className="ob-copy">{hasLibrary ? "Your workspace and style library are ready." : "You can add your finished work to Case Library anytime."}</p>
-        </div>
-        <div className="ob-body">
-          <div className="ob-actions">
-            <button className="primary-button ob-button" onClick={onCreate}>Create Your First Smile</button>
-            {/* A new clinician has no cases to view yet: offer the style library instead (signing in first if needed). */}
-            <button className="secondary-button ob-button" onClick={() => { onLibrary(); library.open({ add: !hasLibrary }); }}>{hasLibrary ? "Open Case Library" : "Add Reference Cases"}</button>
-          </div>
-        </div>
+    <Frame step="ready" configured={configured} hero={<HeroPhoto photo="smile" eyebrow="Ready when you are" title="Your first design is one photo away." />} head={<>
+      <h1 ref={heading} tabIndex={-1} className="ob-title">You’re all set{name ? `, ${name}` : ""}.</h1>
+      <p className="ob-copy">{hasLibrary ? "Your workspace and style library are ready." : "You can add your finished work to Case Library anytime."}</p>
+    </>}>
+      <div className="ob-actions">
+        <button className="primary-button ob-button" onClick={onCreate}>Create Your First Smile</button>
+        {/* A new clinician has no cases to view yet: offer the style library instead (signing in first if needed). */}
+        <button className="secondary-button ob-button" onClick={() => { onLibrary(); library.open({ add: !hasLibrary }); }}>{hasLibrary ? "Open Case Library" : "Add Reference Cases"}</button>
       </div>
-    </div>
+    </Frame>
   );
 }

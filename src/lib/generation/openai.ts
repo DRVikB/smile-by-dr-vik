@@ -102,7 +102,7 @@ export class OpenAISmileProvider implements SmileImageProvider {
   ): Promise<GenerationResult> {
     if (!this.options.apiKey.trim())
       throw new GenerationError(
-        "OpenAI isn’t connected yet. Add the app’s OpenAI API key to enable smile generation.",
+        "Smile generation isn’t available right now. Please try again later, or explore a sample case in the meantime.",
         503,
         "provider_not_configured",
       );

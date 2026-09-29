@@ -1075,7 +1075,7 @@ export default function Smile() {
                     disabled={sampleBusy}
                   >
                     <Play size={12} fill="currentColor" strokeWidth={1.7} />
-                    {sampleBusy ? "Opening…" : "Open test mode"}
+                    {sampleBusy ? "Opening…" : "Explore a sample case"}
                     <span>no AI credits</span>
                   </button>
                 </div>

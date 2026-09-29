@@ -64,8 +64,9 @@ public class PhotoPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
                         call.reject("Camera access is turned off. Turn it on in Settings › SmileCompose › Camera.", "camera_denied")
                         return
                     }
-                    let camera = SmileCameraViewController(guide: guide, front: front) { [weak self] result in
-                        guard let self = self else { return }
+                    // Strong capture, like the enclosing closures: the plugin lives as long as the bridge, the
+                    // camera holds this only until it finishes, and the call must always be answered.
+                    let camera = SmileCameraViewController(guide: guide, front: front) { result in
                         self.cameraOpen = false
                         switch result {
                         case .cancelled:

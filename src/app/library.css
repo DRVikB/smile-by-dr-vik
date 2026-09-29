@@ -27,8 +27,6 @@
 .profile-avatar-button { position: relative; display: grid; flex: none; justify-items: center; gap: 6px; padding: 0; background: none; border: 0; color: var(--accent-text); cursor: pointer; }
 .profile-avatar-button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; border-radius: 14px; }
 .profile-avatar-edit { font-size: 12px; font-weight: 600; }
-.greeting-preview-avatar.has-photo { overflow: hidden; padding: 0; }
-.greeting-preview-avatar.has-photo img { width: 100%; height: 100%; object-fit: cover; }
 .ob-photo-row { display: flex; align-items: center; gap: 12px; }
 .ob-photo-row .text-button { min-height: 44px; color: var(--accent-text); font-size: 15px; font-weight: 500; }
 .ob-photo-row .muted { margin-left: auto; font-size: 13px; color: var(--text-tertiary); }
@@ -275,6 +273,7 @@
 /* iPhone and iPad portrait: while tagging photos the form matters more than the illustration */
 @media (max-width: 699px), (orientation: portrait) {
   .ob-layout:has(.ob-library-add) .ob-visual { display: none; }
+  .ob-layout:has(.ob-library-add) .ob-sheet { margin-top: 0; border-radius: 0; box-shadow: none; padding-top: calc(env(safe-area-inset-top) + 16px); }
 }
 @media (min-width: 700px) and (orientation: landscape) {
   .style-stage { --card-w: min(100%, 440px); }

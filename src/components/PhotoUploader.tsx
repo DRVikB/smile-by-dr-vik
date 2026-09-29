@@ -5,8 +5,11 @@ import {
   Camera,
   Check,
   ChevronDown,
+  ChevronRight,
   ImagePlus,
+  Lightbulb,
   LoaderCircle,
+  ShieldCheck,
   X,
 } from "lucide-react";
 import type { Photo } from "@/lib/types";
@@ -26,20 +29,19 @@ const TIPS = [
   "Avoid flash glare and beauty filters",
 ];
 
-/** Sample smiles shown on the "Choose from photos" card (the app's own sample case). */
+/** Sample smiles shown on the "Choose from photos" card (the app's own sample case), laid out as a mosaic. */
 const GALLERY = [
   "/onboarding/smile-before.jpg",
   "/onboarding/case-porcelain.jpg",
   "/onboarding/case-layered.jpg",
   "/onboarding/case-single-shade.jpg",
-  "/onboarding/new-design.jpg",
   "/onboarding/smile-after.jpg",
 ];
 
 function PhotoTips() {
   return (
     <details className="photo-tips-disclosure">
-      <summary>Tips for the best photo<ChevronDown size={16} aria-hidden="true" /></summary>
+      <summary><span className="photo-row-icon" aria-hidden="true"><Lightbulb size={17} strokeWidth={1.7} /></span><span>Tips for the best photo</span><ChevronDown size={16} aria-hidden="true" /></summary>
       <ul>
         {TIPS.map((tip) => (
           <li key={tip}>
@@ -212,8 +214,9 @@ export function PhotoUploader({
 
           <div className={`upload-authority${authorityConfirmed ? " confirmed" : ""}`}>
             <label className="ai-consent-check">
-              <input type="checkbox" checked={authorityConfirmed} disabled={authorityConfirmed} onChange={e => { if (e.target.checked) onConfirmAuthority(); }} />
+              <span className="photo-row-icon" aria-hidden="true"><ShieldCheck size={18} strokeWidth={1.7} /></span>
               <span>{UPLOAD_AUTHORITY_TEXT}</span>
+              <input type="checkbox" checked={authorityConfirmed} disabled={authorityConfirmed} onChange={e => { if (e.target.checked) onConfirmAuthority(); }} />
             </label>
             <p className="control-hint">
               Patient media is processed to create your SmileCompose visualisation.{" "}
@@ -232,6 +235,7 @@ export function PhotoUploader({
                 <img src={GALLERY[0]} alt="" draggable={false} />
                 <span className="photo-option-corner tl" /><span className="photo-option-corner tr" />
                 <span className="photo-option-corner bl" /><span className="photo-option-corner br" />
+                <span className="photo-option-shutter" />
                 <span
                   className="photo-option-guide"
                   style={{
@@ -242,7 +246,7 @@ export function PhotoUploader({
                   }}
                 />
               </span>
-              <span className="photo-option-go" aria-hidden="true"><ArrowRight size={18} /></span>
+              <span className="photo-option-go" aria-hidden="true"><ChevronRight size={20} strokeWidth={1.7} /></span>
             </button>
 
             <button type="button" className="photo-option" onClick={choose} disabled={busy || !authorityConfirmed}>
@@ -255,7 +259,7 @@ export function PhotoUploader({
                 {GALLERY.map(src => <img key={src} src={src} alt="" draggable={false} />)}
               </span>
               <span className="photo-option-go" aria-hidden="true">
-                {busy ? <LoaderCircle className="spin" size={18} /> : <ArrowRight size={18} />}
+                {busy ? <LoaderCircle className="spin" size={18} /> : <ChevronRight size={20} strokeWidth={1.7} />}
               </span>
             </button>
           </div>
@@ -269,9 +273,9 @@ export function PhotoUploader({
 
           {onSample && (
             <button type="button" className="photo-sample" onClick={onSample} disabled={sampleBusy}>
-              <CasesSymbol size={20} />
+              <span className="photo-row-icon" aria-hidden="true"><CasesSymbol size={18} /></span>
               <span>{sampleBusy ? "Opening the sample case…" : "Explore a sample case"}<small>No patient photo, no AI credits</small></span>
-              <ArrowRight size={17} aria-hidden="true" />
+              <ChevronRight size={18} strokeWidth={1.7} aria-hidden="true" />
             </button>
           )}
 

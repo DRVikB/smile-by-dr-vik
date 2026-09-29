@@ -1,15 +1,14 @@
 "use client";
-import { ArrowRight, Check, Lock, Monitor, Smartphone, Tablet } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { CaptureSymbol, ComposeSymbol, IconTile, PresentSymbol, ShareSymbol, VisualiseSymbol } from "@/components/icons/SmileIcons";
 import { SUBSCRIPTION_PRODUCTS } from "@/config/subscriptions";
-import { BrandLockup } from "@/components/Brand";
-import { greeting, initials } from "@/lib/profile";
 
 /**
  * Purpose-built onboarding visuals. They are composed from SmileCompose's own
- * sample case (test-mode images, cropped for size) and app UI, and are themed
- * entirely through the tokens in src/app/theme.css, so they work in Light and
- * Dark. Motion is decorative and is removed under Reduce Motion.
+ * sample case (test-mode images, cropped for size) and the Home screen's hero
+ * photograph — never a patient — and are themed through the tokens in
+ * src/app/theme.css, so they work in Light and Dark. Motion is decorative and is
+ * removed under Reduce Motion.
  */
 const BEFORE = "/onboarding/smile-before.jpg";
 const AFTER = "/onboarding/smile-after.jpg";
@@ -21,24 +20,33 @@ const STYLE_CASES = [
   { src: "/onboarding/case-single-shade.jpg", label: "Single shade" },
 ];
 const NEW_DESIGN = "/onboarding/new-design.jpg";
-/** iPad: the reveal fills half the screen, so it uses the full-resolution frames of the same case. */
+/** iPad: the pictures fill half the screen, so they use the full-resolution frames of the same case. */
 const BEFORE_LARGE = "/onboarding/portrait-before.jpg";
 const AFTER_LARGE = "/onboarding/portrait-after.jpg";
 const TABLET = "(min-width: 700px)";
 
-function RevealPhoto({ src, large, className }: { src: string; large?: string; className: string }) {
+function Photo({ src, large, className }: { src: string; large?: string; className: string }) {
   const img = <img className={className} src={src} alt="" draggable={false} />;
   return large ? <picture><source media={TABLET} srcSet={large} />{img}</picture> : img;
 }
 
 /** Before / after of the sample case with an animated reveal. */
-export function SmileReveal({ animate = true, size = "hero" }: { animate?: boolean; size?: "hero" | "compact" }) {
+export function SmileReveal({ animate = true, size = "hero", handle = "dot" }: {
+  animate?: boolean;
+  size?: "hero" | "compact";
+  /** The divider's handle: a gold dot, or the arrows of a slider. */
+  handle?: "dot" | "arrows";
+}) {
   return (
     <figure className={`reveal-card ${size}${animate ? " animate" : ""}`}>
       <div className="reveal-frame">
-        <RevealPhoto className="reveal-img" src={BEFORE} large={size === "hero" ? BEFORE_LARGE : undefined} />
-        <RevealPhoto className="reveal-img reveal-after" src={AFTER} large={size === "hero" ? AFTER_LARGE : undefined} />
-        <span className="reveal-divider" aria-hidden="true"><span className="reveal-handle" /></span>
+        <Photo className="reveal-img" src={BEFORE} large={size === "hero" ? BEFORE_LARGE : undefined} />
+        <Photo className="reveal-img reveal-after" src={AFTER} large={size === "hero" ? AFTER_LARGE : undefined} />
+        <span className="reveal-divider" aria-hidden="true">
+          {handle === "arrows"
+            ? <span className="reveal-handle arrows"><ChevronLeft size={14} strokeWidth={2} /><ChevronRight size={14} strokeWidth={2} /></span>
+            : <span className="reveal-handle" />}
+        </span>
         <span className="reveal-tag before" aria-hidden="true">Before</span>
         <span className="reveal-tag after" aria-hidden="true">Concept</span>
       </div>
@@ -47,64 +55,40 @@ export function SmileReveal({ animate = true, size = "hero" }: { animate?: boole
   );
 }
 
-/** Welcome hero: the reveal card, a layered plate behind it and two design callouts. */
+/** Welcome: the before/after reveal, full bleed. */
 export function WelcomeVisual() {
   return (
     <div className="ob-stage welcome-stage">
       <SmileReveal />
-      <span className="ob-chip chip-spec float-a" aria-hidden="true"><i className="chip-swatch" />Porcelain · BL2</span>
-      <span className="ob-chip chip-note float-b" aria-hidden="true"><VisualiseSymbol size={15} />Concept visualisation</span>
     </div>
   );
 }
 
-/** Account: what the account carries (and what stays on the device). */
-export function AccountVisual({ name }: { name: string | null }) {
+/**
+ * A full-bleed photograph with its caption laid over the foot of it: a small line (a greeting, or the
+ * wordmark), the headline in the display serif, and a short gold rule.
+ */
+export function HeroPhoto({ photo, eyebrow, title, brandEyebrow = false }: {
+  photo: "portrait" | "smile";
+  eyebrow: string;
+  title: React.ReactNode;
+  /** Set the small line as the letter-spaced wordmark rather than a sentence. */
+  brandEyebrow?: boolean;
+}) {
   return (
-    <div className="ob-stage account-stage" aria-hidden="true">
-      <div className="account-card">
-        <div className="account-card-head">
-          <span className="account-medallion">{initials(name) || "SC"}</span>
-          <span>
-            <strong>{name ?? "Your account"}</strong>
-            <small>SmileCompose Pro</small>
-          </span>
-        </div>
-        <ul className="account-devices">
-          <li><Smartphone size={18} strokeWidth={1.6} />iPhone</li>
-          <li><Tablet size={18} strokeWidth={1.6} />iPad</li>
-          <li><Monitor size={18} strokeWidth={1.6} />Web</li>
-        </ul>
-        <p className="account-card-note"><Lock size={13} strokeWidth={1.8} />Patient cases stay on this device</p>
+    <div className={`ob-hero ob-hero-${photo}`} aria-hidden="true">
+      {photo === "portrait" ? <Photo className="ob-hero-img" src={AFTER} large={AFTER_LARGE} /> : <img className="ob-hero-img" src={HERO} alt="" draggable={false} />}
+      <div className="ob-hero-caption">
+        <span className={`ob-hero-eyebrow${brandEyebrow ? " is-brand" : ""}`}>{eyebrow}</span>
+        <span className="ob-hero-title">{title}</span>
       </div>
     </div>
   );
 }
 
-/** Personalise: a live preview of the greeting on the workspace. */
-export function GreetingPreview({ name, avatarUrl }: { name: string; avatarUrl?: string | null }) {
-  const shown = name.trim() || "Dr Vik";
-  return (
-    <div className="greeting-preview" aria-hidden="true">
-      <img className="greeting-preview-image" src={HERO} alt="" draggable={false} />
-      <div className="greeting-preview-top">
-        <BrandLockup inverse />
-        {avatarUrl
-          ? <span className="greeting-preview-avatar has-photo"><img src={avatarUrl} alt="" draggable={false} /></span>
-          : <span className="greeting-preview-avatar">{initials(shown)}</span>}
-      </div>
-      <div className="greeting-preview-copy">
-        <span className="greeting-preview-hello">{greeting(shown)}</span>
-        <span className="greeting-preview-title">Smile design,<br />visualised.</span>
-        <span className="greeting-preview-cta">New Smile Design</span>
-      </div>
-    </div>
-  );
-}
-
-/* "What the app can do": each card's photograph bleeds in from the right and fades into the card. */
+/* "A smarter way": each card's photograph fills its right-hand side. */
 function MediaCapture() {
-  return <img className="how-media-photo how-media-capture" src={BEFORE} alt="" draggable={false} />;
+  return <img className="how-media-photo how-media-capture" src={AFTER} alt="" draggable={false} />;
 }
 
 function MediaCompose() {
@@ -116,7 +100,7 @@ function MediaVisualise() {
     <div className="how-media-split">
       <img src={BEFORE} alt="" draggable={false} />
       <img className="after" src={AFTER} alt="" draggable={false} />
-      <span className="how-media-divider"><i /></span>
+      <span className="how-media-divider" />
     </div>
   );
 }
@@ -143,22 +127,31 @@ const STEPS = [
   { title: "Share", body: "Save, present and share with patients.", Icon: ShareSymbol, Media: MediaShare },
 ] as const;
 
-/** How it works: four photographic cards, from capture to consultation. */
+/** How it works: four numbered cards, from capture to consultation, each with its photograph. */
 export function HowItWorksVisual() {
   return (
     <ol className="how-visual">
       {STEPS.map(({ title, body, Icon, Media }, index) => (
         <li key={title} className={`how-card how-card-${title.toLowerCase()}`} style={{ "--how-index": index } as React.CSSProperties}>
-          <div className="how-card-media" aria-hidden="true"><Media /></div>
           <div className="how-card-text">
+            <span className="how-card-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
             <IconTile icon={Icon} />
             <strong>{title}</strong>
             <span>{body}</span>
           </div>
-          <span className="how-card-go" aria-hidden="true"><ArrowRight size={16} strokeWidth={1.8} /></span>
+          <div className="how-card-media" aria-hidden="true"><Media /></div>
         </li>
       ))}
     </ol>
+  );
+}
+
+/** Subscription: the before/after, full bleed, with a slider handle between Before and Concept. */
+export function ProHero() {
+  return (
+    <div className="ob-stage pro-hero" aria-hidden="true">
+      <SmileReveal handle="arrows" />
+    </div>
   );
 }
 
@@ -204,32 +197,6 @@ export function StyleLibraryVisual({ own }: { own?: { src: string; label: string
           <img src={NEW_DESIGN} alt="" draggable={false} />
           <figcaption><Check size={13} strokeWidth={2.2} />Your contour, texture and finish</figcaption>
         </figure>
-      </div>
-    </div>
-  );
-}
-
-/** Ready: a drawn check, then the personalised workspace rising into view. */
-export function ReadyVisual({ name }: { name: string | null }) {
-  return (
-    <div className="ob-stage ready-stage" aria-hidden="true">
-      <svg className="ready-ring" viewBox="0 0 64 64">
-        <circle className="ready-ring-track" cx="32" cy="32" r="29" />
-        <circle className="ready-ring-draw" cx="32" cy="32" r="29" />
-        <path className="ready-check" d="M21 33.5l7.2 7.2L43.5 25" />
-      </svg>
-      <div className="workspace-preview">
-        <img className="workspace-preview-image" src={HERO} alt="" draggable={false} />
-        <div className="workspace-preview-copy">
-          <span className="workspace-hello">{greeting(name)}</span>
-          <span className="workspace-title">Smile design,<br />visualised.</span>
-          <span className="workspace-cta">New Smile Design</span>
-        </div>
-        <div className="workspace-recent">
-          <img src={AFTER} alt="" draggable={false} />
-          <img src={BEFORE} alt="" draggable={false} />
-          <span><Check size={14} strokeWidth={2} /></span>
-        </div>
       </div>
     </div>
   );

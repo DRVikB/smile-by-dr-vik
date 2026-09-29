@@ -168,8 +168,9 @@ export function getSmileProvider(
       env.SMILE_PROVIDER_URL,
       env.SMILE_PROVIDER_API_KEY,
     );
+  // Shown to clinicians: no provider or setting names here (the server log and ENVIRONMENTS.md say how to connect it).
   throw new GenerationError(
-    "AI generation isn’t connected. Set SMILE_PROVIDER=gemini and SMILE_GEMINI_API_KEY on the server (GEMINI_API_KEY works for local development only), or use Open test mode to explore the app.",
+    "Smile generation isn’t available right now. Please try again later, or explore a sample case in the meantime.",
     503,
     "provider_not_configured",
   );
