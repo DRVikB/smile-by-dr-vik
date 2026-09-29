@@ -17,6 +17,7 @@ export function preferenceRows(settings: SmileSettings): [string, string][] {
     ["Tooth shape", colourOnly ? "Unchanged (shade only)" : { Square: "Square", Rounded: "Round", Triangular: "Triangle" }[settings.shape]],
     [colourOnly ? "Material reference" : "Treatment", settings.treatment],
     ["Design goal", settings.designIntent ?? "Auto"],
+    ...(settings.alignment ? [["Alignment concept", `${settings.alignment.arches === "Both" ? "Both arches" : `${settings.alignment.arches} arch`}${settings.alignment.only ? " · alignment only" : ""} · orthodontic suitability not assessed`] as [string, string]] : []),
     ["Selected teeth", `${settings.selectedTeeth.length} teeth · ${settings.selectedTeeth.join(", ")}`],
     ["Texture", colourOnly ? "Unchanged" : settings.texture],
     ["Result intensity", colourOnly ? "No shape change" : `${settings.intensity}% · subtle to enhanced`],

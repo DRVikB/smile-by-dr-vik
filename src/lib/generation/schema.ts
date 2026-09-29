@@ -30,6 +30,7 @@ export const settingsSchema = z
     caseFeatures: z.array(z.enum(caseFeatures)).max(6).optional(),
     toothPlans: z.array(z.object({ tooth: toothId, intent: z.enum(["Auto", "Preserve", "Shade only", "Repair edges", "Close gaps", "Reshape"]), condition: z.enum(["Natural", "Restored", "Missing"]), targetShade: z.enum(["The same", "Whiten", "Bleach"]).optional() })).max(28).optional(),
     treatment: z.enum(["Composite", "Single-shade composite", "Layered composite", "Porcelain"]),
+    alignment: z.object({ arches: z.enum(["Upper", "Lower", "Both"]), only: z.boolean().optional() }).optional(),
     designIntent: z.enum(["Auto", "Shade only", "Repair edges", "Close gaps", "Reshape"]).optional(),
     smileArc: z.enum(smileArcs).optional(),
     biteContext: z.enum(biteContexts).optional(),

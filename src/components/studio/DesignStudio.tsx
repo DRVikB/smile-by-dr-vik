@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, ImagePlus, X } from "lucide-react";
-import type { CurrentShade, FaceShape, Photo, ShotType, SmileCharacter, SmileSettings, TargetShade, TeethCount, TextureLevel, Treatment } from "@/lib/types";
+import type { AlignmentArches, CurrentShade, FaceShape, Photo, ShotType, SmileCharacter, SmileSettings, TargetShade, TeethCount, TextureLevel, Treatment } from "@/lib/types";
 import { upperTeeth, smileArcs, biteContexts } from "@/lib/types";
 import { DESIGN_INTENTS, isNoChangeDesign, resolveDesignPlan } from "@/lib/generation/designPlan";
 import { canGuideSmileArc } from "@/lib/smilePrinciples";
@@ -51,6 +51,11 @@ const QUICK_SHADES: { value: TargetShade; label: string; description: string }[]
   { value: "Bleach", label: "Bleach", description: "The brightest result that still looks natural." },
 ];
 const CURRENT_SHADES: CurrentShade[] = ["A3", "A2", "A1", "B1"];
+const ALIGNMENT_ARCHES: { value: AlignmentArches; label: string }[] = [
+  { value: "Upper", label: "Upper" },
+  { value: "Lower", label: "Lower" },
+  { value: "Both", label: "Both" },
+];
 
 const TREATMENTS: { value: Treatment; title: string; detail: string }[] = [
   { value: "Single-shade composite", title: "Composite bonding", detail: "Single shade · additive, conservative" },
@@ -118,11 +123,14 @@ export function DesignStudio({
     </section>
   );
 
+  const alignment = settings.alignment;
+  const alignedLabel = alignment ? `Straightened · ${alignment.arches === "Both" ? "both arches" : `${alignment.arches.toLowerCase()} arch`}` : "";
+  const restoration = treatments.find(t => t.value === settings.treatment)?.title ?? settings.treatment;
   const summary: { id: StudioTab; value: string }[] = [
-    { id: "teeth", value: `${toothSummary(settings)}${settings.designIntent && settings.designIntent !== "Auto" ? ` · ${settings.designIntent}` : ""}` },
-    { id: "shape", value: `${shape?.name ?? settings.shape} · ${settings.character}` },
-    { id: "shade", value: QUICK_SHADES.find(q => q.value === settings.targetShade)?.label ?? settings.targetShade },
-    { id: "treatment", value: treatments.find(t => t.value === settings.treatment)?.title ?? settings.treatment },
+    { id: "teeth", value: alignment?.only ? `${alignment.arches === "Both" ? "Both arches" : `${alignment.arches} arch`} · positions only` : `${toothSummary(settings)}${settings.designIntent && settings.designIntent !== "Auto" ? ` · ${settings.designIntent}` : ""}` },
+    { id: "shape", value: alignment?.only ? "Unchanged (alignment only)" : `${shape?.name ?? settings.shape} · ${settings.character}` },
+    { id: "shade", value: alignment?.only ? "Kept (alignment only)" : QUICK_SHADES.find(q => q.value === settings.targetShade)?.label ?? settings.targetShade },
+    { id: "treatment", value: alignment ? (alignment.only ? alignedLabel : `${alignedLabel} + ${restoration.toLowerCase()}`) : restoration },
   ];
 
   return (
@@ -251,11 +259,32 @@ export function DesignStudio({
           {page("treatment", <>
             <header className="studio-card-head">
               <h3>Treatment</h3>
-              <p>The restoration the design should show.</p>
+              <p>Straighten the teeth, restore them, or both.</p>
             </header>
-            <div className="studio-treatments" role="radiogroup" aria-label="Treatment">
+            <div className="studio-align">
+              <label className="studio-switch-row">
+                <span className="studio-treatment-text"><strong>Straighten teeth</strong><small>Show the teeth aligned, as after orthodontics</small></span>
+                <input type="checkbox" role="switch" className="studio-switch" checked={Boolean(alignment)}
+                  onChange={e => change("alignment", e.target.checked ? { arches: "Both" } : undefined)} />
+              </label>
+              {alignment && <>
+                <div className="segmented" role="group" aria-label="Arches to straighten">
+                  {ALIGNMENT_ARCHES.map(a => (
+                    <button key={a.value} type="button" aria-pressed={alignment.arches === a.value} className={alignment.arches === a.value ? "selected" : ""}
+                      onClick={() => change("alignment", { ...alignment, arches: a.value })}>{a.label}</button>
+                  ))}
+                </div>
+                <label className="studio-switch-row">
+                  <span className="studio-treatment-text"><strong>Alignment only</strong><small>No bonding or veneers: shape and shade stay as they are</small></span>
+                  <input type="checkbox" role="switch" className="studio-switch" checked={Boolean(alignment.only)}
+                    onChange={e => change("alignment", { ...alignment, only: e.target.checked || undefined })} />
+                </label>
+                <p className="control-hint">A concept for discussion. Orthodontic suitability, timing and retention need assessment.</p>
+              </>}
+            </div>
+            <div className={`studio-treatments${alignment?.only ? " is-muted" : ""}`} role="radiogroup" aria-label="Restoration" aria-disabled={alignment?.only || undefined}>
               {treatments.map(t => (
-                <button key={t.value} type="button" role="radio" aria-checked={settings.treatment === t.value} className="studio-treatment" onClick={() => change("treatment", t.value)}>
+                <button key={t.value} type="button" role="radio" aria-checked={settings.treatment === t.value} className="studio-treatment" disabled={alignment?.only} onClick={() => change("treatment", t.value)}>
                   <span className="studio-treatment-text"><strong>{t.title}</strong><small>{t.detail}</small></span>
                   <span className="studio-check" aria-hidden="true">{settings.treatment === t.value && <Check size={14} strokeWidth={2.6} />}</span>
                 </button>

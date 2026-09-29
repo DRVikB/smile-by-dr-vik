@@ -30,6 +30,8 @@ export interface ClinicianReview {
   notes: string;
 }
 export type CurrentShade = "A3" | "A2" | "A1" | "B1";
+/** Which arches an orthodontic alignment concept straightens. */
+export type AlignmentArches = "Upper" | "Lower" | "Both";
 export type TargetShade = "The same" | "Whiten" | "Bleach" | "A1" | "B1" | "BL3" | "BL2" | "BL1";
 export type ToothShape = "Square" | "Rounded" | "Triangular";
 export type TextureLevel = "Smooth" | "Natural" | "Textured";
@@ -88,6 +90,12 @@ export interface SmileSettings {
   toothPlans?: ToothPlan[];
   caseFeatures?: CaseFeature[];
   treatment: Treatment;
+  /**
+   * Orthodontic alignment concept: show the visible teeth of these arches
+   * straightened. Off when absent. `only` means no restorative change: teeth
+   * move, but keep their own shape, size and shade.
+   */
+  alignment?: { arches: AlignmentArches; only?: boolean };
   designIntent?: DesignIntent;
   smileArc?: SmileArc;
   /** Clinician-entered context, never inferred from a smile photograph. */

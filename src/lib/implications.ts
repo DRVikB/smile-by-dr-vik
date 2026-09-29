@@ -51,6 +51,17 @@ export function treatmentImplications(
     items.push({ title: `Recorded bite finding: ${settings.biteContext}`, detail: "Entered by the clinician. This photograph-based illustration does not establish bite correction or restorative clearance. Confirm the bite and any orthodontic or restorative plan separately before agreeing the proposed tooth contours." });
   }
 
+  if (settings.alignment) {
+    const arches = settings.alignment.arches === "Both" ? "both arches" : `the ${settings.alignment.arches.toLowerCase()} arch`;
+    items.push({
+      title: `Orthodontic alignment of ${arches}`,
+      detail: settings.alignment.only
+        ? "Shows straighter teeth as a concept, with no bonding or veneers. Whether aligners or braces suit, how long treatment takes and retention afterwards need an orthodontic assessment."
+        : "Shows straighter teeth as a concept. Whether aligners or braces suit, how long treatment takes and retention afterwards need an orthodontic assessment; restorative work, if planned, usually follows alignment.",
+    });
+    if (settings.alignment.only) return { items, confirm: CONFIRM_AT_ASSESSMENT };
+  }
+
   if (activeToothPlans(settings).every(p => resolvedToothIntent(settings, p) === "Shade only")) {
     items.push({ title: `Shade illustration on ${selected}`, detail: "Shows a colour preference while retaining tooth form. Whitening suitability, restoration matching and the achievable shade need clinical assessment." });
     return { items, confirm: CONFIRM_AT_ASSESSMENT };

@@ -24,6 +24,7 @@
 | Validation scoring (`ValidationPanel`) | Internal quality review of outputs; confirm it is not presented as clinical accuracy |
 | Result checks (`resultCheck.ts`) and "implications" text (`implications.ts`) | Confirm the wording is aesthetic and not clinical advice |
 | Material and shade choices | Communicates options; must not recommend a treatment |
+| "Straighten teeth" orthodontic alignment concept (`alignment` setting; prompt `alignmentInstruction`) | Shows teeth repositioned within the arch. Framed as a concept for discussion; must not be presented as a prediction of orthodontic movement, duration, root position or stability, or as an orthodontic treatment plan |
 
 ## Claims checklist (App Store, website, marketing, release notes)
 

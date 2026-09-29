@@ -47,5 +47,6 @@ export function resolveDesignPlan(settings: SmileSettings) {
 }
 
 export function isNoChangeDesign(s: SmileSettings): boolean {
+  if (s.alignment) return false; // straightening is a change in its own right
   return activeToothPlans(s).every(p => resolvedToothIntent(s, p) === "Shade only" && (p.targetShade ?? s.targetShade) === "The same");
 }
