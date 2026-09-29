@@ -169,6 +169,43 @@ export function restoreCase(id: string): Promise<boolean> {
   return patchEntry(id, entry => without(entry, "deletedAt"));
 }
 
+/** Star or unstar one version. */
+export function setFavourite(id: string, favourite: boolean): Promise<boolean> {
+  return patchEntry(id, entry => {
+    const copy = { ...entry };
+    if (favourite) copy.favourite = true;
+    else delete copy.favourite;
+    return copy;
+  });
+}
+
+/** Longest case reference, matching the field in the design screen. */
+export const CASE_REFERENCE_MAX = 24;
+
+/** Rename a whole case: every version in it takes the new reference. Returns how many changed. */
+export async function renameCase(caseKey: string, name: string): Promise<number> {
+  const reference = name.replace(/\s+/g, " ").trim().slice(0, CASE_REFERENCE_MAX);
+  const db = await open();
+  try {
+    const tx = db.transaction(ENTRIES, "readwrite");
+    const done = settled(tx);
+    const store = tx.objectStore(ENTRIES);
+    let changed = 0;
+    const request = store.getAll();
+    request.onsuccess = () => {
+      for (const entry of (request.result as CaseLogEntry[]) ?? []) {
+        if ((entry.caseId ?? entry.id) !== caseKey) continue;
+        store.put({ ...entry, patientName: reference });
+        changed += 1;
+      }
+    };
+    await done;
+    return changed;
+  } finally {
+    db.close();
+  }
+}
+
 export async function moveAllToRecentlyDeleted(now = Date.now()): Promise<void> {
   for (const entry of await listLog(["active", "archived"])) await moveToRecentlyDeleted(entry.id, now);
 }

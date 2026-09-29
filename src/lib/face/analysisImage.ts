@@ -1,5 +1,5 @@
 import { drawAiTag } from "../aiTag";
-import { drawBrandLockup, SMILECOMPOSE } from "../brand";
+import { drawBrandLockup, designCredit } from "../brand";
 import { BRAND } from "../presentation";
 import { wrapText } from "../report";
 import { analyseSmile, analysisRows, type Box, type SmileAnalysis } from "./analysis";
@@ -197,7 +197,7 @@ export async function composeAnalysis(
   ctx.fillText("Smile analysis", MARGIN, 116);
   ctx.textAlign = "right";
   ctx.font = sans(21);
-  ctx.fillText(SMILECOMPOSE.signature, WIDTH - MARGIN, 69);
+  ctx.fillText(designCredit(), WIDTH - MARGIN, 69);
   ctx.textAlign = "left";
 
   // Face overview, on the illustrated smile.

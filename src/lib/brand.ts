@@ -13,6 +13,21 @@ export const SMILECOMPOSE = {
   },
 } as const;
 
+let designerName: string | null = null;
+
+/**
+ * The clinician credited on everything a patient receives (exports, report,
+ * reveal video, consultation screen): "Smile design by Dr Smith". Set from the
+ * signed-in profile; empty when no name is known, so nothing is drawn.
+ * "Designed by Dr Vik" credits the app itself and stays on app screens only.
+ */
+export function setDesignerName(name: string | null | undefined): void {
+  designerName = name?.trim() || null;
+}
+export function designCredit(): string {
+  return designerName ? `Smile design by ${designerName}` : "";
+}
+
 /** Draw the same arc-and-guides mark used by the app and installed icon. */
 export function drawBrandLockup(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, color: string = SMILECOMPOSE.colors.charcoal) {
   ctx.save();

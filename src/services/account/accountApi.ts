@@ -23,6 +23,8 @@ export interface AccountStatus {
     willRenew: boolean;
     billingIssue: boolean;
     managementUrl: string | null;
+    /** In the free trial: limited generations until it converts. */
+    trial?: boolean;
   } | null;
   overrideExpiresAt: string | null;
   generations: { included: number; used: number; remaining: number; purchased: number; periodEnd: string | null };

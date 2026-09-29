@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useId, useState } from "react";
-import { ChevronDown, SlidersHorizontal } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { ComposeSymbol } from "@/components/icons/SmileIcons";
 
 /** Controls can be tucked away without leaving the patient's photograph. */
 export function FloatingPanel({ title, subtitle, children, className = "", desktopOpen = false, defaultOpen = false, open: controlledOpen, onOpenChange }: {
@@ -26,7 +27,7 @@ export function FloatingPanel({ title, subtitle, children, className = "", deskt
   }, [desktopOpen, defaultOpen, controlledOpen]);
   return <aside className={`floating-panel ${className} ${open ? "is-open" : ""} ${desktopOpen ? "desktop-open" : ""}`}>
     <button type="button" className="floating-panel-toggle" aria-expanded={open} aria-controls={id} onClick={() => { setLocalOpen(!open); onOpenChange?.(!open); }}>
-      <SlidersHorizontal size={17} strokeWidth={1.5} />
+      <ComposeSymbol size={20} />
       <span><strong>{title}</strong>{subtitle && <small>{subtitle}</small>}</span>
       <ChevronDown size={17} className="panel-chevron" />
     </button>

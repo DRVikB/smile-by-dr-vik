@@ -1,0 +1,207 @@
+/* ============================================================
+   Materials — solid surfaces, no imitation glass.
+
+   No imitation glass: no gloss gradients, specular rims or see-through
+   panels. Three plain materials:
+
+   - surface   sheets, panels, docks and menus: opaque (white in Light,
+               elevated grey in Dark) with a soft neutral shadow
+   - overlay   small controls floating over photographs: a flat, dimmed
+               chip so white icons stay legible on any image
+   - bar       navigation bars: the page colour with a hairline divider
+
+   Buttons are flat fills. Motion stays: surfaces settle in, controls
+   respond with a small press. Reduce Motion removes it. Loaded after the
+   other stylesheets so it can refine them in one place.
+   ============================================================ */
+
+:root {
+  --spring: cubic-bezier(0.34, 1.32, 0.64, 1);
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --mat-surface: var(--surface-solid);
+  --mat-menu: #FFFFFF;
+  --mat-edge: 0 0 0 .5px rgba(0, 0, 0, .06);
+  --mat-float: 0 10px 30px -8px rgba(60, 40, 20, .18), 0 2px 6px rgba(60, 40, 20, .05);
+  --mat-float-lg: 0 24px 60px -16px rgba(40, 28, 16, .28), 0 4px 12px rgba(40, 28, 16, .06);
+
+  --overlay: rgba(22, 18, 14, .46);
+  --overlay-strong: rgba(22, 18, 14, .74);
+  --overlay-blur: 16px;
+}
+:root[data-theme="dark"] {
+  --mat-surface: var(--surface-solid);
+  --mat-menu: #282522;
+  --mat-edge: 0 0 0 .5px rgba(255, 255, 255, .08);
+  --mat-float: 0 12px 34px -8px rgba(0, 0, 0, .7), 0 2px 8px rgba(0, 0, 0, .4);
+  --mat-float-lg: 0 28px 70px -16px rgba(0, 0, 0, .8), 0 4px 14px rgba(0, 0, 0, .45);
+}
+
+/* ---------- overlay: controls over photographs ---------- */
+.app-shell:is([data-screen="design"], [data-screen="preview"]) .nav-back,
+.app-shell:is([data-screen="design"], [data-screen="preview"]) .test-mode-pill,
+.app-menu > summary,
+.photo-framing-toggle,
+.compare-mode,
+.compare-label,
+.zoompan-hint,
+.app-shell .preview-screen > .variant-tabs,
+.profile-button,
+.splash-outline,
+.reveal-tag,
+.version-star:not(.log-detail-head-actions .version-star) {
+  color: #fff;
+  background: var(--overlay);
+  background-image: none;
+  border: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: blur(var(--overlay-blur));
+  backdrop-filter: blur(var(--overlay-blur));
+}
+.version-star.on:not(.log-detail-head-actions .version-star) { color: var(--sc-gold); }
+
+/* ---------- surface: panels, docks, sheets, menus ---------- */
+.floating-panel,
+.floating-panel.is-open,
+.compact-preview-dock,
+.app-shell .preview-screen > .bottom-action-bar,
+.sheet,
+.log-panel,
+.log-detail,
+.library-panel,
+.camera-sheet,
+.avatar-cropper,
+.action-sheet-group {
+  background: var(--mat-surface);
+  background-image: none;
+  border-color: transparent;
+  box-shadow: var(--mat-edge), var(--mat-float-lg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.floating-panel,
+.compact-preview-dock,
+.app-shell .preview-screen > .bottom-action-bar { box-shadow: var(--mat-edge), var(--mat-float); }
+/* Menus and popovers sit one level up */
+.compact-options-popover,
+.variant-picker-options,
+.consult-compact-options > div,
+.app-menu .nav-actions {
+  background: var(--mat-menu);
+  background-image: none;
+  border-color: transparent;
+  box-shadow: var(--mat-edge), var(--mat-float-lg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* ---------- bar: navigation bars ---------- */
+.settings-top,
+.cl-head,
+.settings-detail-head {
+  background: var(--background);
+  box-shadow: inset 0 -.5px 0 var(--separator);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.app-header { -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* Behind a sheet: a plain dim, as iOS does, without blurring the page. */
+.sheet-backdrop,
+.settings-backdrop,
+.cl-backdrop,
+.action-sheet-backdrop,
+.log-detail-backdrop {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* ---------- controls: flat ---------- */
+.segmented,
+.settings-segment,
+.compact-compare-switch { background: var(--control-background); box-shadow: none; }
+.settings-segment button[aria-selected="true"],
+.settings-segment button[aria-pressed="true"] {
+  background: var(--selected-fill);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, .12), 0 0 0 .5px rgba(0, 0, 0, .04);
+}
+
+/* ---------- motion ---------- */
+.segmented button,
+.settings-segment button,
+.compact-compare-switch button,
+.compare-mode button {
+  transition: background-color 260ms var(--ease-soft), color 200ms var(--ease-soft), box-shadow 260ms var(--ease-soft), transform 280ms var(--spring);
+}
+:is(.primary-button, .secondary-button, .splash-primary, .splash-outline, .nav-back, .app-menu > summary,
+    .icon-button, .profile-button, .compact-dock-save, .compact-dock-options, .action-button, .adjust-button,
+    .case-rename-button, .cl-sidebar-add, .version-star, .text-button) {
+  transition: transform 300ms var(--spring), background-color 220ms var(--ease-soft), box-shadow 220ms var(--ease-soft), color 200ms var(--ease-soft), opacity 200ms;
+}
+:is(.primary-button, .secondary-button, .splash-primary, .splash-outline, .nav-back, .app-menu > summary,
+    .icon-button, .profile-button, .compact-dock-save, .compact-dock-options, .action-button, .adjust-button,
+    .case-rename-button, .cl-sidebar-add, .version-star):active:not(:disabled) {
+  transform: scale(.96);
+  transition-duration: 90ms;
+}
+:is(.log-row, .settings-row, .cl-item, .version-open, .recent-case):active:not(:disabled) {
+  transform: scale(.985);
+  transition: transform 90ms var(--ease-soft);
+}
+:is(.log-row, .settings-row, .cl-item, .version-open, .recent-case) {
+  transition: transform 320ms var(--spring), background-color 200ms var(--ease-soft), box-shadow 200ms var(--ease-soft);
+}
+
+.sheet-backdrop > .sheet,
+.sheet-backdrop > .log-panel,
+.sheet-backdrop > .camera-sheet,
+.log-detail,
+.settings-panel.split,
+.cl-sheet,
+.action-sheet,
+.avatar-cropper {
+  animation: surface-in 420ms var(--ease-soft) both;
+}
+.sheet-backdrop, .settings-backdrop, .cl-backdrop, .action-sheet-backdrop, .log-detail-backdrop {
+  animation: fade-in-soft 260ms var(--ease-soft) both;
+}
+.start-screen, .photo-screen, .design-screen, .preview-screen {
+  animation: fade-in-soft 360ms var(--ease-soft) both;
+}
+.floating-panel-body { animation: fade-in-soft 240ms var(--ease-soft) both; }
+.cl-notice, .settings-toast, .save-status, .scale-notice { animation: rise-in 360ms var(--ease-soft) both; }
+
+@keyframes surface-in {
+  from { opacity: 0; transform: translateY(20px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fade-in-soft { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.settings-scroll, .settings-detail-body, .cl-main, .log-list, .version-grid, .floating-panel-body, .onboarding {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ---------- accessibility ---------- */
+@media (prefers-reduced-transparency: reduce) {
+  :root { --overlay: var(--overlay-strong); --overlay-blur: 0px; }
+}
+:root[data-reduce-transparency] { --overlay: var(--overlay-strong); --overlay-blur: 0px; }
+@media (prefers-contrast: more) {
+  :root { --mat-edge: 0 0 0 1px rgba(0, 0, 0, .3); --overlay: var(--overlay-strong); }
+  :root[data-theme="dark"] { --mat-edge: 0 0 0 1px rgba(255, 255, 255, .3); }
+}
+:root[data-increase-contrast] { --mat-edge: 0 0 0 1px rgba(0, 0, 0, .3); --overlay: var(--overlay-strong); }
+:root[data-increase-contrast][data-theme="dark"] { --mat-edge: 0 0 0 1px rgba(255, 255, 255, .3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-backdrop > .sheet, .sheet-backdrop > .log-panel, .sheet-backdrop > .camera-sheet, .log-detail, .settings-panel.split,
+  .cl-sheet, .action-sheet, .avatar-cropper, .sheet-backdrop, .settings-backdrop, .cl-backdrop, .action-sheet-backdrop,
+  .log-detail-backdrop, .start-screen, .photo-screen, .design-screen, .preview-screen, .floating-panel-body,
+  .cl-notice, .settings-toast, .save-status, .scale-notice { animation: none; }
+  :is(.primary-button, .secondary-button, .splash-primary, .splash-outline, .nav-back, .app-menu > summary, .icon-button,
+      .profile-button, .compact-dock-save, .compact-dock-options, .action-button, .adjust-button, .case-rename-button,
+      .cl-sidebar-add, .version-star, .log-row, .settings-row, .cl-item, .version-open, .recent-case):active { transform: none; }
+  .settings-scroll, .settings-detail-body, .cl-main, .log-list, .version-grid, .floating-panel-body, .onboarding { scroll-behavior: auto; }
+}

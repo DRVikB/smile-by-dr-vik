@@ -17,15 +17,13 @@ export interface ServerEnvironment extends ProviderEnvironment {
   APPLE_PRIVATE_KEY?: string;
   /** Native bundle ID, used to revoke Sign in with Apple tokens on account deletion. */
   APPLE_CLIENT_ID?: string;
-  /** "off" disables account checks for local development only. */
-  SMILE_ACCOUNTS?: string;
   /** Case Library references attached to one generation (1–5, default 3). */
   STYLE_REFERENCE_LIMIT?: string;
 }
 
 const SERVER_KEYS = [
   "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "REVENUECAT_SECRET_API_KEY", "REVENUECAT_WEBHOOK_AUTH",
-  "REVENUECAT_ALLOW_SANDBOX", "APPLE_TEAM_ID", "APPLE_KEY_ID", "APPLE_PRIVATE_KEY", "APPLE_CLIENT_ID", "SMILE_ACCOUNTS",
+  "REVENUECAT_ALLOW_SANDBOX", "APPLE_TEAM_ID", "APPLE_KEY_ID", "APPLE_PRIVATE_KEY", "APPLE_CLIENT_ID",
   "STYLE_REFERENCE_LIMIT",
 ] as const;
 
@@ -37,11 +35,14 @@ export function readServerEnvironment(): ServerEnvironment {
   return env;
 }
 
-export type AccountsMode = "required" | "off" | "misconfigured";
+export type AccountsMode = "required" | "misconfigured";
 
-/** Accounts are required whenever they are configured; "off" must be chosen explicitly. */
+/**
+ * Every real AI generation is attached to a signed-in account, so accounts are
+ * always required; there is no switch to turn them off (use the mock provider
+ * for local development without accounts).
+ */
 export function accountsMode(env: ServerEnvironment): AccountsMode {
-  if (env.SMILE_ACCOUNTS === "off") return "off";
   return env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY && env.REVENUECAT_SECRET_API_KEY ? "required" : "misconfigured";
 }
 

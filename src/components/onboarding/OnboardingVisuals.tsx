@@ -1,5 +1,6 @@
 "use client";
-import { Camera, Check, Lock, Monitor, Share2, SlidersHorizontal, Smartphone, Sparkles, Tablet } from "lucide-react";
+import { ArrowRight, Check, Lock, Monitor, Smartphone, Tablet } from "lucide-react";
+import { CaptureSymbol, ComposeSymbol, IconTile, PresentSymbol, ShareSymbol, VisualiseSymbol } from "@/components/icons/SmileIcons";
 import { SUBSCRIPTION_PRODUCTS } from "@/config/subscriptions";
 import { BrandLockup } from "@/components/Brand";
 import { greeting, initials } from "@/lib/profile";
@@ -43,7 +44,7 @@ export function WelcomeVisual() {
     <div className="ob-stage welcome-stage">
       <SmileReveal />
       <span className="ob-chip chip-spec float-a" aria-hidden="true"><i className="chip-swatch" />Porcelain · BL2</span>
-      <span className="ob-chip chip-note float-b" aria-hidden="true"><Sparkles size={13} strokeWidth={1.8} />Concept visualisation</span>
+      <span className="ob-chip chip-note float-b" aria-hidden="true"><VisualiseSymbol size={15} />Concept visualisation</span>
     </div>
   );
 }
@@ -92,76 +93,60 @@ export function GreetingPreview({ name, avatarUrl }: { name: string; avatarUrl?:
   );
 }
 
-function MiniCapture() {
-  return (
-    <div className="mini mini-capture">
-      <img src={BEFORE} alt="" draggable={false} />
-      <span className="mini-corner tl" /><span className="mini-corner tr" /><span className="mini-corner bl" /><span className="mini-corner br" />
-      <span className="mini-guide" />
-      <span className="mini-shutter" />
-    </div>
-  );
+/* "What the app can do": each card's photograph bleeds in from the right and fades into the card. */
+function MediaCapture() {
+  return <img className="how-media-photo how-media-capture" src={BEFORE} alt="" draggable={false} />;
 }
 
-function MiniCompose() {
-  return (
-    <div className="mini mini-compose">
-      <div className="mini-shades">
-        <span style={{ background: "#EFE3CC" }}>A2</span>
-        <span style={{ background: "#F6EFE2" }}>B1</span>
-        <span className="selected" style={{ background: "#FFFDF8" }}>BL2</span>
-      </div>
-      <div className="mini-slider"><span /><i /></div>
-      <div className="mini-segment"><span>Composite</span><span className="selected">Porcelain</span></div>
-    </div>
-  );
+function MediaCompose() {
+  return <img className="how-media-photo how-media-compose" src={HERO} alt="" draggable={false} />;
 }
 
-function MiniVisualise() {
+function MediaVisualise() {
   return (
-    <div className="mini mini-visualise">
+    <div className="how-media-split">
       <img src={BEFORE} alt="" draggable={false} />
       <img className="after" src={AFTER} alt="" draggable={false} />
-      <span className="mini-divider" />
+      <span className="how-media-divider"><i /></span>
     </div>
   );
 }
 
-function MiniShare() {
+function MediaShare() {
   return (
-    <div className="mini mini-share">
-      <div className="mini-report">
-        <div className="mini-report-pair">
+    <div className="how-media-tablet">
+      <div className="how-media-screen">
+        <img className="how-media-hero" src={AFTER} alt="" draggable={false} />
+        <div className="how-media-strip">
           <img src={BEFORE} alt="" draggable={false} />
           <img src={AFTER} alt="" draggable={false} />
+          <img src={STYLE_CASES[0].src} alt="" draggable={false} />
         </div>
-        <span className="mini-report-line" />
-        <span className="mini-report-line short" />
       </div>
-      <span className="mini-share-badge"><Share2 size={14} strokeWidth={1.8} /></span>
     </div>
   );
 }
 
 const STEPS = [
-  { title: "Capture", body: "Add a patient smile photo", Icon: Camera, Mini: MiniCapture },
-  { title: "Compose", body: "Choose treatment, shape and shade", Icon: SlidersHorizontal, Mini: MiniCompose },
-  { title: "Visualise", body: "Create and compare the smile", Icon: Sparkles, Mini: MiniVisualise },
-  { title: "Share", body: "Save or share your preferred design", Icon: Share2, Mini: MiniShare },
+  { title: "Capture", body: "Take a photo or choose one from your library.", Icon: CaptureSymbol, Media: MediaCapture },
+  { title: "Compose", body: "Adjust shape, shade and treatment.", Icon: ComposeSymbol, Media: MediaCompose },
+  { title: "Visualise", body: "See the before and after, side by side.", Icon: VisualiseSymbol, Media: MediaVisualise },
+  { title: "Share", body: "Save, present and share with patients.", Icon: ShareSymbol, Media: MediaShare },
 ] as const;
 
-/** How it works: four illustrated steps built from the app's own UI. */
+/** How it works: four photographic cards, from capture to consultation. */
 export function HowItWorksVisual() {
   return (
     <ol className="how-visual">
-      {STEPS.map(({ title, body, Icon, Mini }, index) => (
-        <li key={title} className="how-card" style={{ "--how-index": index } as React.CSSProperties}>
-          <Mini />
+      {STEPS.map(({ title, body, Icon, Media }, index) => (
+        <li key={title} className={`how-card how-card-${title.toLowerCase()}`} style={{ "--how-index": index } as React.CSSProperties}>
+          <div className="how-card-media" aria-hidden="true"><Media /></div>
           <div className="how-card-text">
-            <span className="how-card-step"><Icon size={14} strokeWidth={1.8} aria-hidden="true" />{String(index + 1).padStart(2, "0")}</span>
+            <IconTile icon={Icon} />
             <strong>{title}</strong>
             <span>{body}</span>
           </div>
+          <span className="how-card-go" aria-hidden="true"><ArrowRight size={16} strokeWidth={1.8} /></span>
         </li>
       ))}
     </ol>
@@ -175,9 +160,9 @@ export function ProValueVisual({ compact = false }: { compact?: boolean }) {
     <div className={`ob-stage pro-stage${compact ? " compact" : ""}`} aria-hidden="true">
       <SmileReveal animate={!compact} size={compact ? "compact" : "hero"} />
       <ul className="pro-callouts">
-        <li className="ob-chip float-a"><Sparkles size={13} strokeWidth={1.8} />{monthly} generations a month</li>
-        <li className="ob-chip float-b"><SlidersHorizontal size={13} strokeWidth={1.8} />Compare materials &amp; shapes</li>
-        <li className="ob-chip float-c"><Share2 size={13} strokeWidth={1.8} />Consultation view &amp; reports</li>
+        <li className="ob-chip float-a"><VisualiseSymbol size={15} />{monthly} generations a month</li>
+        <li className="ob-chip float-b"><ComposeSymbol size={15} />Compare materials &amp; shapes</li>
+        <li className="ob-chip float-c"><PresentSymbol size={15} />Consultation view &amp; reports</li>
       </ul>
     </div>
   );
@@ -202,7 +187,7 @@ export function StyleLibraryVisual({ own }: { own?: { src: string; label: string
         </div>
         <div className="style-engine">
           <span className="style-engine-line" />
-          <span className="style-engine-mark"><Sparkles size={13} strokeWidth={1.8} />SmileCompose</span>
+          <span className="style-engine-mark"><VisualiseSymbol size={15} />SmileCompose</span>
           <span className="style-engine-line" />
         </div>
         <figure className="style-result">

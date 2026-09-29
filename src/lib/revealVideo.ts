@@ -1,5 +1,5 @@
 import { drawAiTag } from "./aiTag";
-import { drawBrandLockup, SMILECOMPOSE } from "./brand";
+import { drawBrandLockup, designCredit } from "./brand";
 import { BRAND } from "./presentation";
 
 /**
@@ -117,7 +117,7 @@ export async function recordReveal(
     ctx.font = `400 ${Math.round(fontPx * 0.64)}px -apple-system, Arial, sans-serif`;
     ctx.fillStyle = BRAND.paper;
     ctx.textBaseline = "top";
-    ctx.fillText(SMILECOMPOSE.signature, fontPx * 1.4, fontPx * 1.4 + logoW / 10 + 8);
+    ctx.fillText(designCredit(), fontPx * 1.4, fontPx * 1.4 + logoW / 10 + 8);
 
     ctx.font = `500 ${fontPx}px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif`;
     ctx.textBaseline = "bottom";

@@ -1,4 +1,4 @@
-import { generationsForProduct } from "@/config/subscriptions";
+import { generationsForPeriod } from "@/config/subscriptions";
 import { styleReferenceLimit } from "@/lib/styleMatching";
 import { AccountError, createSupabaseAccountStore, createSupabaseMediaStore, type AccountStore, type AuthenticatedUser, type MediaStore } from "./accountStore";
 import { createRevenueCatClient, type ProEntitlement, type RevenueCatClient } from "./revenuecat";
@@ -38,6 +38,8 @@ export interface AccessDecision {
     willRenew: boolean;
     billingIssue: boolean;
     managementUrl: string | null;
+    /** In the free trial: limited generations until it converts. */
+    trial?: boolean;
   } | null;
   overrideExpiresAt: string | null;
 }
@@ -90,7 +92,7 @@ export async function evaluateAccess(user: AuthenticatedUser, services: AccountS
     if (allowed && entitlement.periodStart && entitlement.expiresAt) {
       await store.ensurePeriod({
         userId: user.id, source: "subscription", environment: entitlement.environment, productId: entitlement.productId,
-        start: entitlement.periodStart, end: entitlement.expiresAt, allowance: generationsForProduct(entitlement.productId),
+        start: entitlement.periodStart, end: entitlement.expiresAt, allowance: generationsForPeriod(entitlement.productId, entitlement.trial),
       });
     }
   } else {
@@ -100,7 +102,7 @@ export async function evaluateAccess(user: AuthenticatedUser, services: AccountS
       && (cached.environment !== "sandbox" || services.allowSandbox));
     subscription = cached ? {
       active, productId: cached.productId, expiresAt: cached.expiresAt, environment: cached.environment,
-      willRenew: cached.status === "active", billingIssue: cached.status === "billing_issue", managementUrl: null,
+      willRenew: cached.status === "active", billingIssue: cached.status === "billing_issue", managementUrl: null, trial: false,
     } : null;
   }
 

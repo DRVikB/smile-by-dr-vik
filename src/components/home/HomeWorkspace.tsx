@@ -6,11 +6,22 @@ import type { CaseLogEntry } from "@/lib/types";
 import { greeting } from "@/lib/profile";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 
-/** "Good morning, Dr Vik" — only once the user has an account or a chosen name. */
-export function HomeGreeting() {
-  const { user, displayName } = useAccount();
-  if (!user && !displayName) return null;
-  return <p className="start-greeting">{greeting(displayName)}</p>;
+/**
+ * The Home headline: "Welcome, Dr Vik." once the clinician has a name,
+ * otherwise the product line. The heading takes focus on arrival.
+ */
+export function HomeHeadline({ headingRef }: { headingRef: React.Ref<HTMLHeadingElement> }) {
+  const { displayName } = useAccount();
+  const named = Boolean(displayName);
+  return (
+    <>
+      {named && <p className="start-greeting">{greeting(null)}</p>}
+      <h1 ref={headingRef} tabIndex={-1} className="splash-heading">
+        {named ? <>Welcome,<br />{displayName}.</> : <>Smile design,<br />visualised.</>}
+      </h1>
+      <p className="splash-sub">{named ? "Ready to design your next smile?" : "Digital smile design for clinicians."}</p>
+    </>
+  );
 }
 
 /** The only Home route to Profile / Settings: profile photo, initials, or a settings icon. */
@@ -24,14 +35,26 @@ export function ProfileButton({ className = "" }: { className?: string }) {
   );
 }
 
-/** The three most recent active cases on this device. */
+/** The three most recently updated patient cases on this device (a favourite version is the cover). */
 export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unknown; onOpen: (id: string) => void; onSeeAll: () => void }) {
-  const [entries, setEntries] = useState<CaseLogEntry[]>([]);
+  const [entries, setEntries] = useState<(CaseLogEntry & { versions: number })[]>([]);
   useEffect(() => {
     let live = true;
     void import("@/lib/caseLog")
       .then(log => log.listActiveLog())
-      .then(list => { if (live) setEntries(list.slice(0, 3)); })
+      .then(list => {
+        const cases = new Map<string, CaseLogEntry[]>();
+        for (const e of list) cases.set(e.caseId ?? e.id, [...(cases.get(e.caseId ?? e.id) ?? []), e]);
+        const recent = [...cases.values()]
+          .map(group => {
+            const newest = group[0]; // listActiveLog is newest first
+            const cover = group.find(e => e.favourite) ?? newest;
+            return { ...cover, createdAt: newest.createdAt, patientName: group.find(e => e.patientName)?.patientName ?? "", versions: group.length };
+          })
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .slice(0, 3);
+        if (live) setEntries(recent);
+      })
       .catch(() => { if (live) setEntries([]); });
     return () => { live = false; };
   }, [refreshKey]);
@@ -50,7 +73,7 @@ export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unkn
               <img src={entry.thumb} alt="" />
               <span>
                 <strong>{entry.patientName || "Unnamed case"}</strong>
-                <small>{new Date(entry.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</small>
+                <small>{new Date(entry.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}{entry.versions > 1 ? ` · ${entry.versions}` : ""}</small>
               </span>
             </button>
           </li>

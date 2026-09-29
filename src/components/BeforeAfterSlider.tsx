@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
 import { ZoomPan } from "./ZoomPan";
 
@@ -36,8 +36,16 @@ export function BeforeAfterSlider({
   const mode = controlledMode ?? localMode;
   const changeMode = (next: CompareMode) => { setLocalMode(next); onModeChange?.(next); };
   const overlay = mode === "overlay";
+  const root = useRef<HTMLDivElement>(null);
+  const dragging = useRef<number | null>(null);
+  // The divider's handle slides the comparison at any zoom level. Zoomed in,
+  // dragging anywhere else pans the photo instead.
+  const slideTo = (clientX: number) => {
+    const box = root.current?.getBoundingClientRect();
+    if (box?.width) setPosition(Math.round(Math.min(100, Math.max(0, ((clientX - box.left) / box.width) * 100))));
+  };
   return (
-    <div className={`comparison${overlay ? " comparison-overlay" : ""}`}>
+    <div ref={root} className={`comparison${overlay ? " comparison-overlay" : ""}`}>
       <img className="photo-backdrop" src={original} alt="" aria-hidden="true" />
       <div className="compare-frame">
         <ZoomPan
@@ -97,6 +105,18 @@ export function BeforeAfterSlider({
         </div>
       ) : (
         <div className="compare-divider" style={{ left: `${position}%` }}>
+          <span
+            className="compare-grab"
+            aria-hidden="true"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              dragging.current = e.pointerId;
+              try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* moves still arrive over the handle */ }
+            }}
+            onPointerMove={(e) => { if (dragging.current === e.pointerId) slideTo(e.clientX); }}
+            onPointerUp={() => { dragging.current = null; }}
+            onPointerCancel={() => { dragging.current = null; }}
+          />
           <span className="compare-handle">
             <ChevronLeft size={17} />
             <ChevronRight size={17} />

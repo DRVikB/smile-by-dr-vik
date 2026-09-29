@@ -1,15 +1,17 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Play, Sparkles, X } from "lucide-react";
-import { BrandLockup, CreatorSignature } from "./Brand";
+import { Play, X } from "lucide-react";
+import { CompareSymbol } from "@/components/icons/SmileIcons";
+import { BrandLockup } from "./Brand";
+import { designCredit } from "@/lib/brand";
 import { ZoomPan } from "./ZoomPan";
 
 export type RevealPhase = "before" | "after" | "done";
 
 /** Milliseconds each phase holds before the next begins. */
 export const REVEAL_TIMING: Record<Exclude<RevealPhase, "done">, number> = {
-  before: 1600,
-  after: 2000,
+  before: 2400,
+  after: 3000,
 };
 
 export function nextPhase(phase: RevealPhase): RevealPhase {
@@ -95,7 +97,7 @@ export function ConsultView({
                   <Play size={13} fill="currentColor" strokeWidth={1.7} /> Replay
                 </button>
                 <button className="consult-close" onClick={onPresent}>
-                  <Sparkles size={14} strokeWidth={1.7} /> Before &amp; after
+                  <CompareSymbol size={16} /> Before &amp; after
                 </button>
               </div>
               <details className="consult-compact-options">
@@ -121,7 +123,7 @@ export function ConsultView({
       {!revealing && <div className="consult-variants">{variants}</div>}
 
       <div className="consult-foot">
-        <CreatorSignature inverse className="consult-practice" />
+        {designCredit() && <span className="consult-practice consult-credit">{designCredit()}</span>}
         <span className="consult-hint">
           {phase === "before"
             ? "Your smile today"

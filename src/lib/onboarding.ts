@@ -4,6 +4,12 @@
  *
  *   WELCOME → ACCOUNT → PERSONALISE → HOW IT WORKS → YOUR STYLE → SUBSCRIPTION → READY
  *
+ * SUBSCRIPTION shows the Pro plans to everyone while accounts are on. Signed
+ * in, it offers the App Store plans (skipped for Pro or complimentary users).
+ * Exploring without an account, it shows the plans and prices with "Start
+ * your free trial", which creates the account first (a subscription belongs
+ * to an account); seeing it once is remembered on the device.
+ *
  * YOUR STYLE invites the clinician to add finished cases to their Case Library
  * (optional; "I'll do this later" moves on). It needs somewhere private to
  * keep them: a signed-in account, or this device when accounts are off.
@@ -35,6 +41,8 @@ export interface LocalOnboarding {
   howItWorksSeen?: boolean;
   /** The Case Library step was shown (cases added, or "I'll do this later"). */
   styleLibrarySeen?: boolean;
+  /** The Pro plans were shown before signing in ("Not now", or went on to create an account). */
+  subscriptionSeen?: boolean;
   /** Device-level completion when not signed in. */
   completedAt?: number;
   /** Per account (random user ID): completion cache and choices made during onboarding. */
@@ -74,6 +82,7 @@ export function onboardingDecision(input: OnboardingInput): OnboardingDecision {
     if (!local.preferredName && !local.nameSkipped) return step("personalise");
     if (!local.howItWorksSeen) return step("howItWorks");
     if (!input.accountsConfigured && !local.styleLibrarySeen) return step("styleLibrary");
+    if (input.accountsConfigured && !local.subscriptionSeen) return step("subscription");
     return step("ready");
   }
 

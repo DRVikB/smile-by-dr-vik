@@ -58,7 +58,7 @@ export function MfaSheet({ mode, onDone, onClose }: { mode: MfaMode; onDone: () 
       <div className="sheet account-sheet">
         <div className="sheet-heading">
           <div>
-            <p className="eyebrow">ACCOUNT SECURITY</p>
+            <p className="eyebrow">Account security</p>
             <h2 id="mfa-title">{mode === "enroll" ? "Set up two-factor authentication" : "Two-factor code"}</h2>
           </div>
           <button className="icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>

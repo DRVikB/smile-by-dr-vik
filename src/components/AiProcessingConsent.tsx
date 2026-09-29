@@ -15,7 +15,7 @@ export function AiProcessingConsentDialog({ photoFingerprint, onCancel, onConfir
   return (
     <div className="sheet-backdrop ai-consent-backdrop" role="presentation">
       <section className="sheet ai-consent-sheet" role="dialog" aria-modal="true" aria-labelledby="ai-consent-title" aria-describedby="ai-consent-description">
-        <p className="eyebrow">PRIVACY BEFORE GENERATION</p>
+        <p className="eyebrow">Privacy before generation</p>
         <h2 id="ai-consent-title">Before using AI with this patient</h2>
         <div id="ai-consent-description" className="ai-consent-copy">
           <p>This image will be securely processed by SmileCompose’s AI service to generate the requested visualisation. The selected photo, any reference photo, and your design choices and notes are sent over an encrypted connection. If “Use my Case Library” is on, a few matching photos of your own finished cases (other patients) from your Case Library are also sent, as style references only. The case reference, your account details and billing information are not sent for AI processing.</p>

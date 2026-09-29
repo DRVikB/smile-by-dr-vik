@@ -1,4 +1,4 @@
-import { drawBrandLockup, SMILECOMPOSE } from "./brand";
+import { drawBrandLockup, SMILECOMPOSE, designCredit } from "./brand";
 import type { GenerationResult, PreviewPreferences } from "./types";
 import { preferenceRows, wrapText } from "./report";
 import { drawAiTag } from "./aiTag";
@@ -125,7 +125,7 @@ export async function composeReport(
   ctx.fillText("Smile Preview", margin, 99 * unit);
   ctx.textAlign = "right";
   ctx.font = font(18);
-  ctx.fillText(SMILECOMPOSE.signature, width - margin, 57 * unit);
+  ctx.fillText(designCredit(), width - margin, 57 * unit);
   ctx.textAlign = "left";
 
   const drawPhoto = (img: HTMLImageElement, x: number, y: number, label: string) => {

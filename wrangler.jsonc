@@ -28,7 +28,7 @@
     // Deploy with `npx wrangler deploy --env staging`.
     "staging": {
       "name": "smile-by-dr-vik-staging",
-      "vars": { "SMILE_PROVIDER": "mock", "GEMINI_IMAGE_MODEL": "gemini-3.1-flash-image" },
+      "vars": { "SMILE_PROVIDER": "gemini", "GEMINI_IMAGE_MODEL": "gemini-3.1-flash-image" },
       "durable_objects": {
         "bindings": [{ "name": "REQUEST_GUARD", "class_name": "SmileRequestGuard" }]
       },

@@ -62,8 +62,8 @@ test("a new user goes welcome → account → personalise → how it works → y
 });
 
 test("the Case Library step is optional and needs somewhere private to keep cases", () => {
-  // Signed out with accounts on: no Case Library until they sign in, so the step is skipped.
-  assert.equal(stepOf({ ...base, local: { welcomeSeen: true, accountDeferred: true, nameSkipped: true, howItWorksSeen: true } }), "ready");
+  // Signed out with accounts on: no Case Library until they sign in, so the step is skipped (straight to the plans).
+  assert.equal(stepOf({ ...base, local: { welcomeSeen: true, accountDeferred: true, nameSkipped: true, howItWorksSeen: true } }), "subscription");
   // Accounts off: the library lives on this device.
   assert.equal(stepOf({ ...base, accountsConfigured: false, local: { welcomeSeen: true, nameSkipped: true, howItWorksSeen: true } }), "styleLibrary");
   // Existing users are never sent through it.
@@ -76,6 +76,19 @@ test("an interrupted onboarding resumes at the subscription step", () => {
   // "Not now" on the paywall moves on to Ready for this account only.
   assert.equal(stepOf({ ...input, local: updateAccountFlags(input.local, "user-1", { subscriptionDeferred: true }) }), "ready");
   assert.equal(stepOf({ ...input, userId: "user-2", local: updateAccountFlags(input.local, "user-1", { subscriptionDeferred: true }) }), "subscription");
+});
+
+test("exploring without an account still shows the plans once, then moves on", () => {
+  const exploring = { ...base, local: { welcomeSeen: true, accountDeferred: true, nameSkipped: true, howItWorksSeen: true } };
+  assert.equal(stepOf(exploring), "subscription");
+  assert.equal(stepOf({ ...exploring, local: { ...exploring.local, subscriptionSeen: true } }), "ready");
+  // Without accounts there is nothing to subscribe to.
+  assert.equal(stepOf({ ...exploring, accountsConfigured: false, local: { ...exploring.local, styleLibrarySeen: true } }), "ready");
+  // Signing in afterwards shows the App Store plans for that account, unless it already has Pro.
+  const named = { preferredName: "Dr Vik", onboardingCompletedAt: null, hasGenerationHistory: false };
+  const afterSignIn = signedIn({ profile: named, local: { ...exploring.local, subscriptionSeen: true, styleLibrarySeen: true } });
+  assert.equal(stepOf(afterSignIn), "subscription");
+  assert.equal(stepOf({ ...afterSignIn, hasPro: true }), "ready");
 });
 
 test("Pro and complimentary users are never sent through the paywall again", () => {

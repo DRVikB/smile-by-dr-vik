@@ -30,7 +30,7 @@ export function DocumentsSheet({ onAccepted }: { onAccepted: () => void }) {
   return (
     <div className="sheet-backdrop account-backdrop" role="dialog" aria-modal="true" aria-labelledby="documents-title">
       <div className="sheet account-sheet">
-        <p className="eyebrow">SMILECOMPOSE ACCOUNT</p>
+        <p className="eyebrow">SmileCompose account</p>
         <h2 id="documents-title">Terms and privacy</h2>
         <p className="sheet-sub">Please review the <TermsLink /> and the <PrivacyLink /> for your SmileCompose account. You’ll only be asked again if they change.</p>
         <div className="account-stack">

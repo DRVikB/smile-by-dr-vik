@@ -1,5 +1,5 @@
 /* ============================================================
-   SmileCompose theme — semantic design tokens for Light and Dark.
+   SmileCompose theme — warm ivory studio palette with champagne gold, Light and Dark.
 
    Brand constants (--sc-ivory, --sc-charcoal, --sc-gold, --sc-stone,
    --sc-sand, --sc-taupe) never change. Every surface, text, border and
@@ -18,46 +18,48 @@
 :root {
   color-scheme: light;
 
-  /* Backgrounds and surfaces */
-  --background: #FAF9F6;
-  --bg-grouped: #F3EFE9;
-  --surface: rgba(250, 249, 246, .96);
-  --surface-solid: #FAF9F6;
-  --surface-elevated: #FFFDF9;
-  --card: #FFFDF9;
-  --control-background: #F0ECE6;
-  --input-background: #FFFDF9;
-  --toolbar-background: rgba(250, 249, 246, .86);
-  --sidebar-background: rgba(250, 249, 246, .78);
-  --scrim: rgba(16, 15, 14, .36);
+  /* Backgrounds and surfaces — warm ivory canvas, warm-white cards */
+  --background: #FAF7F2;
+  --bg-grouped: #F5F0E9;
+  --surface: #FFFDFA;
+  --surface-solid: #FFFDFA;
+  --surface-elevated: #FFFFFF;
+  --card: #FFFDFA;
+  --control-background: #F3EDE4;
+  --input-background: #FFFFFF;
+  --toolbar-background: #FAF7F2;
+  --sidebar-background: #F5F0E9;
+  --scrim: rgba(28, 22, 16, .34);
 
   /* Text */
-  --text-primary: #3C3C3C;
-  --text-secondary: #706356;
-  --text-tertiary: #8A7B6C;
-  --placeholder: rgba(60, 60, 60, .38);
+  --text-primary: #2A2521;
+  --text-secondary: #6E655C;
+  --text-tertiary: #877B70;
+  --placeholder: rgba(42, 37, 33, .36);
 
   /* Lines */
-  --border: rgba(160, 143, 126, .24);
-  --border-strong: rgba(60, 60, 60, .5);
-  --separator: rgba(60, 60, 60, .09);
-  --hairline: rgba(0, 0, 0, .06);
-  --hover: rgba(60, 60, 60, .05);
-  --pressed: rgba(212, 181, 131, .16);
+  --border: rgba(120, 100, 80, .16);
+  --border-strong: rgba(42, 37, 33, .45);
+  --separator: rgba(60, 45, 30, .09);
+  --hairline: rgba(60, 45, 30, .06);
+  --hover: rgba(60, 45, 30, .04);
+  --pressed: rgba(216, 189, 146, .2);
 
-  /* Accent (Muted Gold) */
-  --accent: #D4B583;
-  --accent-hover: #C9B8A1;
-  --accent-text: #80653D;
-  --on-accent: #3C3C3C;
-  --accent-soft: rgba(212, 181, 131, .16);
-  --focus-ring: #B08D52;
+  /* Accent — champagne gold fills, bronze text */
+  --accent: #D8BD92;
+  --accent-hover: #CFB081; /* iOS keeps :hover after a tap, so it must not look disabled */
+  --accent-text: #8C6A3C;
+  --on-accent: #2A2521;
+  --accent-soft: rgba(216, 189, 146, .2);
+  --accent-gradient: linear-gradient(180deg, #E4CDA7 0%, #D2B384 100%);
+  --focus-ring: #A6824E;
+  --switch-on: #A6824E;
 
   /* Selection and strong fills */
-  --selected-fill: #D4B583;
-  --on-selected: #3C3C3C;
-  --inverse-surface: #3C3C3C;
-  --on-inverse: #FAF9F6;
+  --selected-fill: #FFFFFF;
+  --on-selected: #2A2521;
+  --inverse-surface: #2A2521;
+  --on-inverse: #FAF7F2;
 
   /* Status */
   --destructive: #9C3A2E;
@@ -67,31 +69,33 @@
   --destructive-surface: #FFF4F1;
   --success: #3F7550;
   --warning: #6B4E1E;
-  --warning-surface: rgba(212, 181, 131, .16);
+  --warning-surface: rgba(216, 189, 146, .2);
 
-  /* Materials */
-  --glass: rgba(250, 250, 248, .82);
-  --glass-strong: rgba(252, 251, 249, .94);
-  --glass-border: rgba(255, 255, 255, .45);
-  --glass-blur: 18px;
+  /* Solid surfaces (the names are kept for existing rules) */
+  --glass: #FFFDFA;
+  --glass-strong: #FFFDFA;
+  --glass-border: transparent;
+  --glass-blur: 0px;
 
-  /* Elevation: restrained shadows in Light */
-  --shadow: 0 8px 28px rgba(60, 60, 60, .06);
-  --shadow-sm: 0 3px 12px rgba(60, 60, 60, .04);
-  --shadow-lg: 0 30px 70px rgba(0, 0, 0, .16);
+  /* Elevation: soft, warm, low */
+  --shadow: 0 1px 2px rgba(60, 40, 20, .04), 0 10px 30px rgba(60, 40, 20, .07);
+  --shadow-sm: 0 1px 2px rgba(60, 40, 20, .04), 0 4px 14px rgba(60, 40, 20, .05);
+  --shadow-lg: 0 30px 70px rgba(40, 28, 16, .16);
 
-  /* Dark brand artwork (symbol, signature) shown as-is in Light */
+  /* Icon badges: a soft ivory disc holding a bronze line symbol */
+  --badge-bg: #F4EEE5;
+  --badge-fg: #8C6A3C;
+
   --mark-filter: none;
-  /* Sign in with Apple: black style in Light, white style in Dark (Apple HIG) */
   --apple-button-bg: #000000;
   --apple-button-fg: #FFFFFF;
 
   /* Illustration surfaces (onboarding visuals) */
-  --ob-panel: linear-gradient(160deg, #F4EDE3 0%, #EEE5D8 100%);
-  --ob-plate: #ECE2D4;
-  --ob-plate-border: rgba(212, 181, 131, .5);
-  --ob-card-shadow: 0 24px 60px rgba(60, 48, 36, .16), 0 2px 6px rgba(60, 48, 36, .06);
-  --ob-glow: rgba(212, 181, 131, .18);
+  --ob-panel: linear-gradient(160deg, #F7F1E8 0%, #F0E7DA 100%);
+  --ob-plate: #EEE4D6;
+  --ob-plate-border: rgba(216, 189, 146, .5);
+  --ob-card-shadow: 0 24px 60px rgba(60, 48, 36, .14), 0 2px 6px rgba(60, 48, 36, .05);
+  --ob-glow: rgba(216, 189, 146, .2);
 
   /* Legacy names used across the stylesheets, now theme-aware */
   --sc-panel: var(--surface);
@@ -108,38 +112,38 @@
   /* Deep warm charcoal, never pure black */
   --background: #141312;
   --bg-grouped: #0F0E0D;
-  --surface: rgba(30, 28, 26, .95);
-  --surface-solid: #1C1A18;
-  --surface-elevated: #24221F;
+  --surface: #1E1C1A;
+  --surface-solid: #1E1C1A;
+  --surface-elevated: #282522;
   --card: #1E1C1A;
   --control-background: #2A2724;
   --input-background: #1F1D1B;
-  --toolbar-background: rgba(20, 19, 18, .82);
-  --sidebar-background: rgba(24, 22, 21, .92);
+  --toolbar-background: #141312;
+  --sidebar-background: #1A1817;
   --scrim: rgba(0, 0, 0, .56);
 
   --text-primary: #F2EDE6;
   --text-secondary: #B8AD9F;
-  --text-tertiary: #8E8478;
+  --text-tertiary: #978C80;
   --placeholder: rgba(242, 237, 230, .36);
 
-  /* Separation comes from borders and layered surfaces, not glow */
-  --border: rgba(236, 226, 212, .14);
+  --border: rgba(236, 226, 212, .13);
   --border-strong: rgba(242, 237, 230, .55);
   --separator: rgba(255, 255, 255, .08);
   --hairline: rgba(255, 255, 255, .07);
-  --hover: rgba(255, 255, 255, .06);
-  --pressed: rgba(201, 167, 110, .18);
+  --hover: rgba(255, 255, 255, .05);
+  --pressed: rgba(201, 168, 115, .18);
 
-  /* Gold is used sparingly and slightly deepened */
-  --accent: #C8A76E;
+  --accent: #C9A873;
   --accent-hover: #D4B583;
   --accent-text: #D9BF8F;
   --on-accent: #1A1714;
-  --accent-soft: rgba(200, 167, 110, .14);
+  --accent-soft: rgba(201, 168, 115, .14);
+  --accent-gradient: linear-gradient(180deg, #D6B886 0%, #BF9C66 100%);
   --focus-ring: #D9BF8F;
+  --switch-on: #C9A873;
 
-  --selected-fill: #4A443D;
+  --selected-fill: #3A3530;
   --on-selected: #F7F2EA;
   --inverse-surface: #EAE3D8;
   --on-inverse: #1A1714;
@@ -151,22 +155,25 @@
   --destructive-surface: rgba(240, 144, 127, .1);
   --success: #8CC79A;
   --warning: #E5C07B;
-  --warning-surface: rgba(200, 167, 110, .14);
+  --warning-surface: rgba(201, 168, 115, .14);
 
-  --glass: rgba(28, 26, 24, .74);
-  --glass-strong: rgba(30, 28, 26, .92);
-  --glass-border: rgba(255, 255, 255, .1);
-  --glass-blur: 22px;
+  --glass: #1E1C1A;
+  --glass-strong: #1E1C1A;
+  --glass-border: transparent;
+  --glass-blur: 0px;
 
-  --shadow: 0 0 0 1px rgba(255, 255, 255, .04), 0 14px 36px rgba(0, 0, 0, .5);
-  --shadow-sm: 0 0 0 1px rgba(255, 255, 255, .03), 0 4px 14px rgba(0, 0, 0, .35);
-  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, .05), 0 30px 80px rgba(0, 0, 0, .6);
+  --shadow: 0 0 0 .5px rgba(255, 255, 255, .05), 0 14px 36px rgba(0, 0, 0, .5);
+  --shadow-sm: 0 0 0 .5px rgba(255, 255, 255, .04), 0 4px 14px rgba(0, 0, 0, .35);
+  --shadow-lg: 0 0 0 .5px rgba(255, 255, 255, .06), 0 30px 80px rgba(0, 0, 0, .6);
+
+  --badge-bg: #2A2724;
+  --badge-fg: #D9BF8F;
 
   --ob-panel: linear-gradient(160deg, #1E1B18 0%, #161412 100%);
   --ob-plate: #27231F;
-  --ob-plate-border: rgba(200, 167, 110, .24);
+  --ob-plate-border: rgba(201, 168, 115, .24);
   --ob-card-shadow: 0 0 0 1px rgba(255, 255, 255, .06), 0 24px 60px rgba(0, 0, 0, .55);
-  --ob-glow: rgba(200, 167, 110, .09);
+  --ob-glow: rgba(201, 168, 115, .09);
 
   --mark-filter: brightness(0) invert(.93);
   --apple-button-bg: #FFFFFF;
@@ -176,11 +183,11 @@
 /* Increase Contrast (iOS Accessibility → Display & Text Size) */
 @media (prefers-contrast: more) {
   :root {
-    --text-secondary: #54483D;
-    --text-tertiary: #6B5D50;
-    --border: rgba(60, 60, 60, .42);
-    --separator: rgba(60, 60, 60, .24);
-    --accent-text: #6A522E;
+    --text-secondary: #4F463E;
+    --text-tertiary: #62574D;
+    --border: rgba(42, 37, 33, .42);
+    --separator: rgba(42, 37, 33, .26);
+    --accent-text: #6A5030;
     --glass: var(--surface-solid);
     --glass-strong: var(--surface-solid);
   }
@@ -197,8 +204,8 @@
 
 /* Same, when the iOS app reports Increase Contrast (UIAccessibility.isDarkerSystemColorsEnabled). */
 :root[data-increase-contrast] {
-  --text-secondary: #54483D; --text-tertiary: #6B5D50; --border: rgba(60, 60, 60, .42);
-  --separator: rgba(60, 60, 60, .24); --accent-text: #6A522E; --glass: var(--surface-solid); --glass-strong: var(--surface-solid);
+  --text-secondary: #4F463E; --text-tertiary: #62574D; --border: rgba(42, 37, 33, .42);
+  --separator: rgba(42, 37, 33, .26); --accent-text: #6A5030; --glass: var(--surface-solid); --glass-strong: var(--surface-solid);
 }
 :root[data-increase-contrast][data-theme="dark"] {
   --text-secondary: #DDD3C6; --text-tertiary: #BDB2A5; --border: rgba(242, 237, 230, .4);

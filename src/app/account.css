@@ -3,7 +3,7 @@
 .privacy-backdrop { z-index: 96; }
 .account-sheet { width: min(460px, 100%); padding: clamp(20px, 4vw, 28px); }
 .account-sheet h2 { margin: 4px 0 8px; font-family: var(--font-display); font-size: clamp(24px, 4vw, 30px); font-weight: 400; line-height: 1.12; }
-.account-sheet h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-secondary); }
+.account-sheet h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--text-secondary); }
 .account-stack { display: grid; gap: 12px; margin-top: 14px; }
 .account-stack > button { width: 100%; }
 .account-field { display: grid; gap: 6px; font-size: 13px; font-weight: 500; color: var(--text-primary); }
@@ -28,10 +28,11 @@
 .plan-options { display: grid; gap: 10px; }
 .plan-option { display: grid; gap: 3px; width: 100%; padding: 14px 16px; text-align: left; border: 1.5px solid var(--border); border-radius: 16px; background: var(--card); color: var(--text-primary); cursor: pointer; }
 .plan-option.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.plan-name { font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary); }
+.plan-name { font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--text-secondary); }
 .plan-price { font-size: 22px; font-weight: 500; }
 .plan-price small { font-size: 14px; color: var(--text-secondary); font-weight: 400; }
 .plan-note { font-size: 13px; color: var(--text-secondary); }
+.plan-trial { color: var(--accent-text); font-weight: 600; }
 .paywall-terms { margin: 0; font-size: 12px; }
 .paywall-offer { margin: 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px; font-size: 14px; color: var(--text-secondary); }
 .paywall-legal { margin: 16px 0 0; text-align: center; font-size: 13px; color: var(--text-secondary); }

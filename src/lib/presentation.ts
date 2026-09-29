@@ -1,4 +1,4 @@
-import { drawBrandLockup, SMILECOMPOSE } from "./brand";
+import { drawBrandLockup, SMILECOMPOSE, designCredit } from "./brand";
 import { jpegToPdf } from "./pdf";
 import { drawAiTag } from "./aiTag";
 
@@ -123,7 +123,7 @@ export async function composePresentation(
   ctx.font = sans(26);
   ctx.fillStyle = BRAND.muted;
   ctx.textAlign = "right";
-  ctx.fillText(SMILECOMPOSE.signature, PAGE_W - margin, 116);
+  ctx.fillText(designCredit(), PAGE_W - margin, 116);
   ctx.textAlign = "left";
 
   ctx.fillStyle = BRAND.gold;

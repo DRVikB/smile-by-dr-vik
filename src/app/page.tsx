@@ -4,26 +4,31 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
+  ChevronRight,
   Columns2,
+  Download,
   Film,
   ImagePlus,
-  History,
   Maximize2,
   Minus,
   MoveHorizontal,
   Play,
   Plus,
+  Redo2,
+  RotateCcw,
   Rows2,
   Settings,
+  Undo2,
   X,
 } from "lucide-react";
+import { AnalysisSymbol, CasesSymbol, IconTile } from "@/components/icons/SmileIcons";
 import { BrandLaunch, BrandLockup, CreatorSignature } from "@/components/Brand";
 import { AppShell } from "@/components/AppShell";
 import { FloatingPanel } from "@/components/FloatingPanel";
 import { PhotoUploader } from "@/components/PhotoUploader";
 import { CameraSheet } from "@/components/CameraSheet";
 import { EditArea } from "@/components/EditArea";
-import { DesignControls } from "@/components/DesignControls";
+import { DesignStudio } from "@/components/studio/DesignStudio";
 import { PatientPhoto } from "@/components/PatientPhoto";
 import { GenerationState } from "@/components/GenerationState";
 import { BeforeAfterSlider, type CompareMode } from "@/components/BeforeAfterSlider";
@@ -71,14 +76,14 @@ import { getCaseRepository } from "@/services/cases/caseRepository";
 import { SmileGenerationError } from "@/services/ai/smileImageService";
 import { useAccount } from "@/components/account/AccountProvider";
 import { useCaseLibrary } from "@/components/caseLibrary/caseLibraryContext";
+import { DEFAULT_STYLE_REFERENCE_LIMIT, findMatchingStyleReferences } from "@/lib/styleMatching";
 import { StyleFeedback } from "@/components/caseLibrary/StyleFeedback";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { Onboarding } from "@/components/onboarding/Onboarding";
-import { HomeGreeting, ProfileButton, RecentCases } from "@/components/home/HomeWorkspace";
+import { HomeHeadline, ProfileButton, RecentCases } from "@/components/home/HomeWorkspace";
 import { DOCUMENT_VERSIONS } from "@/config/legal";
 
 type Variant = SmileVariant;
-const ANALYSIS_KEY = "smile.analysis";
 const DEMO_MATERIAL_IMAGES: Record<Exclude<Treatment, "Composite">, string> = {
   "Single-shade composite": "/demo-single-shade-composite.png",
   "Layered composite": "/demo-storyboard-after.png",
@@ -194,23 +199,59 @@ export default function Smile() {
   // Pinned cases override the automatic match, and are a chairside choice for
   // this session rather than something saved with the case.
   const [pinnedCases, setPinnedCases] = useState<string[]>([]);
-  // A clinician preference, remembered on this device only.
-  const [analysisOn, setAnalysisOn] = useState(false);
-  useEffect(() => {
-    try {
-      setAnalysisOn(localStorage.getItem(ANALYSIS_KEY) === "on");
-    } catch {
-      // Private browsing or blocked storage: the toggle simply starts off.
-    }
-  }, []);
-  function toggleAnalysis(on: boolean) {
-    setAnalysisOn(on);
-    try {
-      localStorage.setItem(ANALYSIS_KEY, on ? "on" : "off");
-    } catch {
-      // Not remembered on this device, but still works for this session.
-    }
+  // Smile analysis opens in its own sheet from the result screen.
+  const [analysisOpen, setAnalysisOpen] = useState(false);
+
+  // Undo / redo for the Studio's design choices. A burst of changes (a slider
+  // drag, quick taps) within HISTORY_BURST_MS is one step.
+  const history = useRef<{ past: SmileSettings[]; future: SmileSettings[]; last: number }>({ past: [], future: [], last: 0 });
+  const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false });
+  const HISTORY_BURST_MS = 600;
+  const syncHistory = () => setHistoryState({ canUndo: history.current.past.length > 0, canRedo: history.current.future.length > 0 });
+  function changeSettings(next: SmileSettings) {
+    const h = history.current;
+    const now = Date.now();
+    if (now - h.last > HISTORY_BURST_MS) h.past = [...h.past.slice(-49), settings];
+    h.future = [];
+    h.last = now;
+    setSettings(next);
+    syncHistory();
   }
+  function undoSettings() {
+    const h = history.current;
+    const previous = h.past.pop();
+    if (!previous) return;
+    h.future.push(settings);
+    h.last = 0;
+    setSettings(previous);
+    syncHistory();
+  }
+  function redoSettings() {
+    const h = history.current;
+    const next = h.future.pop();
+    if (!next) return;
+    h.past.push(settings);
+    h.last = 0;
+    setSettings(next);
+    syncHistory();
+  }
+  function clearSettingsHistory() {
+    history.current = { past: [], future: [], last: 0 };
+    syncHistory();
+  }
+  // ⌘Z / ⇧⌘Z with an iPad keyboard, except while typing in a field.
+  useEffect(() => {
+    if (screen !== "design") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
+      e.preventDefault();
+      if (e.shiftKey) redoSettings(); else undoSettings();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
   useSmileTools({ screen, hasPhoto: !!photo, settings, busy }, setSettings);
   const account = useAccount();
   const caseLibrary = useCaseLibrary();
@@ -273,10 +314,8 @@ export default function Smile() {
           setTestPreview(c.testPreview ?? null);
           setPatientName(c.patientName ?? "");
           setAiConsent(c.aiConsent ?? null);
-          setSettings({ ...c.settings, targetShade:
-            ["The same", "Whiten", "Bleach"].includes(c.settings.targetShade)
-              ? c.settings.targetShade
-              : c.settings.targetShade.startsWith("BL") ? "Bleach" : "Whiten" });
+          // Specific target shades (A1, B1, BL3–BL1) are chosen in the Studio's Shade step, so they are kept as saved.
+          setSettings(c.settings);
           setResult(c.result);
           setScreen(c.screen);
         }
@@ -465,31 +504,12 @@ export default function Smile() {
         preferences,
       };
     }
-    // The clinician's own finished cases, attached so the preview matches their
-    // work. Signed in, the server chooses them from the private Case Library
-    // (the app never builds that payload). Device builds attach them here.
-    // A library that can't be opened must never block a preview.
-    let styleReferences: string[] = [];
-    if (settingsIn.libraryStyle && caseLibrary.mode === "device") {
-      try {
-        const { chooseLibraryCases, listLibrary, loadStyleReferences } =
-          await import("@/lib/caseLibrary");
-        const chosen = chooseLibraryCases(
-          await listLibrary(),
-          settingsIn.treatment,
-          pinnedCases,
-          3,
-          settingsIn,
-        );
-        const heldOutImage = validationCaseId ? (await (await import("@/lib/caseLibrary")).readLibraryMedia(validationCaseId))?.image : undefined;
-        styleReferences = await loadStyleReferences(chosen.filter(c => c.id !== validationCaseId).map((c) => c.id), heldOutImage);
-        preferences.styleReferenceCount = styleReferences.length;
-        preferences.styleReferenceStatus = styleReferences.length ? "used" : "no-match";
-      } catch {
-        styleReferences = [];
-        preferences.styleReferenceStatus = "unavailable";
-      }
-    }
+    // Case Library style references are attached by the server, from the
+    // signed-in account's own private library; the app never sends them. The
+    // matching IDs only make the reuse fingerprint change when the library does.
+    const styleReferences = settingsIn.libraryStyle
+      ? findMatchingStyleReferences(caseLibrary.candidates, settingsIn, DEFAULT_STYLE_REFERENCE_LIMIT).map(m => m.id)
+      : [];
     if (controller.signal.aborted) throw controller.signal.reason;
     const fingerprint = await previewFingerprint({ image: photoIn.dataUrl, editMask: photoIn.editMask, settings: settingsIn, resolution: effectiveResolution, provider: pricing?.model, reference: reference?.dataUrl, styleReferences });
     const reusable = [result, ...variants.map(v => v.result)].find(r => r?.requestFingerprint === fingerprint);
@@ -505,7 +525,6 @@ export default function Smile() {
       framing: requestCanvas.photo.framing,
       resolution: effectiveResolution,
       referenceImage: reference?.dataUrl,
-      styleReferences,
       settings: settingsIn,
       consentVersion,
     }, {
@@ -535,7 +554,7 @@ export default function Smile() {
         if (assessment) next = { ...next, scaleFlag: assessment.flag };
       }
     }
-    if (settingsIn.libraryStyle && caseLibrary.mode === "cloud") {
+    if (settingsIn.libraryStyle) {
       const used = next.styleReferencesUsed?.count ?? 0;
       preferences.styleReferenceCount = used;
       preferences.styleReferenceStatus = used ? "used" : "no-match";
@@ -845,6 +864,7 @@ export default function Smile() {
     setPreviewMode("slide");
     setEditAreaOpen(false);
     setSettings({ ...defaultSettings });
+    clearSettingsHistory();
     setError("");
     setSaved(false);
     setScreen("start");
@@ -914,6 +934,16 @@ export default function Smile() {
     <AppShell
       screen={screen}
       testMode={testMode}
+      tools={screen === "design" ? (
+        <div className="nav-history" role="group" aria-label="Design history">
+          <button type="button" className="nav-tool" onClick={undoSettings} disabled={busy || !historyState.canUndo} aria-label="Undo" title="Undo (⌘Z)">
+            <Undo2 size={18} strokeWidth={1.7} />
+          </button>
+          <button type="button" className="nav-tool" onClick={redoSettings} disabled={busy || !historyState.canRedo} aria-label="Redo" title="Redo (⇧⌘Z)">
+            <Redo2 size={18} strokeWidth={1.7} />
+          </button>
+        </div>
+      ) : undefined}
       onBack={
         screen === "photo"
           ? () => setScreen("start")
@@ -939,7 +969,7 @@ export default function Smile() {
             onClick={() => setLogOpen(true)}
             aria-label="Open cases"
           >
-            <History size={16} strokeWidth={1.7} />
+            <CasesSymbol size={18} />
             Cases
           </button>
           <button className="nav-action" onClick={() => account.openSettings()} aria-label="Open profile and settings">
@@ -949,13 +979,15 @@ export default function Smile() {
           {screen === "design" && (
             <button
               className="nav-action"
-              onClick={() => setSettings({ ...defaultSettings })}
+              onClick={() => changeSettings({ ...defaultSettings })}
             >
-              Reset
+              <RotateCcw size={16} strokeWidth={1.7} />
+              Reset design
             </button>
           )}
           {screen === "preview" && (
             <button className="nav-action" onClick={() => setSaveOpen(true)}>
+              <Download size={16} strokeWidth={1.7} />
               Save
             </button>
           )}
@@ -981,14 +1013,7 @@ export default function Smile() {
               </div>
               <ProfileButton className="start-profile" />
               <div className="start-copy">
-                <HomeGreeting />
-                <h1 ref={heading} tabIndex={-1} className="splash-heading">
-                  Smile design,
-                  <br />
-                  visualised.
-                </h1>
-                <span className="splash-rule" aria-hidden="true" />
-                <p className="splash-sub">Digital Smile Design</p>
+                <HomeHeadline headingRef={heading} />
                 <div className="splash-actions">
                   <button
                     className="splash-primary"
@@ -1000,7 +1025,7 @@ export default function Smile() {
                     className="splash-outline"
                     onClick={() => setLogOpen(true)}
                   >
-                    <History size={16} strokeWidth={1.7} />
+                    <CasesSymbol size={18} />
                     Cases
                   </button>
                   <button
@@ -1031,6 +1056,8 @@ export default function Smile() {
                 onRemove={startNewSmile}
                 onContinue={() => setScreen("design")}
                 onCamera={() => setCamera(true)}
+                onSample={() => void openTestMode()}
+                sampleBusy={sampleBusy}
                 authorityConfirmed={Boolean(uploadAuthority)}
                 onConfirmAuthority={confirmUploadAuthority}
                 onLearnMore={account.openPrivacy}
@@ -1039,7 +1066,7 @@ export default function Smile() {
           )}
 
           {screen === "design" && photo && (
-            <section className="design-screen">
+            <section className="design-screen studio-screen">
               <input
                 ref={replacement}
                 className="sr-only"
@@ -1091,83 +1118,75 @@ export default function Smile() {
               <h1 ref={heading} tabIndex={-1} className="sr-only">
                 Patient Smile Design
               </h1>
-              <div className="design-layout">
-                <div className="photo-column">
-                  {result ? (
-                    <div className="preview-stage">
-                      <BeforeAfterSlider
-                        original={photo.dataUrl}
-                        preview={result.image}
-                        isMock={result.mode === "mock"}
-                        mode={previewMode}
-                        onModeChange={setPreviewMode}
+              <DesignStudio
+                stage={result ? (
+                  <div className="preview-stage">
+                    <BeforeAfterSlider
+                      original={photo.dataUrl}
+                      preview={result.image}
+                      isMock={result.mode === "mock"}
+                      mode={previewMode}
+                      onModeChange={setPreviewMode}
+                    />
+                  </div>
+                ) : (
+                  <PatientPhoto photo={photo} />
+                )}
+                caseBar={<>
+                  {result && <div className="design-touch-compare">
+                    <span className="compact-options-label">Compare</span>
+                    <div className="compact-compare-switch" role="group" aria-label="Comparison style">
+                      <button type="button" aria-pressed={previewMode === "slide"} onClick={() => setPreviewMode("slide")}>Slide</button>
+                      <button type="button" aria-pressed={previewMode === "overlay"} onClick={() => setPreviewMode("overlay")}>Overlay</button>
+                    </div>
+                  </div>}
+                  {validationCaseId && <p className="test-notice">Outcome validation · the actual after photo is held out. Set the actual treatment goal and shade before generating.</p>}
+                  <div className="studio-case-row">
+                    <div className="patient-field">
+                      <label htmlFor="patient-name">Case ref.</label>
+                      <input
+                        id="patient-name"
+                        type="text"
+                        value={patientName}
+                        maxLength={24}
+                        placeholder="Initials or reference, e.g. AB"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="characters"
+                        spellCheck={false}
+                        aria-describedby="patient-name-hint"
+                        onChange={(e) => setPatientName(e.target.value)}
                       />
                     </div>
-                  ) : (
-                    <PatientPhoto photo={photo} />
-                  )}
-                </div>
-                <FloatingPanel className="design-drawer" title="Design Controls" subtitle={`${settings.targetShade} · ${settings.treatment}`} desktopOpen>
-              {result && <div className="design-touch-compare">
-                <span className="compact-options-label">COMPARE</span>
-                <div className="compact-compare-switch" role="group" aria-label="Comparison style">
-                  <button type="button" aria-pressed={previewMode === "slide"} onClick={() => setPreviewMode("slide")}>Slide</button>
-                  <button type="button" aria-pressed={previewMode === "overlay"} onClick={() => setPreviewMode("overlay")}>Overlay</button>
-                </div>
-              </div>}
-              {validationCaseId && <p className="test-notice">Outcome validation · the actual after photo is held out. Set the actual treatment goal and shade before generating.</p>}
-              <div className="patient-field">
-                <label htmlFor="patient-name">Case ref.</label>
-                <input
-                  id="patient-name"
-                  type="text"
-                  value={patientName}
-                  maxLength={24}
-                  placeholder="Initials or reference, e.g. AB or Case 24"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="characters"
-                  spellCheck={false}
-                  aria-describedby="patient-name-hint"
-                  onChange={(e) => setPatientName(e.target.value)}
-                />
-              </div>
-              <p id="patient-name-hint" className="control-hint">Stays on this device. Use initials or a practice reference — not full names, dates of birth, NHS numbers or contact details.</p>
-                  <div className="photo-under">
                     <button
-                      className="text-button"
+                      className="icon-button studio-photo-action"
                       disabled={busy}
+                      aria-label="Replace photo"
                       // A real patient photo needs this case's authority confirmation (e.g. leaving test mode).
                       onClick={() => (uploadAuthority && !testMode ? replacement.current?.click() : startNewSmile())}
                     >
-                      <ImagePlus size={15} strokeWidth={1.6} />
-                      Replace photo
+                      <ImagePlus size={18} strokeWidth={1.6} />
                     </button>
-                    <button className="text-button" disabled={busy} onClick={startNewSmile}>
-                      <X size={15} /> Remove photo
+                    <button className="icon-button studio-photo-action" disabled={busy} aria-label="Remove photo" onClick={startNewSmile}>
+                      <X size={18} />
                     </button>
-                    <span>
-                      {testMode && <b>Test mode · </b>}
-                      {toothSummary(settings)} · {settings.targetShade}
-                    </span>
                   </div>
-                <DesignControls
-                  costs={{ pricing, resolution: effectiveResolution, onResolution: setResolution, costs, testMode, busy, open: costsOpen, onOpen: toggleCosts, requestLimit, onRequestLimit: setRequestLimit }}
-                  onEditArea={() => setEditAreaOpen(true)}
-                  hasEditArea={Boolean(photo.editMask)}
-                  settings={settings}
-                  onChange={setSettings}
-                  onGenerate={() => void generate()}
-                  onCompare={compareShapes}
-                  onCompareMaterials={compareMaterials}
-                  onHarmonise={harmoniseStyles}
-                  busy={busy}
-                  reference={reference}
-                  onAddReference={() => referenceInput.current?.click()}
-                  onClearReference={() => setReference(null)}
-                />
-                </FloatingPanel>
-              </div>
+                  <p id="patient-name-hint" className="control-hint">Stays on this device. Use initials or a practice reference — not full names, dates of birth, NHS numbers or contact details.{testMode && <b> Test mode.</b>}</p>
+                </>}
+                costs={{ pricing, resolution: effectiveResolution, onResolution: setResolution, costs, testMode, busy, open: costsOpen, onOpen: toggleCosts, requestLimit, onRequestLimit: setRequestLimit }}
+                onEditArea={() => setEditAreaOpen(true)}
+                hasEditArea={Boolean(photo.editMask)}
+                settings={settings}
+                onChange={changeSettings}
+                onGenerate={() => void generate()}
+                onCompare={compareShapes}
+                onCompareMaterials={compareMaterials}
+                onHarmonise={harmoniseStyles}
+                busy={busy}
+                reference={reference}
+                onAddReference={() => referenceInput.current?.click()}
+                onClearReference={() => setReference(null)}
+              />
             </section>
           )}
 
@@ -1193,6 +1212,11 @@ export default function Smile() {
                 >
                   <Maximize2 size={14} strokeWidth={1.8} />
                   Consultation view
+                </button>
+                {/* Always visible on the result, on every device. */}
+                <button className="analysis-chip" onClick={() => setAnalysisOpen(true)}>
+                  <AnalysisSymbol size={18} />
+                  Smile analysis
                 </button>
               </div>
               <FloatingPanel className="review-drawer" title="Review & refine" subtitle={result.mode === "live" && !testMode ? "Check anatomy · options & treatment notes" : "Analysis, options & treatment notes"} open={reviewOpen} onOpenChange={setReviewOpen}>
@@ -1229,18 +1253,14 @@ export default function Smile() {
                   Stronger
                 </button>
               </div>
-              <label className="style-toggle analysis-toggle">
-                <input
-                  type="checkbox"
-                  role="switch"
-                  checked={analysisOn}
-                  onChange={(e) => toggleAnalysis(e.target.checked)}
-                />
+              <button type="button" className="analysis-row" onClick={() => setAnalysisOpen(true)}>
+                <IconTile icon={AnalysisSymbol} size="sm" />
                 <span className="analysis-toggle-text">
                   Smile analysis
                   <small>Relative facial reference lines</small>
                 </span>
-              </label>
+                <ChevronRight size={17} aria-hidden="true" />
+              </button>
               {result.scaleFlag === "grew" && (
                 <p className="scale-notice" role="status">
                   <span>Check the size</span>This result may show the teeth
@@ -1287,14 +1307,6 @@ export default function Smile() {
                 result={result}
               />
               </div>
-              {analysisOn && (
-                <SmileAnalysisPanel
-                  before={photo.dataUrl}
-                  after={result.image}
-                  isDemo={result.mode === "mock" || testMode}
-                  patientName={patientName}
-                />
-              )}
               <Disclaimer />
               </FloatingPanel>
               </div>
@@ -1314,6 +1326,7 @@ export default function Smile() {
                 mode={previewMode}
                 onModeChange={setPreviewMode}
                 onConsult={() => { setReviewOpen(false); setFullscreen(true); }}
+                onAnalysis={() => { setReviewOpen(false); setAnalysisOpen(true); }}
                 onReview={() => setReviewOpen(true)}
                 onAnother={showAnother}
                 onEdit={() => { setReviewOpen(false); setScreen("design"); setError(""); }}
@@ -1323,7 +1336,19 @@ export default function Smile() {
                 busy={busy}
                 saving={saving}
               />
-
+              {analysisOpen && (
+                <div className="sheet-backdrop analysis-backdrop" role="dialog" aria-modal="true" aria-label="Smile analysis" onClick={() => setAnalysisOpen(false)}>
+                  <div className="sheet analysis-sheet" onClick={(e) => e.stopPropagation()}>
+                    <SmileAnalysisPanel
+                      before={photo.dataUrl}
+                      after={result.image}
+                      isDemo={result.mode === "mock" || testMode}
+                      patientName={patientName}
+                      onClose={() => setAnalysisOpen(false)}
+                    />
+                  </div>
+                </div>
+              )}
             </section>
           )}
         </>

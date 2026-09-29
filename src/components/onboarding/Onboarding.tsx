@@ -104,7 +104,7 @@ export function Onboarding({ appReady, onCreateFirst, onOpenCases }: {
     case "styleLibrary":
       return <StyleLibraryStep configured={configured} onContinue={() => save({ ...local!, styleLibrarySeen: true })} />;
     case "subscription":
-      return <SubscriptionStep configured={configured} onDefer={() => setFlags({ subscriptionDeferred: true })} />;
+      return <SubscriptionStep configured={configured} onDefer={() => userId ? setFlags({ subscriptionDeferred: true }) : save({ ...local!, subscriptionSeen: true })} />;
     case "ready":
       return null; // shown via showingReady
   }
@@ -285,8 +285,8 @@ function HowItWorksStep({ configured, onContinue }: { configured: boolean; onCon
   const heading = useFocusHeading("how");
   return (
     <Frame step="howItWorks" configured={configured} visual={<HowItWorksVisual />} head={<>
-      <h1 ref={heading} tabIndex={-1} className="ob-title">From photo to smile concept</h1>
-      <p className="ob-copy">Four steps, all in one place. Patient photos stay on this device until you choose to generate.</p>
+      <h1 ref={heading} tabIndex={-1} className="ob-title">A smarter way to design beautiful smiles.</h1>
+      <p className="ob-copy">From capture to consultation, in one seamless workflow. Patient photos stay on this device until you choose to generate.</p>
     </>}>
       <div className="ob-actions">
         <button className="primary-button ob-button" onClick={onContinue}>Continue</button>

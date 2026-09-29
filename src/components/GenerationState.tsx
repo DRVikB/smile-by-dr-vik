@@ -70,7 +70,7 @@ export function GenerationState({
       <div className="generation-splash-content">
         <div className="generation-splash-copy">
           <img className="sc-composing-symbol" src="/brand/smilecompose-symbol.svg" alt="" aria-hidden="true" />
-          <span className="generation-splash-eyebrow">DIGITAL SMILE DESIGN</span>
+          <span className="generation-splash-eyebrow">Digital smile design</span>
           <h2 id="generation-title">Composing<br />your smile…</h2>
           <p>
             {testMode

@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Download, ImagePlus, Trash2, Upload, X } from "lucide-react";
+import { IconTile, LibrarySymbol } from "@/components/icons/SmileIcons";
 import type { CaseMaterial, LibraryCase } from "@/lib/types";
 import { LibraryCaseDetails } from "./LibraryCaseDetails";
 import { exportValidationRecords } from "@/lib/validation";
@@ -256,7 +257,7 @@ export function CaseLibrary({
           <p className="log-empty">Opening your case library…</p>
         ) : all.length === 0 ? (
           <div className="empty-state">
-            <span className="empty-state-icon" aria-hidden="true"><ImagePlus size={22} strokeWidth={1.5} /></span>
+            <IconTile icon={LibrarySymbol} size="lg" className="empty-state-tile" />
             <p className="empty-state-title">No library cases yet</p>
             <p className="empty-state-body">Add photographs of your own finished bonding and porcelain, and previews will follow their contour, texture and finish.</p>
           </div>

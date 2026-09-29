@@ -66,8 +66,8 @@ export function ProfileSection() {
         <Row label="Preferred name" value={names.preferredName ?? "Not set"} onClick={() => nav.openPage({ kind: "editProfile" })} />
         {user && <Row label="Account name" value={names.fullName ?? "Not set"} onClick={() => nav.openPage({ kind: "editProfile" })} />}
         {user && (
-          <Row label="Email" value={email ? (showEmail ? email : maskEmail(email)) : "Not shared"}
-            detail={relay ? "Private relay address (Hide My Email)" : undefined}
+          <Row label="Email" value={email ? undefined : "Not shared"}
+            detail={email ? `${showEmail ? email : maskEmail(email)}${relay ? " · Hide My Email relay" : ""}` : undefined}
             trailing={email ? (
               <button type="button" className="text-button settings-inline-action" onClick={() => setShowEmail(v => !v)} aria-label={showEmail ? "Hide email address" : "Show email address"}>
                 {showEmail ? "Hide" : "Show"}

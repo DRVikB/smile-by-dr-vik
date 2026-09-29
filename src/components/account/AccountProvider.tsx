@@ -20,6 +20,7 @@ import { SettingsView, type SettingsSection } from "@/components/settings/Settin
 import { PrivacyNoticeSheet, type LegalDocument } from "./PrivacyNoticeSheet";
 import { DocumentsSheet } from "./DocumentsSheet";
 import { MfaSheet, type MfaMode } from "./MfaSheet";
+import { setDesignerName } from "@/lib/brand";
 
 type Sheet = { kind: "auth"; mode: AuthMode; reason?: string } | { kind: "paywall" } | { kind: "settings"; section?: SettingsSection }
   | { kind: "privacy"; back: Sheet; document: LegalDocument } | { kind: "documents" } | { kind: "mfa"; mode: MfaMode; back: Sheet } | null;
@@ -335,6 +336,8 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
     ? { fullName: serverProfile?.fullName ?? cached?.fullName ?? metadataName, preferredName: serverProfile?.preferredName ?? cached?.preferredName ?? null }
     : { fullName: null, preferredName: localName }), [userId, serverProfile, cached, metadataName, localName]);
   const shownName = nameToShow(names);
+  // Patient-facing exports credit the clinician by the name they chose.
+  useEffect(() => setDesignerName(names.preferredName || names.fullName), [names.preferredName, names.fullName]);
   // "Dr Vik" → DV; with no preferred name, the full account name ("Vikas Bajaj" → VB).
   const initials = initialsOf(names.preferredName || names.fullName || shownName);
   const avatarUrl = userId ? status?.avatarUrl ?? null : null;

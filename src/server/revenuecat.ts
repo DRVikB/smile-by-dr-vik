@@ -12,6 +12,8 @@ export interface ProEntitlement {
   willRenew: boolean;
   billingIssue: boolean;
   managementUrl: string | null;
+  /** In the free trial (introductory offer): generations are limited until it converts. */
+  trial: boolean;
 }
 
 export interface RevenueCatClient {
@@ -25,7 +27,7 @@ interface SubscriberResponse {
   subscriber?: {
     management_url?: string | null;
     entitlements?: Record<string, { expires_date?: string | null; grace_period_expires_date?: string | null; product_identifier?: string; purchase_date?: string }>;
-    subscriptions?: Record<string, { is_sandbox?: boolean; unsubscribe_detected_at?: string | null; billing_issues_detected_at?: string | null; expires_date?: string | null; purchase_date?: string }>;
+    subscriptions?: Record<string, { is_sandbox?: boolean; period_type?: string; unsubscribe_detected_at?: string | null; billing_issues_detected_at?: string | null; expires_date?: string | null; purchase_date?: string }>;
   };
 }
 
@@ -47,6 +49,7 @@ export function readProEntitlement(body: SubscriberResponse, now = Date.now()): 
     willRenew: Boolean(subscription) && !subscription?.unsubscribe_detected_at,
     billingIssue: Boolean(subscription?.billing_issues_detected_at),
     managementUrl: subscriber.management_url ?? null,
+    trial: subscription?.period_type === "trial",
   };
 }
 

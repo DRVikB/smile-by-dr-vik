@@ -22,7 +22,6 @@ export interface SmileGenerationRequest {
   framing?: Framing;
   resolution: ImageResolution;
   referenceImage?: string;
-  styleReferences?: string[];
   settings: SmileSettings;
   /** Clinician's AI-processing attestation version for this photo. */
   consentVersion?: string;
@@ -146,7 +145,6 @@ export async function generateSmileImage(
         resolution: request.resolution,
         generationMode: mode,
         referenceImage: request.referenceImage,
-        styleReferences: request.styleReferences?.length ? request.styleReferences : undefined,
         framing: request.framing,
         settings: request.settings,
       }),

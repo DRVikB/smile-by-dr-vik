@@ -6,6 +6,7 @@ export function AppShell({
   testMode = false,
   onBack,
   action,
+  tools,
   step,
   children,
 }: {
@@ -13,6 +14,8 @@ export function AppShell({
   testMode?: boolean;
   onBack?: () => void;
   action?: React.ReactNode;
+  /** Screen tools shown in the bar before the menu (the Studio's undo / redo). */
+  tools?: React.ReactNode;
   /** Where the clinician is in the flow. Only ever counts screens that exist. */
   step?: { current: number; total: number };
   children: React.ReactNode;
@@ -26,7 +29,7 @@ export function AppShell({
               <ChevronLeft size={21} strokeWidth={1.7} />
             </button>
           )}
-          <BrandLockup inverse={screen === "design" || screen === "preview"} />
+          <BrandLockup inverse={screen === "preview"} />
         </div>
         {step ? (
           <div className="nav-step">
@@ -46,6 +49,7 @@ export function AppShell({
           </div>
         ) : null}
         {testMode && <span className="test-mode-pill">Test mode</span>}
+        {tools}
         {screen === "photo" ? <>
           <div className="photo-desktop-actions">{action}</div>
           <details className="app-menu photo-mobile-menu">

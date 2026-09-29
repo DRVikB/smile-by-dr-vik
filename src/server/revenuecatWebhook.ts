@@ -1,4 +1,4 @@
-import { PRO_ENTITLEMENT_ID, generationsForProduct } from "@/config/subscriptions";
+import { PRO_ENTITLEMENT_ID, generationsForPeriod } from "@/config/subscriptions";
 import type { AccountStore } from "./accountStore";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -14,6 +14,8 @@ interface RevenueCatEvent {
   purchased_at_ms?: number | null;
   expiration_at_ms?: number | null;
   environment?: string;
+  /** TRIAL, INTRO, NORMAL or PROMOTIONAL. */
+  period_type?: string;
 }
 
 /** Constant-time string comparison for the shared webhook secret. */
@@ -70,7 +72,7 @@ export async function handleRevenueCatWebhook(
       productId,
       periodStart: iso(event.purchased_at_ms),
       periodEnd: iso(event.expiration_at_ms),
-      allowance: generationsForProduct(productId),
+      allowance: generationsForPeriod(productId, event.period_type === "TRIAL"),
     });
     return Response.json({ outcome }, { headers });
   } catch {

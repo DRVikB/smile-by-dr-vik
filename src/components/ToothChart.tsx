@@ -4,12 +4,12 @@ import { DESIGN_INTENTS } from "@/lib/generation/designPlan";
 import { activeToothPlans, lowerArch, toothSummary, updateToothPlan, upperArch } from "@/lib/teeth";
 import type { SmileSettings, ToothPlan } from "@/lib/types";
 
-export function ToothChart({ settings, onChange }: { settings: SmileSettings; onChange: (s: SmileSettings) => void }) {
+export function ToothChart({ settings, onChange, defaultOpen = false }: { settings: SmileSettings; onChange: (s: SmileSettings) => void; defaultOpen?: boolean }) {
   const [focused, setFocused] = useState(11);
   const plans = settings.toothPlans ?? activeToothPlans(settings).map(p => ({ ...p, intent: "Auto" as const }));
   const current: ToothPlan = plans.find(p => p.tooth === focused) ?? { tooth: focused, intent: "Preserve", condition: "Natural" };
   const update = (patch: Partial<ToothPlan>) => onChange(updateToothPlan(settings, { ...current, ...patch }));
-  return <details className="clinical-details">
+  return <details className="clinical-details" open={defaultOpen || undefined}>
     <summary>Individual teeth · {toothSummary(settings)}</summary>
     <p className="control-hint">Tap a tooth to set its instructions. FDI numbers: patient’s right to left. Unselected and missing teeth stay unchanged. Only visible, identifiable teeth can be illustrated.</p>
     {[upperArch, lowerArch].map((arch, i) => <div key={i} className="tooth-arch">

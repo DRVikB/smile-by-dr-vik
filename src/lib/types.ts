@@ -191,6 +191,8 @@ export interface CaseLogEntry {
   archivedAt?: number;
   /** In Recently Deleted: permanently removed after RECENTLY_DELETED_DAYS. */
   deletedAt?: number;
+  /** Starred by the clinician as a version worth keeping or showing. */
+  favourite?: boolean;
 }
 export interface CaseLogMedia {
   id: string;

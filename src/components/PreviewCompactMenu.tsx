@@ -7,15 +7,16 @@ import {
   Pencil,
   Plus,
   SlidersHorizontal,
-  Sparkles,
   X,
 } from "lucide-react";
+import { AnalysisSymbol, VisualiseSymbol } from "@/components/icons/SmileIcons";
 import type { CompareMode } from "./BeforeAfterSlider";
 
 export function PreviewCompactMenu({
   mode,
   onModeChange,
   onConsult,
+  onAnalysis,
   onReview,
   onAnother,
   onEdit,
@@ -28,6 +29,7 @@ export function PreviewCompactMenu({
   mode: CompareMode;
   onModeChange: (mode: CompareMode) => void;
   onConsult: () => void;
+  onAnalysis: () => void;
   onReview: () => void;
   onAnother: () => void;
   onEdit: () => void;
@@ -95,7 +97,7 @@ export function PreviewCompactMenu({
               </button>
             </div>
             <div className="compact-options-group">
-              <span className="compact-options-label">COMPARE</span>
+              <span className="compact-options-label">Compare</span>
               <div className="compact-compare-switch" role="group" aria-label="Comparison style">
                 <button type="button" aria-pressed={mode === "slide"} onClick={() => onModeChange("slide")}>
                   Slide
@@ -108,15 +110,19 @@ export function PreviewCompactMenu({
                 <Maximize2 size={19} />
                 <span>Consultation view</span>
               </button>
+              <button className="compact-option-row" type="button" onClick={() => choose(onAnalysis)}>
+                <AnalysisSymbol size={20} />
+                <span>Smile analysis</span>
+              </button>
             </div>
             <div className="compact-options-group">
-              <span className="compact-options-label">REFINE &amp; CONTINUE</span>
+              <span className="compact-options-label">Refine &amp; continue</span>
               <button className="compact-option-row" type="button" onClick={() => choose(onReview)}>
                 <SlidersHorizontal size={19} />
                 <span>Review &amp; refine</span>
               </button>
               <button className="compact-option-row" type="button" disabled={busy} onClick={() => choose(onAnother)}>
-                <Sparkles size={19} />
+                <VisualiseSymbol size={20} />
                 <span>Three more options{anotherCost && <small>{anotherCost}</small>}</span>
               </button>
               <button className="compact-option-row" type="button" disabled={busy} onClick={() => choose(onEdit)}>

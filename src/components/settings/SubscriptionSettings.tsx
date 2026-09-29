@@ -46,6 +46,7 @@ export function SubscriptionSection() {
     ? (statusState === "failed" ? "Unavailable offline" : "Checking…")
     : subscription?.active
       ? subscription.billingIssue ? "Payment problem — update your payment method in App Store settings"
+        : subscription.trial ? (subscription.willRenew ? `Free trial — paid plan starts ${formatDate(subscription.expiresAt)}` : `Free trial ends ${formatDate(subscription.expiresAt)}`)
         : subscription.willRenew ? `Renews ${formatDate(subscription.expiresAt)}` : `Ends ${formatDate(subscription.expiresAt)} (renewal cancelled)`
       : complimentary ? (status.overrideExpiresAt ? `Until ${formatDate(status.overrideExpiresAt)}` : "No end date")
         : expired ? `Expired ${formatDate(subscription?.expiresAt)}` : "Not subscribed";

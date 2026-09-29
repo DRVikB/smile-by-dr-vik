@@ -12,7 +12,7 @@ import { pageSecurityHeaders } from "../src/server/securityHeaders";
 import { parseServiceAccount, vertexTransport } from "../src/lib/generation/googleTransport";
 import { revokeAppleAuthorization } from "../src/server/appleRevoke";
 import { accountsMode } from "../src/server/env";
-import { SUBSCRIPTION_PRODUCTS, generationsForProduct, planForProduct } from "../src/config/subscriptions";
+import { SUBSCRIPTION_PRODUCTS, TRIAL_GENERATIONS, generationsForProduct, planForProduct } from "../src/config/subscriptions";
 import { defaultSettings } from "../src/lib/types";
 
 const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
@@ -56,7 +56,7 @@ function fakeStore(overrides: Partial<AccountStore> = {}) {
 
 const activePro: ProEntitlement = {
   active: true, productId: SUBSCRIPTION_PRODUCTS.monthly.productId, periodStart: past, expiresAt: future,
-  environment: "production", willRenew: true, billingIssue: false, managementUrl: null,
+  environment: "production", willRenew: true, billingIssue: false, managementUrl: null, trial: false,
 };
 const fakeMedia = (objects = new Map<string, Uint8Array>()): MediaStore => ({
   put: async (bucket, path, bytes) => { objects.set(`${bucket}/${path}`, bytes); },
@@ -155,11 +155,28 @@ test("a server-side override grants access without a subscription", async () => 
 test("live generation fails closed when accounts are not configured", async () => {
   stubProvider();
   assert.equal(accountsMode(liveEnv), "misconfigured");
-  assert.equal(accountsMode({ ...liveEnv, SMILE_ACCOUNTS: "off" }), "off");
+  // There is no switch to run real AI generation without accounts.
+  assert.equal(accountsMode({ ...liveEnv, SMILE_ACCOUNTS: "off" } as typeof liveEnv), "misconfigured");
   const response = await handleGenerationRequest(generationRequest("good-token"), liveEnv, async () => true);
   assert.equal(response.status, 503);
   assert.equal((await response.json()).code, "accounts_unavailable");
   assert.equal(providerCalls, 0);
+});
+
+test("every real AI generation is attached to the signed-in account", async () => {
+  stubProvider();
+  // No token: refused before any provider call.
+  const { store, calls } = fakeStore();
+  const anonymous = await handleGenerationRequest(generationRequest(), liveEnv, async () => true, services(store, activePro));
+  assert.equal(anonymous.status, 401);
+  assert.equal(providerCalls, 0);
+  // Signed in: reserved against that user, consent recorded for that user, committed to that user's ledger.
+  const response = await handleGenerationRequest(generationRequest("good-token"), liveEnv, async () => true, services(store, activePro));
+  assert.equal(response.status, 200);
+  assert.equal(providerCalls, 1);
+  assert.ok(calls.some(c => c.startsWith("reserve:")), "reserved against the account");
+  assert.ok(calls.some(c => c.startsWith("consent:ai_processing:")), "AI processing recorded for the account");
+  assert.ok(calls.some(c => c.startsWith("commit:")), "committed to the account's ledger");
 });
 
 test("sandbox purchases count only when the deployment allows them", async () => {
@@ -189,6 +206,10 @@ test("RevenueCat subscriber payloads are read correctly", () => {
   assert.equal(readProEntitlement(body(past, future)).billingIssue, true);
   assert.equal(readProEntitlement(body(future, null, true)).environment, "sandbox");
   assert.equal(readProEntitlement({ subscriber: { entitlements: {} } }).active, false);
+  assert.equal(readProEntitlement(body(future)).trial, false);
+  const trialBody = body(future);
+  (trialBody.subscriber.subscriptions["uk.co.drvik.smilecompose.pro.annual"] as { period_type?: string }).period_type = "trial";
+  assert.equal(readProEntitlement(trialBody).trial, true);
   assert.equal(planForProduct("uk.co.drvik.smilecompose.pro.annual"), "annual");
   assert.equal(generationsForProduct("uk.co.drvik.smilecompose.pro.annual"), SUBSCRIPTION_PRODUCTS.annual.generationsPerPeriod);
 });
@@ -436,4 +457,23 @@ test("profile updates are validated, normalised and scoped to the signed-in user
   // A cleared preferred name is stored as null.
   await handleProfileUpdate(profileRequest({ preferredName: "   " }), services(store));
   assert.ok(calls.includes(`profile:${JSON.stringify({ preferredName: null })}`));
+});
+
+test("the free trial grants only the trial allowance; the first paid period grants the plan's", async () => {
+  stubProvider();
+  const trialling = fakeStore();
+  await handleGenerationRequest(generationRequest("good-token"), liveEnv, async () => true, services(trialling.store, { ...activePro, trial: true }));
+  assert.ok(trialling.calls.includes(`period:subscription:${TRIAL_GENERATIONS}`), "trial period allowance");
+  const paid = fakeStore();
+  await handleGenerationRequest(generationRequest("good-token"), liveEnv, async () => true, services(paid.store, activePro));
+  assert.ok(paid.calls.includes(`period:subscription:${SUBSCRIPTION_PRODUCTS.monthly.generationsPerPeriod}`), "paid period allowance");
+
+  const { store, calls } = fakeStore();
+  const options = { store, authorization: "Bearer shared-secret", allowSandbox: true };
+  await handleRevenueCatWebhook(webhook("Bearer shared-secret", { ...renewal, id: "evt-trial", type: "INITIAL_PURCHASE", period_type: "TRIAL" }), options);
+  await handleRevenueCatWebhook(webhook("Bearer shared-secret", { ...renewal, id: "evt-convert", type: "RENEWAL", period_type: "NORMAL" }), options);
+  assert.deepEqual(calls, [
+    `event:INITIAL_PURCHASE:${user.id}:${TRIAL_GENERATIONS}`,
+    `event:RENEWAL:${user.id}:${SUBSCRIPTION_PRODUCTS.annual.generationsPerPeriod}`,
+  ]);
 });

@@ -3,7 +3,8 @@
   --font-sans:
     -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter,
     sans-serif;
-  --font-serif:
+  /* Titles: Apple's New York serif (editorial, high contrast); UI text stays SF Pro. */
+  --font-display:
     "New York", "Iowan Old Style", Georgia, "Times New Roman", serif;
 }
 
@@ -144,8 +145,7 @@ textarea:focus-visible {
 .wordmark {
   font-size: 18px;
   font-weight: 450;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 .wordmark-period {
@@ -187,8 +187,7 @@ textarea:focus-visible {
 .eyebrow {
   font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+  letter-spacing: 0;
   color: var(--text-secondary);
 }
 h1 {
@@ -278,8 +277,7 @@ h3 {
   color: var(--sc-text-muted);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0;
 }
 main {
   flex: 1;
@@ -481,16 +479,14 @@ main {
   display: flex;
   gap: 26px;
   font-size: 11px;
-  letter-spacing: 0.26em;
-  text-transform: uppercase;
+  letter-spacing: 0;
   color: rgba(255, 255, 255, 0.5);
 }
 .hero-location {
   flex: 0 0 auto;
   font-size: 10px;
   font-weight: 500;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
+  letter-spacing: 0;
   color: rgba(255, 255, 255, 0.62);
 }
 
@@ -900,9 +896,9 @@ main {
   display: flex;
   gap: 4px;
   padding: 4px;
-  border-radius: var(--r-segment);
+  border-radius: 13px;
   background: var(--control-background);
-  border: 1px solid var(--border);
+  border: 0;
 }
 .segmented button {
   flex: 1;
@@ -1108,7 +1104,7 @@ main {
   top: 16px;
   transform: translateX(-50%);
   font-size: 11px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
 }
 .compare-divider {
   position: absolute;
@@ -1144,6 +1140,19 @@ main {
   opacity: 0;
   cursor: ew-resize;
   margin: 0;
+}
+/* Zoomed in: dragging the photo pans it; the divider's handle still slides. */
+.zoompan.zoomed .compare-input { pointer-events: none; }
+.compare-grab {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 56px;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  touch-action: none;
+  cursor: ew-resize;
 }
 .fullscreen-button {
   position: absolute;
@@ -1262,6 +1271,8 @@ main {
   inset: 0;
   z-index: 60;
   display: grid;
+  /* One column no wider than the screen: long unwrapped text inside a sheet must never widen it past the viewport. */
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: 22px;
   background: var(--scrim);
@@ -1564,8 +1575,7 @@ button.option-card:hover {
   flex: 0 0 auto;
   font-size: 10px;
   font-weight: 500;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
+  letter-spacing: 0;
   color: rgba(255, 255, 255, 0.62);
 }
 .consult-meta {
@@ -2031,8 +2041,8 @@ button.option-card:hover {
    ============================================================ */
 .splash-lockup { display: flex; flex-direction: column; gap: 2px; }
 .splash-lockup .wordmark {
-  font-family: var(--font-serif);
-  letter-spacing: 0.2em;
+  font-family: var(--font-display);
+  letter-spacing: 0;
   font-weight: 400;
   font-size: clamp(20px, 2.2vw, 26px);
 }
@@ -2044,7 +2054,7 @@ button.option-card:hover {
   filter: invert(1) brightness(1.25) drop-shadow(0 1px 3px rgba(0, 0, 0, 0.65));
 }
 .splash-heading {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-weight: 400;
   font-size: clamp(38px, 5.6vw, 66px);
   line-height: 1.02;
@@ -2060,7 +2070,7 @@ button.option-card:hover {
   background: rgba(255, 255, 255, 0.45);
 }
 .splash-sub {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-style: italic;
   font-size: clamp(16px, 1.7vw, 19px);
   color: rgba(255, 255, 255, 0.82);
@@ -2112,8 +2122,7 @@ button.option-card:hover {
 .splash-tagline {
   margin: 0;
   font-size: 10.5px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  letter-spacing: 0;
   color: rgba(255, 255, 255, 0.45);
 }
 
@@ -2190,7 +2199,7 @@ button.option-card:hover {
 }
 .photo-aside { display: flex; flex-direction: column; gap: 12px; }
 .photo-heading {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-weight: 400;
   font-size: clamp(28px, 3.4vw, 42px);
   line-height: 1.08;
@@ -2340,12 +2349,13 @@ button.option-card:hover {
    ============================================================ */
 .consult-layer {
   opacity: 0;
-  transition: opacity 900ms cubic-bezier(0.32, 0.72, 0, 1);
+  /* A slow dissolve, so the patient sees their own smile become the concept. */
+  transition: opacity 1800ms cubic-bezier(0.37, 0, 0.25, 1);
 }
 .consult-layer.shown { opacity: 1; }
 .consult-top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .consult-top-actions .consult-close { display: inline-flex; align-items: center; gap: 7px; }
-.consult-serif-quiet { opacity: 0.32; transition: opacity 900ms ease; }
+.consult-serif-quiet { opacity: 0.32; transition: opacity 1800ms ease; }
 
 @media (prefers-reduced-motion: reduce) {
   .consult-layer { transition-duration: 1ms; }
@@ -2749,8 +2759,7 @@ button.option-card:hover {
   padding-top: 12px;
   border-top: 1px solid var(--border);
   font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
   color: var(--text-secondary);
 }
 .implications-confirm { padding-bottom: 14px; }
@@ -3113,5 +3122,5 @@ fieldset.clinical-form { border: 0; padding: 0; min-width: 0; }
 /* Empty states (Cases, Case Library) */
 .empty-state { display: grid; justify-items: center; gap: 8px; padding: 36px 20px 28px; text-align: center; }
 .empty-state-icon { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 4px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); box-shadow: inset 0 0 0 1px var(--border); }
-.empty-state-title { margin: 0; font-family: var(--font-serif); font-size: 21px; color: var(--text-primary); }
+.empty-state-title { margin: 0; font-family: var(--font-display); font-size: 21px; color: var(--text-primary); }
 .empty-state-body { margin: 0; max-width: 34ch; font-size: 14px; line-height: 1.5; color: var(--text-secondary); }

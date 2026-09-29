@@ -24,7 +24,7 @@ RevenueCat ──webhook──► /api/webhooks/revenuecat ──► apply_reven
 - **Generations per billing period**: monthly 50, annual 600. Change them in `src/config/subscriptions.ts` (a business decision; one place).
 - **Code map**: `supabase/migrations/…_accounts_subscriptions_generation.sql` (schema, RLS, functions) · `src/server/*` (auth, access, webhook, deletion) · `src/services/{auth,purchases,account}` (client) · `src/components/account/*` (sign-in, paywall, settings) · `src/config/{accounts,subscriptions}.ts`.
 
-Until the public keys are set at build time the app behaves as before (no account UI in the flow). The **server** fails closed: with the Gemini key present but accounts not configured, live generation returns "accounts not configured" rather than running unmetered. For local development only, set `SMILE_ACCOUNTS=off`.
+Until the public keys are set at build time the app behaves as before (no account UI in the flow). The **server** fails closed: with the Gemini key present but accounts not configured, live generation returns "accounts not configured" rather than running unmetered. Every real AI generation is attached to a signed-in account; there is no switch to turn accounts off (use `SMILE_PROVIDER=mock` for local development without accounts).
 
 ---
 
@@ -230,4 +230,3 @@ The app warns first that **deleting an account does not cancel an App Store subs
 | `SMILE_GEMINI_DATA_TERMS` | Worker var/secret: `paid` or `vertex` (owner confirmation) | No |
 | `VERTEX_PROJECT_ID`, `VERTEX_LOCATION` | Worker vars (Vertex only) | No |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Worker secret (Vertex only) | **Yes** |
-| `SMILE_ACCOUNTS` | local dev only (`off`) | No |

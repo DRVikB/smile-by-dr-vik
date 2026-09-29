@@ -10,6 +10,8 @@ export const SUBSCRIPTION_PRODUCTS = {
     productId: "uk.co.drvik.smilecompose.pro.monthly",
     label: "Monthly",
     period: "month",
+    /** UK price shown on the website only. In the app, prices always come from StoreKit. Keep in step with App Store Connect. */
+    displayPrice: "£29.99",
     /** Smile generations included in each billing period. Business decision: adjust before launch. */
     generationsPerPeriod: 50,
   },
@@ -17,11 +19,19 @@ export const SUBSCRIPTION_PRODUCTS = {
     productId: "uk.co.drvik.smilecompose.pro.annual",
     label: "Annual",
     period: "year",
+    displayPrice: "£299.99",
     generationsPerPeriod: 600,
   },
 } as const;
 
 export type PlanKey = keyof typeof SUBSCRIPTION_PRODUCTS;
+
+/**
+ * Smile generations during the free trial (both plans offer a 3-day free trial
+ * as an App Store introductory offer). Apple's trial unlocks Pro; the server
+ * limits generations until the first paid period begins. Business decision.
+ */
+export const TRIAL_GENERATIONS = 3;
 
 /** Monthly generations for a server-side complimentary override without its own value. */
 export const OVERRIDE_DEFAULT_MONTHLY_GENERATIONS = 50;
@@ -31,6 +41,11 @@ export function planForProduct(productId: string | null | undefined): PlanKey | 
   // Apple product IDs may arrive with a plan suffix from RevenueCat (e.g. "id:plan").
   const base = productId.split(":")[0];
   return (Object.keys(SUBSCRIPTION_PRODUCTS) as PlanKey[]).find(key => SUBSCRIPTION_PRODUCTS[key].productId === base) ?? null;
+}
+
+/** The allowance for a billing period: the trial allowance while trialling, otherwise the plan's. */
+export function generationsForPeriod(productId: string | null | undefined, trial: boolean): number {
+  return trial ? TRIAL_GENERATIONS : generationsForProduct(productId);
 }
 
 export function generationsForProduct(productId: string | null | undefined): number {

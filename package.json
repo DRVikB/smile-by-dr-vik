@@ -14,7 +14,7 @@
     "test": "tsx --test tests/*.test.ts",
     "build:next": "npm run legal && next build",
     "build:native": "npm run build && node scripts/build-native.mjs",
-    "ios:sync": "npm run build:native && cap sync ios",
+    "ios:sync": "npm run build:native && cap sync ios && node scripts/verify-ios-bundle.mjs",
     "ios:release": "SMILE_RELEASE_BUILD=1 npm run ios:sync",
     "ios:open": "cap open ios",
     "check:app-store": "npm run legal && node scripts/check-app-store.mjs",

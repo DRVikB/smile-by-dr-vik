@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, ImagePlus, Plus, Sparkles, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ImagePlus, Plus, X } from "lucide-react";
+import { IconTile, LibrarySymbol } from "@/components/icons/SmileIcons";
 import { CaseFeatures } from "@/components/CaseFeatures";
 import { CASE_LIBRARY_AUTHORITY_TEXT } from "@/config/legal";
 import { pickImage } from "@/lib/pickImage";
@@ -110,7 +111,7 @@ export function CaseLibraryView({ startWithAdd, onClose }: { startWithAdd: boole
               <>
                 {notice && (
                   <div className="cl-notice" role="status">
-                    <Sparkles size={18} strokeWidth={1.8} aria-hidden="true" />
+                    <LibrarySymbol size={20} />
                     <span><strong>{notice.title}</strong>{notice.body && <span>{notice.body}</span>}</span>
                     <button type="button" className="icon-button" onClick={() => setNotice(null)} aria-label="Dismiss"><X size={14} /></button>
                   </div>
@@ -173,7 +174,7 @@ export function CaseLibraryView({ startWithAdd, onClose }: { startWithAdd: boole
 export function LibraryEmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="cl-empty">
-      <span className="cl-empty-icon" aria-hidden="true"><ImagePlus size={26} strokeWidth={1.5} /></span>
+      <IconTile icon={LibrarySymbol} size="lg" />
       <h3>Build your style library</h3>
       <p>Add examples of your finished bonding and porcelain cases. SmileCompose can use them as private visual references when creating new designs, helping results reflect your preferred contour, texture and finish.</p>
       <button type="button" className="primary-button" onClick={onAdd}><Plus size={17} strokeWidth={2} aria-hidden="true" />Add Finished Case</button>

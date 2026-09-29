@@ -4,9 +4,9 @@ import {
   ArrowRight,
   Camera,
   Check,
+  ChevronDown,
   ImagePlus,
   LoaderCircle,
-  Upload,
   X,
 } from "lucide-react";
 import type { Photo } from "@/lib/types";
@@ -14,6 +14,7 @@ import { SMILE_GUIDE } from "@/lib/types";
 import { preparePhoto } from "@/lib/photos";
 import { isNativeApp } from "@/native/platform";
 import { UPLOAD_AUTHORITY_TEXT } from "@/config/legal";
+import { CaptureSymbol, CasesSymbol, IconTile, PhotosSymbol } from "@/components/icons/SmileIcons";
 
 const TIPS = [
   "Natural smile",
@@ -24,10 +25,41 @@ const TIPS = [
   "Avoid flash glare and beauty filters",
 ];
 
+/** Sample smiles shown on the "Choose from photos" card (the app's own sample case). */
+const GALLERY = [
+  "/onboarding/smile-before.jpg",
+  "/onboarding/case-porcelain.jpg",
+  "/onboarding/case-layered.jpg",
+  "/onboarding/case-single-shade.jpg",
+  "/onboarding/new-design.jpg",
+  "/onboarding/smile-after.jpg",
+];
+
+function PhotoTips() {
+  return (
+    <details className="photo-tips-disclosure">
+      <summary>Tips for the best photo<ChevronDown size={16} aria-hidden="true" /></summary>
+      <ul>
+        {TIPS.map((tip) => (
+          <li key={tip}>
+            <Check size={13} strokeWidth={2.4} aria-hidden="true" />
+            {tip}
+          </li>
+        ))}
+      </ul>
+      <p className="control-hint">Use a full-face smile for facial context or a straight-on close-up for tooth detail. Set the matching photo type in the Teeth step. A retracted view can show more tooth detail, but cannot establish the natural smile arc.</p>
+      <p className="control-hint">Keep lighting, camera distance and head position consistent for comparisons. Check blur and reflections on the teeth themselves before continuing. Only one patient photograph is edited per preview.</p>
+      <p className="control-hint">For clinical shade records, include a suitable shade reference and use your calibrated photography workflow. An uncalibrated iPad image is not an exact shade measurement. Keep any extra views or natural-smile video in your clinical record.</p>
+      <p className="photo-hint">JPG, PNG or HEIC · up to 25 MB</p>
+    </details>
+  );
+}
+
 /**
- * Step one: take or choose the photograph. The empty stage shows the same
- * guide rectangle the camera uses, so the framing the clinician is asked for
- * here is the framing the model is later told about.
+ * Step one: take or choose the photograph. With no photo it is a "Let's get
+ * started" page — Take a photo, Choose from photos, or explore the sample
+ * case. With a photo it shows the photo on the same guide rectangle the camera
+ * uses, so the framing asked for here is the framing the model is told about.
  */
 export function PhotoUploader({
   photo,
@@ -35,6 +67,8 @@ export function PhotoUploader({
   onContinue,
   onCamera,
   onRemove,
+  onSample,
+  sampleBusy = false,
   authorityConfirmed,
   onConfirmAuthority,
   onLearnMore,
@@ -44,6 +78,9 @@ export function PhotoUploader({
   onContinue: () => void;
   onCamera: () => void;
   onRemove: () => void;
+  /** Opens the sample case in test mode (no patient photo, no AI credits). */
+  onSample?: () => void;
+  sampleBusy?: boolean;
   /** The clinician has confirmed authority to process this case's patient media. */
   authorityConfirmed: boolean;
   onConfirmAuthority: () => void;
@@ -96,9 +133,20 @@ export function PhotoUploader({
     }
   }
 
+  const choose = () => (native ? void chooseFromPhotos() : input.current?.click());
+
+  const errorMessage = error && (
+    <p className="error-message" role="alert">
+      {error}
+      <button aria-label="Dismiss error" onClick={() => setError("")}>
+        <X size={14} />
+      </button>
+    </p>
+  );
+
   return (
     <div
-      className="photo-step"
+      className={photo ? "photo-step" : "photo-start"}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
@@ -114,85 +162,30 @@ export function PhotoUploader({
         onChange={(e) => void receive(e.target.files?.[0])}
       />
 
-      <div className="photo-stage">
-        {photo ? (
-          <>
+      {photo ? (
+        <>
+          <div className="photo-stage">
             <img className="photo-backdrop" src={photo.dataUrl} alt="" aria-hidden="true" />
             <img className="photo-stage-original" src={photo.dataUrl} alt="Selected patient photo" />
-          </>
-        ) : (
-          <div className="photo-stage-empty">
-            <span
-              className="photo-stage-guide"
-              aria-hidden="true"
-              style={{
-                left: `${SMILE_GUIDE.x * 100}%`,
-                top: `${SMILE_GUIDE.y * 100}%`,
-                width: `${SMILE_GUIDE.width * 100}%`,
-                height: `${SMILE_GUIDE.height * 100}%`,
-              }}
-            />
-            <p
-              style={{
-                top: `${(SMILE_GUIDE.y + SMILE_GUIDE.height) * 100}%`,
-              }}
-            >
-              The smile sits here in the frame.
-            </p>
           </div>
-        )}
-      </div>
 
-      <div className="photo-aside">
-        <h1 className="photo-heading">
-          Add Patient Photo
-        </h1>
-        <p className="photo-sub">
-          Upload or capture a clear smile photograph to begin.
-        </p>
-
-        {!photo && (
-          <div className={`upload-authority${authorityConfirmed ? " confirmed" : ""}`}>
-            <p className="control-hint">
-              Patient media is processed to create your SmileCompose visualisation. Only upload information you are authorised to process.{" "}
-              <button type="button" className="inline-link" onClick={onLearnMore}>Learn more</button>
-            </p>
-            <label className="ai-consent-check">
-              <input type="checkbox" checked={authorityConfirmed} disabled={authorityConfirmed} onChange={e => { if (e.target.checked) onConfirmAuthority(); }} />
-              <span>{UPLOAD_AUTHORITY_TEXT}</span>
-            </label>
-          </div>
-        )}
-
-        {photo ? (
-          <>
-            <button
-              className="photo-primary"
-              disabled={busy}
-              onClick={onContinue}
-            >
+          <div className="photo-aside">
+            <h1 className="photo-heading">Looks good?</h1>
+            <p className="photo-sub">Check the smile is sharp and well lit, then continue to the design.</p>
+            <button className="photo-primary" disabled={busy} onClick={onContinue}>
               Continue <ArrowRight size={18} strokeWidth={1.7} />
             </button>
-            {photo.quality &&
-              (photo.quality.blurry ||
-                photo.quality.tooDark ||
-                photo.quality.tooBright) && (
+            {photo.quality && (photo.quality.blurry || photo.quality.tooDark || photo.quality.tooBright) && (
               <p className="photo-quality-notice" role="status">
                 {photo.quality.blurry
                   ? "This photo looks a little soft. A sharper photo usually gives a more natural result — you can continue anyway."
                   : photo.quality.tooDark
                     ? "This photo looks a little dark. Better, even lighting usually gives a more natural result — you can continue anyway."
-                    : photo.quality.tooBright
-                      ? "This photo looks very bright. Softer, even lighting usually gives a more natural result — you can continue anyway."
-                      : null}
+                    : "This photo looks very bright. Softer, even lighting usually gives a more natural result — you can continue anyway."}
               </p>
             )}
             <div className="photo-secondary-row">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => native ? void chooseFromPhotos() : input.current?.click()}
-              >
+              <button type="button" disabled={busy} onClick={choose}>
                 <ImagePlus size={15} /> Change
               </button>
               <button type="button" disabled={busy} onClick={onCamera}>
@@ -202,73 +195,87 @@ export function PhotoUploader({
                 <X size={15} /> Remove
               </button>
             </div>
-            <p className="photo-filename">
-              {photo.isSample ? "Sample photograph" : photo.name}
+            <p className="photo-filename">{photo.isSample ? "Sample photograph" : photo.name}</p>
+            <PhotoTips />
+            {errorMessage}
+          </div>
+        </>
+      ) : (
+        <>
+          <header className="photo-start-head">
+            <h1 className="photo-heading">Let’s get started.</h1>
+            <p className="photo-sub">Add a patient photo to begin the smile design.</p>
+          </header>
+
+          <div className={`upload-authority${authorityConfirmed ? " confirmed" : ""}`}>
+            <label className="ai-consent-check">
+              <input type="checkbox" checked={authorityConfirmed} disabled={authorityConfirmed} onChange={e => { if (e.target.checked) onConfirmAuthority(); }} />
+              <span>{UPLOAD_AUTHORITY_TEXT}</span>
+            </label>
+            <p className="control-hint">
+              Patient media is processed to create your SmileCompose visualisation.{" "}
+              <button type="button" className="inline-link" onClick={onLearnMore}>Learn more</button>
             </p>
-          </>
-        ) : (
-          <>
-            <button className="photo-primary" onClick={onCamera} disabled={busy || !authorityConfirmed}>
-              <Camera size={17} strokeWidth={1.7} />
-              Take Photo
-            </button>
-            {native && (
-              <button
-                className="photo-outline"
-                disabled={busy || !authorityConfirmed}
-                onClick={() => void chooseFromPhotos()}
-              >
-                {busy ? (
-                  <LoaderCircle className="spin" size={17} />
-                ) : (
-                  <ImagePlus size={17} strokeWidth={1.7} />
-                )}
-                {busy ? "Preparing…" : "Choose from Photos"}
-              </button>
-            )}
-            <button
-              className="photo-outline"
-              disabled={busy || !authorityConfirmed}
-              onClick={() => input.current?.click()}
-            >
-              {busy && !native ? (
-                <LoaderCircle className="spin" size={17} />
-              ) : (
-                <Upload size={17} strokeWidth={1.7} />
-              )}
-              {busy && !native ? "Preparing…" : native ? "Choose File" : "Upload Photo"}
-            </button>
-          </>
-        )}
+          </div>
 
-        <div className="photo-tips">
-          <strong>Tips for the best photo</strong>
-          <ul>
-            {TIPS.map((tip) => (
-              <li key={tip}>
-                <Check size={13} strokeWidth={2.4} aria-hidden="true" />
-                {tip}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <details className="clinical-details"><summary>Clinical capture guide</summary>
-          <p className="control-hint">Use a full-face smile for facial context or a straight-on close-up for tooth detail. Set the matching photo type in Smile design. A retracted view can show more tooth detail, but cannot establish the natural smile arc.</p>
-          <p className="control-hint">Keep lighting, camera distance and head position consistent for comparisons. Check blur and reflections on the teeth themselves before continuing. Only one patient photograph is edited per preview.</p>
-          <p className="control-hint">For clinical shade records, include a suitable shade reference and use your calibrated photography workflow. An uncalibrated iPad image is not an exact shade measurement. Keep any extra views or natural-smile video in your clinical record.</p>
-        </details>
-        <p className="photo-hint">JPG, PNG or HEIC · up to 25 MB</p>
-
-        {error && (
-          <p className="error-message" role="alert">
-            {error}
-            <button aria-label="Dismiss error" onClick={() => setError("")}>
-              <X size={14} />
+          <div className="photo-options">
+            <button type="button" className="photo-option" onClick={onCamera} disabled={busy || !authorityConfirmed}>
+              <IconTile icon={CaptureSymbol} />
+              <span className="photo-option-text">
+                <strong>Take a photo</strong>
+                <small>Use the camera, with a guide for the smile.</small>
+              </span>
+              <span className="photo-option-visual photo-option-capture" aria-hidden="true">
+                <img src={GALLERY[0]} alt="" draggable={false} />
+                <span className="photo-option-corner tl" /><span className="photo-option-corner tr" />
+                <span className="photo-option-corner bl" /><span className="photo-option-corner br" />
+                <span
+                  className="photo-option-guide"
+                  style={{
+                    left: `${SMILE_GUIDE.x * 100}%`,
+                    top: `${SMILE_GUIDE.y * 100}%`,
+                    width: `${SMILE_GUIDE.width * 100}%`,
+                    height: `${SMILE_GUIDE.height * 100}%`,
+                  }}
+                />
+              </span>
+              <span className="photo-option-go" aria-hidden="true"><ArrowRight size={18} /></span>
             </button>
-          </p>
-        )}
-      </div>
+
+            <button type="button" className="photo-option" onClick={choose} disabled={busy || !authorityConfirmed}>
+              <IconTile icon={PhotosSymbol} />
+              <span className="photo-option-text">
+                <strong>{native ? "Choose from photos" : "Upload a photo"}</strong>
+                <small>{native ? "Select a photo from your library." : "JPG, PNG or HEIC, up to 25 MB."}</small>
+              </span>
+              <span className="photo-option-visual photo-option-gallery" aria-hidden="true">
+                {GALLERY.map(src => <img key={src} src={src} alt="" draggable={false} />)}
+              </span>
+              <span className="photo-option-go" aria-hidden="true">
+                {busy ? <LoaderCircle className="spin" size={18} /> : <ArrowRight size={18} />}
+              </span>
+            </button>
+          </div>
+
+          {!authorityConfirmed && <p className="control-hint photo-start-note">Confirm the statement above to add a patient photo.</p>}
+          {native && (
+            <button type="button" className="text-button photo-file-link" disabled={busy || !authorityConfirmed} onClick={() => input.current?.click()}>
+              Choose a file instead
+            </button>
+          )}
+
+          {onSample && (
+            <button type="button" className="photo-sample" onClick={onSample} disabled={sampleBusy}>
+              <CasesSymbol size={20} />
+              <span>{sampleBusy ? "Opening the sample case…" : "Explore a sample case"}<small>No patient photo, no AI credits</small></span>
+              <ArrowRight size={17} aria-hidden="true" />
+            </button>
+          )}
+
+          <PhotoTips />
+          {errorMessage}
+        </>
+      )}
     </div>
   );
 }

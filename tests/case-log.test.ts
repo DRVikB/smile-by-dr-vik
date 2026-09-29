@@ -8,7 +8,9 @@ import {
   listLog,
   logFileName,
   readLogMedia,
+  renameCase,
   searchLog,
+  setFavourite,
   updateLogReview,
 } from "../src/lib/caseLog";
 import type { CaseLogEntry, CaseLogMedia } from "../src/lib/types";
@@ -122,4 +124,31 @@ test("review notes stay with the saved image and clearing review preserves image
   assert.equal(await updateLogReview("reviewed", review), false);
   assert.equal(await readLogMedia("reviewed"), null);
   assert.equal((await listLog()).length, 0);
+});
+
+test("renaming a case renames every version in it, and only that case", async () => {
+  await clearLog();
+  await addLogEntry(entry("v1", "AB", 1, { caseId: "case-a" }), media("v1"));
+  await addLogEntry(entry("v2", "AB", 2, { caseId: "case-a" }), media("v2"));
+  await addLogEntry(entry("v3", "AB", 3, { caseId: "case-b" }), media("v3"));
+  assert.equal(await renameCase("case-a", "  CD   ref  "), 2);
+  const byId = new Map((await listLog()).map(e => [e.id, e]));
+  assert.equal(byId.get("v1")?.patientName, "CD ref");
+  assert.equal(byId.get("v2")?.patientName, "CD ref");
+  assert.equal(byId.get("v3")?.patientName, "AB", "another case with the same initials is untouched");
+  // Legacy entries without a caseId are their own case.
+  await addLogEntry(entry("legacy", "Old", 4), media("legacy"));
+  assert.equal(await renameCase("legacy", "New"), 1);
+  assert.equal(await renameCase("case-a", "x".repeat(60)), 2);
+  assert.equal((await listLog()).find(e => e.id === "v1")?.patientName.length, 24);
+});
+
+test("versions can be starred and unstarred", async () => {
+  await clearLog();
+  await addLogEntry(entry("fav", "AB", 1, { caseId: "c" }), media("fav"));
+  assert.equal(await setFavourite("fav", true), true);
+  assert.equal((await listLog()).find(e => e.id === "fav")?.favourite, true);
+  await setFavourite("fav", false);
+  assert.equal("favourite" in ((await listLog()).find(e => e.id === "fav") ?? {}), false);
+  assert.equal(await setFavourite("missing", true), false);
 });

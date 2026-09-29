@@ -8,7 +8,7 @@
 .user-avatar {
   display: inline-grid; flex: none; place-items: center; overflow: hidden; border-radius: 50%;
   background: #2B2825; color: #E2C792; box-shadow: inset 0 0 0 1px rgba(226, 199, 146, .3);
-  font-family: var(--font-serif); letter-spacing: .02em; line-height: 1; user-select: none;
+  font-family: var(--font-display); letter-spacing: .02em; line-height: 1; user-select: none;
 }
 .user-avatar.has-photo { background: var(--control-background); box-shadow: 0 0 0 1px var(--border); }
 .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -20,7 +20,7 @@
 .nav-avatar.user-avatar.has-photo { background: none; }
 
 /* Home: the avatar fills the round glass control */
-.profile-button .profile-button-avatar { width: 100%; height: 100%; background: transparent; color: inherit; box-shadow: none; font-family: inherit; font-size: 14px; font-weight: 600; letter-spacing: .04em; }
+.profile-button .profile-button-avatar { width: 100%; height: 100%; background: transparent; color: inherit; box-shadow: none; font-family: inherit; font-size: 14px; font-weight: 600; letter-spacing: 0; }
 .profile-button.has-photo { padding: 0; overflow: hidden; border-color: rgba(250, 249, 246, .7); }
 
 /* Settings profile card: tap the avatar to add or change the photo */
@@ -112,7 +112,7 @@
 .cl-add-row:hover { background: color-mix(in srgb, var(--hover) 60%, var(--card)); }
 .cl-add-row:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .cl-add-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); }
-.cl-section-title { margin: 0 0 8px 16px; font-size: 13px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary); }
+.cl-section-title { margin: 0 0 8px 16px; font-size: 13px; font-weight: 500; letter-spacing: 0; text-transform: uppercase; color: var(--text-secondary); }
 
 .cl-items { overflow: hidden; margin: 0 0 18px; padding: 0; list-style: none; background: var(--card); border: 1px solid var(--border); border-radius: 16px; }
 .cl-items > li + li { border-top: 1px solid var(--separator); }
@@ -139,7 +139,7 @@
 
 .cl-empty { display: grid; justify-items: center; gap: 12px; margin: 12px auto 26px; padding: 30px 22px 24px; text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: 22px; }
 .cl-empty-icon { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); }
-.cl-empty h3 { margin: 4px 0 0; font-family: var(--font-serif); font-size: 26px; font-weight: 400; line-height: 1.15; }
+.cl-empty h3 { margin: 4px 0 0; font-family: var(--font-display); font-size: 26px; font-weight: 400; line-height: 1.15; }
 .cl-empty p { margin: 0; max-width: 42ch; font-size: 15px; line-height: 1.5; color: var(--text-secondary); }
 .cl-empty .primary-button { width: min(320px, 100%); min-height: 50px; margin-top: 6px; justify-content: center; }
 .cl-guidance { margin: 0; font-size: 13px; line-height: 1.45; color: var(--text-secondary); }
@@ -156,7 +156,7 @@
 .cl-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .cl-actions .primary-button { min-height: 50px; padding: 0 22px; justify-content: center; }
 .cl-progress { width: 100%; height: 4px; accent-color: var(--accent); }
-.cl-authority h3 { margin: 0; font-family: var(--font-serif); font-size: 26px; font-weight: 400; line-height: 1.15; }
+.cl-authority h3 { margin: 0; font-family: var(--font-display); font-size: 26px; font-weight: 400; line-height: 1.15; }
 .cl-authority-check { display: flex; align-items: flex-start; gap: 12px; padding: 16px; border-radius: 16px; background: var(--card); border: 1px solid var(--border); font-size: 15px; line-height: 1.5; cursor: pointer; }
 .cl-authority-check input { flex: none; width: 20px; height: 20px; margin-top: 2px; accent-color: var(--accent-text); }
 
@@ -236,7 +236,7 @@
 }
 .ios-switch-row input[role="switch"]::after {
   content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%;
-  background: #FFFFFF; box-shadow: 0 2px 6px rgba(0, 0, 0, .22); transition: transform var(--fast) var(--ease);
+  background: #FFFFFF; box-shadow: 0 2px 6px rgba(0, 0, 0, .22); transition: transform var(--fast);
 }
 .ios-switch-row input[role="switch"]:checked { background: var(--success); }
 .ios-switch-row input[role="switch"]:checked::after { transform: translateX(20px); }
@@ -245,7 +245,7 @@
 /* Result: optional style feedback */
 .style-feedback { display: grid; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--card); border: 1px solid var(--border); font-size: 14px; }
 .style-feedback p { margin: 0; line-height: 1.45; color: var(--text-secondary); }
-.style-feedback p > span:first-child { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--accent-text); }
+.style-feedback p > span:first-child { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 600; letter-spacing: 0; color: var(--accent-text); }
 .style-feedback-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .style-feedback-row > span { flex: 1 1 100%; color: var(--text-primary); }
 .style-feedback-row .secondary-button { min-height: 40px; padding: 0 16px; }
@@ -254,7 +254,7 @@
 /* Onboarding: Your style visual — cases → SmileCompose → new design */
 .style-stage { --card-w: min(100%, 360px); }
 .style-flow { display: grid; justify-items: center; gap: 10px; width: var(--card-w); }
-.style-flow-label { display: block; margin-bottom: 8px; font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--text-secondary); text-align: center; }
+.style-flow-label { display: block; margin-bottom: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0; color: var(--text-secondary); text-align: center; }
 .style-cases { width: 100%; }
 .style-case-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .style-case { margin: 0; overflow: hidden; border-radius: 14px; background: var(--card); border: 1px solid var(--border); box-shadow: var(--ob-card-shadow); animation: ob-in 480ms var(--ease) both; animation-delay: calc(var(--i, 0) * 110ms); }
@@ -263,7 +263,7 @@
 .style-engine { display: grid; justify-items: center; gap: 6px; }
 .style-engine-line { width: 1px; height: 16px; background: linear-gradient(var(--border), var(--accent)); }
 .style-engine-line:last-child { background: linear-gradient(var(--accent), var(--border)); }
-.style-engine-mark { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; background: var(--inverse-surface); color: var(--on-inverse); font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; box-shadow: var(--shadow-sm); }
+.style-engine-mark { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; background: var(--inverse-surface); color: var(--on-inverse); font-size: 11px; font-weight: 600; letter-spacing: 0; box-shadow: var(--shadow-sm); }
 .style-engine-mark svg { color: var(--sc-gold); }
 .style-result { width: min(100%, 280px); margin: 0; animation: ob-in 520ms var(--ease) 420ms both; }
 .style-result img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 20px; box-shadow: var(--ob-card-shadow), 0 0 0 1px var(--border); }

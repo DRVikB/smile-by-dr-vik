@@ -1,9 +1,27 @@
 import { cp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 // Package the production web build for Capacitor. Run after `npm run build`,
 // which prerenders the app (.next/server/app/index.html) and copies browser
 // assets to dist/client. The website build and deployment are unaffected.
+//
+// `next build` (run just before this script) loads .env.local itself, so the
+// app's JS bundle already has the right NEXT_PUBLIC_* values baked in. This
+// script runs as a plain `node` process afterwards and does NOT get .env.local
+// for free — without loading it here too, the CSP/API origin below silently
+// falls back to the production default even when staging values are set,
+// which is invisible until a request fails on a device. Real environment
+// variables (CI, shell exports) always win over the file.
+for (const file of [".env.local", ".env"]) {
+  if (!existsSync(file)) continue;
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (!match || match[1] in process.env) continue;
+    process.env[match[1]] = match[2].replace(/^["']|["']$/g, "");
+  }
+}
+
 const OUT = "dist/native";
 const release = process.env.SMILE_RELEASE_BUILD === "1";
 

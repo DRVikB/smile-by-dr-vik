@@ -29,13 +29,24 @@ export type PurchaseOutcome =
 
 const packages = new Map<PlanKey, PurchasesPackage>();
 let identifiedUser: string | null = null;
+let identifying: Promise<CustomerInfo | null> | null = null;
+
+/** RevenueCat errors stay visible in the Xcode console (codes and messages only, never keys). */
+function logPurchasesError(step: string, error: unknown) {
+  const { code, message } = (error ?? {}) as { code?: unknown; message?: unknown };
+  console.warn(`[Purchases] ${step} failed`, String(code ?? ""), String(message ?? error));
+}
 
 export function purchasesAvailable(): boolean {
   return isNativeApp() && Boolean(REVENUECAT_IOS_API_KEY);
 }
 
+// The plugin is a Capacitor proxy that answers every property, including "then".
+// Returning it from an async function makes the promise try to adopt it as a
+// thenable and never settle, so always hand it back wrapped.
 async function sdk() {
-  return (await import("@revenuecat/purchases-capacitor")).Purchases;
+  const { Purchases } = await import("@revenuecat/purchases-capacitor");
+  return { Purchases };
 }
 
 export function customerHasPro(info: CustomerInfo | null | undefined): boolean {
@@ -43,18 +54,36 @@ export function customerHasPro(info: CustomerInfo | null | undefined): boolean {
 }
 
 /** Configure RevenueCat for this Supabase user, or switch to them. */
-export async function identifyPurchaser(userId: string): Promise<CustomerInfo | null> {
-  if (!purchasesAvailable()) return null;
-  const Purchases = await sdk();
+export function identifyPurchaser(userId: string): Promise<CustomerInfo | null> {
+  if (!purchasesAvailable()) return Promise.resolve(null);
+  const attempt = identify(userId).catch(error => { logPurchasesError("identify", error); throw error; });
+  const settled = attempt.catch(() => null);
+  identifying = settled;
+  void settled.then(() => { if (identifying === settled) identifying = null; });
+  return attempt;
+}
+
+async function identify(userId: string): Promise<CustomerInfo | null> {
+  const { Purchases, LOG_LEVEL } = await import("@revenuecat/purchases-capacitor");
   const { isConfigured } = await Purchases.isConfigured();
   if (!isConfigured) {
+    // Test Store keys are development-only: show RevenueCat's own diagnostics in Xcode.
+    if (REVENUECAT_IOS_API_KEY.startsWith("test_")) await Purchases.setLogLevel({ level: LOG_LEVEL.DEBUG }).catch(() => {});
     await Purchases.configure({ apiKey: REVENUECAT_IOS_API_KEY, appUserID: userId });
   } else if ((await Purchases.getAppUserID()).appUserID !== userId) {
     await Purchases.logIn({ appUserID: userId });
   }
+  // Connected as soon as RevenueCat knows the user: plans must not wait on customer info.
   identifiedUser = userId;
   packages.clear();
-  return (await Purchases.getCustomerInfo()).customerInfo;
+  return (await withTimeout(Purchases.getCustomerInfo(), "getCustomerInfo")).customerInfo;
+}
+
+/** RevenueCat calls that never answer must fail visibly instead of spinning forever. */
+function withTimeout<T>(call: Promise<T>, step: string, ms = 15000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`${step} timed out`)), ms); });
+  return Promise.race([call, timeout]).finally(() => clearTimeout(timer));
 }
 
 /** On sign-out: RevenueCat's recommended logOut, so the next account starts clean. */
@@ -62,18 +91,18 @@ export async function resetPurchaser(): Promise<void> {
   if (!purchasesAvailable() || !identifiedUser) return;
   identifiedUser = null;
   packages.clear();
-  const Purchases = await sdk();
+  const { Purchases } = await sdk();
   await Purchases.logOut().catch(() => {}); // already anonymous: nothing to reset
 }
 
 export async function refreshCustomerInfo(): Promise<CustomerInfo | null> {
   if (!purchasesAvailable() || !identifiedUser) return null;
-  return (await (await sdk()).getCustomerInfo()).customerInfo;
+  return (await (await sdk()).Purchases.getCustomerInfo()).customerInfo;
 }
 
 export async function onCustomerInfo(listener: (info: CustomerInfo) => void): Promise<() => void> {
   if (!purchasesAvailable()) return () => {};
-  const Purchases = await sdk();
+  const { Purchases } = await sdk();
   const id = await Purchases.addCustomerInfoUpdateListener(listener);
   return () => { void Purchases.removeCustomerInfoUpdateListener({ listenerToRemove: id }).catch(() => {}); };
 }
@@ -86,10 +115,24 @@ function describeIntro(pkg: PurchasesPackage): string | null {
   return intro.price === 0 ? `Free for ${span}` : `${intro.priceString} for ${span}`;
 }
 
+/** Annual price ÷ 12 in the store's currency (the SDK's own figure is wrong in Test Store). */
+function monthlyEquivalent(pkg: PurchasesPackage): string | null {
+  const { price, currencyCode } = pkg.product;
+  if (!price || !currencyCode) return pkg.product.pricePerMonthString ?? null;
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: currencyCode }).format(Math.floor((price / 12) * 100) / 100);
+  } catch {
+    return pkg.product.pricePerMonthString ?? null;
+  }
+}
+
 /** Monthly and annual plans from the current RevenueCat offering. */
 export async function loadPlans(): Promise<PlanOffer[]> {
-  if (!purchasesAvailable() || !identifiedUser) return [];
-  const offerings = await (await sdk()).getOfferings();
+  if (!purchasesAvailable()) return [];
+  if (!identifiedUser && identifying) await Promise.race([identifying, new Promise(resolve => setTimeout(resolve, 15000))]); // the paywall can open while sign-in is still connecting
+  if (!identifiedUser) throw new Error("Purchases are not connected to this account yet.");
+  const offerings = await withTimeout((await sdk()).Purchases.getOfferings(), "getOfferings").catch(error => { logPurchasesError("getOfferings", error); throw error; });
+  if (!offerings.current) console.warn("[Purchases] no current offering", Object.keys(offerings.all ?? {}).join(","));
   const available = offerings.current?.availablePackages ?? [];
   const plans: PlanOffer[] = [];
   packages.clear();
@@ -102,11 +145,12 @@ export async function loadPlans(): Promise<PlanOffer[]> {
       plan,
       productId: config.productId,
       priceString: pkg.product.priceString,
-      pricePerMonthString: plan === "annual" ? pkg.product.pricePerMonthString : null,
+      pricePerMonthString: plan === "annual" ? monthlyEquivalent(pkg) : null,
       periodLabel: config.period,
       introductoryOffer: describeIntro(pkg),
     });
   }
+  if (!plans.length) console.warn("[Purchases] offering has no matching products", available.map(p => p.product.identifier).join(","));
   return plans;
 }
 
@@ -128,7 +172,7 @@ export async function purchasePlan(plan: PlanKey): Promise<PurchaseOutcome> {
   const pkg = packages.get(plan);
   if (!pkg) return { status: "failed", message: "This plan isn’t available right now. Please try again later." };
   try {
-    const { customerInfo } = await (await sdk()).purchasePackage({ aPackage: pkg });
+    const { customerInfo } = await (await sdk()).Purchases.purchasePackage({ aPackage: pkg });
     return customerHasPro(customerInfo)
       ? { status: "purchased" }
       : { status: "processing", message: "Your purchase is being confirmed. Pro will unlock shortly; tap Restore Purchases if it doesn’t." };
@@ -143,7 +187,7 @@ export async function purchasePlan(plan: PlanKey): Promise<PurchaseOutcome> {
 export async function restorePurchases(): Promise<{ pro: boolean; message: string }> {
   if (!purchasesAvailable() || !identifiedUser) return { pro: false, message: "Sign in to restore purchases." };
   try {
-    const { customerInfo } = await (await sdk()).restorePurchases();
+    const { customerInfo } = await (await sdk()).Purchases.restorePurchases();
     const pro = customerHasPro(customerInfo);
     return { pro, message: pro ? "SmileCompose Pro has been restored." : "No active SmileCompose Pro subscription was found for this Apple ID." };
   } catch (error) {
@@ -154,7 +198,7 @@ export async function restorePurchases(): Promise<{ pro: boolean; message: strin
 /** Apple's offer-code redemption sheet. CustomerInfo refreshes via the listener and on return. */
 export async function redeemOfferCode(): Promise<void> {
   if (!purchasesAvailable() || !identifiedUser) return;
-  await (await sdk()).presentCodeRedemptionSheet();
+  await (await sdk()).Purchases.presentCodeRedemptionSheet();
 }
 
 export async function openManageSubscriptions(info: CustomerInfo | null): Promise<void> {

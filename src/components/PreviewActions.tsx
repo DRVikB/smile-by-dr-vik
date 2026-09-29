@@ -1,5 +1,6 @@
 import { SMILECOMPOSE } from "@/lib/brand";
-import { Download, Pencil, Plus, Sparkles } from "lucide-react";
+import { Download, Pencil, Plus } from "lucide-react";
+import { VisualiseSymbol } from "@/components/icons/SmileIcons";
 export function BottomActionBar({
   onAnother,
   onEdit,
@@ -20,7 +21,7 @@ export function BottomActionBar({
   return (
     <div className="bottom-action-bar">
       <button className="action-button" disabled={busy} onClick={onAnother}>
-        <Sparkles size={19} strokeWidth={1.5} />
+        <VisualiseSymbol size={20} />
         Three more options
         {anotherCost && <small className="action-cost">{anotherCost}</small>}
       </button>

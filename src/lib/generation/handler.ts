@@ -9,6 +9,7 @@ import { accountsMode, readServerEnvironment, type ServerEnvironment } from "@/s
 import { accountServicesFromEnv, authenticate, evaluateAccess, type AccountServices } from "@/server/access";
 import { AccountError } from "@/server/accountStore";
 import { selectStyleReferences } from "@/server/caseLibraryHandlers";
+import { safeLog } from "@/server/redact";
 
 const ACCOUNT_ERRORS: Record<AccountError["code"], { status: number; error: string }> = {
   auth_required: { status: 401, error: "Sign in to your SmileCompose account to generate a smile." },
@@ -118,7 +119,7 @@ export async function handleGenerationRequest(
       return Response.json({ error: "AI processing terms have not been confirmed on the server. No provider request was sent.", code: "provider_terms_unconfirmed" }, { status: 503, headers });
     if (isNoChangeDesign(parsed.data.settings)) return Response.json({ error: "No change selected. Choose teeth and a goal or shade that makes a change." }, { status: 400, headers });
     if (provider.name !== "mock" && request.headers.get("X-Smile-AI-Consent") !== AI_CONSENT_VERSION)
-      return Response.json({ error: "Clinician permission is required before sending this photo to Google AI. No provider request was sent.", code: "ai_consent_required" }, { status: 428, headers });
+      return Response.json({ error: "Clinician permission is required before sending this photo for AI processing. No provider request was sent.", code: "ai_consent_required" }, { status: 428, headers });
     const id = request.headers.get("X-Smile-Request-Id");
     if (provider.name !== "mock" && !id) return Response.json({ error: "Refresh SmileCompose to update the app before generating. No AI request was sent.", code: "missing_request_id" }, { status: 400, headers });
     if (id) {
@@ -132,23 +133,24 @@ export async function handleGenerationRequest(
     let reservation: { services: AccountServices; id: string } | null = null;
     let usage: { remaining: number } | undefined;
     let accountUserId: string | null = null;
+    // Every real AI generation is attached to a signed-in account: authenticated,
+    // entitled, reserved against that account's allowance and recorded on its
+    // ledger. There is no anonymous mode; only the mock provider (no AI) skips this.
     if (provider.name !== "mock") {
       const mode = accounts ? "required" : accountsMode(serverEnv);
-      if (mode === "misconfigured")
+      const services = mode === "required" ? accounts ?? accountServicesFromEnv(serverEnv) : null;
+      if (!services)
         return Response.json({ error: "Accounts are not configured on the server. No AI request was sent.", code: "accounts_unavailable" }, { status: 503, headers });
-      if (mode === "required") {
-        const services = accounts ?? accountServicesFromEnv(serverEnv)!;
-        try {
-          const user = await authenticate(request, services);
-          if (!user) throw new AccountError("auth_required");
-          if (!(await evaluateAccess(user, services)).pro) throw new AccountError("subscription_required");
-          usage = await services.store.reserve(user.id, id!, parsed.data.caseId ?? null);
-          reservation = { services, id: id! };
-          accountUserId = user.id;
-        } catch (error) {
-          const code = error instanceof AccountError ? error.code : "account_service_unavailable";
-          return Response.json({ ...ACCOUNT_ERRORS[code], code }, { status: ACCOUNT_ERRORS[code].status, headers });
-        }
+      try {
+        const user = await authenticate(request, services);
+        if (!user) throw new AccountError("auth_required");
+        if (!(await evaluateAccess(user, services)).pro) throw new AccountError("subscription_required");
+        usage = await services.store.reserve(user.id, id!, parsed.data.caseId ?? null);
+        reservation = { services, id: id! };
+        accountUserId = user.id;
+      } catch (error) {
+        const code = error instanceof AccountError ? error.code : "account_service_unavailable";
+        return Response.json({ ...ACCOUNT_ERRORS[code], code }, { status: ACCOUNT_ERRORS[code].status, headers });
       }
     }
     if (reservation && accountUserId) {
@@ -158,22 +160,17 @@ export async function handleGenerationRequest(
     // AI input minimisation: the provider receives the images and design
     // parameters only; the case ID, account and billing data stay here.
     // Case Library style references are attached only when "Use my Case Library"
-    // is on. With accounts, the SERVER chooses them from the signed-in user's own
-    // private library; images sent by the client are ignored. Without accounts
-    // (local development only) the device library's references are accepted.
+    // is on, and only by the SERVER, from the signed-in account's own private
+    // library. Images sent by the client are always ignored.
     const { caseId, styleReferences: clientStyleReferences, ...rest } = parsed.data;
-    void caseId;
+    void caseId; void clientStyleReferences;
     let styleReferences: string[] = [];
     let referenceCaseIds: string[] = [];
-    if (rest.settings.libraryStyle) {
-      if (reservation && accountUserId) {
-        const selected = await selectStyleReferences(reservation.services, accountUserId, rest.settings)
-          .catch(() => ({ images: [] as string[], caseIds: [] as string[] }));
-        styleReferences = selected.images;
-        referenceCaseIds = selected.caseIds;
-      } else if (!reservation) {
-        styleReferences = clientStyleReferences ?? [];
-      }
+    if (rest.settings.libraryStyle && reservation && accountUserId) {
+      const selected = await selectStyleReferences(reservation.services, accountUserId, rest.settings)
+        .catch(() => ({ images: [] as string[], caseIds: [] as string[] }));
+      styleReferences = selected.images;
+      referenceCaseIds = selected.caseIds;
     }
     const providerInput = styleReferences.length ? { ...rest, styleReferences } : rest;
     let result;
@@ -185,12 +182,17 @@ export async function handleGenerationRequest(
       throw error;
     }
     if (reservation) {
-      await reservation.services.store.commit(reservation.id, {
+      const { services, id: reservationId } = reservation;
+      const meta = {
         provider: result.generation?.provider, model: result.generation?.model, providerRequestId: result.variationId,
         promptVersion: result.generation?.promptVersion,
         treatmentType: `${parsed.data.settings.treatment} / ${parsed.data.settings.designIntent ?? "Auto"}`,
         referenceCaseIds,
-      }).catch(() => {});
+      };
+      // One retry; a reservation that still isn't committed is released after 15 minutes.
+      await services.store.commit(reservationId, meta)
+        .catch(() => services.store.commit(reservationId, meta))
+        .catch(() => safeLog("error", "generation_commit_failed", {}));
     }
     const styleReferencesUsed = { count: styleReferences.length, caseIds: referenceCaseIds };
     return Response.json({ ...result, styleReferencesUsed, ...(usage ? { usage } : {}) }, { headers });

@@ -9,7 +9,6 @@ export function Paywall({ onClose }: { onClose: () => void }) {
       <div className="sheet account-sheet paywall" onClick={e => e.stopPropagation()}>
         <div className="sheet-heading">
           <div>
-            <p className="eyebrow">SMILECOMPOSE</p>
             <h2 id="paywall-title">SmileCompose Pro</h2>
           </div>
           <button className="icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>

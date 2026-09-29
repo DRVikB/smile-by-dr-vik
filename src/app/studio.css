@@ -1,0 +1,593 @@
+/* ============================================================
+   Studio design language — typography, shape and hierarchy.
+
+   Warm ivory canvas, warm-white cards with soft shadows, editorial serif
+   titles (New York) over SF Pro interface text, the letter-spaced
+   SMILECOMPOSE wordmark, champagne capsule buttons, and fine bronze line
+   symbols on soft ivory discs. Colours live in theme.css, surfaces in
+   materials.css. Loaded last so it can refine every other stylesheet.
+   ============================================================ */
+
+:root {
+  --r-button: 999px;
+  --r-card: 22px;
+  --r-panel: 24px;
+  --r-sheet: 28px;
+
+  --title-tracking: -0.018em;
+  --display-tracking: -0.025em;
+  --card-shadow: var(--shadow-sm);
+}
+
+/* ---------- titles: New York serif, regular weight ---------- */
+h1 { font-weight: 400; letter-spacing: var(--title-tracking); }
+.screen-heading h1,
+.photo-heading { font-family: var(--font-display); font-weight: 400; letter-spacing: var(--title-tracking); line-height: 1.08; }
+.photo-heading { font-size: clamp(32px, 4.2vw, 46px); }
+.account-sheet h2,
+.ai-consent-sheet h2 { font-size: clamp(28px, 4vw, 34px); font-weight: 400; letter-spacing: var(--title-tracking); line-height: 1.1; }
+.ob-display { font-weight: 400; letter-spacing: var(--display-tracking); line-height: 1.02; }
+.ob-title { font-weight: 400; letter-spacing: var(--title-tracking); line-height: 1.06; }
+.case-title h2 { font-size: 32px; font-weight: 400; letter-spacing: var(--title-tracking); }
+.settings-sidebar-title { font-size: 32px; font-weight: 400; letter-spacing: var(--title-tracking); }
+.cl-empty h3,
+.cl-authority h3 { font-size: 26px; font-weight: 400; letter-spacing: var(--title-tracking); }
+.empty-state-title { font-size: 24px; font-weight: 400; letter-spacing: var(--title-tracking); }
+.profile-card-name,
+.settings-about-name { font-size: 26px; font-weight: 400; letter-spacing: var(--title-tracking); }
+.generation-splash-copy h2 { font-family: var(--font-display); font-weight: 400; letter-spacing: var(--display-tracking); }
+.consult-serif { font-family: var(--font-display); font-style: normal; font-weight: 400; }
+.plan-price { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.01em; }
+.log-head h2 { font-family: var(--font-display); font-size: 34px; font-weight: 400; letter-spacing: var(--title-tracking); line-height: 1.08; }
+.library-panel .log-head h2 { font-size: 28px; }
+
+/* Initials avatars */
+.user-avatar,
+.settings-avatar,
+.account-medallion { font-family: var(--font-display); letter-spacing: 0; }
+
+/* ---------- small labels: sentence case, calm ---------- */
+.eyebrow { font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--text-secondary); }
+.ob-eyebrow { font-size: 12px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; }
+.compact-options-label { font-size: 13px; font-weight: 600; }
+.profile-badge.pro,
+.account-card-head small { background: var(--accent-soft); color: var(--accent-text); box-shadow: none; }
+.settings-group-title,
+.cl-section-title { font-size: 12px; font-weight: 500; letter-spacing: .06em; }
+
+/* ---------- wordmark: letter-spaced SMILECOMPOSE, no symbol in the chrome ---------- */
+.sc-lockup .sc-symbol { display: none; }
+.report-summary .sc-lockup .sc-symbol { display: block; }
+.sc-lockup .sc-wordmark { font-weight: 500; font-size: 13px; letter-spacing: .32em; margin-right: -.32em; }
+.portrait-top .sc-wordmark { font-size: 13px; letter-spacing: .34em; }
+.app-header .sc-wordmark,
+.consult-top .sc-wordmark,
+.generation-splash .sc-wordmark { font-size: 12px; letter-spacing: .3em; }
+.report-summary .sc-wordmark { font-size: 11px; letter-spacing: .2em; margin-right: 0; }
+.ob-top .sc-wordmark,
+.ob-welcome .ob-head .sc-wordmark { font-size: 12px; letter-spacing: .32em; }
+.greeting-preview-top .sc-wordmark { font-size: 9px; letter-spacing: .28em; }
+
+/* ---------- buttons: champagne capsule, white capsule ---------- */
+.primary-button,
+.photo-primary,
+.splash-primary,
+.compact-dock-save {
+  border-radius: 999px;
+  background: var(--accent-gradient);
+  color: var(--on-accent);
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  box-shadow: 0 1px 1px rgba(90, 60, 20, .06), 0 8px 20px -10px rgba(120, 88, 40, .55);
+}
+.primary-button { min-height: 52px; }
+.primary-button:hover:not(:disabled),
+.photo-primary:hover:not(:disabled),
+.splash-primary:hover:not(:disabled),
+.compact-dock-save:hover:not(:disabled) { background: var(--accent-gradient); filter: brightness(.98); color: var(--on-accent); }
+.secondary-button {
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 500;
+  box-shadow: var(--shadow-sm);
+}
+.secondary-button:hover:not(:disabled) { background: var(--surface-elevated); border-color: var(--border-strong); }
+.case-rename-button { background: var(--surface-elevated); border: 1px solid var(--border); font-weight: 500; }
+
+/* Segmented controls: ivory track, white thumb with a gold hairline */
+.segmented { border: 0; border-radius: 999px; }
+.segmented button { border-radius: 999px; }
+.segmented button.selected,
+.segmented button[aria-pressed="true"],
+.variant-picker-options button[aria-pressed="true"],
+.compact-compare-switch button[aria-pressed="true"] {
+  background: var(--selected-fill);
+  color: var(--on-selected);
+  box-shadow: inset 0 0 0 1px var(--accent), 0 2px 8px rgba(60, 40, 20, .08);
+  font-weight: 500;
+}
+
+/* Switches: iOS shape, gold when on */
+input[type="checkbox"][role="switch"],
+.switch input { accent-color: var(--switch-on); }
+
+/* ============================================================
+   Icon badges (SmileCompose symbols): bronze line on a soft ivory disc
+   ============================================================ */
+.icon-tile {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--badge-fg);
+  background: var(--badge-bg);
+  box-shadow: inset 0 0 0 1px var(--hairline), 0 6px 16px -8px rgba(90, 60, 30, .25);
+}
+.icon-tile-sm { width: 32px; height: 32px; }
+.icon-tile-md { width: 48px; height: 48px; }
+.icon-tile-lg { width: 76px; height: 76px; }
+.empty-state-tile { margin-bottom: 8px; }
+.cl-empty > .icon-tile { margin-bottom: 4px; }
+
+/* ============================================================
+   Home — full-bleed photograph, editorial headline
+   ============================================================ */
+.start-screen::after {
+  background:
+    linear-gradient(100deg, rgba(14, 11, 9, .86) 0%, rgba(14, 11, 9, .66) 30%, rgba(14, 11, 9, .18) 58%, rgba(14, 11, 9, 0) 80%),
+    linear-gradient(0deg, rgba(14, 11, 9, .6), transparent 44%),
+    linear-gradient(180deg, rgba(14, 11, 9, .5), transparent 22%);
+}
+.start-greeting { font-size: 16px; letter-spacing: 0; color: rgba(250, 247, 242, .82); }
+.splash-heading {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(46px, 6.6vw, 84px);
+  line-height: 1;
+  letter-spacing: var(--display-tracking);
+}
+.splash-rule { display: none; }
+.splash-sub {
+  margin-top: 18px;
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-size: clamp(17px, 1.8vw, 20px);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.4;
+  text-transform: none;
+  color: rgba(250, 247, 242, .82);
+}
+.splash-actions { margin-top: 30px; gap: 12px; }
+.splash-primary,
+.splash-outline { min-height: 54px; font-size: 16px; font-weight: 500; }
+/* The secondary action reads as a light pill over the dark photograph. */
+.start-screen .splash-outline {
+  color: #FAF7F2; background: rgba(250, 247, 242, .14); box-shadow: inset 0 0 0 1px rgba(250, 247, 242, .32);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+}
+.splash-quiet { font-size: 14px; color: rgba(250, 247, 242, .66); }
+.splash-quiet span { font-size: 13px; color: rgba(250, 247, 242, .44); }
+.splash-tagline { font-size: 12px; font-weight: 500; letter-spacing: .06em; color: rgba(250, 247, 242, .6); }
+.recent-cases h2 { font-family: var(--font-display); font-size: 22px; font-weight: 400; letter-spacing: -0.01em; color: #FAF7F2; }
+.recent-cases-all { font-size: 15px; color: rgba(250, 247, 242, .86); }
+.recent-case strong { font-size: 13px; font-weight: 500; }
+.recent-case img { border-radius: 12px; }
+.nav-avatar { background: var(--accent); color: var(--on-accent); letter-spacing: 0; }
+
+@media (max-width: 700px) and (max-height: 700px) and (orientation: portrait) {
+  .splash-heading { font-size: 42px; }
+  .splash-sub { font-size: 16px; margin-top: 12px; }
+}
+
+/* ============================================================
+   Sheets — rise from the bottom on iPhone, serif large titles
+   ============================================================ */
+.log-search {
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-elevated);
+}
+.log-search input { font-size: 16px; }
+
+@media (max-width: 700px) {
+  .sheet-backdrop {
+    place-items: end center;
+    padding: calc(var(--app-safe-top, 0px) + 12px) 8px calc(var(--app-safe-bottom, 0px) + 8px);
+  }
+  .sheet-backdrop > :is(.sheet, .log-panel, .camera-sheet) {
+    width: 100%;
+    border-radius: 30px;
+    animation-name: sheet-rise;
+  }
+  /* Cases is a destination, not a prompt: a full-height page sheet. */
+  .sheet-backdrop > .log-panel { height: 100%; max-height: none; padding: 22px 18px 18px; }
+  .sheet-backdrop > .log-panel > .log-foot { margin-top: auto; }
+}
+@keyframes sheet-rise {
+  from { opacity: .6; transform: translateY(48px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-backdrop > :is(.sheet, .log-panel, .camera-sheet) { animation: none; }
+}
+
+/* ============================================================
+   Design Studio (src/components/studio/DesignStudio.tsx)
+   The photograph sits in a framed stage on the ivory canvas; the
+   design is built one step per page: Teeth, Shape, Shade, Treatment,
+   then Review.
+   ============================================================ */
+.app-shell[data-screen="design"] { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; background: var(--background); }
+.app-shell[data-screen="design"] > main { flex: 1; min-height: 0; height: auto; display: flex; }
+.app-shell[data-screen="design"] .app-header {
+  position: relative; inset: auto; flex: none; min-height: 0;
+  padding-bottom: 12px; color: var(--text-primary); background: var(--background);
+}
+.app-shell[data-screen="design"] .app-header .sc-lockup { color: var(--text-primary); }
+.app-shell:is([data-screen="design"], [data-screen="photo"]) .nav-back,
+.app-shell:is([data-screen="design"], [data-screen="photo"]) .app-menu > summary {
+  width: 44px; height: 44px; color: var(--text-primary);
+  background: var(--surface-elevated); border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.app-shell[data-screen="design"] .test-mode-pill {
+  position: static; color: var(--accent-text); background: var(--accent-soft); box-shadow: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+
+.app-shell .design-screen.studio-screen { position: relative; flex: 1; display: flex; height: auto; min-height: 0; padding: 0; overflow: hidden; }
+.studio { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+
+/* Stage: the photograph (or before/after) in a rounded frame */
+.studio-stage {
+  position: relative; flex: none; height: 38dvh; min-height: 220px;
+  margin: 0 max(12px, var(--app-safe-right)) 0 max(12px, var(--app-safe-left));
+  overflow: hidden; border-radius: 24px; background: #1A1714; box-shadow: var(--shadow);
+}
+.app-shell .studio-stage .patient-photo,
+.app-shell .studio-stage > .preview-stage { position: absolute; inset: 0; height: 100%; border-radius: 0; }
+.app-shell .studio-stage .compare-mode { top: 12px; left: 12px; }
+.app-shell .studio-stage .photo-framing-toggle { top: 12px; right: 12px; }
+.app-shell .studio-stage .zoompan-reset { top: 64px; right: 12px; }
+.app-shell .studio-stage .zoompan-hint { top: auto; bottom: 12px; right: 12px; }
+.app-shell .studio-stage .compare-label { bottom: 14px; }
+.app-shell .studio-stage .patient-photo .photo-label { left: 14px; bottom: 14px; }
+.app-shell .studio-stage .patient-photo .sample-photo-label { left: auto; right: 14px; bottom: 14px; }
+
+/* Dock: everything below the stage scrolls; Generate stays pinned */
+.studio-dock {
+  flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain;
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 14px max(16px, var(--app-safe-right)) 0 max(16px, var(--app-safe-left));
+}
+.studio-case { display: grid; gap: 6px; }
+.studio-case .control-hint { margin: 0 4px; }
+.studio-case-row { display: flex; align-items: center; gap: 8px; }
+.app-shell .design-screen .studio-case-row .patient-field {
+  flex: 1; min-width: 0; margin: 0; padding: 0 16px; min-height: 46px;
+  border-radius: 999px; background: var(--surface-elevated); border: 1px solid var(--border);
+}
+.studio-photo-action {
+  flex: none; width: 44px; height: 44px; border-radius: 50%;
+  color: var(--text-primary); background: var(--surface-elevated); border: 1px solid var(--border);
+}
+.studio-case .design-touch-compare { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+/* Tabs */
+.studio-tabs {
+  position: sticky; top: 0; z-index: 4;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px;
+  padding: 4px; border-radius: 20px; background: var(--card); box-shadow: var(--shadow-sm);
+}
+/* Fills the dock's top padding once the tabs pin, so scrolled content never shows above them. */
+.studio-tabs::before { content: ""; position: absolute; left: -24px; right: -24px; top: -15px; height: 15px; background: var(--background); }
+.studio-tabs button {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: 56px; padding: 6px 2px; border-radius: 16px;
+  color: var(--text-secondary); background: none; font-size: 11.5px; font-weight: 500;
+  transition: color 200ms var(--ease-soft), background-color 200ms var(--ease-soft);
+}
+.studio-tabs button svg { color: var(--text-tertiary); transition: color 200ms var(--ease-soft); }
+.studio-tabs button.is-active { color: var(--text-primary); background: var(--background); }
+.studio-tabs button.is-active svg { color: var(--accent-text); }
+.studio-tabs button.is-active::after {
+  content: ""; position: absolute; left: 26%; right: 26%; bottom: 3px; height: 2px; border-radius: 2px; background: var(--accent);
+}
+
+/* Step pages: one step at a time, sliding in the direction of travel */
+.studio-cards { display: block; min-width: 0; margin: 0; padding: 0; border: 0; }
+.studio-card {
+  display: none; flex-direction: column; gap: 14px; min-width: 0;
+  padding: 18px; border-radius: 22px; background: var(--card); box-shadow: var(--shadow-sm);
+  animation: fade-in-soft 240ms var(--ease-soft) both;
+}
+.studio-page { display: flex; }
+.studio-page.is-forward { animation: step-in-forward 320ms var(--ease-soft) both; }
+.studio-page.is-back { animation: step-in-back 320ms var(--ease-soft) both; }
+@keyframes step-in-forward { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+@keyframes step-in-back { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
+.studio-tabs button.is-done svg { color: var(--accent-text); }
+.studio-card-head h3 { margin: 0; font-family: var(--font-display); font-size: 26px; font-weight: 400; letter-spacing: var(--title-tracking); line-height: 1.1; }
+.studio-card-head p { margin: 4px 0 0; font-size: 14px; line-height: 1.45; color: var(--text-secondary); }
+.studio-card .control-group { margin: 0; }
+.studio-summary { display: grid; gap: 2px; margin: 0; padding: 12px 14px; border-radius: 14px; background: var(--background); }
+.studio-summary strong { font-size: 15px; font-weight: 600; }
+.studio-summary span { font-size: 13px; line-height: 1.4; color: var(--text-secondary); }
+
+/* Teeth: the upper arch, drawn */
+.studio-arch { display: flex; align-items: flex-start; justify-content: center; gap: 3px; padding: 6px 0 0; }
+.studio-arch-tooth {
+  flex: none; min-width: 0; min-height: 0; padding: 0;
+  border-radius: 42% 42% 48% 48% / 20% 20% 62% 62%;
+  background: linear-gradient(180deg, #FFFFFF 0%, #EEE6DA 100%);
+  box-shadow: inset 0 0 0 1px rgba(120, 100, 80, .24), 0 2px 4px rgba(60, 40, 20, .08);
+  opacity: .5; transition: opacity 220ms var(--ease-soft), box-shadow 220ms var(--ease-soft), transform 280ms var(--spring);
+}
+.studio-arch-tooth.on { opacity: 1; box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 3px var(--accent-soft), 0 2px 4px rgba(60, 40, 20, .08); }
+.studio-arch-tooth:active:not(:disabled) { transform: scale(.94); }
+/* Drawn to scale; the invisible ::after extends each tooth's tap area. The 4/6/8/10 control below gives full-size targets. */
+.app-shell .studio-arch-tooth { position: relative; min-width: 0; min-height: 0; }
+.studio-arch-tooth::after { content: ""; position: absolute; inset: -10px -1.5px; }
+.studio-arch-tooth:disabled { cursor: default; }
+.studio-count button, .studio-mode button { min-height: 40px; }
+
+/* Shape: tooth-form tiles */
+.studio-shapes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.studio-shape {
+  display: grid; justify-items: center; gap: 6px; padding: 12px 6px 10px;
+  border-radius: 16px; background: var(--background); border: 1px solid var(--border);
+  color: var(--text-primary); font-size: 13px; font-weight: 500;
+  transition: border-color 200ms var(--ease-soft), box-shadow 200ms var(--ease-soft), background-color 200ms var(--ease-soft);
+}
+.studio-shape-figure { width: 100%; max-width: 88px; }
+.studio-shape[aria-pressed="true"] { background: var(--surface-elevated); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent), 0 6px 16px -10px rgba(120, 88, 40, .5); }
+.studio-shape[aria-pressed="true"] .tooth-form-main path { fill: #FFFFFF; stroke: var(--accent-text); stroke-width: 2.2; }
+
+/* Shade: swatches */
+.studio-swatches { display: flex; justify-content: space-between; gap: 6px; padding: 2px 2px 0; }
+.studio-swatch { display: grid; justify-items: center; gap: 7px; min-width: 0; padding: 0; background: none; color: var(--text-secondary); font-size: 12px; font-weight: 500; }
+.studio-swatch-chip {
+  width: 42px; height: 42px; border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(120, 100, 80, .2), 0 3px 8px rgba(60, 40, 20, .12);
+  transition: box-shadow 200ms var(--ease-soft), transform 280ms var(--spring);
+}
+.studio-swatch[aria-pressed="true"] { color: var(--text-primary); font-weight: 600; }
+.studio-swatch[aria-pressed="true"] .studio-swatch-chip { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--accent), 0 3px 8px rgba(60, 40, 20, .12); transform: scale(1.04); }
+
+/* Treatment: a grouped list with a single choice */
+.studio-treatments { display: grid; overflow: hidden; border-radius: 16px; background: var(--background); }
+.studio-treatment {
+  display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 10px 14px;
+  text-align: left; background: none; color: var(--text-primary); border-bottom: 1px solid var(--separator);
+}
+.studio-treatment:last-child { border-bottom: 0; }
+.studio-treatment-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.studio-treatment-text strong { font-size: 15px; font-weight: 500; }
+.studio-treatment-text small { font-size: 12.5px; color: var(--text-secondary); }
+.studio-check {
+  flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  border: 1.5px solid var(--border-strong); color: #fff;
+  transition: background-color 200ms var(--ease-soft), border-color 200ms var(--ease-soft);
+}
+.studio-treatment[aria-checked="true"] .studio-check { background: var(--switch-on); border-color: var(--switch-on); }
+
+/* More options */
+.studio-more { border-top: 1px solid var(--separator); }
+.studio-more > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 46px;
+  list-style: none; cursor: pointer; font-size: 14px; font-weight: 500; color: var(--accent-text);
+}
+.studio-more > summary::-webkit-details-marker { display: none; }
+.studio-more > summary svg { transition: transform 240ms var(--ease-soft); }
+.studio-more[open] > summary svg { transform: rotate(180deg); }
+.studio-more-body { display: grid; gap: 18px; padding: 2px 0 6px; }
+.studio-card .clinical-details { margin: 0; }
+
+/* Review: the design so far, each row returns to its step */
+.studio-review { display: grid; overflow: hidden; border-radius: 16px; background: var(--background); }
+.studio-review-row {
+  display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 10px 14px;
+  text-align: left; background: none; color: var(--text-primary); border-bottom: 1px solid var(--separator);
+}
+.studio-review-row:last-child { border-bottom: 0; }
+.studio-review-row > svg:first-child { flex: none; color: var(--accent-text); }
+.studio-review-row > svg:last-child { flex: none; color: var(--text-tertiary); }
+.studio-review-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.studio-review-text small { font-size: 12px; color: var(--text-secondary); }
+.studio-review-text strong { overflow: hidden; font-size: 15px; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
+.studio-page .studio-case { padding-top: 4px; }
+
+/* Comparison sets */
+.studio-variations { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.studio-variation {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-height: 66px; padding: 8px 6px;
+  border-radius: 18px; background: var(--card); box-shadow: var(--shadow-sm);
+  color: var(--text-primary); font-size: 12.5px; font-weight: 500; text-align: center;
+}
+.studio-variation svg { color: var(--accent-text); }
+.studio-variation:disabled { opacity: .45; }
+.studio-variation .action-cost { font-size: 11px; color: var(--text-secondary); }
+
+/* Generate: pinned to the bottom of the dock */
+.studio-generate {
+  position: sticky; bottom: 0; z-index: 4; display: grid; gap: 8px;
+  /* margin-top: auto keeps it at the bottom of the dock when a step is short */
+  margin: auto calc(-1 * max(16px, var(--app-safe-right))) 0 calc(-1 * max(16px, var(--app-safe-left)));
+  padding: 12px max(16px, var(--app-safe-right)) calc(12px + var(--app-safe-bottom)) max(16px, var(--app-safe-left));
+  background: var(--background); box-shadow: 0 -1px 0 var(--separator);
+}
+/* Back / Next, or Generate on the Review step */
+.studio-steps-nav { display: flex; gap: 10px; }
+.studio-steps-nav .primary-button { flex: 1; min-height: 54px; }
+.studio-back { flex: none; min-height: 54px; padding: 0 18px 0 12px; gap: 4px; }
+.studio-next { gap: 6px; }
+
+@media (min-width: 700px) {
+  .studio-stage { height: 44dvh; margin-inline: max(20px, var(--app-safe-left)); }
+  .studio-dock { padding-inline: max(20px, var(--app-safe-left)); }
+  .studio-tabs button { flex-direction: row; gap: 8px; font-size: 15px; }
+  .studio-tabs, .studio-cards, .studio-steps-nav { width: 100%; max-width: 880px; margin-inline: auto; }
+  .studio-arch { zoom: 1.4; }
+  .studio-swatch-chip { width: 50px; height: 50px; }
+  .studio-generate { margin-inline: calc(-1 * max(20px, var(--app-safe-left))); padding-inline: max(20px, var(--app-safe-left)); }
+}
+@media (min-width: 1100px) {
+  .studio-stage { height: 46dvh; }
+}
+/* iPad landscape and wider: portrait patient photos fill a full-height frame on the left, the steps sit on the right. */
+@media (min-width: 1000px) and (orientation: landscape) {
+  .studio { flex-direction: row; gap: 20px; }
+  .studio-stage { flex: 1 1 auto; height: auto; min-height: 0; margin: 0 0 max(20px, var(--app-safe-bottom)) max(20px, var(--app-safe-left)); }
+  .studio-dock { flex: 0 0 min(480px, 42%); padding: 0 max(20px, var(--app-safe-right)) 0 0; }
+  .studio-tabs button { flex-direction: column; gap: 3px; font-size: 12.5px; }
+  .studio-generate { margin: auto calc(-1 * max(20px, var(--app-safe-right))) 0 0; padding: 12px max(20px, var(--app-safe-right)) calc(12px + var(--app-safe-bottom)) 0; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .studio-stage { height: 56dvh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-card, .studio-page { animation: none; }
+}
+
+/* ============================================================
+   Result screen
+   ============================================================ */
+/* "Not quite right?" over two equal buttons, never a ragged wrap */
+.preview-side .adjust-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+.preview-side .adjust-label { grid-column: 1 / -1; font-size: 13px; }
+.preview-side .adjust-button { justify-content: center; min-height: 46px; background: var(--surface-elevated); box-shadow: var(--shadow-sm); }
+.compact-options-heading h2 { font-family: var(--font-display); font-size: 24px; font-weight: 400; letter-spacing: var(--title-tracking); }
+/* Controls over the photograph: a fine light ring keeps them visible on dark areas */
+.app-shell[data-screen="preview"] :is(.nav-back, .app-menu > summary) { box-shadow: inset 0 0 0 1px rgba(250, 247, 242, .26); }
+
+/* ============================================================
+   Smile analysis — always visible on the result
+   ============================================================ */
+.analysis-chip {
+  position: absolute; z-index: 12;
+  top: calc(var(--photo-header) + 9px); right: max(16px, var(--app-safe-right));
+  display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 16px 0 13px;
+  border-radius: 999px; color: #fff; font-size: 14px; font-weight: 500;
+  background: var(--overlay); -webkit-backdrop-filter: blur(var(--overlay-blur)); backdrop-filter: blur(var(--overlay-blur));
+  transition: transform 300ms var(--spring), background-color 200ms var(--ease-soft);
+}
+.analysis-chip:active { transform: scale(.96); }
+.analysis-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 10px 14px;
+  border-radius: 16px; text-align: left; color: var(--text-primary);
+  background: var(--card); box-shadow: var(--shadow-sm);
+}
+.analysis-row .analysis-toggle-text { flex: 1; display: grid; gap: 1px; font-size: 15px; font-weight: 500; }
+.analysis-row .analysis-toggle-text small { font-size: 12.5px; font-weight: 400; color: var(--text-secondary); }
+.analysis-row > svg { flex: none; color: var(--text-tertiary); }
+.analysis-sheet { width: min(640px, 100%); padding: 20px; }
+.analysis-sheet .analysis-panel { display: grid; gap: 12px; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
+.analysis-sheet .analysis-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.analysis-sheet .analysis-head h2 { margin: 0; font-family: var(--font-display); font-size: 28px; font-weight: 400; letter-spacing: var(--title-tracking); }
+.analysis-sub { margin: 0; font-size: 14px; line-height: 1.45; color: var(--text-secondary); }
+.analysis-sheet .analysis-image { width: 100%; height: auto; border-radius: 18px; box-shadow: var(--shadow-sm); }
+.analysis-sheet .analysis-status { margin: 0; padding: 40px 0; text-align: center; color: var(--text-secondary); }
+.analysis-share { justify-self: stretch; min-height: 50px; }
+
+/* ============================================================
+   Photo step — "Let's get started" (src/components/PhotoUploader.tsx)
+   ============================================================ */
+.photo-start {
+  display: grid; gap: 16px; width: min(760px, 100%); margin: 0 auto;
+  animation: fade-in-soft 360ms var(--ease-soft) both;
+}
+.photo-start-head { display: grid; gap: 6px; padding: 6px 2px 2px; }
+.photo-start .photo-heading { font-size: clamp(36px, 7vw, 52px); letter-spacing: var(--display-tracking); line-height: 1.02; }
+.photo-start .photo-sub { margin: 0; font-size: 16px; max-width: none; }
+.photo-start .upload-authority { margin: 0; gap: 6px; }
+.photo-start .ai-consent-check { margin: 0; padding: 14px 16px; border: 0; border-radius: 18px; background: var(--card); box-shadow: var(--shadow-sm); font-size: 13.5px; line-height: 1.45; }
+.photo-start .upload-authority .control-hint { padding: 0 4px; }
+.photo-start-note { margin: -6px 4px 0; }
+
+.photo-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.photo-option {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-width: 0;
+  padding: 16px; border-radius: 24px; text-align: left; color: var(--text-primary);
+  background: var(--card); box-shadow: var(--shadow-sm);
+  transition: transform 300ms var(--spring), box-shadow 220ms var(--ease-soft), opacity 200ms;
+}
+.photo-option:active:not(:disabled) { transform: scale(.98); }
+.photo-option:disabled { opacity: .5; cursor: not-allowed; }
+.photo-option-text { display: grid; gap: 3px; }
+.photo-option-text strong { font-family: var(--font-display); font-size: 22px; font-weight: 400; letter-spacing: -.01em; line-height: 1.1; }
+.photo-option-text small { font-size: 13px; line-height: 1.4; color: var(--text-secondary); }
+.photo-option-visual { position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 16px; background: #1A1714; }
+.photo-option-capture img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 38%; }
+.photo-option-corner { position: absolute; width: 18px; height: 18px; border: 2px solid rgba(255, 255, 255, .92); }
+.photo-option-corner.tl { top: 10px; left: 10px; border-right: 0; border-bottom: 0; border-radius: 6px 0 0 0; }
+.photo-option-corner.tr { top: 10px; right: 10px; border-left: 0; border-bottom: 0; border-radius: 0 6px 0 0; }
+.photo-option-corner.bl { bottom: 10px; left: 10px; border-right: 0; border-top: 0; border-radius: 0 0 0 6px; }
+.photo-option-corner.br { bottom: 10px; right: 10px; border-left: 0; border-top: 0; border-radius: 0 0 6px 0; }
+.photo-option-guide { position: absolute; border: 1.5px dashed rgba(255, 255, 255, .85); border-radius: 8px; }
+.photo-option-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; background: var(--control-background); }
+.photo-option-gallery img { width: 100%; height: 100%; min-height: 0; object-fit: cover; border-radius: 10px; }
+.photo-option-go {
+  position: absolute; right: 26px; bottom: 26px; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
+  color: var(--on-accent); background: var(--accent-gradient); box-shadow: 0 6px 14px -6px rgba(120, 88, 40, .6);
+}
+.photo-secondary-row button {
+  min-height: 42px; padding: 0 16px; border: 0; border-radius: 999px;
+  color: var(--text-primary); background: var(--card); box-shadow: var(--shadow-sm); font-size: 14px;
+}
+.photo-file-link { justify-self: center; font-size: 14px; color: var(--accent-text); }
+
+.photo-sample {
+  display: flex; align-items: center; gap: 12px; justify-self: stretch; min-height: 58px; padding: 0 20px;
+  border-radius: 999px; color: var(--text-primary); background: var(--card); box-shadow: var(--shadow-sm); text-align: left;
+}
+.photo-sample > svg:first-child { color: var(--accent-text); }
+.photo-sample span { flex: 1; display: grid; font-size: 15px; font-weight: 500; }
+.photo-sample small { font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+.photo-sample > svg:last-child { color: var(--text-tertiary); }
+
+.photo-tips-disclosure { padding: 0 16px; border-radius: 18px; background: var(--card); box-shadow: var(--shadow-sm); }
+.photo-tips-disclosure > summary {
+  display: flex; align-items: center; justify-content: space-between; min-height: 52px;
+  list-style: none; cursor: pointer; font-size: 15px; font-weight: 500;
+}
+.photo-tips-disclosure > summary::-webkit-details-marker { display: none; }
+.photo-tips-disclosure > summary svg { color: var(--text-tertiary); transition: transform 240ms var(--ease-soft); }
+.photo-tips-disclosure[open] > summary svg { transform: rotate(180deg); }
+.photo-tips-disclosure ul { display: grid; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
+.photo-tips-disclosure li { display: flex; align-items: center; gap: 9px; font-size: 14px; color: var(--text-secondary); }
+.photo-tips-disclosure li svg { flex: none; color: var(--accent-text); }
+.photo-tips-disclosure .control-hint, .photo-tips-disclosure .photo-hint { margin: 0 0 10px; }
+
+@media (max-width: 560px) {
+  .photo-options { grid-template-columns: 1fr; }
+  .photo-option { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 14px; row-gap: 12px; align-items: center; }
+  .photo-option .icon-tile { grid-row: 1; }
+  .photo-option-visual { grid-column: 1 / -1; aspect-ratio: 16 / 9; }
+  .photo-option-gallery { grid-template-columns: repeat(6, 1fr); aspect-ratio: auto; }
+  .photo-option-gallery img { aspect-ratio: 1; }
+  .photo-option-go { top: 20px; right: 18px; bottom: auto; width: 36px; height: 36px; }
+  .photo-option-text { padding-right: 40px; }
+}
+@media (prefers-reduced-motion: reduce) { .photo-start { animation: none; } }
+
+/* Studio header: undo / redo before the menu */
+.nav-history { display: inline-flex; gap: 8px; margin-left: auto; }
+.nav-tool {
+  display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 50%;
+  color: var(--text-primary); background: var(--surface-elevated); border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+  transition: transform 300ms var(--spring), opacity 200ms var(--ease-soft);
+}
+.nav-tool:active:not(:disabled) { transform: scale(.94); }
+.nav-tool:disabled { opacity: .38; box-shadow: none; }
+.app-shell[data-screen="design"] .app-header { gap: 8px; }
+@media (max-width: 560px) {
+  /* Tools first on iPhone: the wordmark gives way to undo / redo. */
+  .app-shell[data-screen="design"] .app-header .sc-lockup { display: none; }
+}

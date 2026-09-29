@@ -61,7 +61,7 @@ export function AuthSheet({ initialMode, reason, onClose, onSignedIn }: {
       <div className="sheet account-sheet" onClick={e => e.stopPropagation()}>
         <div className="sheet-heading">
           <div>
-            <p className="eyebrow">SMILECOMPOSE ACCOUNT</p>
+            <p className="eyebrow">SmileCompose account</p>
             <h2 id="auth-title">{TITLES[mode]}</h2>
           </div>
           <button className="icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>
