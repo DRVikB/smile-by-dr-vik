@@ -23,6 +23,9 @@
   text-transform: none;
 }
 .sc-creator img { width: 66px; height: 27px; object-fit: contain; flex: none; filter: var(--mark-filter); }
+/* The logo's "DR" sits 4.5% of its height below the image's middle (measured on the artwork);
+   lifting the logo by that much centres DR on the "Designed By" line at every size. */
+.sc-creator img { transform: translateY(-4.5%); }
 .sc-creator-inverse { color: #faf9f6cf; }
 .sc-creator-inverse img { filter: brightness(0) invert(1); }
 .sc-launch .sc-creator { margin-top: 16px; }

@@ -19,8 +19,12 @@ func color(_ hex: UInt32, _ alpha: CGFloat = 1) -> CGColor {
 }
 
 /// The symbol's arc (M28 43 C37 68 63 68 72 43 in its 100-unit artwork), placed as on the Light icon.
+/// Places the mark exactly where it sits on the Light icon (arc box centred 45 px below the tile's
+/// middle): a U's open top reads high, so this is where it looks centred in the tile.
+let markOffset: CGFloat = 41.5
+
 func arcPath() -> CGPath {
-  let s: CGFloat = 13.5, dx: CGFloat = -163, dy: CGFloat = -190.5
+  let s: CGFloat = 13.5, dx: CGFloat = -163, dy: CGFloat = -190.5 + markOffset
   let p = { (x: CGFloat, y: CGFloat) in CGPoint(x: x * s + dx, y: y * s + dy) }
   let path = CGMutablePath()
   path.move(to: p(28, 43))
@@ -54,8 +58,8 @@ func render(_ file: String, _ palette: Palette) {
   ctx.setStrokeColor(color(palette.lines, palette.linesAlpha))
   ctx.setLineWidth(7)
   ctx.setLineCap(.round)
-  ctx.move(to: CGPoint(x: 512, y: 210)); ctx.addLine(to: CGPoint(x: 512, y: 815))
-  ctx.move(to: CGPoint(x: 270, y: 440)); ctx.addLine(to: CGPoint(x: 755, y: 440))
+  ctx.move(to: CGPoint(x: 512, y: 210 + markOffset)); ctx.addLine(to: CGPoint(x: 512, y: 815 + markOffset))
+  ctx.move(to: CGPoint(x: 270, y: 440 + markOffset)); ctx.addLine(to: CGPoint(x: 755, y: 440 + markOffset))
   ctx.strokePath()
 
   // The arc: a soft shadow, then the stroke filled with its gradient.

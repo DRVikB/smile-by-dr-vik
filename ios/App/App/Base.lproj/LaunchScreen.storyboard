@@ -36,7 +36,7 @@
                                 <rect key="frame" x="120" y="403.5" width="135" height="27"/>
                                 <subviews>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Designed By" textAlignment="natural" lineBreakMode="clip" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="Crt-Lb-004" userLabel="Designed By">
-                                        <rect key="frame" x="0.0" y="7" width="62" height="13"/>
+                                        <rect key="frame" x="0.0" y="8.2" width="62" height="13"/>
                                         <fontDescription key="fontDescription" type="system" pointSize="11"/>
                                         <color key="textColor" name="LaunchSubtle"/>
                                         <nil key="highlightedColor"/>
@@ -55,7 +55,7 @@
                                     <constraint firstAttribute="trailing" secondItem="Crt-Im-005" secondAttribute="trailing" id="Crt-c3"/>
                                     <constraint firstItem="Crt-Im-005" firstAttribute="top" secondItem="Crt-Rw-003" secondAttribute="top" id="Crt-c4"/>
                                     <constraint firstAttribute="bottom" secondItem="Crt-Im-005" secondAttribute="bottom" id="Crt-c5"/>
-                                    <constraint firstItem="Crt-Lb-004" firstAttribute="centerY" secondItem="Crt-Im-005" secondAttribute="centerY" id="Crt-c6"/>
+                                    <constraint firstItem="Crt-Lb-004" firstAttribute="centerY" secondItem="Crt-Im-005" secondAttribute="centerY" constant="1.2" id="Crt-c6"/>
                                 </constraints>
                             </view>
                         </subviews>

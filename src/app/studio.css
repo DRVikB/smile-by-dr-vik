@@ -612,3 +612,7 @@ input[type="checkbox"][role="switch"],
 .studio-align .control-hint { margin: 0; }
 .studio-treatments.is-muted { opacity: .45; }
 @media (prefers-reduced-motion: reduce) { .studio-switch, .studio-switch::after { transition: none; } }
+
+/* Photo step preview: the same fill-and-zoom frame as the Studio */
+.photo-stage .photo-stage-zoom { z-index: 1; }
+.photo-stage .photo-stage-zoom img { width: 100%; height: 100%; }

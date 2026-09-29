@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Archive, Check, ChevronLeft, ChevronRight, Download, Pencil, ScanEye, Search, Star, Trash2, X } from "lucide-react";
-import { IconTile, SmileSymbol } from "@/components/icons/SmileIcons";
+import { AnalysisSymbol, IconTile, SmileSymbol } from "@/components/icons/SmileIcons";
 import { SavedCaseViewer } from "./SavedCaseViewer";
+import { SmileAnalysisPanel } from "./SmileAnalysis";
 import type { CaseLogEntry, CaseLogMedia } from "@/lib/types";
 import {
   CASE_REFERENCE_MAX,
@@ -65,6 +66,7 @@ export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; init
   const [confirmCase, setConfirmCase] = useState(false);
   const [error, setError] = useState("");
   const [viewing, setViewing] = useState(false);
+  const [analysing, setAnalysing] = useState(false);
   const [mediaError, setMediaError] = useState(false);
   const [notice, setNotice] = useState("");
   const [openedInitial, setOpenedInitial] = useState(false);
@@ -429,6 +431,10 @@ export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; init
               <button className="primary-button" disabled={!open.media} onClick={() => setViewing(true)}>
                 <ScanEye size={18} /> Reopen comparison
               </button>
+              <button className="secondary-button" disabled={!open.media} onClick={() => setAnalysing(true)}>
+                <AnalysisSymbol size={18} />
+                Smile analysis
+              </button>
               <button className="secondary-button" disabled={!open.media} onClick={() => open.media && void saveEntry(open.entry, open.media)}>
                 <Download size={16} strokeWidth={1.6} />
                 Save before &amp; after
@@ -446,6 +452,15 @@ export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; init
         </div>
       )}
       {viewing && open?.media && <SavedCaseViewer entry={open.entry} media={open.media} onClose={() => setViewing(false)} />}
+      {analysing && open?.media && (
+        <div className="sheet-backdrop analysis-backdrop saved-analysis" role="dialog" aria-modal="true" aria-label="Smile analysis" onClick={() => setAnalysing(false)}>
+          <div className="sheet analysis-sheet" onClick={(e) => e.stopPropagation()}>
+            <SmileAnalysisPanel before={open.media.originalImage} after={open.media.image}
+              isDemo={Boolean(open.entry.testMode) || open.entry.mode === "mock"} patientName={open.entry.patientName}
+              onClose={() => setAnalysing(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

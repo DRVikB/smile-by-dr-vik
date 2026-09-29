@@ -1,6 +1,6 @@
 # Clinician generation costs
 
-Open **Clinician costs → Show** above the design controls, or on the result screen.
+Open **Allowance → Show** on the Studio's Review step, or on the result screen. Clinicians see smile designs used from their allowance; the dollar estimates below stay internal (recorded per case on the device, not shown in the app).
 The preference is kept on this device. Costs are not added to patient reports,
 image exports, presentation slides, reveal videos or the consultation overlay.
 This is a hideable planning panel, not a separate authenticated staff area.

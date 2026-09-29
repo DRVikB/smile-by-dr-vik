@@ -34,20 +34,21 @@ func png(width: CGFloat, height: CGFloat, scale: CGFloat, draw: (CGContext) -> V
   return rep.representation(using: .png, properties: [:])!
 }
 
-/// public/brand/smilecompose-symbol.svg (viewBox 100), drawn at `size` points.
+/// public/brand/smilecompose-symbol.svg (viewBox 100), drawn at `size` points. The arc and its
+/// reference lines sit 2.5 units below centre, as on the app icon, so the smile reads centred in the tile.
 func symbol(_ cg: CGContext, size: CGFloat) {
   cg.scaleBy(x: size / 100, y: size / 100)
   let frame = NSBezierPath(roundedRect: NSRect(x: 7, y: 7, width: 86, height: 86), xRadius: 24, yRadius: 24)
   frame.lineWidth = 2.8
   bronze.setStroke(); frame.stroke()
   let cross = NSBezierPath()
-  cross.move(to: NSPoint(x: 50, y: 23)); cross.line(to: NSPoint(x: 50, y: 77))
-  cross.move(to: NSPoint(x: 23, y: 47)); cross.line(to: NSPoint(x: 77, y: 47))
+  cross.move(to: NSPoint(x: 50, y: 25.5)); cross.line(to: NSPoint(x: 50, y: 79.5))
+  cross.move(to: NSPoint(x: 23, y: 49.5)); cross.line(to: NSPoint(x: 77, y: 49.5))
   cross.lineWidth = 1.6
   bronze.withAlphaComponent(0.5).setStroke(); cross.stroke()
   let smile = NSBezierPath()
-  smile.move(to: NSPoint(x: 28, y: 43))
-  smile.curve(to: NSPoint(x: 72, y: 43), controlPoint1: NSPoint(x: 37, y: 68), controlPoint2: NSPoint(x: 63, y: 68))
+  smile.move(to: NSPoint(x: 28, y: 45.5))
+  smile.curve(to: NSPoint(x: 72, y: 45.5), controlPoint1: NSPoint(x: 37, y: 70.5), controlPoint2: NSPoint(x: 63, y: 70.5))
   smile.lineWidth = 4.2; smile.lineCapStyle = .round
   bronze.setStroke(); smile.stroke()
 }

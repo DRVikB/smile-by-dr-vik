@@ -64,7 +64,7 @@ import { preparePhoto } from "@/lib/photos";
 import { assessResultScaleFromDataUrls } from "@/lib/resultCheck";
 import { getReportPreferences, preferenceRows } from "@/lib/report";
 import { useSmileTools } from "@/lib/useSmileTools";
-import { GenerationCosts, generationCostLabel } from "@/components/GenerationCosts";
+import { GenerationCosts, allowanceLabel } from "@/components/GenerationCosts";
 import { emptyCaseCosts, completeCost, type GenerationPricing, type ImageResolution } from "@/lib/generation/cost";
 import { isNoChangeDesign } from "@/lib/generation/designPlan";
 import { exceedsRequestLimit, previewFingerprint } from "@/lib/generation/requestPolicy";
@@ -514,7 +514,7 @@ export default function Smile() {
     const fingerprint = await previewFingerprint({ image: photoIn.dataUrl, editMask: photoIn.editMask, settings: settingsIn, resolution: effectiveResolution, provider: pricing?.model, reference: reference?.dataUrl, styleReferences });
     const reusable = [result, ...variants.map(v => v.result)].find(r => r?.requestFingerprint === fingerprint);
     if (reusable) return reusable;
-    if (exceedsRequestLimit(costs.requested, 1, requestLimit)) throw new Error("This case has reached its request allowance. Review Clinician costs before generating more.");
+    if (exceedsRequestLimit(costs.requested, 1, requestLimit)) throw new Error("This case has reached its limit of smile designs. Change the case limit under Allowance to create more.");
     const { prepareGenerationPhoto } = await import("@/lib/photos");
     const requestCanvas = await prepareGenerationPhoto(photoIn);
     if (controller.signal.aborted) throw controller.signal.reason;
@@ -688,7 +688,7 @@ export default function Smile() {
   ) {
     if (!photo || busy || request.current) return;
     if (!accountReadyForGeneration()) return;
-    if (!testMode && exceedsRequestLimit(costs.requested, wanted.length, requestLimit)) { setError("This batch could exceed your case request allowance. Review Clinician costs or create a single preview."); return; }
+    if (!testMode && exceedsRequestLimit(costs.requested, wanted.length, requestLimit)) { setError("This batch could exceed the case limit of smile designs. Check Allowance or create a single preview."); return; }
     if (!testMode && !confirmed) { setBatchPending(wanted); return; }
     const consentForRequest = testMode ? null : approvedConsent ?? aiConsent;
     if (!testMode) {
@@ -1225,7 +1225,7 @@ export default function Smile() {
                 <MoveHorizontal size={15} strokeWidth={1.6} />
                 Slide to compare, or overlay to line up the teeth
               </div>
-              {costsOpen && <p className="control-hint">Each adjustment: {generationCostLabel(pricing, effectiveResolution, 1, testMode)}</p>}
+              {costsOpen && <p className="control-hint">Each adjustment uses {allowanceLabel(1, testMode).toLowerCase()}.</p>}
               <div className="adjust-row">
                 <span className="adjust-label">Not quite right?</span>
                 <button
@@ -1311,7 +1311,7 @@ export default function Smile() {
               </FloatingPanel>
               </div>
               <BottomActionBar
-                anotherCost={costsOpen ? generationCostLabel(pricing, effectiveResolution, 3, testMode) : undefined}
+                anotherCost={costsOpen ? allowanceLabel(3, testMode) : undefined}
                 onAnother={showAnother}
                 onEdit={() => {
                   setScreen("design");
@@ -1332,7 +1332,7 @@ export default function Smile() {
                 onEdit={() => { setReviewOpen(false); setScreen("design"); setError(""); }}
                 onSave={() => setSaveOpen(true)}
                 onNew={startNewSmile}
-                anotherCost={costsOpen ? generationCostLabel(pricing, effectiveResolution, 3, testMode) : undefined}
+                anotherCost={costsOpen ? allowanceLabel(3, testMode) : undefined}
                 busy={busy}
                 saving={saving}
               />
@@ -1443,7 +1443,7 @@ export default function Smile() {
           }}
         />
       )}
-      {batchPending && <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-label="Confirm generation batch"><div className="sheet"><h2>Create {batchPending.length} options?</h2><p className="sheet-sub">{generationCostLabel(pricing, effectiveResolution, batchPending.length, testMode)}. {pricing?.free ? "Mock previews have no AI generation charge." : "This is the image-output component; input, reference and thinking tokens cost extra."} Existing identical results may be reused without a new request.</p><p className="control-hint">Options are generated independently. Compare tooth contours and protected anatomy; geometry is not guaranteed to be identical.</p><button className="primary-button" onClick={() => { const wanted = batchPending; setBatchPending(null); void generateVariants(wanted, true); }}>Create {batchPending.length} options</button><button className="secondary-button" onClick={() => setBatchPending(null)}>Cancel</button></div></div>}
+      {batchPending && <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-label="Confirm generation batch"><div className="sheet"><h2>Create {batchPending.length} options?</h2><p className="sheet-sub">{allowanceLabel(batchPending.length, testMode)}. {testMode ? "Test mode uses prepared examples." : "Taken from your allowance; any that fail are returned."} Existing identical results may be reused without using a design.</p><p className="control-hint">Options are generated independently. Compare tooth contours and protected anatomy; geometry is not guaranteed to be identical.</p><button className="primary-button" onClick={() => { const wanted = batchPending; setBatchPending(null); void generateVariants(wanted, true); }}>Create {batchPending.length} options</button><button className="secondary-button" onClick={() => setBatchPending(null)}>Cancel</button></div></div>}
       {saveOpen && result && photo && (
         <div
           className="sheet-backdrop"

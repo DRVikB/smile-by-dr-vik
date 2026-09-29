@@ -6,7 +6,7 @@ import { upperTeeth, smileArcs, biteContexts } from "@/lib/types";
 import { DESIGN_INTENTS, isNoChangeDesign, resolveDesignPlan } from "@/lib/generation/designPlan";
 import { canGuideSmileArc } from "@/lib/smilePrinciples";
 import { toothSummary } from "@/lib/teeth";
-import { GenerationCosts, generationCostLabel, type GenerationCostsProps } from "@/components/GenerationCosts";
+import { GenerationCosts, allowanceLabel, type GenerationCostsProps } from "@/components/GenerationCosts";
 import { SegmentedControl, SHAPES, ToothForm } from "./StudioParts";
 import { ToothChart } from "@/components/ToothChart";
 import { ClinicalDataFields } from "@/components/ClinicalDataFields";
@@ -349,15 +349,15 @@ export function DesignStudio({
             <div className="studio-variations" role="group" aria-label="Or compare three options">
               <button type="button" className="studio-variation" disabled={busy || settings.designIntent === "Shade only"} onClick={onHarmonise}>
                 <VisualiseSymbol size={20} /><span>3 harmonised</span>
-                {costs.open && <small className="action-cost">{generationCostLabel(costs.pricing, costs.resolution, 3, costs.testMode)}</small>}
+                {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
               </button>
               <button type="button" className="studio-variation" disabled={busy || noChange} onClick={onCompareMaterials}>
                 <CompareSymbol size={20} /><span>3 materials</span>
-                {costs.open && <small className="action-cost">{generationCostLabel(costs.pricing, costs.resolution, 3, costs.testMode)}</small>}
+                {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
               </button>
               <button type="button" className="studio-variation" disabled={busy || settings.designIntent === "Shade only"} onClick={onCompare}>
                 <ComposeSymbol size={20} /><span>3 shapes</span>
-                {costs.open && <small className="action-cost">{generationCostLabel(costs.pricing, costs.resolution, 3, costs.testMode)}</small>}
+                {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
               </button>
             </div>
             <GenerationCosts {...costs} />
@@ -378,7 +378,7 @@ export function DesignStudio({
               <button className="primary-button generate-button" onClick={onGenerate} disabled={busy || noChange}>
                 <VisualiseSymbol size={20} />
                 {busy ? "Creating your visualisation…" : "Generate Smile"}
-                {costs.open && !busy && <small className="action-cost">{generationCostLabel(costs.pricing, costs.resolution, 1, costs.testMode)}</small>}
+                {costs.open && !busy && <small className="action-cost">{allowanceLabel(1, costs.testMode)}</small>}
               </button>
             )}
           </div>

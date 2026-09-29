@@ -15,6 +15,7 @@ import { preparePhoto } from "@/lib/photos";
 import { isNativeApp } from "@/native/platform";
 import { UPLOAD_AUTHORITY_TEXT } from "@/config/legal";
 import { CaptureSymbol, CasesSymbol, IconTile, PhotosSymbol } from "@/components/icons/SmileIcons";
+import { ZoomPan } from "./ZoomPan";
 
 const TIPS = [
   "Natural smile",
@@ -166,7 +167,9 @@ export function PhotoUploader({
         <>
           <div className="photo-stage">
             <img className="photo-backdrop" src={photo.dataUrl} alt="" aria-hidden="true" />
-            <img className="photo-stage-original" src={photo.dataUrl} alt="Selected patient photo" />
+            <ZoomPan className="photo-stage-zoom" resetKey={photo.dataUrl}>
+              <img className="photo-stage-original" src={photo.dataUrl} alt="Selected patient photo" />
+            </ZoomPan>
           </div>
 
           <div className="photo-aside">
