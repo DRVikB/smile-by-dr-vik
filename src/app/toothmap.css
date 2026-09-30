@@ -1,29 +1,57 @@
 /* ============================================================
    Tooth Map (src/components/toothMap)
-   Outlines sit on the photograph: quiet white for unselected teeth,
-   champagne with a faint fill for selected ones.
+   Smart, not always visible: hidden for standard presets, shown for
+   Custom picking and single-tooth design. Smoothed vector outlines,
+   champagne for selection, ivory for the smile design guides.
    ============================================================ */
 .tooth-map-overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 1; }
 .tooth-map-overlay.is-adding { pointer-events: auto; cursor: crosshair; }
 .tooth-map-catch { fill: transparent; }
-.tooth-region polygon {
-  fill: rgba(255, 255, 255, 0.001); stroke: rgba(255, 255, 255, 0.62);
-  stroke-linejoin: round; pointer-events: visiblePainted; cursor: pointer;
-  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.45));
-  transition: fill 160ms var(--ease-soft), stroke 160ms var(--ease-soft);
+/* Smoothed display outlines: thin, consistent, no glow */
+.tooth-region path {
+  fill: none; stroke: rgba(255, 253, 248, 0.78);
+  stroke-linejoin: round; stroke-linecap: round; pointer-events: none;
+  filter: drop-shadow(0 0 0.6px rgba(0, 0, 0, 0.35));
+  transition: fill 160ms var(--ease-soft), stroke 160ms var(--ease-soft), opacity 160ms var(--ease-soft);
   -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; user-select: none;
 }
-.tooth-region.is-selected polygon { fill: rgba(212, 181, 131, 0.14); stroke: #D9BB86; }
-.tooth-region.needs-review polygon { stroke-dasharray: 4 3; }
-.tooth-region.is-focused polygon { stroke: #fff; fill: rgba(255, 255, 255, 0.16); }
-.tooth-map-overlay.is-adding .tooth-region polygon { pointer-events: none; }
-.tooth-region polygon:focus-visible { outline: none; stroke: #fff; }
+.tooth-region path.is-tappable { fill: rgba(255, 255, 255, 0.001); pointer-events: visiblePainted; cursor: pointer; }
+.tooth-region path:focus-visible { outline: none; stroke: #fff; }
+/* Selection: champagne for chosen teeth, a very low fill */
+.is-select .tooth-region.is-selected path,
+.is-single .tooth-region.is-selected path { stroke: #DCC08F; fill: rgba(220, 192, 143, 0.16); }
+.is-select .tooth-region.needs-review path { stroke-dasharray: 4 3; }
+.tooth-region.is-focused path { stroke: #fff; fill: rgba(255, 255, 255, 0.14); }
+.tooth-map-overlay.is-adding .tooth-region path { pointer-events: none; }
+/* One tooth being designed: the rest recede */
+.is-single .tooth-region:not(.is-selected) path { stroke: rgba(255, 253, 248, 0.42); }
+/* Smile design: ivory contours only */
+.is-design .tooth-region path { stroke: rgba(255, 251, 242, 0.82); }
+/* Numbers: small and quiet — no dark bubbles */
 .tooth-region text {
-  fill: #fff; font-family: var(--font-sans); font-weight: 600; letter-spacing: .02em;
-  paint-order: stroke; stroke: rgba(20, 18, 16, 0.7); stroke-width: 3px; stroke-linejoin: round; pointer-events: none;
+  fill: rgba(255, 255, 255, 0.94); font-family: var(--font-sans); font-weight: 600; letter-spacing: .02em; pointer-events: none;
+  paint-order: stroke; stroke: rgba(20, 18, 16, 0.32); stroke-width: 2px; stroke-linejoin: round;
 }
-.tooth-region.is-selected text { fill: #F3E3C5; }
+.tooth-region.is-selected text { fill: #F1DDB5; }
 .tooth-region.needs-review text { fill: #FFD9A8; }
+/* Guides: very low opacity lines */
+.smile-guides line, .smile-guides path { fill: none; stroke-linecap: round; }
+.smile-guide-arc { stroke: rgba(255, 253, 248, 0.72); }
+.smile-guide-midline { stroke: rgba(255, 253, 248, 0.55); }
+.smile-guide-vertical { stroke: rgba(255, 253, 248, 0.26); }
+
+/* Teeth step: how the map is shown */
+.tooth-map-view { display: grid; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--inset-bg, var(--control-background)); box-shadow: inset 0 0 0 1px var(--card-border, var(--border)); }
+.tooth-map-view-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tooth-map-view-row > span { font-size: 14px; font-weight: 500; }
+.tooth-map-view .segmented { flex: none; }
+.tooth-map-view .segmented button { min-height: 34px; padding: 0 12px; font-size: 13px; }
+.tooth-map-view .studio-switch-row { min-height: 36px; }
+.tooth-map-view .studio-treatment-text small { font-size: 12px; }
+.tooth-picking { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tooth-picking p { margin: 0; font-size: 13px; color: var(--text-secondary); }
+.tooth-picking .primary-button { flex: none; min-height: 40px; padding: 0 18px; font-size: 14px; }
+.tooth-single-edit { display: flex; align-items: center; gap: 8px; width: 100%; justify-content: center; }
 
 /* The photo zoom re-rasterises at its real scale, so outlines and numbers stay crisp when zoomed. */
 .photo-zoom .zoompan-inner { will-change: auto; }
@@ -62,3 +90,14 @@
 .tooth-debug img { width: 100%; border-radius: 8px; }
 .tooth-debug table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .tooth-debug td, .tooth-debug th { padding: 2px 4px; text-align: left; border-bottom: 1px solid var(--border); }
+
+/* Template: teeth the map didn't find are drawn, but can't be picked */
+.is-template .tooth-region.is-unmapped path { stroke-dasharray: 3 3; opacity: .55; }
+.is-select.is-template .tooth-region:not(.is-selected) path { stroke: rgba(255, 253, 248, 0.7); }
+/* Guides: quieter than the teeth */
+.smile-proportions line, .smile-proportions path { fill: none; stroke-linecap: round; }
+/* Solid and faint: dashes break up into tick marks at photo scale */
+.smile-guide-contact { stroke: rgba(255, 253, 248, 0.22); }
+.smile-guide-axis { stroke: rgba(236, 214, 170, 0.32); }
+.smile-guide-incisal { stroke: rgba(255, 253, 248, 0.2); }
+.smile-guide-gingival { stroke: rgba(255, 253, 248, 0.26); }

@@ -25,7 +25,15 @@ export interface ProtectOutcome {
 }
 
 /** Why the tooth map can't protect this result; the existing lip and face lock still applies. */
-export type ProtectSkip = "no-map" | "stale-map" | "alignment" | "no-teeth";
+export type ProtectSkip = "no-map" | "stale-map" | "alignment" | "full-arch" | "standard" | "no-teeth";
+
+/**
+ * Precision masking is for SINGLE-TOOTH edits only. Normal 4 / 6 / 8 / 10
+ * and multi-tooth designs use the standard generator with the lip and face
+ * lock (and any painted edit area) — image quality first. Set to true only
+ * if testing shows per-tooth compositing improves multi-tooth results.
+ */
+export const PRECISION_FOR_MULTIPLE_TEETH = false;
 
 function load(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -41,10 +49,13 @@ export function protectionPlan(map: ToothMap | null | undefined, originalDataUrl
   { ok: true; teeth: number[]; notFound: number[] } | { ok: false; reason: ProtectSkip } {
   if (!map || !map.teeth.some(t => t.visible && t.fdi !== null)) return { ok: false, reason: "no-map" };
   if (map.photoId !== photoFingerprint(originalDataUrl)) return { ok: false, reason: "stale-map" };
+  // Full-arch protects by arch (arch.ts), not by tooth.
+  if (settings.treatmentMode === "full_arch" && settings.fullArch) return { ok: false, reason: "full-arch" };
   // Moving whole teeth isn't a repaint of their outlines: alignment keeps the lip and face lock for now.
   if (settings.alignment && !settings.alignment.only) return { ok: false, reason: "alignment" };
   // Chart order (patient's right to left), as the clinician reads it.
   const wanted = fdiOrder([...selectedPlans(settings).keys()]);
+  if (wanted.length > 1 && !PRECISION_FOR_MULTIPLE_TEETH) return { ok: false, reason: "standard" };
   const present = new Set(map.teeth.filter(t => t.visible && t.fdi !== null).map(t => t.fdi as number));
   const teeth = wanted.filter(t => present.has(t));
   if (!teeth.length) return { ok: false, reason: "no-teeth" };

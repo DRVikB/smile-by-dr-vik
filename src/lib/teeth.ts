@@ -10,7 +10,9 @@ export function updateToothPlan(s: SmileSettings, plan: ToothPlan): SmileSetting
   const toothPlans = [...plans.filter(p => p.tooth !== plan.tooth), plan].sort((a,b) => a.tooth-b.tooth);
   return { ...s, toothPlans, selectedTeeth: toothPlans.filter(p => p.intent !== "Preserve" && p.condition !== "Missing").map(p => p.tooth) };
 }
-export function toothSummary(s: Pick<SmileSettings, "selectedTeeth">): string {
+export function toothSummary(s: Pick<SmileSettings, "selectedTeeth"> & Partial<Pick<SmileSettings, "treatmentMode" | "fullArch">>): string {
+  // Full-arch: the arch is the selection.
+  if (s.treatmentMode === "full_arch" && s.fullArch) return s.fullArch.arch === "both" ? "Upper + lower full arch" : `${s.fullArch.arch === "upper" ? "Upper" : "Lower"} full arch`;
   const upper = s.selectedTeeth.filter(id => id < 30).length;
   const lower = s.selectedTeeth.length - upper;
   if (!upper && !lower) return "No teeth selected";

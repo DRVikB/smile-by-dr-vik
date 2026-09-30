@@ -432,3 +432,13 @@ body { background: var(--background); }
   :root { --page-gutter: 32px; --card-gap: 24px; }
   .settings-scroll > * { max-width: 620px; }
 }
+
+/* Treatment: full-arch controls open under their row, inside the same group */
+.studio-full-arch { display: grid; gap: 14px; padding: 4px 14px 14px; border-top: 1px solid var(--separator); }
+.studio-full-arch .control-group { margin: 0; }
+.studio-full-arch .segmented button { min-height: 40px; }
+.studio-full-arch .control-hint { margin: 0; }
+.studio-full-arch-advanced { border-top: 0; }
+.studio-full-arch-advanced > summary { min-height: 40px; color: var(--text-secondary); font-weight: 500; }
+.studio-full-arch-advanced[open] > summary svg { transform: rotate(90deg); }
+.studio-treatment.is-muted { opacity: .45; }

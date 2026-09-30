@@ -23,3 +23,16 @@ export function rememberToothDebug(image: string, images: ToothDebugImages): voi
 export function toothDebugFor(image: string | undefined): ToothDebugImages | undefined {
   return image ? store.get(image) : undefined;
 }
+
+// The map before SlimSAM refinement, by photo fingerprint, for the raw-vs-refined-vs-template comparison.
+const rough = new Map<string, import("./types").ToothMap>();
+
+export function rememberRoughMap(map: import("./types").ToothMap): void {
+  if (!TOOTH_MAP_DEBUG) return;
+  rough.set(map.photoId, map);
+  while (rough.size > 4) rough.delete(rough.keys().next().value!);
+}
+
+export function roughMapFor(photoId: string | undefined): import("./types").ToothMap | undefined {
+  return photoId ? rough.get(photoId) : undefined;
+}

@@ -1,6 +1,7 @@
 import { activeToothPlans, resolvedToothIntent } from "./teeth";
 import { smileArcSummary } from "./smilePrinciples";
 import type { GenerationResult, PreviewPreferences, SmileSettings, SmileVariant } from "./types";
+import { fullArchLabel, isFullArch } from "./types";
 
 /** Export the settings used for this result, never a subsequently edited draft. */
 export function getReportPreferences(result: GenerationResult, variants: SmileVariant[]): PreviewPreferences | undefined {
@@ -11,6 +12,18 @@ export function getReportPreferences(result: GenerationResult, variants: SmileVa
 }
 
 export function preferenceRows(settings: SmileSettings): [string, string][] {
+  if (isFullArch(settings)) {
+    const l = fullArchLabel(settings.fullArch);
+    return [
+      ["Treatment", l.treatment], ["Arch", l.arch], ["Restoration concept", l.restoration],
+      ["Prosthetic gingiva", { auto: "Auto", include: "Include", exclude: "Exclude" }[settings.fullArch.prostheticGingiva]],
+      ["Shade", settings.targetShade],
+      ["Tooth shape", { Square: "Square", Rounded: "Round", Triangular: "Triangle" }[settings.shape]],
+      ["Texture", settings.texture],
+      ["Result intensity", `${settings.intensity}% · subtle to enhanced`],
+      ["Photo type", settings.shotType],
+    ];
+  }
   const colourOnly = activeToothPlans(settings).every(p => resolvedToothIntent(settings, p) === "Shade only");
   return [
     ["Shade", settings.targetShade],

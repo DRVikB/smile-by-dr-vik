@@ -1,10 +1,11 @@
 "use client";
 import { createPortal } from "react-dom";
-import { Check, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { Check, Eye, Plus, RotateCcw, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { updateToothPlan, activeToothPlans } from "@/lib/teeth";
 import { fdiOrder, teethToReview } from "@/lib/toothMap/types";
 import { toothEdges, toothShapes, type SmileSettings, type TargetShade, type ToothPlan } from "@/lib/types";
-import type { ToothMapController } from "./useToothMap";
+import type { ToothMapController, ToothMapDisplay } from "./useToothMap";
+import type { Proportion } from "@/lib/toothMap/template";
 
 const UPPER_FDI = [17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27];
 
@@ -45,8 +46,10 @@ export function ToothMapStatus({ controller }: { controller: ToothMapController 
       )}
       {!editing && (
         <div className="tooth-map-actions">
-          {!map.confirmedByClinician && <button type="button" className="primary-button" onClick={controller.confirm}><Check size={15} /> Confirm tooth map</button>}
-          <button type="button" className={map.confirmedByClinician ? "secondary-button" : "text-button"} onClick={() => controller.setEditing(true)}>Edit</button>
+          {/* The map is hidden for standard presets, so it is reviewed on the photo before it is confirmed. */}
+          {map.confirmedByClinician
+            ? <button type="button" className="secondary-button" onClick={() => controller.setEditing(true)}>Edit</button>
+            : <button type="button" className="primary-button" onClick={() => controller.setEditing(true)}><Eye size={15} /> Review tooth map</button>}
         </div>
       )}
       {editing && <ToothMapEditor controller={controller} />}
@@ -81,7 +84,7 @@ function ToothMapEditor({ controller }: { controller: ToothMapController }) {
           </div>
         </>
       ) : (
-        <p className="control-hint">Tap a tooth on the photo to correct its number, mark it missing or remove a false detection.</p>
+        <p className="control-hint">Every tooth is shown while you review. Tap one on the photo to correct its number, mark it missing or remove a false detection.</p>
       )}
       <div className="tooth-map-actions">
         <button type="button" className="secondary-button" onClick={() => controller.setAdding(!controller.adding)}><Plus size={15} /> {controller.adding ? "Cancel adding" : "Add a tooth"}</button>
@@ -175,5 +178,69 @@ export function SelectedTeethSummary({ settings, notFound }: { settings: SmileSe
       <span>{teeth.join(" · ") || "Tap teeth on the photo to select them."}</span>
       {notFound.length > 0 && <small>{fdiOrder(notFound).join(", ")} {notFound.length === 1 ? "isn’t" : "aren’t"} in this photo’s tooth map, so {notFound.length === 1 ? "it stays" : "they stay"} unchanged. Add {notFound.length === 1 ? "it" : "them"} in Edit if visible.</small>}
     </p>
+  );
+}
+
+const PROPORTION_OPTIONS: { value: Proportion; label: string }[] = [{ value: "natural", label: "Natural" }, { value: "golden", label: "Golden" }, { value: "red", label: "70%" }];
+const DISPLAYS: { value: ToothMapDisplay; label: string }[] = [{ value: "auto", label: "Auto" }, { value: "show", label: "Show" }, { value: "hide", label: "Hide" }];
+
+/**
+ * How the tooth map appears on the photo. Auto keeps the smile clean for the
+ * 4 / 6 / 8 / 10 presets, shows every tooth while picking in Custom, and
+ * outlines the tooth when exactly one is selected.
+ */
+export function ToothMapView({ controller }: { controller: ToothMapController }) {
+  const { display, guides } = controller;
+  return (
+    <div className="tooth-map-view">
+      <div className="tooth-map-view-row">
+        <span id="tooth-map-display">Tooth map</span>
+        <div className="segmented" role="group" aria-labelledby="tooth-map-display">
+          {DISPLAYS.map(d => (
+            <button key={d.value} type="button" aria-pressed={display === d.value} className={display === d.value ? "selected" : ""} onClick={() => controller.setDisplay(d.value)}>{d.label}</button>
+          ))}
+        </div>
+      </div>
+      <label className="studio-switch-row">
+        <span className="studio-treatment-text"><strong>Smile design guides</strong><small>Tooth contours, smile arc and midline</small></span>
+        <input type="checkbox" role="switch" className="studio-switch" checked={guides.design} onChange={e => controller.setGuides({ ...guides, design: e.target.checked })} />
+      </label>
+      {(guides.design || controller.mode !== "hidden") && (
+        <label className="studio-switch-row">
+          <span className="studio-treatment-text"><strong>Guides</strong><small>Long axes, contacts, incisal and gum lines</small></span>
+          <input type="checkbox" role="switch" className="studio-switch" checked={guides.proportions} onChange={e => controller.setGuides({ ...guides, proportions: e.target.checked })} />
+        </label>
+      )}
+      {(guides.design || controller.mode !== "hidden") && guides.proportions && (
+        <div className="tooth-map-view-row">
+          <span id="tooth-proportion">Proportion</span>
+          <div className="segmented" role="group" aria-labelledby="tooth-proportion">
+            {PROPORTION_OPTIONS.map(o => (
+              <button key={o.value} type="button" aria-pressed={guides.proportion === o.value} className={guides.proportion === o.value ? "selected" : ""} onClick={() => controller.setGuides({ ...guides, proportion: o.value })}>{o.label}</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** While picking teeth in Custom: the map stays up until the clinician is done. */
+export function ToothPicking({ controller }: { controller: ToothMapController }) {
+  if (!controller.picking || controller.display !== "auto") return null;
+  return (
+    <div className="tooth-picking" role="status">
+      <p>Tap teeth on the photo to add or remove them.</p>
+      <button type="button" className="primary-button" onClick={() => controller.setPicking(false)}><Check size={15} /> Done</button>
+    </div>
+  );
+}
+
+/** Exactly one tooth selected: its own controls, one tap away. */
+export function SingleToothEdit({ controller, fdi }: { controller: ToothMapController; fdi: number }) {
+  return (
+    <button type="button" className="secondary-button tooth-single-edit" onClick={() => controller.openControls(fdi)}>
+      <SlidersHorizontal size={15} /> Design tooth {fdi}
+    </button>
   );
 }

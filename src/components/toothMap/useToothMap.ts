@@ -3,8 +3,50 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { updateToothPlan } from "@/lib/teeth";
 import { photoFingerprint, renumber, type NormPoint, type ToothMap, type ToothRegion } from "@/lib/toothMap/types";
 import type { Photo, SmileSettings } from "@/lib/types";
+import type { Proportion } from "@/lib/toothMap/template";
 
 export type ToothMapStatus = "idle" | "detecting" | "ready" | "none";
+/** The clinician's choice for the overlay: Auto decides from the selection. */
+export type ToothMapDisplay = "auto" | "show" | "hide";
+/**
+ * What the overlay draws:
+ *   hidden  nothing: a clean smile (standard presets)
+ *   select  every tooth, numbered and tappable (Custom picking, Show, editing the map)
+ *   single  the one selected tooth outlined and numbered, the rest faint, with the arc and midline
+ *   design  white contours with the smile arc and midline (Smile design guides on)
+ */
+export type ToothOverlayMode = "hidden" | "select" | "single" | "design";
+export interface ToothGuides { design: boolean; proportions: boolean; proportion: Proportion }
+
+const PREFS_KEY = "smile.toothMapView";
+
+function readPrefs(): { display: ToothMapDisplay; guides: ToothGuides } {
+  try {
+    const raw = JSON.parse(globalThis.localStorage?.getItem(PREFS_KEY) ?? "{}") as Partial<{ display: ToothMapDisplay; guides: ToothGuides }>;
+    const display = raw.display === "show" || raw.display === "hide" ? raw.display : "auto";
+    const proportion = raw.guides?.proportion === "golden" || raw.guides?.proportion === "red" ? raw.guides.proportion : "natural";
+    return { display, guides: { design: raw.guides?.design === true, proportions: raw.guides?.proportions === true, proportion } };
+  } catch {
+    return { display: "auto", guides: { design: false, proportions: false, proportion: "natural" } };
+  }
+}
+
+/**
+ * The tooth map should be smart, not always visible. The map itself always
+ * stays active for masks, generation, analysis and protection; only what is
+ * drawn on the photo changes.
+ */
+export function toothOverlayMode({ hasMap, editing, adding, display, picking, guides, selectedMapped }: {
+  hasMap: boolean; editing: boolean; adding: boolean; display: ToothMapDisplay; picking: boolean; guides: ToothGuides; selectedMapped: number;
+}): ToothOverlayMode {
+  if (!hasMap) return "hidden";
+  if (editing || adding || display === "show") return "select";
+  if (display === "auto") {
+    if (picking) return "select";
+    if (selectedMapped === 1) return "single";
+  }
+  return guides.design ? "design" : "hidden";
+}
 
 /** Everything the Teeth step and the photo overlay share about the tooth map. */
 export interface ToothMapController {
@@ -29,6 +71,18 @@ export interface ToothMapController {
   removeTooth: (id: string) => void;
   addToothAt: (point: NormPoint) => void;
   redetect: () => void;
+  /** Auto / Show / Hide, remembered on this device. */
+  display: ToothMapDisplay;
+  setDisplay: (display: ToothMapDisplay) => void;
+  /** Custom selection in progress: the map shows until the clinician is done. */
+  picking: boolean;
+  setPicking: (on: boolean) => void;
+  guides: ToothGuides;
+  setGuides: (guides: ToothGuides) => void;
+  /** What the overlay draws for the current selection. */
+  mode: ToothOverlayMode;
+  /** The photo the map belongs to (debug comparison only). */
+  photoUrl: string | null;
 }
 
 function ellipse(cx: number, cy: number, rx: number, ry: number): NormPoint[] {
@@ -57,6 +111,12 @@ export function useToothMap({ photo, setPhoto, settings, onChange, active }: {
   const [controlsFor, openControls] = useState<number | null>(null);
   const [attempt, setAttempt] = useState(0);
   const running = useRef<string | null>(null);
+  const [prefs, setPrefs] = useState(readPrefs);
+  const [picking, setPicking] = useState(false);
+  const savePrefs = useCallback((next: typeof prefs) => {
+    setPrefs(next);
+    try { globalThis.localStorage?.setItem(PREFS_KEY, JSON.stringify(next)); } catch { /* the choice still applies for this session */ }
+  }, []);
 
   const dataUrl = photo?.dataUrl ?? null;
   const fingerprint = dataUrl ? photoFingerprint(dataUrl) : null;
@@ -98,6 +158,8 @@ export function useToothMap({ photo, setPhoto, settings, onChange, active }: {
   }, [settings, onChange]);
 
   const tooth = (id: string): ToothRegion | undefined => current?.teeth.find(t => t.id === id);
+  const selectedMapped = current ? current.teeth.filter(t => t.visible && t.fdi !== null && settings.selectedTeeth.includes(t.fdi)).length : 0;
+  const mode = toothOverlayMode({ hasMap: Boolean(current), editing, adding, display: prefs.display, picking, guides: prefs.guides, selectedMapped });
 
   return {
     map: current,
@@ -149,5 +211,13 @@ export function useToothMap({ photo, setPhoto, settings, onChange, active }: {
       setPhoto(p => (p ? { ...p, toothMap: undefined } : p));
       setAttempt(a => a + 1);
     },
+    display: prefs.display,
+    setDisplay: (display) => savePrefs({ ...prefs, display }),
+    picking,
+    setPicking,
+    guides: prefs.guides,
+    setGuides: (guides) => savePrefs({ ...prefs, guides }),
+    mode,
+    photoUrl: dataUrl,
   };
 }

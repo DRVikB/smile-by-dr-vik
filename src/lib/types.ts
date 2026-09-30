@@ -41,6 +41,38 @@ export interface ClinicianReview {
 export type CurrentShade = "A3" | "A2" | "A1" | "B1";
 /** Which arches an orthodontic alignment concept straightens. */
 export type AlignmentArches = "Upper" | "Lower" | "Both";
+
+/**
+ * Full-arch restoration: a whole-arch fixed restorative concept (e.g. an
+ * implant-supported bridge). Structured so generation, reports, saved cases
+ * and future lab briefs read the same values; never only prompt text.
+ */
+export type TreatmentMode = "standard" | "full_arch";
+export const fullArchArches = ["upper", "lower", "both"] as const;
+export const fullArchRestorations = ["zirconia", "provisional"] as const;
+export const prostheticGingivaOptions = ["auto", "include", "exclude"] as const;
+export interface FullArchPlan {
+  arch: typeof fullArchArches[number];
+  /** "provisional" is PMMA / a provisional prosthesis. */
+  restorationType: typeof fullArchRestorations[number];
+  prostheticGingiva: typeof prostheticGingivaOptions[number];
+}
+export const DEFAULT_FULL_ARCH: FullArchPlan = { arch: "upper", restorationType: "zirconia", prostheticGingiva: "auto" };
+export const FULL_ARCH_DISCLAIMER = "Visual restorative concept only. Final implant position, implant number, surgical suitability and definitive prosthetic design require clinical and radiographic assessment.";
+
+/** "Full-arch restoration · Zirconia · Upper + Lower": the treatment in words, for summaries and reports. */
+export function fullArchLabel(plan: FullArchPlan): { treatment: string; arch: string; restoration: string } {
+  return {
+    treatment: "Full-arch restoration",
+    arch: plan.arch === "both" ? "Upper + Lower" : plan.arch === "upper" ? "Upper" : "Lower",
+    restoration: plan.restorationType === "zirconia" ? "Zirconia" : "Provisional",
+  };
+}
+
+/** Whether the design is a full-arch restoration (older cases without the field are standard). */
+export function isFullArch(s: Pick<SmileSettings, "treatmentMode" | "fullArch">): s is Pick<SmileSettings, "treatmentMode"> & { fullArch: FullArchPlan } {
+  return s.treatmentMode === "full_arch" && Boolean(s.fullArch);
+}
 export type TargetShade = "The same" | "Whiten" | "Bleach" | "A1" | "B1" | "BL3" | "BL2" | "BL1";
 export type ToothShape = "Square" | "Rounded" | "Triangular";
 export type TextureLevel = "Smooth" | "Natural" | "Textured";
@@ -105,6 +137,9 @@ export interface SmileSettings {
    * move, but keep their own shape, size and shade.
    */
   alignment?: { arches: AlignmentArches; only?: boolean };
+  /** Absent in older cases: standard. Full-arch replaces tooth selection, restoration material and alignment. */
+  treatmentMode?: TreatmentMode;
+  fullArch?: FullArchPlan;
   designIntent?: DesignIntent;
   smileArc?: SmileArc;
   /** Clinician-entered context, never inferred from a smile photograph. */
@@ -193,6 +228,8 @@ export interface GenerationResult {
 export interface ToothProtection {
   /** Selected teeth that were found in the photo and allowed to change. */
   teeth: number[];
+  /** Full-arch: the one arch allowed to change (the opposite arch was protected). */
+  arch?: "upper" | "lower";
   /** Selected teeth the photo doesn't show (or the map doesn't have): left unchanged. */
   notFound: number[];
   /** Share of protected pixels the AI changed before protection (restored from the original). */

@@ -52,7 +52,7 @@ export interface ToothMap {
   confirmedByClinician: boolean;
   version: number;
   /** How the regions were found, so later methods (e.g. a segmentation model) can be told apart. */
-  method: "on-device-v1" | "manual";
+  method: "on-device-v1" | "on-device-sam" | "manual";
   /** The mouth opening (inner lip contour) when a face was found: edits never leave it. */
   mouthOpening?: NormPoint[];
 }

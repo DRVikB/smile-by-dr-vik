@@ -32,14 +32,17 @@ export interface DetectionDebug {
   height: number;
 }
 
-export async function detectToothMap(photo: Pick<Photo, "dataUrl">, shotType: "Full face" | "Close-up" = "Full face", onDebug?: (info: DetectionDebug) => void): Promise<ToothMap | null> {
+export async function detectToothMap(photo: Pick<Photo, "dataUrl">, shotType: "Full face" | "Close-up" = "Full face", onDebug?: (info: DetectionDebug) => void, options: { refine?: boolean; onRefine?: (stats: import("./sam").RefineStats) => void } = {}): Promise<ToothMap | null> {
   const img = await loadImage(photo.dataUrl);
   const W = img.naturalWidth, H = img.naturalHeight;
   let mouth: Point[] | null = null;
   let midlineAt: ((y: number) => number) | null = null;
   if (shotType !== "Close-up") {
     const { detectFace } = await import("../face/landmarks");
-    const points = await detectFace(photo.dataUrl).catch(() => null);
+    let points = await detectFace(photo.dataUrl).catch(() => null);
+    // On a fresh install the face model can still be downloading or starting up on
+    // first use; failures are not cached, so one short retry covers it.
+    if (!points) points = await new Promise(resolve => setTimeout(resolve, 900)).then(() => detectFace(photo.dataUrl)).catch(() => null);
     if (points && points.length >= 468) {
       mouth = pick(points, INNER_LIP);
       const analysis = analyseSmile(points, W, H);
@@ -103,7 +106,7 @@ export async function detectToothMap(photo: Pick<Photo, "dataUrl">, shotType: "F
       source: "detected",
     };
   });
-  return {
+  const rough: ToothMap = {
     photoId: photoFingerprint(photo.dataUrl),
     arch: "upper",
     teeth,
@@ -112,4 +115,37 @@ export async function detectToothMap(photo: Pick<Photo, "dataUrl">, shotType: "F
     method: "on-device-v1",
     mouthOpening: mouth ? mouth.map(p => [p[0] / W, p[1] / H] as NormPoint) : undefined,
   };
+  if (options.refine === false) return rough;
+  const { rememberRoughMap } = await import("./debug");
+  rememberRoughMap(rough);
+  return refine(img, rough, W, H, options.onRefine);
+}
+
+/**
+ * SlimSAM traces each tooth's real crown edge. If the model can't load or
+ * run, the rough map is used unchanged: detection never fails because of it.
+ */
+async function refine(img: HTMLImageElement, map: ToothMap, W: number, H: number, onRefine?: (stats: import("./sam").RefineStats) => void): Promise<ToothMap> {
+  try {
+    const [{ loadSam }, { refineWithSam }] = await Promise.all([import("./samRuntime"), import("./sam")]);
+    // The mouth with a margin, at full photo resolution (SlimSAM resizes it to 1024 itself).
+    const pts = [...(map.mouthOpening ?? []), ...map.teeth.flatMap(t => t.outline)].map(([x, y]) => [x * W, y * H]);
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+    const mw = Math.max(...xs) - Math.min(...xs), mh = Math.max(...ys) - Math.min(...ys);
+    const x0 = Math.max(0, Math.floor(Math.min(...xs) - mw * 0.12)), x1 = Math.min(W, Math.ceil(Math.max(...xs) + mw * 0.12));
+    const y0 = Math.max(0, Math.floor(Math.min(...ys) - mh * 0.3)), y1 = Math.min(H, Math.ceil(Math.max(...ys) + mh * 0.3));
+    const w = x1 - x0, h = y1 - y0;
+    if (w < 16 || h < 8) return map;
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return map;
+    ctx.drawImage(img, x0, y0, w, h, 0, 0, w, h);
+    const rt = await loadSam();
+    const { map: refined, stats } = await refineWithSam(rt, map, { rgba: ctx.getImageData(0, 0, w, h).data, width: w, height: h, origin: [x0, y0], photoWidth: W, photoHeight: H });
+    onRefine?.(stats);
+    return refined;
+  } catch {
+    return map;
+  }
 }

@@ -189,7 +189,7 @@ export async function handleGenerationRequest(
       const meta = {
         provider: result.generation?.provider, model: result.generation?.model, providerRequestId: result.variationId,
         promptVersion: result.generation?.promptVersion,
-        treatmentType: `${parsed.data.settings.treatment} / ${parsed.data.settings.designIntent ?? "Auto"}`,
+        treatmentType: parsed.data.settings.treatmentMode === "full_arch" && parsed.data.settings.fullArch ? `Full-arch ${parsed.data.settings.fullArch.arch} / ${parsed.data.settings.fullArch.restorationType}` : `${parsed.data.settings.treatment} / ${parsed.data.settings.designIntent ?? "Auto"}`,
         referenceCaseIds,
       };
       // One retry; a reservation that still isn't committed is released after 15 minutes.

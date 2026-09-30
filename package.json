@@ -8,11 +8,11 @@
     "preview:cloudflare": "npm run build:cloudflare && wrangler dev --var SMILE_PROVIDER:mock",
     "test:cloudflare": "tsx scripts/verify-cloudflare.ts",
     "dev": "next dev --hostname 0.0.0.0 --port 3006",
-    "build": "npm run legal && next build && node scripts/build-worker.mjs",
+    "build": "npm run legal && node scripts/copy-ort.mjs && next build && node scripts/build-worker.mjs",
     "start": "next start --hostname 0.0.0.0 --port 3006",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "build:next": "npm run legal && next build",
+    "build:next": "npm run legal && node scripts/copy-ort.mjs && next build",
     "build:native": "npm run build && node scripts/build-native.mjs",
     "ios:sync": "npm run build:native && cap sync ios && node scripts/verify-ios-bundle.mjs",
     "ios:release": "SMILE_RELEASE_BUILD=1 npm run ios:sync",
@@ -21,7 +21,7 @@
     "lint": "eslint src tests scripts --max-warnings=0",
     "check:production": "npm run lint && npm test && npm run build && node scripts/verify-production.mjs",
     "legal": "node --import tsx scripts/build-legal.ts",
-    "predev": "npm run legal"
+    "predev": "npm run legal && node scripts/copy-ort.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",
@@ -36,6 +36,7 @@
     "heic-to": "^1.5.0",
     "lucide-react": "^0.577.0",
     "next": "^16.2.0",
+    "onnxruntime-web": "^1.30.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zod": "^4.3.6"
@@ -52,6 +53,7 @@
     "esbuild": "^0.28.2",
     "eslint": "^10.10.0",
     "fake-indexeddb": "^6.2.5",
+    "onnxruntime-node": "^1.30.0",
     "tailwindcss": "^4.2.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",

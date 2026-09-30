@@ -3,6 +3,7 @@ import { impliesWhitening } from "./implications";
 import { canGuideSmileArc } from "./smilePrinciples";
 import { activeToothPlans, resolvedToothIntent, toothSummary } from "./teeth";
 import type { CurrentShade, SmileArc, SmileSettings, TargetShade, TextureLevel, ToothShape, Treatment } from "./types";
+import { FULL_ARCH_DISCLAIMER, fullArchLabel, isFullArch } from "./types";
 
 /**
  * What a patient reads in the two exports — the Smile Preview and the
@@ -75,6 +76,7 @@ function smileLine(s: SmileSettings): SmileArc {
 
 /** The design's main treatment, as a patient would say it. */
 export function designHeadline(s: SmileSettings): string {
+  if (isFullArch(s)) return "Full-arch restoration";
   if (alignmentOnly(s)) return "Orthodontic alignment";
   if (isShadeOnly(s)) return "Whitening";
   const treatment = treatmentLabel(s.treatment);
@@ -90,6 +92,10 @@ export interface DesignSummary {
 
 /** The two lines under the Smile Preview's images: only what matters to the patient. */
 export function designSummary(s: SmileSettings): DesignSummary {
+  if (isFullArch(s)) {
+    const l = fullArchLabel(s.fullArch);
+    return { headline: `${l.treatment} · ${l.arch}`, detail: [l.restoration, shapeLabel(s), targetShadeLabel(s.targetShade)].join(" · ") };
+  }
   if (alignmentOnly(s)) return { headline: `Orthodontic alignment · ${arches(s)}`, detail: "Your own tooth shape and shade" };
   if (isShadeOnly(s)) return { headline: `Whitening · ${teethLabel(s)}`, detail: targetShadeLabel(s.targetShade) };
   return {
@@ -101,6 +107,11 @@ export function designSummary(s: SmileSettings): DesignSummary {
 /** "Your proposed smile": each chosen setting, leaving out anything that doesn't apply to this design. */
 export function proposedSmileRows(s: SmileSettings, referenceUsed?: boolean): [string, string][] {
   const rows: [string, string][] = [["Treatment", designHeadline(s)]];
+  if (isFullArch(s)) {
+    const l = fullArchLabel(s.fullArch);
+    rows.push(["Arch", l.arch], ["Restoration concept", l.restoration], ["Shape", shapeLabel(s)], ["Shade", targetShadeLabel(s.targetShade)]);
+    return rows;
+  }
   if (alignmentOnly(s)) {
     rows.push(["Teeth", arches(s).replace(/^the /, "").replace(/^\w/, c => c.toUpperCase())]);
   } else {
@@ -266,6 +277,12 @@ export const ASSESSMENT_CHECKS = [
 /** The practical explanation for the selected treatment. Suitability is always the clinician's to confirm. */
 export function treatmentOverview(s: SmileSettings): OverviewItem[] {
   const items: OverviewItem[] = [];
+  if (isFullArch(s)) {
+    const l = fullArchLabel(s.fullArch);
+    items.push({ title: `${l.treatment} · ${l.arch.toLowerCase()} · ${l.restoration.toLowerCase()}`, text: `A fixed full-arch prosthesis replaces the visible teeth of the ${l.arch === "Upper + Lower" ? "upper and lower arches" : `${l.arch.toLowerCase()} arch`}. ${FULL_ARCH_DISCLAIMER}` });
+    items.push({ title: "Clinical assessment still required", text: "Before treatment your clinician will confirm factors including:", bullets: ASSESSMENT_CHECKS });
+    return items;
+  }
   if (s.alignment)
     items.push({ title: `Orthodontic alignment of ${arches(s)}`, text: "Clear aligners or braces could straighten the teeth. Whether they suit you, how long treatment would take and how the result is kept afterwards are confirmed at an orthodontic assessment." });
   if (!alignmentOnly(s)) {

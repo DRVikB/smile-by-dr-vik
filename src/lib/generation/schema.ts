@@ -41,6 +41,12 @@ export const settingsSchema = z
     })).max(28).optional(),
     treatment: z.enum(["Composite", "Single-shade composite", "Layered composite", "Porcelain"]),
     alignment: z.object({ arches: z.enum(["Upper", "Lower", "Both"]), only: z.boolean().optional() }).optional(),
+    treatmentMode: z.enum(["standard", "full_arch"]).optional(),
+    fullArch: z.object({
+      arch: z.enum(["upper", "lower", "both"]),
+      restorationType: z.enum(["zirconia", "provisional"]),
+      prostheticGingiva: z.enum(["auto", "include", "exclude"]),
+    }).optional(),
     designIntent: z.enum(["Auto", "Shade only", "Repair edges", "Close gaps", "Reshape"]).optional(),
     smileArc: z.enum(smileArcs).optional(),
     biteContext: z.enum(biteContexts).optional(),

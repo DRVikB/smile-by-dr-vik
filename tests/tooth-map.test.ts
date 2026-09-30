@@ -5,6 +5,10 @@ import { fillPolygon, otsu, segmentTeeth, toothScore, type Point } from "../src/
 import { buildEditRegion, compositeWithAlpha, influenceOutline, measureChange, toothEditRule, dilate, erode } from "../src/lib/toothMap/masks";
 import { protectionPlan } from "../src/lib/toothMap/protect";
 import { toothGeometry } from "../src/lib/toothMap/geometry";
+import { smileGuides, smoothContour, toothShapes } from "../src/lib/toothMap/outline";
+import { crownOutline, familyFor, fitSmileTemplate } from "../src/lib/toothMap/template";
+import { cutAtWaist, maskContour, samPixels } from "../src/lib/toothMap/sam";
+import { toothOverlayMode } from "../src/components/toothMap/useToothMap";
 import { fdiOrder, isValidToothMap, photoFingerprint, presetAvailability, renumber, withSelection, teethToReview, type ToothMap, type ToothRegion } from "../src/lib/toothMap/types";
 import { buildSmileInstruction, toothDesignInstruction } from "../src/lib/generation/prompt";
 import { generationSchema, settingsSchema } from "../src/lib/generation/schema";
@@ -161,11 +165,15 @@ for (const [label, selected] of [
   });
 }
 
-test("ten teeth: teeth the photo doesn't show (15, 25) are left alone, not drawn", () => {
+test("precision masking is for one tooth: presets use the standard generator; a single tooth gets its own mask", () => {
   const map = mapFromOutlines();
-  const plan = protectionPlan(map, "data:image/jpeg;base64,photo", settings({ teeth: 10, selectedTeeth: upperTeeth[10] }));
-  assert.ok(plan.ok);
-  if (plan.ok) { assert.deepEqual(plan.notFound, [15, 25]); assert.equal(plan.teeth.length, 8); }
+  // 4 / 6 / 8 / 10: the standard path, with no per-tooth compositing and no request blocked.
+  for (const n of [4, 6, 8, 10] as const)
+    assert.deepEqual(protectionPlan(map, "data:image/jpeg;base64,photo", settings({ teeth: n, selectedTeeth: upperTeeth[n] })), { ok: false, reason: "standard" });
+  // Exactly one tooth: precision.
+  const one = protectionPlan(map, "data:image/jpeg;base64,photo", updateToothPlan(settings({ selectedTeeth: [] }), { tooth: 11, intent: "Auto", condition: "Natural" }));
+  assert.ok(one.ok);
+  if (one.ok) assert.deepEqual(one.teeth, [11]);
 });
 
 test("whitening changes only the tooth's own pixels; porcelain may reach a little past its outline", () => {
@@ -279,4 +287,126 @@ test("the provider receives the mask only when guidance is switched on for the s
   await new GeminiSmileProvider({ apiKey: "k", fetcher }).generate(input);
   await new GeminiSmileProvider({ apiKey: "k", fetcher, maskGuidance: true }).generate(input);
   assert.deepEqual(seen, [1, 2]);
+});
+
+// ---------- Display: smart, not always visible ----------
+
+test("the tooth map shows itself only when it's needed", () => {
+  const base = { hasMap: true, editing: false, adding: false, display: "auto" as const, picking: false, guides: { design: false, proportions: false, proportion: "natural" as const }, selectedMapped: 6 };
+  assert.equal(toothOverlayMode(base), "hidden", "4 / 6 / 8 / 10 presets keep the smile clean");
+  assert.equal(toothOverlayMode({ ...base, selectedMapped: 1 }), "single", "one tooth: its outline and number appear");
+  assert.equal(toothOverlayMode({ ...base, picking: true }), "select", "Custom picking shows every tooth");
+  assert.equal(toothOverlayMode({ ...base, picking: true, selectedMapped: 1 }), "select", "still picking with one tooth chosen");
+  assert.equal(toothOverlayMode({ ...base, editing: true }), "select", "reviewing the map shows every tooth");
+  assert.equal(toothOverlayMode({ ...base, display: "show" }), "select");
+  assert.equal(toothOverlayMode({ ...base, display: "hide", selectedMapped: 1 }), "hidden", "Hide wins over the single-tooth reveal");
+  assert.equal(toothOverlayMode({ ...base, guides: { design: true, proportions: false, proportion: "natural" as const } }), "design");
+  assert.equal(toothOverlayMode({ ...base, hasMap: false, display: "show" }), "hidden");
+});
+
+test("display outlines are smoothed curves; the generation outline is never altered", () => {
+  const map = mapFromOutlines();
+  // A jagged edge on tooth 11: the display contour smooths it, the stored outline keeps it.
+  const t11 = map.teeth.find(t => t.fdi === 11)!;
+  const jagged = [...t11.outline, [t11.outline[2][0] - 0.01, t11.outline[2][1] - 0.02] as [number, number]];
+  const jaggedMap = { ...map, teeth: map.teeth.map(t => (t.fdi === 11 ? { ...t, outline: jagged } : t)) };
+  const before = JSON.stringify(jaggedMap);
+  const shapes = toothShapes(jaggedMap, W, H, [11]);
+  assert.equal(JSON.stringify(jaggedMap), before, "the map used for masks is untouched");
+  const s11 = shapes.find(s => s.fdi === 11)!;
+  assert.match(s11.path, /^M[\d.]+ [\d.]+( C[\d. ]+)+ Z$/, "a closed Bézier path, not a polygon");
+  assert.ok(s11.selected && !shapes.find(s => s.fdi === 12)!.selected);
+  // A notch in a mask is noise: the envelope is convex and evenly sampled.
+  const notched = smoothContour([[0, 0], [10, 0], [10, 10], [5, 4], [0, 10]]);
+  assert.equal(notched.length, 28);
+  assert.ok(notched.every(([, y]) => y <= 10.01));
+  const s12 = shapes.find(s => s.fdi === 12)!, s21 = shapes.find(s => s.fdi === 21)!;
+  assert.equal(s12.mesial, s11.id, "12's neighbour towards the midline is 11");
+  assert.equal(s11.mesial, s21.id, "11 meets 21 at the midline");
+});
+
+test("smile guides: arc through the incisal edges, midline between the centrals, contact guides", () => {
+  const map = mapFromOutlines();
+  const shapes = toothShapes(map, W, H, []);
+  const guides = smileGuides(shapes);
+  assert.ok(guides.arc && guides.arc.startsWith("M"));
+  assert.ok(guides.midline);
+  assert.ok(Math.abs(guides.midline!.x - (199 + 202) / 2) < 3, `midline at ${guides.midline!.x}`);
+  assert.equal(guides.verticals.length, shapes.length - 2, "a guide at every contact except the midline");
+  // Without both centrals there is no dental midline to draw.
+  const noCentral = { ...map, teeth: map.teeth.filter(t => t.fdi !== 21) };
+  assert.equal(smileGuides(toothShapes(noCentral, W, H, [])).midline, null);
+});
+
+test("the design template is fitted tooth by tooth: centrals at the midline, detected sizes, no overlaps, one arc", () => {
+  const map = mapFromOutlines();
+  const t = fitSmileTemplate(map, W, H, { settings: settings({ shape: "Square" }) })!;
+  assert.ok(t);
+  assert.ok(Math.abs(t.midline.x - (199 + 202) / 2) < 3);
+  const get = (fdi: number) => t.teeth.find(x => x.fdi === fdi)!;
+  const c11 = get(11), c21 = get(21), l12 = get(12);
+  assert.ok(c11.cx < t.midline.x && c21.cx > t.midline.x, "11 on the image left, 21 on the right");
+  assert.ok(Math.abs(c11.width - 34) < 4, `central width ${c11.width} follows the detected centrals`);
+  assert.equal(c11.width, c21.width, "matched centrals");
+  assert.equal(c11.incisalY, c21.incisalY, "level centrals");
+  assert.equal(l12.source, "fitted");
+  assert.ok(l12.width < c11.width && l12.cx < c11.cx);
+  // Contacts in order from the midline: each tooth starts at or beyond its neighbour's distal edge.
+  for (const q of [10, 20]) for (let i = 2; i <= 5; i++) {
+    const inner = get(q + i - 1), outer = get(q + i);
+    const gap = q === 10 ? (inner.cx - inner.width / 2) - (outer.cx + outer.width / 2) : (outer.cx - outer.width / 2) - (inner.cx + inner.width / 2);
+    assert.ok(gap > -0.01, `no overlap between ${q + i - 1} and ${q + i} (${gap.toFixed(2)})`);
+  }
+  assert.ok(l12.axis[0][0] < l12.axis[1][0], "12's gum end sits further from the midline than its edge");
+  assert.equal(get(15).mapped, false, "teeth the map didn't find can't be picked");
+  assert.equal(get(15).source, "ideal");
+  assert.equal(t.teeth.length, 10);
+  const golden = fitSmileTemplate(map, W, H, { settings: settings(), proportion: "golden" })!;
+  assert.ok(golden.teeth.find(x => x.fdi === 13)!.width < get(13).width, "golden canines are narrower");
+});
+
+test("template families follow the Shape step and each tooth's own shape; the technical outline is untouched", () => {
+  const square = crownOutline("central", "square"), rounded = crownOutline("central", "rounded");
+  const corner = (pts: [number, number][]) => Math.max(...pts.filter(([, y]) => y > 0.97).map(([x]) => Math.abs(x)));
+  assert.ok(corner(square) > corner(rounded), "a square incisal edge is wider than a rounded one");
+  const canine = crownOutline("canine", "natural");
+  const tip = canine.reduce((a, p) => (p[1] > a[1] ? p : a));
+  assert.ok(tip[1] > 0.99 && Math.abs(tip[0]) < 0.15, "a canine has a cusp tip");
+  assert.equal(familyFor(settings({ shape: "Triangular" }), 11), "tapered");
+  const plans = updateToothPlan(settings(), { tooth: 12, intent: "Auto", condition: "Natural", shape: "Soft square" });
+  assert.equal(familyFor(plans, 12), "soft-square");
+  assert.equal(familyFor(plans, 11), familyFor(settings(), 11));
+  const map = mapFromOutlines();
+  const before = JSON.stringify(map);
+  fitSmileTemplate(map, W, H, { settings: settings() });
+  assert.equal(JSON.stringify(map), before, "fitting never changes the map used for masks");
+});
+
+test("SlimSAM helpers: an upper crown joined to the lower tooth is cut at the waist; masks become smooth contours", () => {
+  // A 20-wide crown (rows 0–29), a 6-wide neck (30–32), then a lower tooth (33–59).
+  const w = 40, h = 60, mask = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const half = y < 30 ? 10 : y < 33 ? 3 : 9;
+    for (let x = 20 - half; x < 20 + half; x++) mask[y * w + x] = 1;
+  }
+  cutAtWaist(mask, w, h, 20, 40);
+  const lowest = Math.max(...[...mask.keys()].filter(i => mask[i]).map(i => Math.floor(i / w)));
+  assert.ok(lowest >= 29 && lowest <= 32, `cut at the neck, lowest row ${lowest}`);
+  // A crown with no lower tooth beneath is left alone.
+  const clean = new Uint8Array(w * h);
+  for (let y = 0; y < 30; y++) for (let x = 10; x < 30; x++) clean[y * w + x] = 1;
+  cutAtWaist(clean, w, h, 20, 40);
+  assert.equal(clean.reduce((a, b) => a + b, 0), 600);
+  const contour = maskContour(clean, w, h);
+  assert.equal(contour.length, 40);
+  assert.ok(contour.every(([x, y]) => x >= 10 && x <= 30 && y >= 0 && y <= 30));
+});
+
+test("the SlimSAM model input is the photo resized to 1024 on its longest side, normalised and padded", () => {
+  const rgba = new Uint8ClampedArray(200 * 100 * 4).fill(255);
+  const { pixels, scale } = samPixels(rgba, 200, 100);
+  assert.equal(scale, 1024 / 200);
+  assert.equal(pixels.length, 3 * 1024 * 1024);
+  assert.ok(Math.abs(pixels[0] - (1 - 0.485) / 0.229) < 1e-5, "white, normalised");
+  assert.equal(pixels[1023 * 1024], 0, "padding below the photo");
 });

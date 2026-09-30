@@ -123,7 +123,13 @@ async function lockFace(
   let imageOut = photo.editMask ? await (await import("@/lib/editMask")).protectOutsideEditMask(photo.dataUrl, r.image, photo.editMask) : r.image;
   let toothProtection: GenerationResult["toothProtection"];
   const { protectionPlan, protectWithToothMap } = await import("@/lib/toothMap/protect");
-  if (photo.toothMap && protectionPlan(photo.toothMap, photo.dataUrl, settings).ok) {
+  const archOnly = settings.treatmentMode === "full_arch" && settings.fullArch && settings.fullArch.arch !== "both" ? settings.fullArch.arch : null;
+  const arch = archOnly ? await import("@/lib/toothMap/arch") : null;
+  if (arch?.FULL_ARCH_ARCH_COMPOSITE && archOnly && photo.toothMap?.mouthOpening && photo.toothMap.photoId === (await import("@/lib/toothMap/types")).photoFingerprint(photo.dataUrl)) {
+    // Full-arch, one arch (only when enabled): everything outside that arch — the opposite arch included — is the original photo.
+    const outcome = await arch.protectArch(photo.dataUrl, imageOut, photo.toothMap, archOnly);
+    if (outcome) { imageOut = outcome.image; toothProtection = outcome.protection; }
+  } else if (photo.toothMap && protectionPlan(photo.toothMap, photo.dataUrl, settings).ok) {
     const { TOOTH_MAP_DEBUG, rememberToothDebug } = await import("@/lib/toothMap/debug");
     const outcome = await protectWithToothMap(photo.dataUrl, imageOut, photo.toothMap, settings, { debug: TOOTH_MAP_DEBUG });
     imageOut = outcome.image;
@@ -673,7 +679,7 @@ export default function Smile() {
             mode: entryResult.mode,
             testMode,
             label,
-            summary: `${toothSummary(used)} · ${used.treatment} · ${used.targetShade} · ${used.shape}`,
+            summary: `${toothSummary(used)} · ${used.treatmentMode === "full_arch" && used.fullArch ? (used.fullArch.restorationType === "zirconia" ? "Zirconia" : "Provisional") : used.treatment} · ${used.targetShade} · ${used.shape}`,
             thumb,
           },
           { id, image: entryResult.image, originalImage: photo.dataUrl, preferences: entryResult.preferences ?? { settings: used, testMode }, review: entryResult.review, scaleFlag: entryResult.scaleFlag, aiConsent: testMode ? undefined : consent ?? aiConsent ?? undefined, generation: entryResult.generation },
@@ -1185,8 +1191,8 @@ export default function Smile() {
                     />
                   </div>
                 ) : (
-                  <PatientPhoto photo={photo} focus={teethStep ? toothFocus(photo.toothMap) : null} overlay={teethStep ? (zoom) => (
-                    <ToothMapOverlay controller={toothMap} selectedTeeth={settings.selectedTeeth} width={photo.width} height={photo.height} scale={zoom} />
+                  <PatientPhoto photo={photo} focus={teethStep ? toothFocus(photo.toothMap) : null} overlay={teethStep && settings.treatmentMode !== "full_arch" ? (zoom) => (
+                    <ToothMapOverlay controller={toothMap} settings={settings} width={photo.width} height={photo.height} scale={zoom} />
                   ) : undefined} />
                 )}
                 caseBar={<>
@@ -1329,11 +1335,13 @@ export default function Smile() {
               {!testMode && ["no-match", "unavailable"].includes(result.preferences?.styleReferenceStatus ?? "") && <p className="scale-notice" role="status"><span>No Case Library references used</span>{result.preferences?.styleReferenceStatus === "unavailable" ? "Your Case Library could not be opened for this result." : "No close style match was found for this treatment and these teeth."} Add matching finished cases to your Case Library to use your style next time.</p>}
               {!testMode && result.mode === "live" && result.preferences?.styleReferenceStatus === "used" && <StyleFeedback key={result.variationId} result={result} />}
               {result.toothProtection && (
-                <p className="scale-notice" role="status"><span>{result.toothProtection.verified ? "Tooth map protected" : "Check the protected areas"}</span>
-                  {`Only ${result.toothProtection.teeth.join(", ")} could change. Every other pixel — lips, skin, gums and unselected teeth — is the original photo.`}
+                <p className="scale-notice" role="status"><span>{result.toothProtection.verified ? (result.toothProtection.arch ? "Opposite arch protected" : "Tooth map protected") : "Check the protected areas"}</span>
+                  {result.toothProtection.arch
+                    ? `Only the ${result.toothProtection.arch} arch could change. The ${result.toothProtection.arch === "upper" ? "lower" : "upper"} arch, lips and face are the original photo.`
+                    : `Only ${result.toothProtection.teeth.join(", ")} could change. Every other pixel — lips, skin, gums and unselected teeth — is the original photo.`}
                   {result.toothProtection.notFound.length > 0 && ` ${result.toothProtection.notFound.join(", ")} ${result.toothProtection.notFound.length === 1 ? "wasn’t" : "weren’t"} in the tooth map, so ${result.toothProtection.notFound.length === 1 ? "it stayed" : "they stayed"} unchanged.`}
-                  {result.toothProtection.insideChange < 0.01 && " The selected teeth barely changed: try Stronger or check the selection."}
-                  {!result.toothProtection.verified && " Some pixels outside the selected teeth differ from the original: compare carefully before presenting."}
+                  {result.toothProtection.insideChange < 0.01 && (result.toothProtection.arch ? " The arch barely changed: check the photo shows the teeth." : " The selected teeth barely changed: try Stronger or check the selection.")}
+                  {!result.toothProtection.verified && (result.toothProtection.arch ? " Some pixels outside the arch differ from the original: compare carefully before presenting." : " Some pixels outside the selected teeth differ from the original: compare carefully before presenting.")}
                 </p>
               )}
               <ToothMapDebug map={photo.toothMap} width={photo.width} height={photo.height} image={result.image} protection={result.toothProtection} />
