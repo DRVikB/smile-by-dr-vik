@@ -13,6 +13,10 @@ import { ToothChart } from "@/components/ToothChart";
 import { ClinicalDataFields } from "@/components/ClinicalDataFields";
 import { YourStyle } from "@/components/caseLibrary/YourStyle";
 import { CompareSymbol, ComposeSymbol, ShadeSymbol, ToothSymbol, TreatmentSymbol, VisualiseSymbol, type SmileIcon } from "@/components/icons/SmileIcons";
+import { SelectedTeethSummary, ToothControls, ToothMapStatus } from "@/components/toothMap/ToothMapPanel";
+import type { ToothMapController } from "@/components/toothMap/useToothMap";
+import { mappedTeeth, teethToReview } from "@/lib/toothMap/types";
+import { ToothMapDebug } from "@/components/toothMap/ToothMapDebug";
 
 /**
  * The Design Studio: the patient photograph in a frame, and the design built
@@ -77,10 +81,12 @@ function More({ children, label = "More options" }: { children: React.ReactNode;
 
 export function DesignStudio({
   stage, caseBar, costs, onEditArea, hasEditArea, settings, onChange, onGenerate, onCompare, onCompareMaterials, onHarmonise,
-  busy, reference, onAddReference, onClearReference,
+  busy, reference, onAddReference, onClearReference, toothMap,
 }: {
-  /** The photograph (or before/after) shown in the studio frame. */
-  stage: React.ReactNode;
+  /** The photograph (or before/after) shown in the studio frame; told when the Teeth step is open. */
+  stage: React.ReactNode | ((teethStep: boolean) => React.ReactNode);
+  /** The photo's tooth map: outlines on the photo, confirmation and corrections. */
+  toothMap?: ToothMapController;
   /** Case reference, photo actions and notices, shown on the Review step. */
   caseBar: React.ReactNode;
   costs: GenerationCostsProps;
@@ -136,7 +142,7 @@ export function DesignStudio({
 
   return (
     <div className="studio">
-      <div className="studio-stage">{stage}</div>
+      <div className="studio-stage">{typeof stage === "function" ? stage(tab === "teeth") : stage}</div>
 
       <div className="studio-dock">
         <div className="studio-tabs" role="tablist" aria-label="Design steps">
@@ -155,7 +161,8 @@ export function DesignStudio({
               <h3>Teeth</h3>
               <p>Choose how many upper teeth to design, or plan each tooth.</p>
             </header>
-            <div className="studio-arch" role="group" aria-label="Upper teeth to design">
+            {toothMap && <ToothMapStatus controller={toothMap} />}
+            {!toothMap?.map && <div className="studio-arch" role="group" aria-label="Upper teeth to design">
               {ARCH.map(({ tooth, w, h }) => {
                 const on = settings.selectedTeeth.includes(tooth);
                 const count = TEETH_COUNTS.find(n => upperTeeth[n].includes(tooth)) ?? 10;
@@ -163,20 +170,25 @@ export function DesignStudio({
                   aria-label={`Tooth ${tooth}${on ? ", included" : ""}. Design ${count} upper teeth`} aria-pressed={on}
                   disabled={individual} onClick={() => setTeeth(count)} />;
               })}
-            </div>
+            </div>}
+            {/* Convenience presets: they never assume a tooth is present — only mapped teeth can change. */}
             <div className="segmented studio-count" role="group" aria-label="Upper teeth">
               {TEETH_COUNTS.map(n => (
                 <button key={n} type="button" aria-pressed={!individual && !settings.toothPlans && settings.teeth === n}
                   className={!individual && !settings.toothPlans && settings.teeth === n ? "selected" : ""}
                   onClick={() => { setIndividual(false); setTeeth(n); }}>{n}</button>
               ))}
+              <button type="button" aria-pressed={individual || Boolean(settings.toothPlans)} className={individual || settings.toothPlans ? "selected" : ""}
+                onClick={() => setIndividual(true)}>Custom</button>
             </div>
-            <div className="segmented studio-mode" role="group" aria-label="Tooth selection">
-              <button type="button" aria-pressed={!individual} className={!individual ? "selected" : ""} onClick={() => { setIndividual(false); if (settings.toothPlans) setTeeth(settings.teeth); }}>All teeth</button>
-              <button type="button" aria-pressed={individual} className={individual ? "selected" : ""} onClick={() => setIndividual(true)}>Individual</button>
-            </div>
-            <p className="studio-summary"><strong>{toothSummary(settings)}</strong></p>
+            <SelectedTeethSummary settings={settings} notFound={toothMap?.map ? settings.selectedTeeth.filter(t => !mappedTeeth(toothMap.map).includes(t)) : []} />
+            {toothMap?.map && <p className="control-hint">Tap a tooth on the photo to add or remove it. Press and hold a tooth for its own shape, length, width, edge and shade. Unselected teeth never change.</p>}
+            {toothMap?.map && teethToReview(toothMap.map).some(t => t.fdi !== null && settings.selectedTeeth.includes(t.fdi)) && (
+              <p className="scale-notice" role="status"><span>Check the tooth map</span>Some selected teeth have uncertain numbers. Confirm the map so the right teeth change.</p>
+            )}
             {individual && <ToothChart settings={settings} onChange={onChange} defaultOpen />}
+            {toothMap?.map && <ToothMapDebug map={toothMap.map} width={toothMap.photoSize.width} height={toothMap.photoSize.height} />}
+            {toothMap?.controlsFor != null && <ToothControls fdi={toothMap.controlsFor} settings={settings} onChange={onChange} onClose={() => toothMap.openControls(null)} />}
             <More>
               <div className="control-group">
                 <label className="control-label" htmlFor="design-intent">Design goal</label>

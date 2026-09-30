@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { upperTeeth, caseFeatures, smileArcs, biteContexts } from "../types";
+import { upperTeeth, caseFeatures, smileArcs, biteContexts, toothShapes, toothEdges } from "../types";
 import { supportedTeeth } from "../teeth";
 import { generationModes } from "./modes";
 const toothId = z.number().int().refine(id => supportedTeeth.includes(id));
@@ -28,7 +28,17 @@ export const settingsSchema = z
     teeth: z.union([z.literal(4), z.literal(6), z.literal(8), z.literal(10)]),
     selectedTeeth: z.array(toothId).max(28),
     caseFeatures: z.array(z.enum(caseFeatures)).max(6).optional(),
-    toothPlans: z.array(z.object({ tooth: toothId, intent: z.enum(["Auto", "Preserve", "Shade only", "Repair edges", "Close gaps", "Reshape"]), condition: z.enum(["Natural", "Restored", "Missing"]), targetShade: z.enum(["The same", "Whiten", "Bleach"]).optional() })).max(28).optional(),
+    toothPlans: z.array(z.object({
+      tooth: toothId,
+      intent: z.enum(["Auto", "Preserve", "Shade only", "Repair edges", "Close gaps", "Reshape"]),
+      condition: z.enum(["Natural", "Restored", "Missing"]),
+      targetShade: z.enum(["The same", "Whiten", "Bleach", "A1", "B1", "BL3", "BL2", "BL1"]).optional(),
+      // Individual tooth design from the Tooth Map controls.
+      shape: z.enum(toothShapes).optional(),
+      length: z.union([z.literal(-1), z.literal(0), z.literal(1)]).optional(),
+      width: z.union([z.literal(-1), z.literal(0), z.literal(1)]).optional(),
+      edge: z.enum(toothEdges).optional(),
+    })).max(28).optional(),
     treatment: z.enum(["Composite", "Single-shade composite", "Layered composite", "Porcelain"]),
     alignment: z.object({ arches: z.enum(["Upper", "Lower", "Both"]), only: z.boolean().optional() }).optional(),
     designIntent: z.enum(["Auto", "Shade only", "Repair edges", "Close gaps", "Reshape"]).optional(),
@@ -71,8 +81,11 @@ export const styleImageSchema = imageSchema.refine(
   (value) => value.length <= 2_200_000,
   "Style reference is too large.",
 );
+/** Tooth Map guidance: a black-and-white PNG aligned to the request canvas; white = the only area that may change. */
+export const editMaskSchema = imageSchema.refine(v => v.startsWith("data:image/png") && v.length <= 1_500_000, "Edit mask must be a small PNG.");
 export const generationSchema = z.object({
   originalImage: imageSchema,
+  editMask: editMaskSchema.optional(),
   resolution: z.enum(["512", "1K"]).optional(),
   generationMode: z.enum(generationModes).optional(),
   caseId: z.string().max(100).regex(/^[\w-]+$/).optional(),

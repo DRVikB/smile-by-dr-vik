@@ -76,6 +76,8 @@ export interface ProviderEnvironment {
   SMILE_GEMINI_API_KEY?: string;
   GEMINI_API_KEY?: string;
   GEMINI_IMAGE_MODEL?: string;
+  /** "on" attaches the Tooth Map edit mask to Gemini requests as guidance. Off by default. */
+  SMILE_MASK_GUIDANCE?: string;
   OPENAI_API_KEY?: string;
   OPENAI_IMAGE_MODEL?: string;
   SMILE_PROVIDER?: string;
@@ -121,6 +123,7 @@ export function readProviderEnvironment(): ProviderEnvironment {
     // Our adapter calls Google directly, so Netlify must use the explicit app key.
     GEMINI_API_KEY: hostedOnNetlify ? undefined : read("GEMINI_API_KEY"),
     GEMINI_IMAGE_MODEL: read("GEMINI_IMAGE_MODEL"),
+    SMILE_MASK_GUIDANCE: read("SMILE_MASK_GUIDANCE"),
     OPENAI_API_KEY: read("OPENAI_API_KEY"),
     OPENAI_IMAGE_MODEL: read("OPENAI_IMAGE_MODEL"),
     SMILE_PROVIDER: read("SMILE_PROVIDER"),
@@ -146,11 +149,13 @@ export function getSmileProvider(
     return new GeminiSmileProvider({
       apiKey: (env.SMILE_GEMINI_API_KEY || env.GEMINI_API_KEY || "").trim(),
       model: env.GEMINI_IMAGE_MODEL,
+      maskGuidance: env.SMILE_MASK_GUIDANCE === "on",
     });
   if (mode === "vertex")
     return new GeminiSmileProvider({
       apiKey: "",
       model: env.GEMINI_IMAGE_MODEL,
+      maskGuidance: env.SMILE_MASK_GUIDANCE === "on",
       transport: vertexTransport({
         projectId: env.VERTEX_PROJECT_ID ?? "",
         location: env.VERTEX_LOCATION ?? "global",

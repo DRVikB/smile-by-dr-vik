@@ -23,6 +23,8 @@ export interface SmileGenerationRequest {
   resolution: ImageResolution;
   referenceImage?: string;
   settings: SmileSettings;
+  /** Tooth Map edit region (white = may change) as guidance; the device's compositing protects regardless. */
+  editMask?: string;
   /** Clinician's AI-processing attestation version for this photo. */
   consentVersion?: string;
 }
@@ -144,6 +146,7 @@ export async function generateSmileImage(
       body: JSON.stringify({
         caseId: request.caseId || undefined,
         originalImage: request.originalImage,
+        editMask: request.editMask,
         sourceBounds: request.sourceBounds,
         resolution: request.resolution,
         generationMode: mode,

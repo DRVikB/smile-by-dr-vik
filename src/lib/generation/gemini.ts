@@ -24,6 +24,8 @@ type GeminiOptions = {
   model?: string;
   fetcher?: typeof fetch;
   timeoutMs?: number;
+  /** Attach the Tooth Map edit mask as guidance (SMILE_MASK_GUIDANCE=on). The device's compositing protects either way. */
+  maskGuidance?: boolean;
 };
 
 type GeminiPart = {
@@ -94,6 +96,8 @@ export class GeminiSmileProvider implements SmileImageProvider {
         },
       });
     }
+    const withMask = Boolean(this.options.maskGuidance && input.editMask);
+    if (withMask) requestParts.push({ inlineData: { mimeType: "image/png", data: input.editMask!.split(",")[1] } });
     requestParts.push({
       text: buildSmileInstruction(
         input.settings,
@@ -101,6 +105,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
         input.framing,
         styleReferences.length,
         input.sourceBounds,
+        withMask,
       ),
     });
     const requestBody = {

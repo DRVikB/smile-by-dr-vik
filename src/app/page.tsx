@@ -29,6 +29,9 @@ import { BeforeAfterSlider, type CompareMode } from "@/components/BeforeAfterSli
 import { ConsultView } from "@/components/ConsultView";
 import { Presentation } from "@/components/Presentation";
 import { ShareSheet } from "@/components/share/ShareSheet";
+import { ToothMapOverlay } from "@/components/toothMap/ToothMapOverlay";
+import { useToothMap } from "@/components/toothMap/useToothMap";
+import { ToothMapDebug } from "@/components/toothMap/ToothMapDebug";
 import { BottomActionBar, Disclaimer } from "@/components/PreviewActions";
 import { PreviewCompactMenu } from "@/components/PreviewCompactMenu";
 import { CaseLog } from "@/components/CaseLog";
@@ -105,20 +108,42 @@ function waitForGenerationScreen(): Promise<void> {
 }
 
 /**
- * Put the edit back onto the original photograph so only the mouth can
- * change. Runs on the device; if no face is found the edit is kept as-is.
+ * Put the edit back onto the original photograph, on the device. The face
+ * lock keeps everything outside the lips; a painted edit area narrows that;
+ * the Tooth Map then keeps only the selected teeth — every other pixel,
+ * including gums and unselected teeth, is the original photo.
  */
 async function lockFace(
   photo: Photo,
   image: string,
-): Promise<Pick<GenerationResult, "image" | "faceLocked" | "lipsMoved" | "editAreaProtected">> {
+  settings: SmileSettings,
+): Promise<Pick<GenerationResult, "image" | "faceLocked" | "lipsMoved" | "editAreaProtected" | "toothProtection">> {
   const { lockFaceOutsideLips } = await import("@/lib/face/mouthLock");
   const r = await lockFaceOutsideLips(photo.dataUrl, image);
-  const imageOut = photo.editMask ? await (await import("@/lib/editMask")).protectOutsideEditMask(photo.dataUrl, r.image, photo.editMask) : r.image;
-  return { image: imageOut, editAreaProtected: Boolean(photo.editMask), faceLocked: r.locked, lipsMoved: r.lipsMoved };
+  let imageOut = photo.editMask ? await (await import("@/lib/editMask")).protectOutsideEditMask(photo.dataUrl, r.image, photo.editMask) : r.image;
+  let toothProtection: GenerationResult["toothProtection"];
+  const { protectionPlan, protectWithToothMap } = await import("@/lib/toothMap/protect");
+  if (photo.toothMap && protectionPlan(photo.toothMap, photo.dataUrl, settings).ok) {
+    const { TOOTH_MAP_DEBUG, rememberToothDebug } = await import("@/lib/toothMap/debug");
+    const outcome = await protectWithToothMap(photo.dataUrl, imageOut, photo.toothMap, settings, { debug: TOOTH_MAP_DEBUG });
+    imageOut = outcome.image;
+    toothProtection = outcome.protection;
+    rememberToothDebug(imageOut, { heatmap: outcome.debugImage, mask: outcome.debugMask });
+  }
+  return { image: imageOut, editAreaProtected: Boolean(photo.editMask), faceLocked: r.locked, lipsMoved: r.lipsMoved, ...(toothProtection ? { toothProtection } : {}) };
 }
 
 const ignoreCount = () => {};
+
+/** The teeth (with a margin) for the Teeth step to zoom to; null when there is no map. */
+function toothFocus(map: Photo["toothMap"]): { x: number; y: number; width: number; height: number } | null {
+  const points = map?.teeth.filter(t => t.visible).flatMap(t => t.outline) ?? [];
+  if (!points.length) return null;
+  const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const mx = (x1 - x0) * 0.12, my = (y1 - y0) * 0.8;
+  return { x: Math.max(0, x0 - mx), y: Math.max(0, y0 - my), width: Math.min(1, x1 - x0 + mx * 2), height: Math.min(1, y1 - y0 + my * 2) };
+}
 
 export default function Smile() {
   const [screen, setScreen] = useState<Screen>("start");
@@ -216,6 +241,8 @@ export default function Smile() {
     setSettings(next);
     syncHistory();
   }
+  // Every visible tooth as its own region, found on this device when a photo reaches the Studio.
+  const toothMap = useToothMap({ photo, setPhoto, settings, onChange: changeSettings, active: screen === "design" && Boolean(photo) });
   function undoSettings() {
     const h = history.current;
     const previous = h.past.pop();
@@ -536,6 +563,10 @@ export default function Smile() {
   ): Promise<GenerationResult> {
     const started = performance.now();
     const session = costSession.current;
+    // Nothing the clinician selected is in this photo's tooth map: stop before anything is charged.
+    const toothPlan = (await import("@/lib/toothMap/protect")).protectionPlan(photoIn.toothMap, photoIn.dataUrl, settingsIn);
+    if (!toothPlan.ok && toothPlan.reason === "no-teeth")
+      throw new Error("None of the selected teeth were found in this photo, so nothing could change. Check the tooth map on the Teeth step. No request was sent.");
     const preferences: PreviewPreferences = { styleReferenceStatus: "off", styleReferenceCount: 0, settings: structuredClone(settingsIn), referenceUsed: Boolean(reference), testMode };
     if (testMode) {
       const material = settingsIn.treatment === "Composite"
@@ -550,7 +581,7 @@ export default function Smile() {
       await new Promise((resolve) => setTimeout(resolve, 900));
       if (controller.signal.aborted) throw controller.signal.reason;
       const { alignPreview } = await import("@/lib/photos");
-      const locked = await lockFace(photoIn, await alignPreview(prepared.dataUrl, photoIn));
+      const locked = await lockFace(photoIn, await alignPreview(prepared.dataUrl, photoIn), settingsIn);
       return {
         ...locked,
         mode: "live",
@@ -565,16 +596,21 @@ export default function Smile() {
       ? findMatchingStyleReferences(caseLibrary.candidates, settingsIn, DEFAULT_STYLE_REFERENCE_LIMIT).map(m => m.id)
       : [];
     if (controller.signal.aborted) throw controller.signal.reason;
-    const fingerprint = await previewFingerprint({ image: photoIn.dataUrl, editMask: photoIn.editMask, settings: settingsIn, resolution: effectiveResolution, provider: pricing?.model, reference: reference?.dataUrl, styleReferences });
+    const toothMapKey = photoIn.toothMap ? { photoId: photoIn.toothMap.photoId, teeth: photoIn.toothMap.teeth.map(t => [t.fdi, t.visible, t.outline]) } : null;
+    const fingerprint = await previewFingerprint({ image: photoIn.dataUrl, editMask: photoIn.editMask, toothMap: toothMapKey, settings: settingsIn, resolution: effectiveResolution, provider: pricing?.model, reference: reference?.dataUrl, styleReferences });
     const reusable = [result, ...variants.map(v => v.result)].find(r => r?.requestFingerprint === fingerprint);
     if (reusable) return reusable;
     if (exceedsRequestLimit(costs.requested, 1, requestLimit)) throw new Error("This case has reached its generation limit. Change the case limit under Allowance to create more.");
     const { prepareGenerationPhoto } = await import("@/lib/photos");
     const requestCanvas = await prepareGenerationPhoto(photoIn);
     if (controller.signal.aborted) throw controller.signal.reason;
+    const editMask = photoIn.toothMap
+      ? (await import("@/lib/toothMap/protect")).guidanceMask(photoIn.toothMap, photoIn.dataUrl, settingsIn, requestCanvas.photo, requestCanvas.sourceBounds)
+      : undefined;
     let next = await generateSmileImage({
       caseId,
       originalImage: requestCanvas.photo.dataUrl,
+      editMask,
       sourceBounds: requestCanvas.sourceBounds,
       framing: requestCanvas.photo.framing,
       resolution: effectiveResolution,
@@ -596,7 +632,7 @@ export default function Smile() {
     const alignedImage = await alignPreview(next.image, photoIn, requestCanvas);
     next = { ...next, image: alignedImage };
     if (next.mode === "live") {
-      next = { ...next, ...(await lockFace(photoIn, alignedImage)) };
+      next = { ...next, ...(await lockFace(photoIn, alignedImage, settingsIn)) };
       // Advisory only, and only when there's a trustworthy anchor to check
       // against — an uploaded photo has no capture guide to measure from.
       if (photoIn.framing) {
@@ -1137,7 +1173,8 @@ export default function Smile() {
                 Patient Smile Design
               </h1>
               <DesignStudio
-                stage={result ? (
+                toothMap={toothMap}
+                stage={(teethStep) => result ? (
                   <div className="preview-stage">
                     <BeforeAfterSlider
                       original={photo.dataUrl}
@@ -1148,7 +1185,9 @@ export default function Smile() {
                     />
                   </div>
                 ) : (
-                  <PatientPhoto photo={photo} />
+                  <PatientPhoto photo={photo} focus={teethStep ? toothFocus(photo.toothMap) : null} overlay={teethStep ? (zoom) => (
+                    <ToothMapOverlay controller={toothMap} selectedTeeth={settings.selectedTeeth} width={photo.width} height={photo.height} scale={zoom} />
+                  ) : undefined} />
                 )}
                 caseBar={<>
                   {result && <div className="design-touch-compare">
@@ -1289,7 +1328,16 @@ export default function Smile() {
               )}
               {!testMode && ["no-match", "unavailable"].includes(result.preferences?.styleReferenceStatus ?? "") && <p className="scale-notice" role="status"><span>No Case Library references used</span>{result.preferences?.styleReferenceStatus === "unavailable" ? "Your Case Library could not be opened for this result." : "No close style match was found for this treatment and these teeth."} Add matching finished cases to your Case Library to use your style next time.</p>}
               {!testMode && result.mode === "live" && result.preferences?.styleReferenceStatus === "used" && <StyleFeedback key={result.variationId} result={result} />}
-              {result.mode === "live" && !testMode && (
+              {result.toothProtection && (
+                <p className="scale-notice" role="status"><span>{result.toothProtection.verified ? "Tooth map protected" : "Check the protected areas"}</span>
+                  {`Only ${result.toothProtection.teeth.join(", ")} could change. Every other pixel — lips, skin, gums and unselected teeth — is the original photo.`}
+                  {result.toothProtection.notFound.length > 0 && ` ${result.toothProtection.notFound.join(", ")} ${result.toothProtection.notFound.length === 1 ? "wasn’t" : "weren’t"} in the tooth map, so ${result.toothProtection.notFound.length === 1 ? "it stayed" : "they stayed"} unchanged.`}
+                  {result.toothProtection.insideChange < 0.01 && " The selected teeth barely changed: try Stronger or check the selection."}
+                  {!result.toothProtection.verified && " Some pixels outside the selected teeth differ from the original: compare carefully before presenting."}
+                </p>
+              )}
+              <ToothMapDebug map={photo.toothMap} width={photo.width} height={photo.height} image={result.image} protection={result.toothProtection} />
+              {result.mode === "live" && !testMode && !result.toothProtection && (
                 <p className="scale-notice" role="status"><span>{result.editAreaProtected ? "Edit area protected" : result.faceLocked ? "Face protected — check dental anatomy" : "Automatic protection unavailable"}</span>
                   {result.editAreaProtected ? "The original photo is restored outside your painted area. Check that the boundary excludes gums and untreated teeth, and review the design inside it." : result.faceLocked ? "Automatic protection covers the surrounding face, not individual teeth or gums. Compare gum margins, lower teeth and untreated teeth before presenting. Use Protect edit area for precise boundaries." : "The face could not be protected automatically. Inspect the whole result against the original, or use Protect edit area and generate again before presenting."}
                 </p>

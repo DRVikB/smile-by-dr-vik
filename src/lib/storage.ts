@@ -2,6 +2,7 @@ import { validCaseCosts } from "./generation/cost";
 import type { SmileCase } from "./types";
 import { imageSchema, settingsSchema } from "./generation/schema";
 import { AI_CONSENT_VERSION } from "./aiConsent";
+import { isValidToothMap } from "./toothMap/types";
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open("smile-temporary-case", 1);
@@ -50,6 +51,8 @@ export async function readCase(): Promise<SmileCase | null> {
         ).slice(0, 4) : [];
         c.variants.forEach((v: import("./types").SmileVariant) => validatePreferences(v.result));
         if (c.photo.editMask && !imageSchema.safeParse(c.photo.editMask).success) { resolve(null); return; }
+        // A damaged tooth map is dropped (it is found again), never trusted.
+        if (c.photo.toothMap && !isValidToothMap(c.photo.toothMap)) delete c.photo.toothMap;
         if (c.reference && !imageSchema.safeParse(c.reference.dataUrl).success) c.reference = null;
         if (c.testMode && !imageSchema.safeParse(c.testPreview).success) {
           // Never silently turn an incomplete test case into a paid request.

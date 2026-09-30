@@ -76,6 +76,7 @@ export function ZoomPan({
   label = "Pinch to zoom",
   overlay,
   resetKey,
+  focus,
 }: {
   children: React.ReactNode | ((state: ZoomState) => React.ReactNode);
   className?: string;
@@ -83,6 +84,8 @@ export function ZoomPan({
   label?: string;
   overlay?: React.ReactNode;
   resetKey?: string;
+  /** Zoom to this part of the photo (normalised 0–1), e.g. the teeth; null returns to fill. */
+  focus?: { x: number; y: number; width: number; height: number } | null;
 }) {
   const frame = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<ZoomState>(IDENTITY);
@@ -200,6 +203,8 @@ export function ZoomPan({
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinch.current = null;
 
+    // Taps on interactive overlays (e.g. teeth) are theirs: never a double tap to zoom.
+    if ((e.target as Element | null)?.closest?.("[data-own-taps]")) { tap.current = null; lastTap.current = 0; return; }
     const isTap = e.type !== "pointercancel" && tap.current?.id === e.pointerId && Date.now() - tap.current.time < 320;
     tap.current = null;
     if (!isTap) { lastTap.current = 0; return; }
@@ -216,6 +221,23 @@ export function ZoomPan({
       e.stopPropagation();
     } else lastTap.current = now;
   }
+
+  // Frame a region of the photo: centred, filling most of the width, never past the zoom limit.
+  const focusKey = focus ? [focus.x, focus.y, focus.width, focus.height].map(n => n.toFixed(3)).join(",") : "";
+  useEffect(() => {
+    const box = frame.current?.getBoundingClientRect();
+    if (!box?.width || !focus) return;
+    const { w, h, cw, ch } = size();
+    const target = Math.min(max(), Math.max(fillRef.current, Math.min((w * 0.82) / Math.max(1, focus.width * cw), (h * 0.55) / Math.max(1, focus.height * ch))));
+    const fx = (focus.x + focus.width / 2 - 0.5) * cw, fy = (focus.y + focus.height / 2 - 0.5) * ch;
+    setState(clampPan({ scale: target, x: -fx * target, y: -fy * target }, w, h, cw, ch));
+    // Re-frame only when the region itself changes (or the fill level settles).
+  }, [focusKey, fill]);
+  const hadFocus = useRef(false);
+  useEffect(() => {
+    if (focus) hadFocus.current = true;
+    else if (hadFocus.current) { hadFocus.current = false; reset(); }
+  }, [Boolean(focus), reset]);
 
   const zoomed = state.scale > fill * 1.01;
   const offFill = Math.abs(state.scale - fill) > fill * 0.01;

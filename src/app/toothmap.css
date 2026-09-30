@@ -1,0 +1,64 @@
+/* ============================================================
+   Tooth Map (src/components/toothMap)
+   Outlines sit on the photograph: quiet white for unselected teeth,
+   champagne with a faint fill for selected ones.
+   ============================================================ */
+.tooth-map-overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 1; }
+.tooth-map-overlay.is-adding { pointer-events: auto; cursor: crosshair; }
+.tooth-map-catch { fill: transparent; }
+.tooth-region polygon {
+  fill: rgba(255, 255, 255, 0.001); stroke: rgba(255, 255, 255, 0.62);
+  stroke-linejoin: round; pointer-events: visiblePainted; cursor: pointer;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.45));
+  transition: fill 160ms var(--ease-soft), stroke 160ms var(--ease-soft);
+  -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; user-select: none;
+}
+.tooth-region.is-selected polygon { fill: rgba(212, 181, 131, 0.14); stroke: #D9BB86; }
+.tooth-region.needs-review polygon { stroke-dasharray: 4 3; }
+.tooth-region.is-focused polygon { stroke: #fff; fill: rgba(255, 255, 255, 0.16); }
+.tooth-map-overlay.is-adding .tooth-region polygon { pointer-events: none; }
+.tooth-region polygon:focus-visible { outline: none; stroke: #fff; }
+.tooth-region text {
+  fill: #fff; font-family: var(--font-sans); font-weight: 600; letter-spacing: .02em;
+  paint-order: stroke; stroke: rgba(20, 18, 16, 0.7); stroke-width: 3px; stroke-linejoin: round; pointer-events: none;
+}
+.tooth-region.is-selected text { fill: #F3E3C5; }
+.tooth-region.needs-review text { fill: #FFD9A8; }
+
+/* The photo zoom re-rasterises at its real scale, so outlines and numbers stay crisp when zoomed. */
+.photo-zoom .zoompan-inner { will-change: auto; }
+
+/* Teeth step */
+.tooth-map-status { display: grid; gap: 10px; margin: 0 0 14px; padding: 12px 14px; border-radius: 16px; background: var(--control-background); font-size: 14px; }
+.tooth-map-status > p { margin: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 9px; align-items: center; font-weight: 600; }
+.tooth-map-status > p small { grid-column: 2; font-weight: 400; font-size: 12.5px; color: var(--text-secondary); }
+.tooth-map-status.is-empty p { display: block; font-weight: 400; color: var(--text-secondary); }
+.tooth-map-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sc-gold, #D4B583); }
+.tooth-map-dot.is-confirmed { background: #6FAE84; }
+.tooth-map-dot.is-busy { animation: tooth-map-pulse 1.1s ease-in-out infinite; }
+@keyframes tooth-map-pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .tooth-map-dot.is-busy { animation: none; } }
+.tooth-map-review { display: flex; flex-wrap: wrap; gap: 6px; }
+.tooth-map-review button { padding: 5px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500; color: var(--text-primary); border: 1px dashed var(--border-strong); background: var(--card); }
+.tooth-map-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tooth-map-actions .primary-button, .tooth-map-actions .secondary-button { min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.tooth-map-editor { display: grid; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.tooth-map-editor-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tooth-map-field { display: grid; gap: 5px; font-size: 12.5px; color: var(--text-secondary); }
+.tooth-map-field .design-select { font-size: 16px; }
+.tooth-selection-summary small { display: block; margin-top: 4px; font-size: 12.5px; color: var(--text-secondary); }
+
+/* One tooth's controls */
+.tooth-controls-backdrop { z-index: 93; }
+.tooth-controls { width: min(460px, 100%); display: grid; gap: 14px; }
+.tooth-controls .sheet-heading h2 { font-family: var(--font-display); font-size: 26px; font-weight: 400; }
+.tooth-controls-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.tooth-controls .segmented button { font-size: 13.5px; }
+.tooth-shades { flex-wrap: wrap; }
+.tooth-controls .primary-button { min-height: 48px; }
+
+/* Development-only debug view */
+.tooth-debug { display: grid; gap: 8px; margin-top: 12px; padding: 12px; border-radius: 14px; border: 1px dashed #c0392b; font-size: 12px; }
+.tooth-debug img { width: 100%; border-radius: 8px; }
+.tooth-debug table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tooth-debug td, .tooth-debug th { padding: 2px 4px; text-align: left; border-bottom: 1px solid var(--border); }

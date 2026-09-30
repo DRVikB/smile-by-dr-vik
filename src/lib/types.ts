@@ -9,11 +9,20 @@ export type SmileArc = typeof smileArcs[number];
 export const biteContexts = ["Not assessed", "Deep bite", "Edge-to-edge", "Open bite", "Crossbite", "Other concern"] as const;
 export type BiteContext = typeof biteContexts[number];
 export type ToothCondition = "Natural" | "Restored" | "Missing";
+export const toothShapes = ["Natural", "Soft square", "Square", "Rounded"] as const;
+export const toothEdges = ["Natural", "Level", "Soft"] as const;
 export interface ToothPlan {
   tooth: number;
   intent: DesignIntent | "Preserve";
   condition: ToothCondition;
-  targetShade?: "The same" | "Whiten" | "Bleach";
+  targetShade?: TargetShade;
+  /** Individual tooth design (Tooth Map controls). Absent means follow the global design. */
+  shape?: typeof toothShapes[number];
+  /** −1 slightly shorter, 0 as photographed, 1 slightly longer. */
+  length?: -1 | 0 | 1;
+  /** −1 slightly narrower, 0 as photographed, 1 slightly wider (within its own space). */
+  width?: -1 | 0 | 1;
+  edge?: typeof toothEdges[number];
 }
 export const caseFeatures = ["Wear / chips", "Gaps", "Crowding / rotations", "Dark shade", "High gum display", "Recession / black triangles"] as const;
 export type CaseFeature = typeof caseFeatures[number];
@@ -129,6 +138,8 @@ export const SMILE_GUIDE: Framing = {
 export interface Photo {
   /** Device-local painted edit permissions; never sent to the provider. */
   editMask?: string;
+  /** Every visible tooth as its own region (on-device); only selected teeth may change. */
+  toothMap?: import("./toothMap/types").ToothMap;
   dataUrl: string;
   name: string;
   width: number;
@@ -176,6 +187,21 @@ export interface GenerationResult {
   editAreaProtected?: boolean;
   /** The edit moved the lip border itself, not only the teeth. */
   lipsMoved?: boolean;
+  /** Tooth Map protection: only these teeth could change; everything else is the original photo. */
+  toothProtection?: ToothProtection;
+}
+export interface ToothProtection {
+  /** Selected teeth that were found in the photo and allowed to change. */
+  teeth: number[];
+  /** Selected teeth the photo doesn't show (or the map doesn't have): left unchanged. */
+  notFound: number[];
+  /** Share of protected pixels the AI changed before protection (restored from the original). */
+  restoredShare: number;
+  /** After protection, share of protected pixels still different beyond compression noise (should be 0). */
+  outsideChange: number;
+  /** Share of the allowed region that visibly changed. */
+  insideChange: number;
+  verified: boolean;
 }
 export interface SmileVariant {
   label: string;
@@ -216,6 +242,7 @@ export interface CaseLogMedia {
   /** Local clinician attestation for the AI processing used to make this image. */
   aiConsent?: import("./aiConsent").AiProcessingConsent;
   generation?: GenerationMetadata;
+  toothProtection?: ToothProtection;
 }
 /** The clinician's per-case confirmation of authority to process this patient's media. */
 export interface UploadAuthority {

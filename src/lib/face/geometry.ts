@@ -32,6 +32,8 @@ export const LOWER_LIP_CURVE = [
 export const STABLE_POINTS = [33, 133, 362, 263, 168, 6, 1, 4, 234, 454] as const;
 
 export const COMMISSURES = [61, 291] as const;
+/** The inner lip contour (the mouth opening), clockwise from the right corner. */
+export const INNER_LIP = [78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95] as const;
 export const GLABELLA = 168;
 export const CHIN = 152;
 /** Iris centres (patient's right, patient's left) and their ring points. */
