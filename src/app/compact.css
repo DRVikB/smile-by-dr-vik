@@ -111,7 +111,7 @@
     flex: 1 1 auto;
     max-height: min(58dvh, 550px);
   }
-  .app-shell .preview-screen .compare-label { bottom: calc(104px + env(safe-area-inset-bottom)); }
+  .app-shell .preview-screen .compare-label, .app-shell .preview-screen .guide-key { bottom: calc(104px + env(safe-area-inset-bottom)); }
 
   .compact-preview-dock {
     display: flex;

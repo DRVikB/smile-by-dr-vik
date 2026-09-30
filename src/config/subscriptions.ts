@@ -36,6 +36,32 @@ export const TRIAL_GENERATIONS = 3;
 /** Monthly generations for a server-side complimentary override without its own value. */
 export const OVERRIDE_DEFAULT_MONTHLY_GENERATIONS = 50;
 
+/** Generations added after each successful monthly billing cycle. */
+export const MONTHLY_GENERATIONS = SUBSCRIPTION_PRODUCTS.monthly.generationsPerPeriod;
+/** Unused monthly generations roll over while the subscription stays active, up to this balance. */
+export const MONTHLY_ROLLOVER_CAP = 100;
+/** Generations for each annual billing period. Unused ones don't carry into the next year. */
+export const ANNUAL_GENERATIONS = SUBSCRIPTION_PRODUCTS.annual.generationsPerPeriod;
+
+/** What a subscription billing period is, for its generation allowance. */
+export type PeriodKind = "trial" | "monthly" | "annual";
+
+export function periodKind(productId: string | null | undefined, trial: boolean): PeriodKind {
+  if (trial) return "trial";
+  return planForProduct(productId) === "annual" ? "annual" : "monthly";
+}
+
+/**
+ * The allowance a period starts with and the most it may hold. The database
+ * applies the rules (grant_subscription_period); these are the only numbers it uses:
+ * trial 3 (never carried), monthly 50 rolling over to at most 100, annual 600 (reset each year).
+ */
+export function periodAllowance(kind: PeriodKind): { allowance: number; rolloverCap: number } {
+  if (kind === "trial") return { allowance: TRIAL_GENERATIONS, rolloverCap: TRIAL_GENERATIONS };
+  if (kind === "annual") return { allowance: ANNUAL_GENERATIONS, rolloverCap: ANNUAL_GENERATIONS };
+  return { allowance: MONTHLY_GENERATIONS, rolloverCap: MONTHLY_ROLLOVER_CAP };
+}
+
 export function planForProduct(productId: string | null | undefined): PlanKey | null {
   if (!productId) return null;
   // Apple product IDs may arrive with a plan suffix from RevenueCat (e.g. "id:plan").

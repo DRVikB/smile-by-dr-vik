@@ -37,6 +37,7 @@ before(async () => {
   await db.query(`update profiles set display_name = E'Bob\tExample ' where id = $1`, [bob]);
   await db.exec(readFileSync("supabase/migrations/20260928100000_profile_onboarding_storage.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20260928140000_case_library_avatars.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20260929120000_generation_rollover.sql", "utf8"));
   await db.exec(`grant all on all tables in schema public to service_role;`);
 });
 

@@ -159,6 +159,9 @@ export interface AnalysisRow {
   label: string;
   value: string;
   note: string;
+  /** For the key over the viewer, where space is tight. */
+  shortLabel: string;
+  shortValue: string;
 }
 
 const round1 = (n: number) => (Math.round(Math.abs(n) * 10) / 10).toFixed(1);
@@ -171,18 +174,26 @@ export function analysisRows(a: SmileAnalysis): AnalysisRow[] {
     label: "Head tilt",
     value: `${round1(a.headTiltDeg)}°`,
     note: tilt <= 2 ? "Photo is level" : "Photo or head is tilted — lines follow the eyes",
+    shortLabel: "Head tilt",
+    shortValue: `${round1(a.headTiltDeg)}°`,
   });
   const cant = Math.abs(a.cantDeg);
   rows.push({
     label: "Mouth corners vs eyes",
     value: `${round1(a.cantDeg)}°`,
     note: cant <= 2 ? "Reads level with the eyes" : "Mouth corners slope relative to the eyes",
+    shortLabel: "Corners vs eyes",
+    shortValue: `${round1(a.cantDeg)}°`,
   });
   const offset = a.smileWidthPx ? a.midlineOffsetPx / a.smileWidthPx * 100 : 0;
+  const centred = Math.abs(offset) < 1;
+  const side = offset > 0 ? "to photo right" : "to photo left";
   rows.push({
     label: "Smile centre vs facial midline",
-    value: Math.abs(offset) < 1 ? "Centred" : `${round1(offset)}% of mouth width ${offset > 0 ? "to photo right" : "to photo left"}`,
+    value: centred ? "Centred" : `${round1(offset)}% of mouth width ${side}`,
     note: "Mouth-centre guide, not a dental-midline measurement. No calibrated millimetres are available.",
+    shortLabel: "Smile centre",
+    shortValue: centred ? "Centred" : `${round1(offset)}% ${side}`,
   });
   return rows;
 }

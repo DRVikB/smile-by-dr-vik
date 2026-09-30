@@ -1,4 +1,5 @@
 import { apiUrl } from "@/services/api/client";
+import type { GenerationEntitlement } from "@/lib/entitlement";
 
 export class AccountApiError extends Error {
   constructor(readonly code: string) {
@@ -28,6 +29,8 @@ export interface AccountStatus {
   } | null;
   overrideExpiresAt: string | null;
   generations: { included: number; used: number; remaining: number; purchased: number; periodEnd: string | null };
+  /** The canonical generation entitlement (servers from 29 Sep 2026). Display only; the server decides access. */
+  entitlement?: GenerationEntitlement;
   mfaEnrolled?: boolean;
   profile?: AccountProfile | null;
   /** Server-calculated storage for account-held files (null if unavailable). V1 stores no patient media in the cloud. */

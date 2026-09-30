@@ -68,18 +68,21 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 /// Home Screen quick actions (long press on the app icon, declared in Info.plist as
 /// UIApplicationShortcutItems) and widget taps. Each is passed to the web app as a "shortcut"
 /// event; one that launched the app is retained until the app adds its listener. Also shares
-/// the clinician's preferred name with the widget.
+/// with the widget what it shows of the clinician's own account: their preferred name, their
+/// generation allowance and when their latest case was edited — never patient information.
 @objc(ShortcutsPlugin)
 public class ShortcutsPlugin: CAPPlugin, CAPBridgedPlugin {
     static let shared = ShortcutsPlugin()
     public let identifier = "ShortcutsPlugin"
     public let jsName = "SmileShortcuts"
     public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "setWidgetName", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "setWidgetName", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setWidgetAllowance", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setWidgetRecentCase", returnType: CAPPluginReturnPromise)
     ]
 
     private static let prefix = "uk.co.drvik.smilecompose.shortcut."
-    private static let actions: Set<String> = ["new", "cases", "sample"]
+    private static let actions: Set<String> = ["new", "cases", "sample", "library", "plan", "recent"]
     static let appGroup = "group.uk.co.drvik.smilecompose"
 
     /// A widget link: uk.co.drvik.smilecompose://shortcut/<action>.
@@ -98,6 +101,25 @@ public class ShortcutsPlugin: CAPPlugin, CAPBridgedPlugin {
         let name = call.getString("name")?.trimmingCharacters(in: .whitespacesAndNewlines)
         let defaults = UserDefaults(suiteName: Self.appGroup)
         if let name, !name.isEmpty { defaults?.set(String(name.prefix(40)), forKey: "widget.displayName") } else { defaults?.removeObject(forKey: "widget.displayName") }
+        WidgetCenter.shared.reloadAllTimelines()
+        call.resolve()
+    }
+
+    /// The allowance as the app shows it (JSON: remaining, summary, renewal, plan, fraction, periodEnd),
+    /// or nil to clear it (signed out, or no Pro). Display only: the server still decides access.
+    @objc func setWidgetAllowance(_ call: CAPPluginCall) {
+        let defaults = UserDefaults(suiteName: Self.appGroup)
+        let json = call.getString("json")
+        if let json, !json.isEmpty, json.count < 2048 { defaults?.set(json, forKey: "widget.allowance") } else { defaults?.removeObject(forKey: "widget.allowance") }
+        WidgetCenter.shared.reloadAllTimelines()
+        call.resolve()
+    }
+
+    /// When the latest case was edited (ms since 1970), or nil when there are no cases. Only the time:
+    /// the widget never shows a case's name, photo or treatment.
+    @objc func setWidgetRecentCase(_ call: CAPPluginCall) {
+        let defaults = UserDefaults(suiteName: Self.appGroup)
+        if let editedAt = call.getDouble("editedAt"), editedAt > 0 { defaults?.set(editedAt, forKey: "widget.recentCaseAt") } else { defaults?.removeObject(forKey: "widget.recentCaseAt") }
         WidgetCenter.shared.reloadAllTimelines()
         call.resolve()
     }

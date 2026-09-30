@@ -487,14 +487,57 @@ input[type="checkbox"][role="switch"],
 .analysis-row .analysis-toggle-text { flex: 1; display: grid; gap: 1px; font-size: 15px; font-weight: 500; }
 .analysis-row .analysis-toggle-text small { font-size: 12.5px; font-weight: 400; color: var(--text-secondary); }
 .analysis-row > svg { flex: none; color: var(--text-tertiary); }
-.analysis-sheet { width: min(640px, 100%); padding: 20px; }
-.analysis-sheet .analysis-panel { display: grid; gap: 12px; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
-.analysis-sheet .analysis-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.analysis-sheet .analysis-head h2 { margin: 0; font-family: var(--font-display); font-size: 28px; font-weight: 400; letter-spacing: var(--title-tracking); }
-.analysis-sub { margin: 0; font-size: 14px; line-height: 1.45; color: var(--text-secondary); }
-.analysis-sheet .analysis-image { width: 100%; height: auto; border-radius: 18px; box-shadow: var(--shadow-sm); }
-.analysis-sheet .analysis-status { margin: 0; padding: 40px 0; text-align: center; color: var(--text-secondary); }
-.analysis-share { justify-self: stretch; min-height: 50px; }
+.analysis-chip[aria-pressed="true"] { color: #1d1b18; background: var(--sc-gold, #D4B583); }
+.analysis-row-state { flex: none; min-width: 38px; padding: 4px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; text-align: center; color: var(--text-secondary); background: var(--control-background); }
+.analysis-row[aria-pressed="true"] .analysis-row-state { color: #1d1b18; background: var(--sc-gold, #D4B583); }
+
+/* The lines themselves: in the photo's pixels, over the contained image, zooming with it. */
+.guide-lines {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  overflow: visible; pointer-events: none;
+  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, .75));
+}
+/* What each line is, and the readings: dark glass, so it reads on any photo and in either theme. */
+/* Portrait: centred just above the Before / After labels, wherever each layout puts them. */
+.guide-key {
+  position: absolute; z-index: 11;
+  left: 50%; bottom: 16px; transform: translate(-50%, -42px);
+  width: min(520px, calc(100% - 32px));
+  display: grid; gap: 8px; padding: 12px 14px;
+  border-radius: 18px; color: #fff;
+  background: rgba(20, 19, 17, .72);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .25);
+  font-size: 13px; line-height: 1.35;
+  animation: fade-in-soft 260ms var(--ease-soft) both;
+}
+.guide-key-lines { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; padding: 0; list-style: none; font-weight: 500; }
+.guide-key-lines li { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.guide-swatch { flex: none; width: 20px; height: 0; border-top: 2.5px solid var(--guide); border-radius: 2px; }
+.guide-swatch.dashed { border-top-style: dashed; }
+.guide-swatch.arc { height: 8px; border-top: 0; border-bottom: 2.5px solid var(--guide); border-radius: 0 0 50% 50% / 0 0 100% 100%; transform: translateY(-3px); }
+.guide-key-readings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .14); }
+.guide-key-readings dt { font-size: 11.5px; color: rgba(255, 255, 255, .68); }
+.guide-key-readings dd { margin: 2px 0 0; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.guide-key-note, .guide-key-message { margin: 0; font-size: 12px; color: rgba(255, 255, 255, .7); }
+.guide-key-message { font-size: 13.5px; color: #fff; text-align: center; }
+/* Landscape: a column beside the face, under the Slide / Overlay switch. */
+@media (orientation: landscape) {
+  :is(.app-shell, .saved-case-viewer) .comparison.has-guides > .guide-key {
+    left: max(20px, env(safe-area-inset-left, 0px)); right: auto; bottom: auto;
+    top: calc(var(--photo-header) + 64px);
+    transform: none; width: min(272px, 30vw);
+  }
+  .saved-case-viewer .comparison.has-guides > .guide-key { top: calc(env(safe-area-inset-top, 0px) + 138px); }
+  .guide-key-lines { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .guide-key-readings { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .guide-key-readings > div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .guide-key-readings dd { margin: 0; text-align: right; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .guide-key-note { display: none; }
+  .guide-key-lines { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 /* ============================================================
    Photo step — "Let's get started" (src/components/PhotoUploader.tsx)
@@ -641,6 +684,11 @@ input[type="checkbox"][role="switch"],
 .allowance-ring-fill { stroke: var(--accent); transition: stroke-dasharray 500ms var(--ease-soft); }
 .level-low .allowance-ring-fill { stroke: #D9A441; }
 .level-critical .allowance-ring-fill, .level-empty .allowance-ring-fill { stroke: #D2694F; }
+/* A small status dot in the brand's champagne, deepening to bronze as the balance runs low (never alarm red). */
+.allowance-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.level-low .allowance-dot, .level-critical .allowance-dot, .level-empty .allowance-dot { background: #A6824E; box-shadow: 0 0 0 3px rgba(166, 130, 78, .18); }
+.allowance-banner p small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--text-secondary); }
+.allowance-banner.on-photo p small { color: rgba(250, 247, 242, .72); }
 
 .allowance-pill {
   display: inline-flex; align-items: center; gap: 9px; align-self: flex-start; min-height: 40px; margin-top: 14px; padding: 0 14px 0 10px;
@@ -655,15 +703,15 @@ input[type="checkbox"][role="switch"],
 .allowance-pill.on-photo small { color: rgba(250, 247, 242, .7); }
 
 .allowance-line { margin: 0; text-align: center; font-size: 13px; color: var(--text-secondary); }
-.allowance-line.level-critical, .allowance-line.level-empty { color: var(--destructive); }
+.allowance-line.level-critical, .allowance-line.level-empty { color: var(--accent-text); }
 
 .allowance-banner {
   display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: 16px;
   color: var(--text-primary); background: var(--card); box-shadow: var(--shadow-sm); animation: rise-in 360ms var(--ease-soft) both;
 }
 .allowance-banner p { flex: 1; min-width: 0; margin: 0; font-size: 13.5px; line-height: 1.4; }
-.allowance-banner.level-low { box-shadow: inset 3px 0 0 #D9A441, var(--shadow-sm); }
-.allowance-banner.level-critical, .allowance-banner.level-empty { box-shadow: inset 3px 0 0 #D2694F, var(--shadow-sm); }
+.allowance-banner.level-low { box-shadow: inset 3px 0 0 var(--accent), var(--shadow-sm); }
+.allowance-banner.level-critical, .allowance-banner.level-empty { box-shadow: inset 3px 0 0 #A6824E, var(--shadow-sm); }
 .allowance-banner-action { flex: none; min-height: 34px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--accent-text); background: var(--accent-soft); }
 .allowance-banner-close { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: var(--text-secondary); background: none; }
 .app-shell .allowance-banner-close { min-width: 30px; min-height: 30px; }
@@ -674,3 +722,7 @@ input[type="checkbox"][role="switch"],
 .allowance-banner.on-photo .allowance-banner-action { color: #1A1714; background: var(--accent-gradient); }
 .allowance-banner.on-photo .allowance-banner-close { color: rgba(250, 247, 242, .75); }
 @media (prefers-reduced-motion: reduce) { .allowance-banner { animation: none; } }
+
+/* Subscription: the generation balance, and each plan's allowance line */
+.settings-balance { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.plan-option .plan-allowance { color: var(--text-primary); font-weight: 500; }

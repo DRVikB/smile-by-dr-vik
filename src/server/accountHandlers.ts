@@ -4,6 +4,7 @@ import { safeLog } from "./redact";
 import { DOCUMENT_VERSIONS } from "@/config/legal";
 import { NAME_LIMITS, normaliseName } from "@/lib/profile";
 import { authenticate, evaluateAccess, type AccountServices } from "./access";
+import { buildEntitlement } from "./entitlement";
 import { revokeAppleAuthorization, type AppleCredentials } from "./appleRevoke";
 
 const headers = { "Cache-Control": "no-store" };
@@ -42,6 +43,8 @@ export async function handleAccountStatus(request: Request, services: AccountSer
       subscription: access.subscription,
       overrideExpiresAt: access.overrideExpiresAt,
       generations,
+      // The canonical entitlement every screen reads. Billing detail for debugging only outside production.
+      entitlement: buildEntitlement(access, generations, { debug: process.env.NODE_ENV !== "production" }),
       mfaEnrolled: Boolean(user.mfaEnrolled),
       profile: profile ? { ...profile, avatarPath: undefined } : null,
       avatarUrl,

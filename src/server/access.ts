@@ -1,4 +1,4 @@
-import { generationsForPeriod } from "@/config/subscriptions";
+import { periodAllowance, periodKind } from "@/config/subscriptions";
 import { styleReferenceLimit } from "@/lib/styleMatching";
 import { AccountError, createSupabaseAccountStore, createSupabaseMediaStore, type AccountStore, type AuthenticatedUser, type MediaStore } from "./accountStore";
 import { createRevenueCatClient, type ProEntitlement, type RevenueCatClient } from "./revenuecat";
@@ -68,10 +68,20 @@ function monthBounds(now: Date): { start: string; end: Date } {
   return { start: start.toISOString(), end };
 }
 
+/** The later of two ISO instants (either may be missing). */
+function later(a: string | null | undefined, b: string | null | undefined): string | null {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return Date.parse(b) > Date.parse(a) ? b : a;
+}
+
 /**
  * hasAccess = RevenueCat "pro" entitlement OR a valid server-side override.
- * Also establishes the current period's generation allowance (idempotent),
- * so a purchase is usable even before its webhook arrives.
+ * Also establishes the current period's generation allowance (idempotent: one
+ * grant per billing period, applying the rollover rules in the database), so a
+ * purchase or renewal is usable even before its webhook arrives. During a
+ * billing grace period the existing period runs on without a new allowance;
+ * when RevenueCat reports the entitlement expired, the allowance ends.
  */
 export async function evaluateAccess(user: AuthenticatedUser, services: AccountServices, now = new Date()): Promise<AccessDecision> {
   const { store, revenuecat } = services;
@@ -90,10 +100,15 @@ export async function evaluateAccess(user: AuthenticatedUser, services: AccountS
     const allowed = entitlement.active && (entitlement.environment === "production" || services.allowSandbox);
     subscription = { ...entitlement, active: allowed };
     if (allowed && entitlement.periodStart && entitlement.expiresAt) {
+      const kind = periodKind(entitlement.productId, entitlement.trial);
+      const { allowance, rolloverCap } = periodAllowance(kind);
       await store.ensurePeriod({
         userId: user.id, source: "subscription", environment: entitlement.environment, productId: entitlement.productId,
-        start: entitlement.periodStart, end: entitlement.expiresAt, allowance: generationsForPeriod(entitlement.productId, entitlement.trial),
+        start: entitlement.periodStart, end: later(entitlement.expiresAt, entitlement.graceExpiresAt)!, allowance, kind, rolloverCap,
       });
+    } else if (!entitlement.active && entitlement.expiresAt && Date.parse(entitlement.expiresAt) <= now.getTime()) {
+      // Expired (and past any grace period): end the allowance, even if the EXPIRATION webhook never arrives.
+      await store.expireSubscription(user.id, entitlement.expiresAt).catch(() => {});
     }
   } else {
     // RevenueCat unreachable: fall back to the webhook-maintained cache.

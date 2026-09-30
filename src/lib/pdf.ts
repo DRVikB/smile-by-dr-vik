@@ -1,5 +1,5 @@
 /**
- * A minimal PDF writer for one full-bleed JPEG page.
+ * A minimal PDF writer for full-bleed JPEG pages.
  *
  * The presentation is composed on a canvas and exported as a JPEG, so the PDF
  * only has to wrap those bytes: PDF can carry JPEG data directly with the
@@ -53,47 +53,66 @@ export function jpegToPdf(
   heightPx: number,
   options: PdfOptions = {},
 ): Uint8Array {
-  if (jpeg.length === 0) throw new Error("There is no image to put in the PDF.");
-  if (!(widthPx > 0 && heightPx > 0))
+  return jpegPagesToPdf([{ jpeg, widthPx, heightPx }], options);
+}
+
+export interface PdfPage {
+  jpeg: Uint8Array;
+  widthPx: number;
+  heightPx: number;
+}
+
+/**
+ * One JPEG per page. Every page takes the size in `options` (or A4 in the
+ * first image's orientation), each image fitted inside it without cropping.
+ */
+export function jpegPagesToPdf(pages: PdfPage[], options: PdfOptions = {}): Uint8Array {
+  if (!pages.length || pages.some(p => p.jpeg.length === 0)) throw new Error("There is no image to put in the PDF.");
+  if (pages.some(p => !(p.widthPx > 0 && p.heightPx > 0)))
     throw new Error("The image has no usable dimensions.");
 
-  const landscape = widthPx >= heightPx;
+  const landscape = pages[0].widthPx >= pages[0].heightPx;
   const pageWidth = options.pageWidth ?? (landscape ? A4_LONG : A4_SHORT);
   const pageHeight = options.pageHeight ?? (landscape ? A4_SHORT : A4_LONG);
   const [bg0, bg1, bg2] = options.background ?? [1, 1, 1];
-  const box = fitContain(widthPx, heightPx, pageWidth, pageHeight);
   const n = (value: number) => value.toFixed(3);
 
-  const content =
-    `${n(bg0)} ${n(bg1)} ${n(bg2)} rg\n` +
-    `0 0 ${n(pageWidth)} ${n(pageHeight)} re f\n` +
-    `q\n${n(box.width)} 0 0 ${n(box.height)} ${n(box.x)} ${n(box.y)} cm\n/Im0 Do\nQ\n`;
-  const contentBytes = encoder.encode(content);
-
-  const title = (options.title ?? "SmileCompose preview").replace(/[\\()]/g, "");
+  // Objects: 1 catalog, 2 page tree, then page / image / content per page, then the document info.
+  const pageObject = (i: number) => 3 + i * 3;
   const objects: Uint8Array[] = [
     encoder.encode("<< /Type /Catalog /Pages 2 0 R >>"),
-    encoder.encode("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
-    encoder.encode(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(pageWidth)} ${n(pageHeight)}] ` +
-        `/Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`,
-    ),
-    concat([
-      encoder.encode(
-        `<< /Type /XObject /Subtype /Image /Width ${Math.round(widthPx)} ` +
-          `/Height ${Math.round(heightPx)} /ColorSpace /DeviceRGB /BitsPerComponent 8 ` +
-          `/Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`,
-      ),
-      jpeg,
-      encoder.encode("\nendstream"),
-    ]),
-    concat([
-      encoder.encode(`<< /Length ${contentBytes.length} >>\nstream\n`),
-      contentBytes,
-      encoder.encode("\nendstream"),
-    ]),
-    encoder.encode(`<< /Title (${title}) /Producer (SmileCompose) >>`),
+    encoder.encode(`<< /Type /Pages /Kids [${pages.map((_, i) => `${pageObject(i)} 0 R`).join(" ")}] /Count ${pages.length} >>`),
   ];
+  pages.forEach((page, i) => {
+    const box = fitContain(page.widthPx, page.heightPx, pageWidth, pageHeight);
+    const contentBytes = encoder.encode(
+      `${n(bg0)} ${n(bg1)} ${n(bg2)} rg\n` +
+      `0 0 ${n(pageWidth)} ${n(pageHeight)} re f\n` +
+      `q\n${n(box.width)} 0 0 ${n(box.height)} ${n(box.x)} ${n(box.y)} cm\n/Im0 Do\nQ\n`,
+    );
+    objects.push(
+      encoder.encode(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(pageWidth)} ${n(pageHeight)}] ` +
+          `/Resources << /XObject << /Im0 ${pageObject(i) + 1} 0 R >> >> /Contents ${pageObject(i) + 2} 0 R >>`,
+      ),
+      concat([
+        encoder.encode(
+          `<< /Type /XObject /Subtype /Image /Width ${Math.round(page.widthPx)} ` +
+            `/Height ${Math.round(page.heightPx)} /ColorSpace /DeviceRGB /BitsPerComponent 8 ` +
+            `/Filter /DCTDecode /Length ${page.jpeg.length} >>\nstream\n`,
+        ),
+        page.jpeg,
+        encoder.encode("\nendstream"),
+      ]),
+      concat([
+        encoder.encode(`<< /Length ${contentBytes.length} >>\nstream\n`),
+        contentBytes,
+        encoder.encode("\nendstream"),
+      ]),
+    );
+  });
+  const title = (options.title ?? "SmileCompose preview").replace(/[\\()]/g, "");
+  objects.push(encoder.encode(`<< /Title (${title}) /Producer (SmileCompose) >>`));
 
   const parts: Uint8Array[] = [latin1("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n")];
   let offset = parts[0].length;

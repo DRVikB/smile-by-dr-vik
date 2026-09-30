@@ -37,6 +37,7 @@ function world() {
     activeOverride: async () => ({ monthlyAllowance: 50, expiresAt: null }),
     cachedSubscription: async () => null,
     ensurePeriod: async () => {},
+    expireSubscription: async () => {},
     reserve: async () => ({ remaining: 10 }),
     commit: async (id, meta) => { commits.push({ id, referenceCaseIds: meta.referenceCaseIds }); },
     release: async () => {},

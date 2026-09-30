@@ -34,7 +34,7 @@
 .app-shell .zoompan-reset { top: calc(var(--photo-header) + 60px); bottom: auto; left: auto; right: 20px; }
 .app-shell .zoompan-hint { top: calc(var(--photo-header) + 115px); bottom: auto; right: 20px; left: auto; }
 .app-shell .compare-mode, .app-shell .preview-screen:has(.variant-tabs) .compare-mode, .app-shell .design-screen .compare-mode { top: calc(var(--photo-header) + 8px); left: 20px; }
-.app-shell .compare-label { bottom: 220px; }
+.app-shell .compare-label, .app-shell .guide-key { bottom: 220px; }
 .app-shell .patient-photo .photo-label { left: 20px; bottom: 22px; }
 .app-shell .patient-photo .sample-photo-label { top: auto; bottom: 22px; left: 180px; right: auto; }
 .app-shell .preview-stage .fullscreen-button { top: calc(var(--photo-header) + 65px); right: 20px; }
@@ -61,7 +61,6 @@
 .review-drawer { bottom: 110px; }
 .app-shell .preview-side { position: static; width: auto; margin: 0; padding: 0; max-height: none; border: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
 .review-drawer .comparison-hint { display: none; }
-.review-drawer .analysis-panel { margin-top: 16px; }
 .review-drawer .analysis-images { grid-template-columns: 1fr; }
 .review-drawer .disclaimer { display: block; padding: 12px 0 0; margin: 0; color: var(--sc-text-muted); }
 .app-shell .preview-screen > .bottom-action-bar { position: absolute; z-index: 11; bottom: max(16px,env(safe-area-inset-bottom)); left: 20px; width: min(650px,calc(100% - 220px)); margin: 0; padding: 8px; background: var(--sc-panel); border: 1px solid var(--glass-border); border-radius: 18px; -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); box-shadow: 0 12px 40px #0003; }
@@ -297,7 +296,7 @@
   .design-drawer { bottom: calc(16px + env(safe-area-inset-bottom)); }
   .review-drawer { bottom: calc(108px + env(safe-area-inset-bottom)); }
   .app-shell .preview-screen > .bottom-action-bar { left: 16px; width: calc(100% - 32px); bottom: calc(16px + env(safe-area-inset-bottom)); }
-  .app-shell .compare-label { bottom: 184px; }
+  .app-shell .compare-label, .app-shell .guide-key { bottom: 184px; }
   .app-shell .preview-screen > .variant-tabs { top: calc(var(--photo-header) + 122px); left: 16px; transform: none; width: calc(100% - 32px); padding: 4px; }
   .app-shell .preview-screen > .variant-tabs button { font-size: 12px; padding: 6px; }
 }
@@ -330,7 +329,7 @@
 .consult .photo-framing-toggle { top: calc(118px + env(safe-area-inset-top)); bottom: auto; left: auto; right: 20px; }
 @media (max-width: 959px), (orientation: portrait) {
   .review-drawer { bottom: calc(108px + env(safe-area-inset-bottom)); }
-  .app-shell .compare-label { bottom: 192px; }
+  .app-shell .compare-label, .app-shell .guide-key { bottom: 192px; }
   .app-shell .bottom-action-bar .action-button { font-size: 11px; }
 }
 @media (orientation: landscape) and (max-height: 500px) {

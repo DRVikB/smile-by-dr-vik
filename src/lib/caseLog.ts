@@ -1,5 +1,6 @@
 import type { CaseLogEntry, CaseLogMedia } from "./types";
 import { RECENTLY_DELETED_DAYS } from "@/config/cases";
+import { EXPORT_HISTORY_MAX, type ExportRecord } from "./consultation";
 
 const DB_NAME = "smile-case-log";
 const ENTRIES = "entries";
@@ -177,6 +178,15 @@ export function setFavourite(id: string, favourite: boolean): Promise<boolean> {
     else delete copy.favourite;
     return copy;
   });
+}
+
+/**
+ * Note what was made for the patient from this version (a Smile Preview or a
+ * Consultation Report, with its reviewed settings). The file itself isn't
+ * kept: it is made again from the saved case whenever it's needed.
+ */
+export function recordExport(id: string, record: ExportRecord): Promise<boolean> {
+  return patchEntry(id, entry => ({ ...entry, exports: [record, ...(entry.exports ?? [])].slice(0, EXPORT_HISTORY_MAX) }));
 }
 
 /** Longest case reference, matching the field in the design screen. */

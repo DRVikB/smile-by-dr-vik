@@ -1,4 +1,4 @@
-import { PRO_ENTITLEMENT_ID, generationsForPeriod } from "@/config/subscriptions";
+import { PRO_ENTITLEMENT_ID, periodAllowance, periodKind } from "@/config/subscriptions";
 import type { AccountStore } from "./accountStore";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -63,6 +63,9 @@ export async function handleRevenueCatWebhook(
 
   const productId = typeof event.product_id === "string" ? event.product_id : null;
   const iso = (ms: number | null | undefined) => (typeof ms === "number" && Number.isFinite(ms) ? new Date(ms).toISOString() : null);
+  // The plan's numbers come from src/config/subscriptions.ts; the database applies the rollover rules.
+  const kind = periodKind(productId, event.period_type === "TRIAL");
+  const { allowance, rolloverCap } = periodAllowance(kind);
   try {
     const outcome = await options.store.applyRevenueCatEvent({
       eventId: event.id,
@@ -72,7 +75,9 @@ export async function handleRevenueCatWebhook(
       productId,
       periodStart: iso(event.purchased_at_ms),
       periodEnd: iso(event.expiration_at_ms),
-      allowance: generationsForPeriod(productId, event.period_type === "TRIAL"),
+      allowance,
+      kind,
+      rolloverCap,
     });
     return Response.json({ outcome }, { headers });
   } catch {

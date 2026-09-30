@@ -5,21 +5,23 @@ import { composePresentation, presentationPdf } from "@/lib/presentation";
 import { shareFile } from "@/lib/share";
 
 /**
- * The branded before/after. What fills the screen is the same artwork the PDF
- * carries, so what the patient is shown and what they take away cannot drift
- * apart.
+ * The branded before/after, full screen, for showing in the room. With
+ * `onShare`, sending goes through Share with patient (Smile Preview or
+ * Consultation Report); without it, this artwork itself is shared.
  */
 export function Presentation({
   before,
   after,
   patientName,
   isDemo,
+  onShare,
   onClose,
 }: {
   before: string;
   after: string;
   patientName?: string;
   isDemo: boolean;
+  onShare?: () => void;
   onClose: () => void;
 }) {
   const [artwork, setArtwork] = useState<string | null>(null);
@@ -98,14 +100,21 @@ export function Presentation({
         </p>
       )}
       <div className="present-actions">
-        <button className="present-button" onClick={() => void share()} disabled={!artwork || busy !== null}>
-          <Share2 size={16} strokeWidth={1.7} />
-          {busy === "share" ? "Preparing…" : "Send to patient"}
-        </button>
-        <button className="present-button" onClick={() => void savePdf()} disabled={!artwork || busy !== null}>
-          <Download size={16} strokeWidth={1.7} />
-          {busy === "pdf" ? "Making PDF…" : "PDF"}
-        </button>
+        {onShare ? (
+          <button className="present-button" onClick={onShare}>
+            <Share2 size={16} strokeWidth={1.7} />
+            Share with patient
+          </button>
+        ) : <>
+          <button className="present-button" onClick={() => void share()} disabled={!artwork || busy !== null}>
+            <Share2 size={16} strokeWidth={1.7} />
+            {busy === "share" ? "Preparing…" : "Send to patient"}
+          </button>
+          <button className="present-button" onClick={() => void savePdf()} disabled={!artwork || busy !== null}>
+            <Download size={16} strokeWidth={1.7} />
+            {busy === "pdf" ? "Making PDF…" : "PDF"}
+          </button>
+        </>}
         <button className="present-button present-close" onClick={onClose}>
           <X size={16} strokeWidth={1.7} />
           Close

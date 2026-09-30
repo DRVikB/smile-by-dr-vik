@@ -14,6 +14,8 @@ export interface ProEntitlement {
   managementUrl: string | null;
   /** In the free trial (introductory offer): generations are limited until it converts. */
   trial: boolean;
+  /** When the App Store billing grace period ends (access continues; no new allowance until payment succeeds). */
+  graceExpiresAt?: string | null;
 }
 
 export interface RevenueCatClient {
@@ -50,6 +52,7 @@ export function readProEntitlement(body: SubscriberResponse, now = Date.now()): 
     billingIssue: Boolean(subscription?.billing_issues_detected_at),
     managementUrl: subscriber.management_url ?? null,
     trial: subscription?.period_type === "trial",
+    graceExpiresAt: entitlement?.grace_period_expires_date ?? null,
   };
 }
 

@@ -39,7 +39,7 @@ const NOT_COUNTED = "Your generation has not been counted.";
 
 export const GENERATION_MESSAGES = {
   failed: `We couldn’t create this smile preview. ${NOT_COUNTED} Please try again.`,
-  offline: "You’re offline. Reconnect to create a preview; your current case is kept on this device.",
+  offline: "You’re offline. Connect to the internet to create a new smile.",
   network: `We couldn’t reach SmileCompose. Check your connection and try again. ${NOT_COUNTED}`,
   timeout: `This preview took too long. ${NOT_COUNTED} Please try again.`,
   invalidImage: "We couldn’t create a preview from this photograph. Please try a clear, well-lit, front-facing smile photo.",
@@ -54,7 +54,7 @@ export const GENERATION_MESSAGES = {
   outdated: "Please update SmileCompose to the latest version before generating. No request was sent.",
   signIn: "Sign in to your SmileCompose account to generate a smile. No request was sent.",
   subscribe: "SmileCompose Pro is required to generate smiles. No request was sent.",
-  allowanceUsed: "You’ve used all the generations included in this billing period. No request was sent.",
+  allowanceUsed: "You’ve used your available SmileCompose generations. No request was sent.",
   accountUnavailable: `Your account couldn’t be checked right now. ${NOT_COUNTED} Please try again.`,
   mfa: "Enter your two-factor code to continue. No request was sent.",
 } as const;
@@ -79,11 +79,14 @@ export function friendlyGenerationError(status: number, code?: string): SmileGen
     subscription_required: GENERATION_MESSAGES.subscribe,
     no_active_allowance: GENERATION_MESSAGES.subscribe,
     allowance_exhausted: GENERATION_MESSAGES.allowanceUsed,
+    GENERATION_LIMIT_REACHED: GENERATION_MESSAGES.allowanceUsed,
     account_service_unavailable: GENERATION_MESSAGES.accountUnavailable,
     accounts_unavailable: GENERATION_MESSAGES.unavailable,
     provider_terms_unconfirmed: GENERATION_MESSAGES.unavailable,
     mfa_required: GENERATION_MESSAGES.mfa,
   };
+  // One code for "none left", whichever server version answered.
+  if (code === "GENERATION_LIMIT_REACHED") return new SmileGenerationError(byCode[code], "allowance_exhausted");
   if (code && byCode[code]) return new SmileGenerationError(byCode[code], code);
   if (status === 413) return new SmileGenerationError(GENERATION_MESSAGES.tooLarge, "image_too_large");
   if (status === 400 || status === 415 || status === 422) return new SmileGenerationError(GENERATION_MESSAGES.selection, "invalid_request");

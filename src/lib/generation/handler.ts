@@ -150,6 +150,9 @@ export async function handleGenerationRequest(
         accountUserId = user.id;
       } catch (error) {
         const code = error instanceof AccountError ? error.code : "account_service_unavailable";
+        // No generations left: a structured, stable response the app can explain.
+        if (code === "allowance_exhausted")
+          return Response.json({ error: "You’ve used your available SmileCompose generations.", code: "GENERATION_LIMIT_REACHED", balance: 0 }, { status: 402, headers });
         return Response.json({ ...ACCOUNT_ERRORS[code], code }, { status: ACCOUNT_ERRORS[code].status, headers });
       }
     }

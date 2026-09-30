@@ -105,7 +105,7 @@ input[type="range"] { accent-color: var(--accent); }
 .saved-case-header .icon-button { flex-shrink: 0; color: white; background: #2229; }
 .saved-case-viewer .compare-mode { top: calc(env(safe-area-inset-top, 0px) + 82px); left: max(16px, env(safe-area-inset-left, 0px)); }
 .saved-case-caption { position: absolute; bottom: 0; left: 0; right: 0; padding: 12px 20px calc(env(safe-area-inset-bottom, 0px) + 12px); text-align: center; font-size: 13px; background: linear-gradient(transparent, #000b); pointer-events: none; }
-.saved-case-viewer .compare-label { bottom: calc(env(safe-area-inset-bottom, 0px) + 52px); }
+.saved-case-viewer .compare-label, .saved-case-viewer .guide-key { bottom: calc(env(safe-area-inset-bottom, 0px) + 52px); }
 .clinical-data-fields { display: grid; gap: 12px; }
 .clinical-data-fields label { display: grid; gap: 6px; font-size: 13px; }
 .clinical-data-fields input { width: 100%; min-height: 44px; font-size: 16px; }

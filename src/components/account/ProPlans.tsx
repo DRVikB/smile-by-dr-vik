@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
-import { PRO_FEATURES, SUBSCRIPTION_PRODUCTS, TRIAL_GENERATIONS, type PlanKey } from "@/config/subscriptions";
+import { MONTHLY_ROLLOVER_CAP, PRO_FEATURES, SUBSCRIPTION_PRODUCTS, TRIAL_GENERATIONS, type PlanKey } from "@/config/subscriptions";
 import { isNativeApp } from "@/native/platform";
 import {
   loadPlans, openManageSubscriptions, purchasePlan, purchasesAvailable, redeemOfferCode, restorePurchases, type PlanOffer,
@@ -64,15 +64,25 @@ export function ProPlans({ onPurchased }: { onPurchased?: () => void }) {
 
   const plan = plans?.find(p => p.plan === selected);
 
+  /** What each plan includes, from src/config/subscriptions.ts (annual never described as rolling over). */
+  const planCopy = (key: PlanKey) => key === "monthly"
+    ? { title: "SmileCompose Pro Monthly", allowance: `${SUBSCRIPTION_PRODUCTS.monthly.generationsPerPeriod} smile generations each month`,
+      detail: `Unused generations roll over while your subscription stays active, up to ${MONTHLY_ROLLOVER_CAP}. Cancel anytime.` }
+    : { title: "SmileCompose Pro Annual", allowance: `${SUBSCRIPTION_PRODUCTS.annual.generationsPerPeriod} smile generations each year`,
+      detail: "Use your allowance whenever you need it throughout the year." };
+  const trialCopy = `${TRIAL_GENERATIONS} smile generations during your trial`;
+  const trialNote = "Your plan’s full allowance begins when the trial converts to a paid subscription.";
+
   // The configured UK prices, shown where live App Store prices aren't available (signed out, or the web).
   const staticPlans = (
     <div className="plan-options plan-options-static" aria-label="SmileCompose Pro prices">
       {(Object.keys(SUBSCRIPTION_PRODUCTS) as PlanKey[]).map(key => (
         <div key={key} className="plan-option">
-          <span className="plan-name">{SUBSCRIPTION_PRODUCTS[key].label}</span>
+          <span className="plan-name">{planCopy(key).title}</span>
           <span className="plan-price">{SUBSCRIPTION_PRODUCTS[key].displayPrice}<small> / {SUBSCRIPTION_PRODUCTS[key].period}</small></span>
-          <span className="plan-note plan-trial">3-day free trial</span>
-          <span className="plan-note">{TRIAL_GENERATIONS} smile designs during the trial, then {SUBSCRIPTION_PRODUCTS[key].generationsPerPeriod} per {SUBSCRIPTION_PRODUCTS[key].period}</span>
+          <span className="plan-note plan-allowance">{planCopy(key).allowance}</span>
+          <span className="plan-note">{planCopy(key).detail}</span>
+          <span className="plan-note plan-trial">3-day free trial · {trialCopy}</span>
         </div>
       ))}
     </div>
@@ -89,6 +99,7 @@ export function ProPlans({ onPurchased }: { onPurchased?: () => void }) {
       ) : !user ? (
         <div className="account-stack">
           {staticPlans}
+          <p className="control-hint">{trialNote}</p>
           <button className="primary-button" onClick={() => openAuth("signUp")}>Start your free trial</button>
           <p className="control-hint">Your subscription belongs to your SmileCompose account, so you’ll create one first. UK prices shown; your App Store price appears before you subscribe.</p>
           <p className="paywall-offer">Already have an account? <button type="button" className="text-button" onClick={() => openAuth("signIn")}>Sign in</button></p>
@@ -112,15 +123,16 @@ export function ProPlans({ onPurchased }: { onPurchased?: () => void }) {
               {plans.map(option => (
                 <button key={option.plan} type="button" role="radio" aria-checked={selected === option.plan}
                   className={`plan-option${selected === option.plan ? " selected" : ""}`} onClick={() => setSelected(option.plan)}>
-                  <span className="plan-name">{SUBSCRIPTION_PRODUCTS[option.plan].label}</span>
+                  <span className="plan-name">{planCopy(option.plan).title}</span>
                   <span className="plan-price">{option.priceString}<small> / {option.periodLabel}</small></span>
                   {option.pricePerMonthString && <span className="plan-note">{option.pricePerMonthString} per month</span>}
-                  {option.introductoryOffer && <span className="plan-note plan-trial">{option.introductoryOffer}</span>}
-                  <span className="plan-note">
-                    {option.introductoryOffer?.startsWith("Free")
-                      ? `${TRIAL_GENERATIONS} smile designs during the trial, then ${SUBSCRIPTION_PRODUCTS[option.plan].generationsPerPeriod} per ${option.periodLabel}`
-                      : `${SUBSCRIPTION_PRODUCTS[option.plan].generationsPerPeriod} smile designs per ${option.periodLabel}`}
-                  </span>
+                  <span className="plan-note plan-allowance">{planCopy(option.plan).allowance}</span>
+                  <span className="plan-note">{planCopy(option.plan).detail}</span>
+                  {option.introductoryOffer && (
+                    <span className="plan-note plan-trial">
+                      {option.introductoryOffer}{option.introductoryOffer.startsWith("Free") ? ` · ${trialCopy}` : ""}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -128,9 +140,10 @@ export function ProPlans({ onPurchased }: { onPurchased?: () => void }) {
           <button className="primary-button" disabled={busy || !plan} onClick={() => void subscribe()}>
             {busy ? "Please wait…" : "Subscribe"}
           </button>
+          {plan?.introductoryOffer?.startsWith("Free") && <p className="control-hint">{trialNote}</p>}
           {plan && (
             <p className="control-hint paywall-terms">
-              {plan.introductoryOffer ? `${plan.introductoryOffer} (${TRIAL_GENERATIONS} smile designs), then ` : ""}{plan.priceString} per {plan.periodLabel}. Payment is charged to your Apple ID at confirmation of purchase. The subscription renews automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel any time in your App Store account settings.
+              {plan.introductoryOffer ? `${plan.introductoryOffer} (${trialCopy}), then ` : ""}{plan.priceString} per {plan.periodLabel}. Payment is charged to your Apple ID at confirmation of purchase. The subscription renews automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel any time in your App Store account settings.
             </p>
           )}
           <button className="secondary-button" disabled={busy} onClick={() => void restore()}>Restore Purchases</button>

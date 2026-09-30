@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
 import { ZoomPan } from "./ZoomPan";
+import { GuideKey, GuideLines, useSmileGuides } from "./SmileGuides";
 
 export type CompareMode = "slide" | "overlay";
 
@@ -14,6 +15,7 @@ export function overlayValueText(opacity: number): string {
  * Two ways to compare: a slider that wipes between the photos, or the AI
  * illustration laid translucently over the patient's own teeth. A separate
  * visible opacity control stays usable while the photograph is zoomed.
+ * With `analysis` on, the smile analysis lines are drawn on the photograph.
  */
 export function BeforeAfterSlider({
   original,
@@ -22,6 +24,7 @@ export function BeforeAfterSlider({
   previewLabel = "After · Concept",
   mode: controlledMode,
   onModeChange,
+  analysis = false,
 }: {
   original: string;
   preview: string;
@@ -29,7 +32,10 @@ export function BeforeAfterSlider({
   previewLabel?: string;
   mode?: CompareMode;
   onModeChange?: (mode: CompareMode) => void;
+  analysis?: boolean;
 }) {
+  // Found on the patient's own photo: the face they're measured against.
+  const guides = useSmileGuides(original, analysis);
   const [position, setPosition] = useState(50);
   const [opacity, setOpacity] = useState(50);
   const [localMode, setLocalMode] = useState<CompareMode>("slide");
@@ -45,7 +51,7 @@ export function BeforeAfterSlider({
     if (box?.width) setPosition(Math.round(Math.min(100, Math.max(0, ((clientX - box.left) / box.width) * 100))));
   };
   return (
-    <div ref={root} className={`comparison${overlay ? " comparison-overlay" : ""}`}>
+    <div ref={root} className={`comparison${overlay ? " comparison-overlay" : ""}${guides.status !== "off" ? " has-guides" : ""}`}>
       <img className="photo-backdrop" src={original} alt="" aria-hidden="true" />
       <div className="compare-frame">
         <ZoomPan
@@ -70,6 +76,7 @@ export function BeforeAfterSlider({
                 alt={isMock ? "Demo preview — original photograph unchanged" : "AI illustration overlaid on the original"}
                 style={{ opacity: opacity / 100 }}
               />
+              {guides.status === "ready" && <GuideLines guides={guides.guides} scale={scale} />}
             </>
           ) : (
             <>
@@ -88,11 +95,13 @@ export function BeforeAfterSlider({
                 alt="Original smile"
                 style={{ clipPath: `inset(0 calc(${50 + (50 - position) / scale}% + ${x / scale}px) 0 0)` }}
               />
+              {guides.status === "ready" && <GuideLines guides={guides.guides} scale={scale} />}
             </>
           )}
         </ZoomPan>
       </div>
       <div className="compare-vignette" aria-hidden="true" />
+      <GuideKey state={guides} />
       {!overlay && <><span className="compare-label original-label">Before</span><span className="compare-label preview-label">{previewLabel}</span></>}
       {overlay ? (
         <div className="compare-label overlay-readout overlay-controls" role="group" aria-label="Overlay strength">

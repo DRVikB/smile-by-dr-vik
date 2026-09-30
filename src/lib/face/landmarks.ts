@@ -38,6 +38,11 @@ export function warmFaceModel(): void {
   void load().catch(() => {});
 }
 
+/** Whether the face model is loaded or can be: false offline on first use. */
+export function faceModelAvailable(): Promise<boolean> {
+  return load().then(() => true, () => false);
+}
+
 const cache = new Map<string, Promise<Point[] | null>>();
 
 function loadImage(src: string): Promise<HTMLImageElement> {

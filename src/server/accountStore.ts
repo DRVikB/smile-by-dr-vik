@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { PeriodKind } from "@/config/subscriptions";
 
 /** A failure that the API reports with a stable code. */
 export type AccountErrorCode = "auth_required" | "mfa_required" | "subscription_required" | "allowance_exhausted" | "no_active_allowance"
@@ -82,9 +83,17 @@ export interface CachedSubscription {
 export interface GenerationBalance {
   included: number;
   used: number;
+  /** Generations the account can use now (subscription + complimentary + admin credit). */
   remaining: number;
   purchased: number;
   periodEnd: string | null;
+  /** The current subscription period: its kind, start, balance, rollover and the billing event that granted it. */
+  planKind?: PeriodKind | null;
+  periodStart?: string | null;
+  subscriptionRemaining?: number | null;
+  carriedOver?: number | null;
+  lastEventId?: string | null;
+  lastGrantedAt?: string | null;
 }
 
 export interface PeriodInput {
@@ -95,6 +104,11 @@ export interface PeriodInput {
   start: string;
   end: string;
   allowance: number;
+  /** Subscription periods: trial, monthly or annual, and the most a monthly balance may roll over to. */
+  kind?: PeriodKind;
+  rolloverCap?: number;
+  /** The RevenueCat event that reported the period, when known. */
+  eventId?: string | null;
 }
 
 export interface RevenueCatEventInput {
@@ -106,6 +120,8 @@ export interface RevenueCatEventInput {
   periodStart: string | null;
   periodEnd: string | null;
   allowance: number;
+  kind?: PeriodKind;
+  rolloverCap?: number;
 }
 
 /** Everything the API needs from the database and Supabase Auth. */
@@ -114,6 +130,8 @@ export interface AccountStore {
   activeOverride(userId: string): Promise<{ monthlyAllowance: number; expiresAt: string | null } | null>;
   cachedSubscription(userId: string): Promise<CachedSubscription | null>;
   ensurePeriod(input: PeriodInput): Promise<void>;
+  /** End the subscription allowance when the entitlement has actually expired (idempotent). */
+  expireSubscription(userId: string, expiredAt: string): Promise<void>;
   reserve(userId: string, reservationId: string, caseId: string | null): Promise<{ remaining: number }>;
   commit(reservationId: string, meta: { provider?: string; model?: string; providerRequestId?: string; promptVersion?: string; treatmentType?: string; referenceCaseIds?: string[] }): Promise<void>;
   release(reservationId: string, reason: string): Promise<void>;
@@ -211,10 +229,21 @@ export function createSupabaseAccountStore(url: string, serviceRoleKey: string):
       return data ? { status: data.subscription_status, productId: data.subscription_product_id, expiresAt: data.subscription_expires_at, environment: data.subscription_environment } : null;
     },
     async ensurePeriod(input) {
-      const { error } = await admin.rpc("ensure_allowance_period", {
-        p_user: input.userId, p_source: input.source, p_environment: input.environment, p_product: input.productId,
-        p_start: input.start, p_end: input.end, p_allowance: input.allowance,
-      });
+      // Subscription periods follow the rollover rules (grant_subscription_period); complimentary ones don't.
+      const { error } = input.source === "subscription"
+        ? await admin.rpc("grant_subscription_period", {
+          p_user: input.userId, p_environment: input.environment, p_product: input.productId, p_kind: input.kind ?? "monthly",
+          p_start: input.start, p_end: input.end, p_allowance: input.allowance, p_rollover_cap: input.rolloverCap ?? input.allowance,
+          p_event_id: input.eventId ?? null,
+        })
+        : await admin.rpc("ensure_allowance_period", {
+          p_user: input.userId, p_source: input.source, p_environment: input.environment, p_product: input.productId,
+          p_start: input.start, p_end: input.end, p_allowance: input.allowance,
+        });
+      if (error) rpcError(error);
+    },
+    async expireSubscription(userId, expiredAt) {
+      const { error } = await admin.rpc("expire_subscription", { p_user: userId, p_event_id: null, p_expired_at: expiredAt });
       if (error) rpcError(error);
     },
     async reserve(userId, reservationId, caseId) {
@@ -238,12 +267,17 @@ export function createSupabaseAccountStore(url: string, serviceRoleKey: string):
       const { data, error } = await admin.rpc("generation_balance", { p_user: userId });
       if (error) rpcError(error);
       const row = data?.[0] ?? {};
-      return { included: row.included ?? 0, used: row.used ?? 0, remaining: row.remaining ?? 0, purchased: row.purchased ?? 0, periodEnd: row.period_end ?? null };
+      return {
+        included: row.included ?? 0, used: row.used ?? 0, remaining: row.remaining ?? 0, purchased: row.purchased ?? 0, periodEnd: row.period_end ?? null,
+        planKind: row.plan_kind ?? null, periodStart: row.period_start ?? null, subscriptionRemaining: row.subscription_remaining ?? null,
+        carriedOver: row.carried_over ?? null, lastEventId: row.last_event_id ?? null, lastGrantedAt: row.last_granted_at ?? null,
+      };
     },
     async applyRevenueCatEvent(event) {
       const { data, error } = await admin.rpc("apply_revenuecat_event", {
         p_event_id: event.eventId, p_type: event.type, p_user: event.userId, p_environment: event.environment,
         p_product: event.productId, p_period_start: event.periodStart, p_period_end: event.periodEnd, p_allowance: event.allowance,
+        p_kind: event.kind ?? null, p_rollover_cap: event.rolloverCap ?? null,
       });
       if (error) rpcError(error);
       return String(data);
@@ -282,7 +316,7 @@ export function createSupabaseAccountStore(url: string, serviceRoleKey: string):
         .select("full_name, preferred_name, onboarding_completed_at, created_at, avatar_path").eq("id", userId).maybeSingle();
       if (error) rpcError(error);
       const { data: history, error: historyError } = await admin.from("generation_ledger")
-        .select("id").eq("user_id", userId).in("event_type", ["generation", "monthly_generation"]).limit(1);
+        .select("id").eq("user_id", userId).in("event_type", ["generation", "monthly_generation", "trial_grant", "subscription_activation", "monthly_renewal", "annual_renewal", "plan_change"]).limit(1);
       if (historyError) rpcError(historyError);
       return {
         fullName: data?.full_name ?? null,

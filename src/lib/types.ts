@@ -201,6 +201,8 @@ export interface CaseLogEntry {
   deletedAt?: number;
   /** Starred by the clinician as a version worth keeping or showing. */
   favourite?: boolean;
+  /** What was sent to the patient from this version, newest first: records only, made again on demand. */
+  exports?: import("./consultation").ExportRecord[];
 }
 export interface CaseLogMedia {
   id: string;

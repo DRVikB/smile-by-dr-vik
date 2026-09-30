@@ -1,0 +1,120 @@
+/* ============================================================
+   Share with patient (src/components/share/ShareSheet.tsx)
+   The sheet follows the app's appearance; the thumbnails and the
+   finished exports are always ivory, as the patient receives them.
+   ============================================================ */
+.share-backdrop { z-index: 92; }
+.share-sheet { width: min(640px, 100%); padding: 22px; display: grid; gap: 16px; align-content: start; }
+.share-sheet.is-ready { width: min(760px, 100%); }
+.share-head { display: flex; align-items: flex-start; gap: 12px; }
+.share-titles { flex: 1; min-width: 0; }
+.share-titles h2 { margin: 0; font-family: var(--font-display); font-size: 28px; font-weight: 400; letter-spacing: var(--title-tracking); line-height: 1.12; }
+.share-titles p { margin: 6px 0 0; font-size: 14px; line-height: 1.45; color: var(--text-secondary); }
+.share-back { flex: none; }
+.share-error { margin: 0; padding: 10px 12px; border-radius: 12px; font-size: 13.5px; color: var(--text-primary); background: var(--control-background); border: 1px solid var(--border); }
+
+/* Choose */
+.share-options { display: grid; gap: 12px; }
+.share-option {
+  display: flex; align-items: center; gap: 16px; width: 100%; padding: 12px 14px 12px 12px;
+  border-radius: 20px; border: 1px solid var(--border); background: var(--card); color: var(--text-primary); text-align: left;
+  box-shadow: var(--shadow-sm); transition: transform 200ms var(--ease-soft), border-color 200ms var(--ease-soft);
+}
+.share-option:hover { border-color: var(--border-strong); }
+.share-option:active { transform: scale(.985); }
+.share-option > svg { flex: none; color: var(--text-tertiary); }
+.share-option-text { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.share-option-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-family: var(--font-display); font-size: 21px; line-height: 1.15; }
+.share-option-title em {
+  font-family: var(--font-sans); font-style: normal; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 999px; color: #5a4526; background: color-mix(in srgb, var(--sc-gold, #D4B583) 38%, transparent);
+}
+.share-option-desc { font-size: 14px; line-height: 1.4; color: var(--text-secondary); }
+.share-option-meta { font-size: 12.5px; color: var(--text-tertiary); }
+.share-video { justify-self: center; display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 12px; font-size: 13.5px; color: var(--text-secondary); background: none; }
+
+/* Thumbnails: miniature exports, always light */
+.share-thumb { flex: none; width: 116px; height: 96px; display: grid; place-items: center; border-radius: 14px; background: #EFE9DF; overflow: hidden; }
+.share-thumb.is-preview { padding: 10px; align-content: center; gap: 5px; place-items: stretch; background: #FAF8F4; box-shadow: inset 0 0 0 1px rgba(42,38,34,.08); }
+.share-thumb-photos { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.share-thumb-photos img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 4px; }
+.share-thumb.is-preview .share-thumb-photos img { aspect-ratio: 1 / 1; }
+.share-thumb i { display: block; height: 4px; border-radius: 2px; background: #D9D1C5; }
+.share-thumb i.short { width: 60%; }
+.share-thumb-page { width: 62px; height: 86px; padding: 6px; display: grid; gap: 3px; align-content: start; border-radius: 3px; background: #FAF8F4; box-shadow: 0 4px 12px rgba(42,38,34,.14); }
+.share-thumb-page b { display: block; width: 26px; height: 3px; border-radius: 2px; background: #B08E5A; }
+.share-thumb-page .share-thumb-photos { gap: 2px; margin-bottom: 2px; }
+.share-thumb-page .share-thumb-photos img { border-radius: 2px; }
+.share-thumb-page i { height: 2.5px; }
+
+/* Making */
+.share-making { display: grid; place-items: center; gap: 14px; padding: 56px 0; font-size: 14px; color: var(--text-secondary); }
+.share-spinner { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--sc-gold, #D4B583); animation: share-spin 900ms linear infinite; }
+@keyframes share-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .share-spinner { animation-duration: 3s; } }
+
+/* Ready */
+.share-ready { display: grid; gap: 14px; }
+.share-result { display: grid; justify-items: center; max-height: min(52svh, 560px); overflow-y: auto; padding: 14px; border-radius: 18px; background: #E9E3D9; }
+.share-result img { display: block; max-width: 100%; max-height: min(48svh, 520px); height: auto; border-radius: 6px; box-shadow: 0 10px 28px rgba(42,38,34,.16); }
+.share-result.is-pages { gap: 14px; }
+.share-result.is-pages img { max-height: none; width: min(100%, 440px); }
+.share-primary { width: 100%; min-height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; }
+.share-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.share-actions button {
+  display: grid; justify-items: center; gap: 5px; padding: 11px 4px; border-radius: 16px; min-height: 66px;
+  border: 1px solid var(--border); background: var(--card); color: var(--text-primary); font-size: 12.5px; font-weight: 500;
+}
+.share-actions button:disabled { opacity: .5; }
+.share-status, .share-note { margin: 0; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; color: var(--text-secondary); text-align: center; }
+
+/* Review */
+.share-review { display: grid; gap: 14px; }
+.review-field { display: grid; gap: 7px; }
+.review-field label { font-size: 14px; font-weight: 600; }
+.review-field label span { margin-left: 6px; font-weight: 400; font-size: 12.5px; color: var(--text-tertiary); }
+.review-field small { font-size: 12.5px; color: var(--text-secondary); }
+.review-field input, .review-field textarea, .review-item textarea, .review-title {
+  width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-solid);
+  color: var(--text-primary); font: inherit; line-height: 1.4;
+  /* 16px or more, or iOS zooms the page when a field is focused. */
+  font-size: 16px;
+}
+.review-field textarea, .review-item textarea { resize: vertical; min-height: 58px; }
+.review-group { display: grid; gap: 10px; margin: 0; padding: 14px; border: 1px solid var(--border); border-radius: 18px; background: var(--card); }
+.review-group legend { padding: 0 6px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary); }
+.review-check { display: flex; align-items: flex-start; gap: 10px; font-size: 14.5px; line-height: 1.35; }
+.review-check input[type="checkbox"] { flex: none; width: 19px; height: 19px; margin: 1px 0 0; accent-color: var(--accent); }
+.review-check > span { display: grid; gap: 2px; }
+.review-check small { font-size: 12.5px; color: var(--text-tertiary); }
+.review-check.compact { align-items: center; font-size: 13.5px; }
+.review-item { display: grid; gap: 7px; padding-top: 10px; border-top: 1px solid var(--border); }
+.review-item:first-of-type { border-top: 0; padding-top: 0; }
+.review-item.is-off textarea, .review-item.is-off .review-shade { opacity: .55; }
+.review-title { padding: 6px 10px; font-size: 16px; font-weight: 600; }
+.review-flag { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-style: normal; font-size: 11px; font-weight: 600; color: var(--text-secondary); border: 1px solid var(--border-strong); }
+.review-check > span:has(.review-flag) { display: block; }
+.review-hint { font-size: 12.5px; line-height: 1.4; color: var(--text-tertiary); }
+.review-quiet { margin: 0; font-size: 13.5px; color: var(--text-secondary); }
+.review-shade { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.review-shade .segmented { flex: 1 1 220px; }
+
+@media (max-width: 520px) {
+  .share-sheet { padding: 18px 16px; }
+  .share-titles h2 { font-size: 25px; }
+  .share-thumb { width: 92px; height: 84px; }
+  .share-option { gap: 12px; }
+  .share-option-title { font-size: 19px; }
+}
+
+/* Case detail: what has been sent from this version */
+.log-exports { display: grid; gap: 8px; padding-top: 14px; border-top: 1px solid var(--border); }
+.log-exports h3 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary); }
+.log-exports ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.log-exports li { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
+.log-exports li span { display: grid; gap: 1px; }
+.log-exports li small { font-size: 12.5px; color: var(--text-secondary); }
+
+/* Dark appearance: the badge's text reads light on the gold. */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .share-option-title em { color: #F3E3C5; background: color-mix(in srgb, var(--sc-gold, #D4B583) 30%, transparent); } }
+:root[data-theme="dark"] .share-option-title em { color: #F3E3C5; background: color-mix(in srgb, var(--sc-gold, #D4B583) 30%, transparent); }

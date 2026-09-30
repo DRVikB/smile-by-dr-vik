@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Download,
   Maximize2,
   Pencil,
   Plus,
+  Share2,
   SlidersHorizontal,
   X,
 } from "lucide-react";
@@ -16,28 +16,29 @@ export function PreviewCompactMenu({
   mode,
   onModeChange,
   onConsult,
+  analysisOn = false,
   onAnalysis,
   onReview,
   onAnother,
   onEdit,
-  onSave,
+  onShare,
   onNew,
   anotherCost,
   busy,
-  saving,
 }: {
   mode: CompareMode;
   onModeChange: (mode: CompareMode) => void;
   onConsult: () => void;
+  analysisOn?: boolean;
   onAnalysis: () => void;
   onReview: () => void;
   onAnother: () => void;
   onEdit: () => void;
-  onSave: () => void;
+  /** Share with patient. */
+  onShare: () => void;
   onNew: () => void;
   anotherCost?: string;
   busy: boolean;
-  saving: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -110,9 +111,9 @@ export function PreviewCompactMenu({
                 <Maximize2 size={19} />
                 <span>Consultation view</span>
               </button>
-              <button className="compact-option-row" type="button" onClick={() => choose(onAnalysis)}>
+              <button className="compact-option-row" type="button" aria-pressed={analysisOn} onClick={() => choose(onAnalysis)}>
                 <AnalysisSymbol size={20} />
-                <span>Smile analysis</span>
+                <span>{analysisOn ? "Hide smile analysis" : "Show smile analysis"}</span>
               </button>
             </div>
             <div className="compact-options-group">
@@ -136,9 +137,9 @@ export function PreviewCompactMenu({
             </div>
           </div>
         )}
-        <button className="compact-dock-save" type="button" disabled={busy || saving} onClick={onSave}>
-          <Download size={19} strokeWidth={1.7} />
-          {saving ? "Saving…" : "Save Image"}
+        <button className="compact-dock-save" type="button" disabled={busy} onClick={() => choose(onShare)}>
+          <Share2 size={19} strokeWidth={1.7} />
+          Share
         </button>
         <button
           ref={optionsButton}

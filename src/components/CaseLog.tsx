@@ -1,15 +1,15 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, Check, ChevronLeft, ChevronRight, Download, Pencil, ScanEye, Search, Star, Trash2, X } from "lucide-react";
+import { Archive, Check, ChevronLeft, ChevronRight, Pencil, ScanEye, Search, Share2, Star, Trash2, X } from "lucide-react";
 import { AnalysisSymbol, IconTile, SmileSymbol } from "@/components/icons/SmileIcons";
 import { SavedCaseViewer } from "./SavedCaseViewer";
-import { SmileAnalysisPanel } from "./SmileAnalysis";
+import { ShareSheet } from "./share/ShareSheet";
+import { EXPORT_NAMES, type ExportKind, type ReportDraft } from "@/lib/consultation";
 import type { CaseLogEntry, CaseLogMedia } from "@/lib/types";
 import {
   CASE_REFERENCE_MAX,
   formatLogDate,
   listActiveLog,
-  logFileName,
   matchesQuery,
   moveAllToRecentlyDeleted,
   moveToRecentlyDeleted,
@@ -65,8 +65,10 @@ export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; init
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmCase, setConfirmCase] = useState(false);
   const [error, setError] = useState("");
-  const [viewing, setViewing] = useState(false);
-  const [analysing, setAnalysing] = useState(false);
+  // The saved comparison, opened plain or with the smile analysis lines on.
+  const [viewing, setViewing] = useState<false | "compare" | "analysis">(false);
+  // Share with patient from this saved version; `kind` reopens an earlier export.
+  const [sharing, setSharing] = useState<null | { kind?: ExportKind; draft?: ReportDraft }>(null);
   const [mediaError, setMediaError] = useState(false);
   const [notice, setNotice] = useState("");
   const [openedInitial, setOpenedInitial] = useState(false);
@@ -173,20 +175,15 @@ export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; init
     }
   }
 
-  async function saveEntry(entry: CaseLogEntry, media: CaseLogMedia) {
-    try {
-      const [{ composeBeforeAfter }, { saveFile }] = await Promise.all([import("@/lib/compose"), import("@/lib/share")]);
-      const blob = await composeBeforeAfter(
-        media.originalImage,
-        media.image,
-        "split",
-        { image: media.image, mode: entry.mode, variationId: entry.id, review: media.review, scaleFlag: media.scaleFlag },
-        media.preferences,
-        Boolean(entry.testMode),
-      );
-      await saveFile(blob, `smilecompose-${logFileName(entry)}.jpg`, "SmileCompose before and after");
-    } catch {
-      setError("That image couldn’t be saved.");
+  /** After sharing, pick up the export just recorded against this version. */
+  async function closeSharing() {
+    setSharing(null);
+    const id = open?.entry.id;
+    if (!id) return;
+    const fresh = await listActiveLog().then(list => list.find(e => e.id === id)).catch(() => undefined);
+    if (fresh) {
+      setOpen(cur => (cur && cur.entry.id === id ? { ...cur, entry: fresh } : cur));
+      setEntries(list => list?.map(e => (e.id === id ? fresh : e)) ?? list);
     }
   }
 
@@ -428,16 +425,16 @@ export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; init
               <p className="log-empty">{mediaError ? "The saved images are unavailable on this device." : "Loading images…"}</p>
             )}
             <div className="log-detail-actions">
-              <button className="primary-button" disabled={!open.media} onClick={() => setViewing(true)}>
+              <button className="primary-button" disabled={!open.media} onClick={() => setViewing("compare")}>
                 <ScanEye size={18} /> Reopen comparison
               </button>
-              <button className="secondary-button" disabled={!open.media} onClick={() => setAnalysing(true)}>
+              <button className="secondary-button" disabled={!open.media} onClick={() => setViewing("analysis")}>
                 <AnalysisSymbol size={18} />
                 Smile analysis
               </button>
-              <button className="secondary-button" disabled={!open.media} onClick={() => open.media && void saveEntry(open.entry, open.media)}>
-                <Download size={16} strokeWidth={1.6} />
-                Save before &amp; after
+              <button className="secondary-button" disabled={!open.media} onClick={() => setSharing({})}>
+                <Share2 size={16} strokeWidth={1.6} />
+                Share with patient
               </button>
               <button className="text-button" onClick={() => void archiveVersion(open.entry.id)}>
                 <Archive size={15} strokeWidth={1.6} />
@@ -448,18 +445,37 @@ export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; init
                 Delete version
               </button>
             </div>
+            {open.entry.exports && open.entry.exports.length > 0 && (
+              <section className="log-exports" aria-label="Shared with patient">
+                <h3>Shared with patient</h3>
+                <ul>
+                  {open.entry.exports.map(record => (
+                    <li key={record.createdAt}>
+                      <span><strong>{EXPORT_NAMES[record.kind]}</strong><small>{formatLogDate(record.createdAt)}</small></span>
+                      <button type="button" className="text-button" disabled={!open.media} onClick={() => setSharing({ kind: record.kind, draft: record.draft })}>Open</button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           </div>
         </div>
       )}
-      {viewing && open?.media && <SavedCaseViewer entry={open.entry} media={open.media} onClose={() => setViewing(false)} />}
-      {analysing && open?.media && (
-        <div className="sheet-backdrop analysis-backdrop saved-analysis" role="dialog" aria-modal="true" aria-label="Smile analysis" onClick={() => setAnalysing(false)}>
-          <div className="sheet analysis-sheet" onClick={(e) => e.stopPropagation()}>
-            <SmileAnalysisPanel before={open.media.originalImage} after={open.media.image}
-              isDemo={Boolean(open.entry.testMode) || open.entry.mode === "mock"} patientName={open.entry.patientName}
-              onClose={() => setAnalysing(false)} />
-          </div>
-        </div>
+      {viewing && open?.media && <SavedCaseViewer entry={open.entry} media={open.media} analysis={viewing === "analysis"} onClose={() => setViewing(false)} />}
+      {sharing && open?.media && (
+        <ShareSheet
+          input={{
+            before: open.media.originalImage,
+            after: open.media.image,
+            settings: open.media.preferences?.settings,
+            referenceUsed: open.media.preferences?.referenceUsed,
+            isDemo: Boolean(open.entry.testMode) || open.entry.mode === "mock",
+            patientLabel: open.entry.patientName,
+          }}
+          entryId={open.entry.id}
+          initial={sharing.kind ? { kind: sharing.kind, draft: sharing.draft } : undefined}
+          onClose={() => void closeSharing()}
+        />
       )}
     </div>
   );

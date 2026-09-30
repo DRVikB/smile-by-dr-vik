@@ -27,6 +27,7 @@ function fakeStore(overrides: Partial<AccountStore> = {}) {
     activeOverride: async () => null,
     cachedSubscription: async () => null,
     ensurePeriod: async input => { calls.push(`period:${input.source}:${input.allowance}`); },
+    expireSubscription: async (_u, at) => { calls.push(`expire:${at}`); },
     reserve: async (_u, id) => { calls.push(`reserve:${id}`); return { remaining: 4 }; },
     commit: async id => { calls.push(`commit:${id}`); },
     release: async (id, reason) => { calls.push(`release:${id}:${reason}`); },
@@ -139,8 +140,11 @@ test("an exhausted allowance is refused before the provider is called", async ()
   stubProvider();
   const { store } = fakeStore({ reserve: async () => { throw new AccountError("allowance_exhausted"); } });
   const response = await handleGenerationRequest(generationRequest("good-token"), liveEnv, async () => true, services(store));
-  assert.equal(response.status, 429);
-  assert.equal((await response.json()).code, "allowance_exhausted");
+  assert.equal(response.status, 402);
+  const body = await response.json();
+  assert.equal(body.code, "GENERATION_LIMIT_REACHED");
+  assert.equal(body.balance, 0);
+  assert.equal(body.error, "You’ve used your available SmileCompose generations.");
   assert.equal(providerCalls, 0);
 });
 

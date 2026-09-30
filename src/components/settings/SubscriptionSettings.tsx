@@ -1,19 +1,21 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useAccount } from "@/components/account/AccountProvider";
-import { SUBSCRIPTION_PRODUCTS, planForProduct } from "@/config/subscriptions";
+import { planForProduct } from "@/config/subscriptions";
+import { describeAllowance, entitlementOf } from "@/lib/allowance";
 import { isNativeApp } from "@/native/platform";
 import { openManageSubscriptions, purchasesAvailable, redeemOfferCode, restorePurchases } from "@/services/purchases/purchases";
 import { Group, Row, UsageBar, formatBytes, formatDate, useSettingsNav } from "./settingsParts";
 
 /**
- * Subscription & Usage. Entitlement comes from the server's RevenueCat check
- * (plus complimentary overrides); usage from the allowance ledger; storage from
- * server-side accounting. Nothing here is calculated from editable fields.
+ * Subscription. The plan, status, balance and renewal all come from the
+ * server's generation entitlement (RevenueCat plus complimentary overrides and
+ * the allowance ledger); storage from server-side accounting. Nothing here is
+ * calculated from editable fields.
  */
 export function SubscriptionSection() {
   const account = useAccount();
-  const { configured, user, status, statusState, customerInfo, hasProAccess } = account;
+  const { configured, user, status, statusState, customerInfo } = account;
   const nav = useSettingsNav();
   const [deviceBytes, setDeviceBytes] = useState<number | null>(null);
   const native = isNativeApp();
@@ -24,35 +26,41 @@ export function SubscriptionSection() {
 
   if (!configured) {
     return (
-      <Group id="settings-subscription" title="Subscription & usage">
+      <Group id="settings-subscription" title="Subscription">
         <Row label="SmileCompose Pro" value="Not available" detail="Subscriptions aren’t enabled in this version of SmileCompose." />
       </Group>
     );
   }
   if (!user) {
     return (
-      <Group id="settings-subscription" title="Subscription & usage" footer="Your subscription and generations belong to your SmileCompose account.">
+      <Group id="settings-subscription" title="Subscription" footer="Your subscription and generations belong to your SmileCompose account.">
         <Row label="Sign in to see your subscription" onClick={() => account.openAuth("signIn")} />
       </Group>
     );
   }
 
-  const subscription = status?.subscription ?? null;
-  const plan = planForProduct(subscription?.productId);
-  const complimentary = hasProAccess && status?.source === "override";
-  const expired = !hasProAccess && Boolean(subscription?.expiresAt);
-  const planName = complimentary ? "Complimentary access" : plan ? `${SUBSCRIPTION_PRODUCTS[plan].label} plan` : null;
-  const state = !status
+  // One entitlement from the server: plan, status, balance and renewal (display only).
+  const entitlement = status ? entitlementOf(status) : null;
+  const allowance = entitlement ? describeAllowance(entitlement) : null;
+  const plan = entitlement?.plan ?? null;
+  const planName = !entitlement ? null
+    : plan === "complimentary" ? "Complimentary access"
+      : plan === "trial" ? `SmileCompose Pro ${planForProduct(status?.subscription?.productId) === "annual" ? "Annual" : "Monthly"} · free trial`
+        : plan ? `SmileCompose Pro ${plan === "annual" ? "Annual" : "Monthly"}`
+          : "Not subscribed";
+  const end = entitlement?.periodEnd ?? null;
+  const statusLine = !entitlement
     ? (statusState === "failed" ? "Unavailable offline" : "Checking…")
-    : subscription?.active
-      ? subscription.billingIssue ? "Payment problem — update your payment method in App Store settings"
-        : subscription.trial ? (subscription.willRenew ? `Free trial — paid plan starts ${formatDate(subscription.expiresAt)}` : `Free trial ends ${formatDate(subscription.expiresAt)}`)
-        : subscription.willRenew ? `Renews ${formatDate(subscription.expiresAt)}` : `Ends ${formatDate(subscription.expiresAt)} (renewal cancelled)`
-      : complimentary ? (status.overrideExpiresAt ? `Until ${formatDate(status.overrideExpiresAt)}` : "No end date")
-        : expired ? `Expired ${formatDate(subscription?.expiresAt)}` : "Not subscribed";
-  const generations = status?.generations;
-  // The server's "remaining" includes purchased credits; the plan allowance is shown on its own.
-  const includedRemaining = generations ? Math.max(0, generations.included - generations.used) : 0;
+    : ({
+      active: "Active",
+      trial: end ? `Free trial until ${formatDate(end)}` : "Free trial",
+      cancelling: end ? `Cancels on ${formatDate(end)}` : "Cancelled",
+      billing_issue: "Payment problem — update your payment method in App Store settings",
+      complimentary: status?.overrideExpiresAt ? `Until ${formatDate(status.overrideExpiresAt)}` : "No end date",
+      expired: status?.subscription?.expiresAt ? `Expired ${formatDate(status.subscription.expiresAt)}` : "Expired",
+      none: "Not subscribed",
+    } as const)[entitlement.subscriptionStatus];
+  const inactive = entitlement ? entitlement.subscriptionStatus === "expired" || entitlement.subscriptionStatus === "none" : false;
   const storage = status?.storage;
   const offline = !nav.online || statusState === "failed";
 
@@ -67,35 +75,39 @@ export function SubscriptionSection() {
 
   return (
     <>
-      <Group id="settings-subscription" title="Subscription & usage"
-        footer={offline ? "Some account information requires an internet connection." : subscription?.environment === "sandbox" ? "App Store sandbox (testing) purchase." : undefined}>
-        <div className="settings-plan">
-          <p className="settings-plan-name">SmileCompose Pro{expired ? <span className="settings-plan-flag">Expired</span> : !hasProAccess && status ? <span className="settings-plan-flag muted">Inactive</span> : null}</p>
-          {planName && <p className="settings-plan-detail">{planName}</p>}
-          <p className="settings-plan-detail">{state}</p>
-          {status && !hasProAccess && (
-            <button className="primary-button" onClick={account.openPaywall}>{expired ? "Reactivate SmileCompose Pro" : "See SmileCompose Pro"}</button>
-          )}
-          {expired && <p className="control-hint">Your saved cases stay on this device and remain available.</p>}
-        </div>
-      </Group>
-
-      <Group id="settings-usage" title="Generations">
-        {generations && (generations.included > 0 || generations.purchased > 0) ? (
+      <Group id="settings-subscription" title="Subscription"
+        footer={offline ? "Some account information requires an internet connection." : status?.subscription?.environment === "sandbox" ? "App Store sandbox (testing) purchase." : undefined}>
+        <Row label="Plan" value={planName ?? "—"} />
+        <Row label="Status" value={statusLine} />
+        {entitlement && !inactive && (
           <>
-            {generations.included > 0 && (
-              <div className="settings-usage">
-                <p><strong>{includedRemaining}</strong> of {generations.included} remaining</p>
-                <UsageBar value={includedRemaining} max={generations.included} label="Included generations remaining" />
-                {generations.periodEnd && <p className="settings-usage-note">Resets {formatDate(generations.periodEnd)}</p>}
-              </div>
-            )}
-            {generations.purchased > 0 && <Row label="Purchased generations" value={`${generations.purchased} remaining`} detail="Kept separately from your plan’s allowance." />}
+            <Row label="Generations remaining" value={<strong className="settings-balance">{entitlement.balance}</strong>}
+              detail={allowance?.level === "empty" ? [allowance.announcement, allowance.emptyDetail].filter(Boolean).join(" ") : undefined} />
+            {entitlement.subscriptionStatus === "active" && end && <Row label="Next renewal" value={formatDate(end)} />}
+            {entitlement.subscriptionStatus === "trial" && end && <Row label="Paid plan starts" value={formatDate(end)} detail="Your plan’s allowance begins once your trial converts." />}
+            {plan === "monthly" && entitlement.rolloverCap && <Row label="Rollover" value={`Up to ${entitlement.rolloverCap}`} detail={`Unused generations roll over up to ${entitlement.rolloverCap} while your subscription remains active.`} />}
+            {plan === "annual" && entitlement.allowance && <Row label="Allowance" value={`${entitlement.allowance} a year`} detail={`${entitlement.allowance} generations per annual billing period. Unused generations don’t carry into the next year.`} />}
+            {plan === "trial" && entitlement.allowance && <Row label="Allowance" value={`${entitlement.allowance} in your trial`} detail="Trial generations don’t carry over or add to your paid allowance." />}
           </>
-        ) : (
-          <Row label="Generations" value={status ? "None available" : "—"} detail={status ? "SmileCompose Pro includes an allowance for each billing period. Failed generations aren’t counted." : undefined} />
+        )}
+        {status && inactive && (
+          <div className="settings-plan">
+            <button className="primary-button" onClick={account.openPaywall}>{entitlement?.subscriptionStatus === "expired" ? "Reactivate SmileCompose Pro" : "See SmileCompose Pro"}</button>
+            {entitlement?.subscriptionStatus === "expired" && <p className="control-hint">Your saved cases stay on this device and remain available.</p>}
+          </div>
         )}
       </Group>
+
+      {process.env.NODE_ENV === "development" && entitlement?.debug && (
+        <Group id="settings-entitlement-debug" title="Entitlement (development only)">
+          <Row label="Plan · status" value={`${entitlement.plan ?? "none"} · ${entitlement.subscriptionStatus}`} />
+          <Row label="Balance · can generate" value={`${entitlement.balance} · ${entitlement.canGenerate ? "yes" : "no"}`} />
+          <Row label="Billing period" value={`${entitlement.periodStart ? formatDate(entitlement.periodStart) : "—"} → ${end ? formatDate(end) : "—"}`} />
+          <Row label="Carried over" value={String(entitlement.debug.carriedOver ?? "—")} />
+          <Row label="Last allowance event" value={entitlement.debug.lastAllowanceEventId ?? "live check"} detail={entitlement.debug.lastAllowanceGrantedAt ? `Granted ${new Date(entitlement.debug.lastAllowanceGrantedAt).toLocaleString("en-GB")}` : undefined} />
+          <Row label="Verified with" value={`${entitlement.debug.verifiedWith} · ${entitlement.debug.environment ?? "—"}`} />
+        </Group>
+      )}
 
       <Group id="settings-storage" title="Storage">
         {storage && storage.limitBytes ? (
