@@ -2104,21 +2104,6 @@ button.option-card:hover {
 }
 .splash-primary:active, .splash-outline:active { transform: scale(0.985); }
 .splash-outline:hover { background: rgba(255, 255, 255, 0.08); }
-.splash-quiet {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  align-self: flex-start;
-  margin-top: 6px;
-  padding: 6px 2px;
-  font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.55);
-}
-.splash-quiet span {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.36);
-}
-.splash-quiet:disabled { opacity: 0.6; }
 .splash-tagline {
   margin: 0;
   font-size: 10.5px;

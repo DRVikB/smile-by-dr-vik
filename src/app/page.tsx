@@ -8,7 +8,6 @@ import {
   Maximize2,
   Minus,
   MoveHorizontal,
-  Play,
   Plus,
   Redo2,
   RotateCcw,
@@ -16,7 +15,7 @@ import {
   Undo2,
   X,
 } from "lucide-react";
-import { AnalysisSymbol, CasesSymbol, IconTile } from "@/components/icons/SmileIcons";
+import { AnalysisSymbol, CasesSymbol, IconTile, LibrarySymbol } from "@/components/icons/SmileIcons";
 import { BrandLaunch, BrandLockup, CreatorSignature } from "@/components/Brand";
 import { AppShell } from "@/components/AppShell";
 import { FloatingPanel } from "@/components/FloatingPanel";
@@ -1044,22 +1043,17 @@ export default function Smile() {
                   >
                     New Smile Design <ArrowRight size={17} strokeWidth={1.8} />
                   </button>
-                  <button
-                    className="splash-outline"
-                    onClick={() => setLogOpen(true)}
-                  >
-                    <CasesSymbol size={18} />
-                    Cases
-                  </button>
-                  <button
-                    className="splash-quiet"
-                    onClick={() => void openTestMode()}
-                    disabled={sampleBusy}
-                  >
-                    <Play size={12} fill="currentColor" strokeWidth={1.7} />
-                    {sampleBusy ? "Opening…" : "Explore a sample case"}
-                    <span>no AI credits</span>
-                  </button>
+                  {/* Your patients' cases, and your Case Library of finished work, side by side. */}
+                  <div className="splash-pair">
+                    <button className="splash-outline" onClick={() => setLogOpen(true)}>
+                      <CasesSymbol size={18} />
+                      Cases
+                    </button>
+                    <button className="splash-outline" onClick={() => caseLibrary.open()}>
+                      <LibrarySymbol size={18} />
+                      Case Library
+                    </button>
+                  </div>
                 </div>
                 <AllowancePill className="on-photo" />
                 <RecentCases refreshKey={logOpen} onOpen={id => { setLogEntry(id); setLogOpen(true); }} onSeeAll={() => { setLogEntry(undefined); setLogOpen(true); }} />
