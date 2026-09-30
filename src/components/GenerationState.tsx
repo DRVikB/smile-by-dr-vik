@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BrandLockup, SmileMark } from "./Brand";
+import { SmileMark } from "./Brand";
+import { CenteredBrandHeader } from "./ui/Surface";
 import { SMILECOMPOSE } from "@/lib/brand";
 import { Check, X } from "lucide-react";
 
@@ -57,15 +58,18 @@ export function GenerationState({
     >
       <img className="photo-backdrop generation-backdrop" src={photo} alt="" aria-hidden="true" />
       <img className="generation-splash-image" src={photo} alt="" aria-hidden="true" />
-      <header className="generation-splash-header">
-        <BrandLockup inverse />
-        <div className="generation-splash-actions">
-          <button ref={cancelButton} type="button" onClick={onCancel}>
-            <X size={17} strokeWidth={1.8} />
-            <span>Cancel</span>
-          </button>
-        </div>
-      </header>
+      <CenteredBrandHeader
+        className="generation-splash-header"
+        inverse
+        right={
+          <div className="generation-splash-actions">
+            <button ref={cancelButton} type="button" onClick={onCancel}>
+              <X size={17} strokeWidth={1.8} />
+              <span>Cancel</span>
+            </button>
+          </div>
+        }
+      />
 
       <div className="generation-splash-content">
         <div className="generation-splash-copy">

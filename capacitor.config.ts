@@ -12,12 +12,12 @@ const config: CapacitorConfig = {
   webDir: "dist/native",
   // Native views use dynamic Light/Dark colours (SmileComposeColors in the
   // bridge view controller); these are only the pre-load fallback.
-  backgroundColor: "#FAF9F6",
+  backgroundColor: "#FFFFFF",
   ios: {
     // The web layout handles notch, Dynamic Island and Home Indicator itself
     // with env(safe-area-inset-*) and viewport-fit=cover.
     contentInset: "never",
-    backgroundColor: "#FAF9F6",
+    backgroundColor: "#FFFFFF",
     // Report as an iPad rather than desktop Safari, so touch layouts apply.
     preferredContentMode: "mobile",
   },

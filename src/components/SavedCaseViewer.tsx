@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { BeforeAfterSlider } from "./BeforeAfterSlider";
-import { BrandLockup } from "./Brand";
+import { CenteredBrandHeader } from "./ui/Surface";
 import { AnalysisSymbol } from "@/components/icons/SmileIcons";
 import type { CaseLogEntry, CaseLogMedia } from "@/lib/types";
 
@@ -19,13 +19,12 @@ export function SavedCaseViewer({ entry, media, analysis: startWithAnalysis = fa
     return () => el?.close();
   }, []);
   return <dialog ref={dialog} className="saved-case-viewer" aria-label={`Saved comparison: ${entry.patientName || "Unnamed"}`} onClick={e => e.stopPropagation()} onCancel={e => { e.preventDefault(); onClose(); }}>
-    <header className="saved-case-header">
-      <BrandLockup inverse />
-      <span className="saved-case-actions">
-        <button className="analysis-chip saved-analysis-chip" aria-pressed={analysis} onClick={() => setAnalysis(v => !v)}><AnalysisSymbol size={18} />Smile analysis</button>
-        <button className="icon-button" onClick={onClose} aria-label="Close saved comparison"><X size={22} /></button>
-      </span>
-    </header>
+    <CenteredBrandHeader
+      className="saved-case-header"
+      inverse
+      right={<button className="icon-button" onClick={onClose} aria-label="Close saved comparison"><X size={22} /></button>}
+    />
+    <button className="analysis-chip saved-analysis-chip" aria-pressed={analysis} onClick={() => setAnalysis(v => !v)}><AnalysisSymbol size={18} />Smile analysis</button>
     <BeforeAfterSlider original={media.originalImage} preview={media.image} isMock={entry.mode === "mock"}
       previewLabel={isDemo ? "Demo preview" : "Saved · AI concept"} analysis={analysis} />
     <footer className="saved-case-caption">{entry.patientName || "Saved case"} · {entry.label || "Before & after"}</footer>

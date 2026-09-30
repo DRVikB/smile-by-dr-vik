@@ -83,10 +83,11 @@ class SmileComposeBridgeViewController: CAPBridgeViewController {
 
 /// SmileCompose surface colours for native views (matches src/app/theme.css).
 enum SmileComposeColors {
+    /// The page canvas: white in Light, near-black in Dark (--background).
     static let background = UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0x14 / 255, green: 0x13 / 255, blue: 0x12 / 255, alpha: 1)
-            : UIColor(red: 0xFA / 255, green: 0xF9 / 255, blue: 0xF6 / 255, alpha: 1)
+            ? UIColor(red: 0x0D / 255, green: 0x0E / 255, blue: 0x0F / 255, alpha: 1)
+            : UIColor.white
     }
     static let text = UIColor { traits in
         traits.userInterfaceStyle == .dark

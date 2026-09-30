@@ -21,9 +21,9 @@
 
   --mat-surface: var(--surface-solid);
   --mat-menu: #FFFFFF;
-  --mat-edge: 0 0 0 .5px rgba(0, 0, 0, .06);
-  --mat-float: 0 10px 30px -8px rgba(60, 40, 20, .18), 0 2px 6px rgba(60, 40, 20, .05);
-  --mat-float-lg: 0 24px 60px -16px rgba(40, 28, 16, .28), 0 4px 12px rgba(40, 28, 16, .06);
+  --mat-edge: 0 0 0 1px var(--card-border);
+  --mat-float: var(--shadow);
+  --mat-float-lg: var(--shadow-lg);
 
   --overlay: rgba(22, 18, 14, .46);
   --overlay-strong: rgba(22, 18, 14, .74);
@@ -31,10 +31,10 @@
 }
 :root[data-theme="dark"] {
   --mat-surface: var(--surface-solid);
-  --mat-menu: #282522;
-  --mat-edge: 0 0 0 .5px rgba(255, 255, 255, .08);
-  --mat-float: 0 12px 34px -8px rgba(0, 0, 0, .7), 0 2px 8px rgba(0, 0, 0, .4);
-  --mat-float-lg: 0 28px 70px -16px rgba(0, 0, 0, .8), 0 4px 14px rgba(0, 0, 0, .45);
+  --mat-menu: #1C1D1F;
+  --mat-edge: 0 0 0 1px var(--card-border);
+  --mat-float: var(--shadow);
+  --mat-float-lg: var(--shadow-lg);
 }
 
 /* ---------- overlay: controls over photographs ---------- */

@@ -20,7 +20,7 @@
 .start-screen .splash-tagline { width: 100%; text-align: center; }
 .splash-rule { background: var(--sc-gold); }
 .app-header { background: var(--toolbar-background); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); }
-.sc-launch { position: fixed; z-index: 1000; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 24px; background: var(--background); color: var(--text-primary); }
+.sc-launch { position: fixed; z-index: 1000; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 24px; background: var(--launch-background); color: var(--text-primary); }
 /* Same layout as the native launch screen (ios/App/App/Base.lproj/LaunchScreen.storyboard): bronze artwork reads in Light and Dark. */
 .sc-launch { gap: 0; padding-bottom: 16px; }
 .sc-launch-symbol { width: 96px; height: 96px; margin-bottom: 24px; } /* the app icon, rounded in the artwork */

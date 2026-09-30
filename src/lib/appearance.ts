@@ -13,7 +13,7 @@ export type ResolvedTheme = "light" | "dark";
 
 export const APPEARANCE_KEY = "smile.appearance";
 export const APPEARANCE_EVENT = "smile-appearance";
-export const THEME_COLORS: Record<ResolvedTheme, string> = { light: "#FAF7F2", dark: "#141312" };
+export const THEME_COLORS: Record<ResolvedTheme, string> = { light: "#FFFFFF", dark: "#0D0E0F" };
 
 export function isAppearancePreference(value: unknown): value is AppearancePreference {
   return value === "system" || value === "light" || value === "dark";

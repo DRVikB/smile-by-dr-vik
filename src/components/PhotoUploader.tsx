@@ -94,6 +94,8 @@ export function PhotoUploader({
   const [error, setError] = useState("");
   const pending = useRef(false);
   const mounted = useRef(false);
+  // Confirmed earlier for this case: the statement has done its job, so the page leads with the photo sources.
+  const [confirmedBefore] = useState(authorityConfirmed);
   // Resolved after mount: the page is prerendered, so render the web UI first.
   const [native, setNative] = useState(false);
   useEffect(() => {
@@ -207,17 +209,19 @@ export function PhotoUploader({
         </>
       ) : (
         <>
-          <header className="photo-start-head">
+          <header className="photo-start-head sr-only">
             <h1 className="photo-heading">Let’s get started.</h1>
             <p className="photo-sub">Add a patient photo to begin the smile design.</p>
           </header>
 
           <div className={`upload-authority${authorityConfirmed ? " confirmed" : ""}`}>
-            <label className="ai-consent-check">
-              <span className="photo-row-icon" aria-hidden="true"><ShieldCheck size={18} strokeWidth={1.7} /></span>
-              <span>{UPLOAD_AUTHORITY_TEXT}</span>
-              <input type="checkbox" checked={authorityConfirmed} disabled={authorityConfirmed} onChange={e => { if (e.target.checked) onConfirmAuthority(); }} />
-            </label>
+            {!(authorityConfirmed && confirmedBefore) && (
+              <label className="ai-consent-check">
+                <span className="photo-row-icon" aria-hidden="true"><ShieldCheck size={18} strokeWidth={1.7} /></span>
+                <span>{UPLOAD_AUTHORITY_TEXT}</span>
+                <input type="checkbox" checked={authorityConfirmed} disabled={authorityConfirmed} onChange={e => { if (e.target.checked) onConfirmAuthority(); }} />
+              </label>
+            )}
             <p className="control-hint">
               Patient media is processed to create your SmileCompose visualisation.{" "}
               <button type="button" className="inline-link" onClick={onLearnMore}>Learn more</button>
@@ -225,7 +229,7 @@ export function PhotoUploader({
           </div>
 
           <div className="photo-options">
-            <button type="button" className="photo-option" onClick={onCamera} disabled={busy || !authorityConfirmed}>
+            <button type="button" className="photo-option photo-option-hero" onClick={onCamera} disabled={busy || !authorityConfirmed}>
               <IconTile icon={CaptureSymbol} />
               <span className="photo-option-text">
                 <strong>Take a photo</strong>
@@ -249,7 +253,7 @@ export function PhotoUploader({
               <span className="photo-option-go" aria-hidden="true"><ChevronRight size={20} strokeWidth={1.7} /></span>
             </button>
 
-            <button type="button" className="photo-option" onClick={choose} disabled={busy || !authorityConfirmed}>
+            <button type="button" className="photo-option photo-option-secondary" onClick={choose} disabled={busy || !authorityConfirmed}>
               <IconTile icon={PhotosSymbol} />
               <span className="photo-option-text">
                 <strong>{native ? "Choose from photos" : "Upload a photo"}</strong>
@@ -271,6 +275,7 @@ export function PhotoUploader({
             </button>
           )}
 
+          {onSample && <div className="sc-or" role="separator" aria-label="or">OR</div>}
           {onSample && (
             <button type="button" className="photo-sample" onClick={onSample} disabled={sampleBusy}>
               <span className="photo-row-icon" aria-hidden="true"><CasesSymbol size={18} /></span>

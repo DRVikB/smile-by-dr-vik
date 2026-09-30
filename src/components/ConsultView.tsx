@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Play, X } from "lucide-react";
 import { CompareSymbol } from "@/components/icons/SmileIcons";
-import { BrandLockup } from "./Brand";
+import { CenteredBrandHeader } from "./ui/Surface";
 import { designCredit } from "@/lib/brand";
 import { ZoomPan } from "./ZoomPan";
 
@@ -83,37 +83,43 @@ export function ConsultView({
       </div>
       <div className="consult-vignette" aria-hidden="true" />
 
-      <div className="consult-top">
-        <BrandLockup inverse />
-        <div className="consult-top-actions" onPointerDown={(e) => e.stopPropagation()}>
-          {revealing ? (
-            <button className="consult-close" onClick={skip}>
-              Skip
-            </button>
-          ) : (
-            <>
-              <div className="consult-extra-actions">
-                <button className="consult-close" onClick={() => setPhase("before")}>
-                  <Play size={13} fill="currentColor" strokeWidth={1.7} /> Replay
-                </button>
-                <button className="consult-close" onClick={onPresent}>
-                  <CompareSymbol size={16} /> Before &amp; after
-                </button>
-              </div>
-              <details className="consult-compact-options">
-                <summary>Options</summary>
-                <div>
-                  <button type="button" onClick={() => setPhase("before")}>Replay reveal</button>
-                  <button type="button" onClick={onPresent}>Before &amp; after</button>
-                </div>
-              </details>
-            </>
-          )}
-          <button className="consult-close" onClick={onClose}>
+      <CenteredBrandHeader
+        as="div"
+        className="consult-top"
+        inverse
+        left={
+          <button className="consult-close" onClick={onClose} onPointerDown={(e) => e.stopPropagation()}>
             <X size={15} /> Close
           </button>
-        </div>
-      </div>
+        }
+        right={
+          <div className="consult-top-actions" onPointerDown={(e) => e.stopPropagation()}>
+            {revealing ? (
+              <button className="consult-close" onClick={skip}>
+                Skip
+              </button>
+            ) : (
+              <>
+                <div className="consult-extra-actions">
+                  <button className="consult-close" onClick={() => setPhase("before")}>
+                    <Play size={13} fill="currentColor" strokeWidth={1.7} /> Replay
+                  </button>
+                  <button className="consult-close" onClick={onPresent}>
+                    <CompareSymbol size={16} /> Before &amp; after
+                  </button>
+                </div>
+                <details className="consult-compact-options">
+                  <summary>Options</summary>
+                  <div>
+                    <button type="button" onClick={() => setPhase("before")}>Replay reveal</button>
+                    <button type="button" onClick={onPresent}>Before &amp; after</button>
+                  </div>
+                </details>
+              </>
+            )}
+          </div>
+        }
+      />
 
       <p className={`consult-serif${revealing ? " consult-serif-quiet" : ""}`}>
         Smile design,

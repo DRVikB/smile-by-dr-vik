@@ -1,0 +1,434 @@
+/* ============================================================
+   SmileCompose surfaces — the shared design system.
+
+   Light: a white canvas, white cards floating on soft elevation.
+   Dark:  a near-black canvas, tonal charcoal cards, restrained shadow.
+
+     Level 0  page canvas                         --background
+     Level 1  floating cards                      --card + --shadow
+     Level 2  sheets, menus, important controls   --sheet-bg + --shadow-lg
+
+   Primitives (src/components/ui/Surface.tsx): sc-page, sc-card,
+   sc-card-hero, sc-action-card, sc-grouped, sc-icon-badge,
+   sc-section-label, sc-float-button, sc-sheet, sc-brand-header,
+   sc-pressable. Older screens are mapped onto the same tokens below,
+   so every surface in the app reads from one place.
+
+   Photographs, the photo canvases and the immersive Home screen keep
+   their own dark treatment. Loaded last: it refines every stylesheet.
+   ============================================================ */
+
+:root {
+  --card-radius: 24px;
+  --card-radius-sm: 18px;
+  --card-pad: 22px;
+  --card-gap: 20px;
+  --page-gutter: 20px;
+  --page-max: 640px;
+  --sheet-bg: var(--surface-elevated);
+  --sheet-radius: 28px;
+  --inset-bg: var(--surface-subtle);
+  --press-scale: .985;
+  --press: 140ms cubic-bezier(.3, .7, .4, 1.25);
+  --button-shadow: 0 1px 2px rgba(90, 60, 20, .08), 0 6px 16px -8px rgba(150, 110, 50, .38);
+}
+:root[data-theme="dark"] {
+  --button-shadow: 0 6px 16px -8px rgba(0, 0, 0, .55);
+}
+
+/* ============================================================
+   Primitives
+   ============================================================ */
+.sc-page { width: min(var(--page-max), 100%); margin-inline: auto; }
+
+.sc-card {
+  color: var(--text-primary);
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow);
+}
+.sc-card-hero { border-radius: 26px; padding: var(--card-pad); }
+.sc-action-card {
+  display: flex; align-items: center; gap: 14px; width: 100%; min-height: 72px;
+  padding: 14px 18px 14px 14px; border-radius: 22px; text-align: left;
+}
+.sc-action-card > svg:last-child { flex: none; color: var(--text-tertiary); }
+.sc-grouped { overflow: hidden; padding: 0; }
+.sc-grouped > * + * { border-top: 1px solid var(--separator); }
+
+/* Icon badges: a thin line symbol on a soft disc — champagne in Light, charcoal in Dark */
+.sc-icon-badge,
+.icon-tile,
+.photo-row-icon {
+  display: inline-grid; flex: none; place-items: center; border-radius: 50%;
+  color: var(--badge-fg); background: var(--badge-bg); box-shadow: none;
+}
+.sc-icon-badge-sm { width: 32px; height: 32px; }
+.sc-icon-badge-md { width: 44px; height: 44px; }
+.sc-icon-badge-lg { width: 64px; height: 64px; }
+:root[data-theme="dark"] :is(.sc-icon-badge, .icon-tile, .photo-row-icon) { box-shadow: inset 0 0 0 1px var(--card-border); }
+
+.sc-section-label,
+.settings-group-title,
+.cl-section-title {
+  margin: 0 0 10px 6px;
+  font-family: var(--font-sans); font-size: 12px; font-weight: 500; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* Round controls that float on the canvas */
+.sc-float-button,
+.app-shell:is([data-screen="design"], [data-screen="photo"]) .nav-back,
+.app-shell:is([data-screen="design"], [data-screen="photo"]) .app-menu > summary,
+.nav-tool {
+  display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 50%;
+  color: var(--text-primary); background: var(--surface-elevated);
+  border: 1px solid var(--card-border); box-shadow: var(--shadow-sm);
+}
+
+/* Level 2 */
+.sc-sheet { background: var(--sheet-bg); border: 1px solid var(--card-border); border-radius: var(--sheet-radius); box-shadow: var(--shadow-lg); color: var(--text-primary); }
+
+/* Press: a small, springy give on cards and buttons */
+.sc-pressable,
+.photo-option,
+.photo-sample,
+.primary-button,
+.secondary-button,
+.photo-primary,
+.version-open,
+.studio-variation,
+.studio-shape,
+.log-row,
+.plan-option,
+.analysis-row {
+  transition: transform var(--press), box-shadow 200ms var(--ease-soft, ease), background-color 200ms var(--ease-soft, ease), border-color 200ms var(--ease-soft, ease), opacity 200ms;
+}
+:is(.sc-pressable, .photo-option, .photo-sample, .primary-button, .secondary-button, .photo-primary, .version-open, .studio-variation, .studio-shape, .log-row, .plan-option, .analysis-row):active:not(:disabled) {
+  transform: scale(var(--press-scale));
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.sc-pressable, .photo-option, .photo-sample, .primary-button, .secondary-button, .photo-primary, .version-open, .studio-variation, .studio-shape, .log-row, .plan-option, .analysis-row):active:not(:disabled) { transform: none; }
+}
+
+/* ============================================================
+   Top bar: SMILECOMPOSE centred on the bar, independent of the
+   controls either side (src/components/ui/Surface.tsx)
+   ============================================================ */
+.sc-brand-header,
+.app-shell .app-header.sc-brand-header {
+  display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 8px;
+  grid-template-columns: none;
+}
+.sc-brand-header-start,
+.sc-brand-header-end { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sc-brand-header-start { flex: 0 0 auto; }
+.sc-brand-header-end { flex: 0 1 auto; margin-left: auto; justify-content: flex-end; }
+.sc-brand-header-start:empty { min-width: 1px; }
+.sc-brand-header-start .nav-step { margin-left: 8px; }
+/* The wordmark is centred on the bar (left: 50%), vertically centred in the bar's content box. */
+.sc-brand-header-centre {
+  position: absolute; z-index: 0; top: 0; bottom: 0; left: 50%; transform: translateX(-50%);
+  padding-top: inherit; padding-bottom: inherit;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  white-space: nowrap; pointer-events: none;
+}
+.sc-brand-header-centre > * { pointer-events: auto; }
+.sc-brand-header .sc-lockup { color: var(--text-primary); }
+.sc-brand-header .sc-lockup.sc-lockup-inverse { color: #FFFFFF; }
+.sc-brand-header .sc-wordmark,
+.app-shell .app-header.sc-brand-header .sc-wordmark {
+  font-family: var(--font-sans); font-size: 14px; font-weight: 400; letter-spacing: .34em; margin-right: -.34em; line-height: 1.2;
+}
+/* Test mode sits centred under the wordmark, never in the controls' way. */
+.app-shell .app-header .sc-brand-header-centre .test-mode-pill {
+  position: static; inset: auto; min-height: 0; margin: 0; padding: 2px 8px;
+  font-size: 10px; font-weight: 500; line-height: 14px; letter-spacing: .02em; white-space: nowrap;
+}
+.app-shell:not([data-screen="preview"]) .app-header .sc-brand-header-centre .test-mode-pill { color: var(--accent-text); background: var(--accent-soft); box-shadow: none; }
+/* Studio on iPhone: undo / redo take the right, the wordmark gives way (studio.css), so Test mode sits beside Back. */
+@media (max-width: 560px) {
+  .app-shell[data-screen="design"] .app-header .sc-brand-header-centre { left: calc(max(14px, var(--app-safe-left)) + 54px); transform: none; align-items: flex-start; }
+}
+@media (max-width: 380px) {
+  .sc-brand-header .sc-wordmark,
+  .app-shell .app-header.sc-brand-header .sc-wordmark { font-size: 13px; letter-spacing: .3em; margin-right: -.3em; }
+}
+
+/* ============================================================
+   Typography: serif for large editorial headings and page / sheet
+   titles; clean sans for card titles, menus, labels and controls
+   ============================================================ */
+.share-option-title,
+.how-card-text strong,
+.compact-options-heading h2,
+.tooth-controls .sheet-heading h2,
+.empty-state-title,
+.plan-price {
+  font-family: var(--font-sans); font-weight: 600; letter-spacing: -.012em;
+}
+.share-option-title { font-size: 18px; line-height: 1.25; }
+.how-card-text strong { font-size: 17px; line-height: 1.25; }
+.compact-options-heading h2 { font-size: 20px; }
+.tooth-controls .sheet-heading h2 { font-size: 21px; }
+.empty-state-title { font-size: 19px; }
+.plan-price { font-size: 21px; font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   Canvas and the working screens' bars
+   ============================================================ */
+body { background: var(--background); }
+.app-shell[data-screen="photo"] .app-header,
+.app-shell[data-screen="design"] .app-header { background: var(--background); border-bottom: 0; box-shadow: none; }
+.settings-top,
+.cl-head,
+.settings-detail-head { background: var(--background); }
+
+/* ============================================================
+   Buttons: gold for the one primary action, floating surface for
+   secondary, text for tertiary
+   ============================================================ */
+.primary-button,
+.photo-primary,
+.compact-dock-save { background: var(--accent-gradient); color: var(--on-accent); box-shadow: var(--button-shadow); }
+.primary-button:hover:not(:disabled),
+.photo-primary:hover:not(:disabled),
+.compact-dock-save:hover:not(:disabled) { background: var(--accent-gradient); filter: brightness(.985); }
+.secondary-button,
+.secondary-button:hover:not(:disabled),
+.photo-secondary-row button,
+.preview-side .adjust-button {
+  background: var(--surface-elevated); color: var(--text-primary);
+  border: 1px solid var(--card-border); box-shadow: var(--shadow-sm);
+}
+.secondary-button:hover:not(:disabled) { border-color: var(--border); }
+.primary-button:disabled, .photo-primary:disabled, .compact-dock-save:disabled { background: var(--control-background); color: var(--text-tertiary); box-shadow: inset 0 0 0 1px var(--border); filter: none; }
+
+/* Segmented controls: neutral track, floating thumb with a fine gold edge */
+.segmented { background: var(--control-background); border: 0; }
+.segmented button.selected,
+.segmented button[aria-pressed="true"],
+.variant-picker-options button[aria-pressed="true"],
+.compact-compare-switch button[aria-pressed="true"] {
+  background: var(--selected-fill); color: var(--on-selected);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent), 0 1px 4px rgba(20, 18, 16, .06);
+}
+:root[data-theme="dark"] .segmented button:is(.selected, [aria-pressed="true"]) { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+
+/* Inputs: a clear edge on white, calm on dark */
+.log-search,
+.app-shell .design-screen .studio-case-row .patient-field { background: var(--input-background); border: 1px solid var(--border); box-shadow: none; }
+
+/* ============================================================
+   Level 2: sheets, dialogs, menus, docks
+   ============================================================ */
+.sheet,
+.log-panel,
+.log-detail,
+.library-panel,
+.camera-sheet,
+.avatar-cropper,
+.floating-panel,
+.floating-panel.is-open,
+.compact-options-popover,
+.variant-picker-options,
+.app-menu .nav-actions,
+.consult-compact-options > div,
+.compact-preview-dock,
+.app-shell .preview-screen > .bottom-action-bar {
+  background: var(--sheet-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+}
+.sheet,
+.log-panel,
+.log-detail,
+.camera-sheet { border-radius: var(--sheet-radius); }
+.floating-panel,
+.compact-preview-dock,
+.app-shell .preview-screen > .bottom-action-bar { box-shadow: var(--shadow); }
+.action-sheet-group { background: var(--sheet-bg); border: 1px solid var(--card-border); box-shadow: var(--shadow-lg); border-radius: 20px; }
+.compact-dock-options,
+.compact-options-heading button,
+.compact-compare-switch { background: var(--control-background); }
+.compact-option-row { border-color: var(--separator); }
+/* Sheets hold cards at level 1: inside a sheet those cards use the canvas tone so they still read as cards. */
+:root[data-theme="dark"] :is(.sheet, .log-panel, .log-detail, .library-panel) .sc-card { background: var(--card); }
+
+/* ============================================================
+   Photo step (src/components/PhotoUploader.tsx)
+   Hero card, secondary card, OR, compact action cards.
+   ============================================================ */
+.photo-start { width: min(var(--page-max), 100%); gap: var(--card-gap); }
+.photo-start .upload-authority { gap: 12px; }
+.photo-start .upload-authority .control-hint { padding: 0 2px; font-size: 13.5px; line-height: 1.45; color: var(--text-secondary); }
+.photo-start .upload-authority .inline-link { color: var(--text-primary); text-decoration: underline; text-underline-offset: 3px; }
+:root[data-theme="dark"] .photo-start .upload-authority .inline-link { color: var(--accent-text); }
+.photo-start .ai-consent-check { padding: 16px 18px; border-radius: 22px; background: var(--card); border: 1px solid var(--card-border); box-shadow: var(--shadow); }
+
+.photo-options { grid-template-columns: minmax(0, 1fr); gap: var(--card-gap); }
+.photo-option {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 16px; row-gap: 18px; align-items: center;
+  padding: 18px; border-radius: 26px;
+  background: var(--card); border: 1px solid var(--card-border); box-shadow: var(--shadow);
+}
+.photo-option .icon-tile { grid-row: 1; width: 48px; height: 48px; }
+.photo-option-text { padding-right: 32px; gap: 4px; }
+.photo-option-text strong { font-size: 25px; line-height: 1.12; }
+.photo-option-text small { font-size: 14px; color: var(--text-secondary); }
+.photo-option-go { top: 30px; right: 20px; color: var(--text-secondary); }
+.photo-option-visual { grid-column: 1 / -1; border-radius: 18px; }
+.photo-option-capture { aspect-ratio: 16 / 9.2; }
+.photo-option-capture img { object-position: 50% 34%; }
+/* The library: one clean row of rounded thumbnails */
+.photo-option-gallery {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: auto; gap: 6px;
+  aspect-ratio: auto; padding: 0; background: none; border-radius: 16px;
+}
+.photo-option-gallery img,
+.photo-option-gallery img:nth-child(n) { grid-column: auto; aspect-ratio: 1; border-radius: 14px; }
+.photo-option-gallery img:nth-child(1),
+.photo-option-gallery img:nth-child(5) { object-position: 50% 30%; }
+/* The Take a photo card leads; Choose from photos is secondary. */
+.photo-option-hero { padding: 20px 20px 18px; }
+.photo-option-secondary .photo-option-text strong { font-size: 23px; }
+
+/* "Choose a file instead": a quiet text link under the library card */
+.photo-start .photo-file-link { display: block; justify-self: end; width: auto; margin: -8px 6px 0; font-size: 14px; color: var(--accent-text); }
+.photo-start .photo-file-link::before, .photo-start .photo-file-link::after { content: none; }
+
+/* OR, between the photo sources and the alternatives */
+.sc-or { display: flex; align-items: center; gap: 18px; width: min(420px, 90%); justify-self: center; margin: 4px 0; color: var(--text-tertiary); font-size: 13px; font-weight: 500; letter-spacing: .08em; }
+.sc-or::before, .sc-or::after { content: ""; flex: 1; height: 1px; background: var(--separator); }
+
+.photo-sample,
+.photo-tips-disclosure { border-radius: 22px; background: var(--card); border: 1px solid var(--card-border); box-shadow: var(--shadow); }
+.photo-sample { min-height: 76px; gap: 16px; padding: 14px 20px 14px 16px; }
+.photo-sample span { font-size: 16px; font-weight: 400; gap: 2px; }
+.photo-sample small { font-size: 13.5px; }
+.photo-sample .photo-row-icon,
+.photo-tips-disclosure .photo-row-icon { width: 44px; height: 44px; }
+.photo-tips-disclosure { padding: 0 20px 0 16px; }
+.photo-tips-disclosure > summary { min-height: 76px; gap: 16px; font-size: 16px; font-weight: 400; }
+.photo-tips-disclosure[open] > ul, .photo-tips-disclosure[open] > p { margin-left: 60px; }
+
+@media (min-width: 700px) {
+  .photo-start { padding-top: 8px; }
+  .photo-option-text strong { font-size: 27px; }
+}
+
+/* ============================================================
+   Settings: floating profile card, labelled floating groups
+   ============================================================ */
+.settings-panel { background: var(--background); }
+.settings-panel.split { border: 1px solid var(--card-border); box-shadow: var(--shadow-lg); }
+.settings-sidebar { background: var(--sidebar-background); }
+.settings-scroll { padding-top: 22px; }
+.settings-group { margin-bottom: 30px; }
+.settings-list {
+  background: var(--card); border: 1px solid var(--card-border); border-radius: 22px; box-shadow: var(--shadow);
+}
+.settings-row { min-height: 56px; padding: 14px 18px; }
+.settings-list > * + * { border-top: 1px solid var(--separator); }
+.profile-card {
+  margin-bottom: 30px; padding: 22px;
+  background: var(--card); border: 1px solid var(--card-border); border-radius: var(--card-radius); box-shadow: var(--shadow);
+}
+.settings-group-footer { margin: 10px 8px 0; }
+
+/* ============================================================
+   Cases: image-led, light cards
+   ============================================================ */
+.log-list { gap: 12px; padding: 2px 2px 8px; }
+.log-row {
+  gap: 16px; padding: 10px 16px 10px 10px; border-radius: 22px;
+  background: var(--card); border: 1px solid var(--card-border); box-shadow: var(--shadow-sm);
+}
+.log-row:hover { border-color: var(--card-border); box-shadow: var(--shadow); }
+.log-row { gap: 14px; }
+.log-row img { width: 68px; height: 68px; border-radius: 16px; }
+.case-cover { width: 80px; height: 72px; }
+.case-cover img { width: 68px; height: 68px; border-radius: 16px; box-shadow: 0 0 0 2px var(--card); }
+.log-row .log-date { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log-row-text { flex: 1 1 auto; min-width: 0; }
+.log-row-text strong { overflow: hidden; font-size: 16px; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
+.log-row .log-pill { margin-left: 0; }
+.version-open { border: 1px solid var(--card-border); border-radius: 20px; background: var(--card); box-shadow: var(--shadow-sm); }
+.version-text { padding: 10px 12px 12px; }
+.case-rename-button { background: var(--surface-elevated); border: 1px solid var(--card-border); box-shadow: var(--shadow-sm); }
+/* On iPhone Cases is a page, not a floating sheet: it sits on the canvas. */
+@media (max-width: 700px) {
+  .sheet-backdrop > .log-panel { background: var(--background); box-shadow: none; border: 0; }
+}
+.library-tip { background: var(--inset-bg); border: 1px solid var(--card-border); }
+
+/* ============================================================
+   Design Studio: the photograph leads; controls float beneath it
+   ============================================================ */
+.studio-stage { box-shadow: var(--shadow); }
+.studio-tabs { background: var(--card); border: 1px solid var(--card-border); box-shadow: var(--shadow); border-radius: 22px; }
+.studio-tabs button.is-active { background: var(--control-background); }
+.studio-card { padding: var(--card-pad); border-radius: var(--card-radius); background: var(--card); border: 1px solid var(--card-border); box-shadow: var(--shadow); }
+.studio-card-head h3 { font-family: var(--font-sans); font-size: 21px; font-weight: 600; letter-spacing: -.012em; line-height: 1.2; }
+/* Groups inside a card are recessed, not cards of their own */
+.studio-summary,
+.studio-treatments,
+.studio-review,
+.studio-align { background: var(--inset-bg); box-shadow: inset 0 0 0 1px var(--card-border); }
+.studio-shape { background: var(--inset-bg); border-color: var(--card-border); }
+.tooth-map-status { background: var(--inset-bg); box-shadow: inset 0 0 0 1px var(--card-border); }
+.studio-shape[aria-pressed="true"] { background: var(--surface-elevated); box-shadow: inset 0 0 0 1px var(--accent), var(--shadow-sm); }
+.studio-variation { background: var(--card); border: 1px solid var(--card-border); box-shadow: var(--shadow-sm); }
+.studio-arch-tooth { background: linear-gradient(180deg, #FFFFFF 0%, #EFEAE3 100%); }
+.analysis-row { background: var(--card); border: 1px solid var(--card-border); box-shadow: var(--shadow-sm); }
+.clinical-details { border-color: var(--card-border); background: var(--inset-bg); }
+
+/* ============================================================
+   Share, subscription and account: the same cards
+   ============================================================ */
+.share-option,
+.share-actions button,
+.review-group,
+.plan-option,
+.ob-chip { background: var(--card); border: 1px solid var(--card-border); box-shadow: var(--shadow-sm); }
+.share-option:hover { border-color: var(--border); }
+.share-option,
+.review-group { border-radius: 22px; }
+.plan-option { border-radius: 20px; padding: 16px 18px; }
+.plan-option.selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent), var(--shadow-sm); }
+/* The export preview sits on a neutral mat, not a cream one */
+.share-result { background: var(--control-background); }
+.share-error { background: var(--inset-bg); border-color: var(--card-border); }
+.account-field input,
+.ob-name-field input { border-color: var(--border); border-radius: 16px; }
+
+/* ============================================================
+   Onboarding: centred wordmark, same surfaces
+   ============================================================ */
+.how-card { background: var(--card); box-shadow: var(--shadow), inset 0 0 0 1px var(--card-border); border-radius: 22px; }
+.ob-account-name { background: var(--inset-bg); box-shadow: inset 0 0 0 1px var(--card-border); }
+.ob-frame .ob-top { flex-direction: column; justify-content: center; gap: 12px; }
+.ob-frame .ob-top .ob-brand { justify-content: center; }
+.ob-frame .ob-top .sc-wordmark { font-size: 12px; font-weight: 400; letter-spacing: .34em; margin-right: -.34em; }
+
+/* ============================================================
+   Consultation, generation and saved-case bars over photographs:
+   the wordmark is centred there too
+   ============================================================ */
+.consult-top.sc-brand-header,
+.generation-splash-header.sc-brand-header,
+.saved-case-header.sc-brand-header { display: flex; flex-wrap: nowrap; justify-content: space-between; }
+.consult-top.sc-brand-header .consult-top-actions { width: auto; flex-wrap: nowrap; justify-content: flex-end; }
+.consult-top .sc-brand-header-start .consult-close { display: inline-flex; align-items: center; gap: 7px; }
+:is(.consult-top, .generation-splash-header, .saved-case-header) .sc-lockup { color: #FFFFFF; }
+.saved-case-viewer > .saved-analysis-chip { top: calc(env(safe-area-inset-top, 0px) + 84px); }
+
+/* ============================================================
+   iPad and desktop: comfortable containers, more outer whitespace
+   ============================================================ */
+@media (min-width: 700px) {
+  :root { --page-gutter: 32px; --card-gap: 24px; }
+  .settings-scroll > * { max-width: 620px; }
+}

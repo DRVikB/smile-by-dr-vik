@@ -1,5 +1,5 @@
 /* ============================================================
-   SmileCompose theme — warm ivory studio palette with champagne gold, Light and Dark.
+   SmileCompose theme — white and near-black canvases with champagne gold, Light and Dark.
 
    Brand constants (--sc-ivory, --sc-charcoal, --sc-gold, --sc-stone,
    --sc-sand, --sc-taupe) never change. Every surface, text, border and
@@ -15,51 +15,61 @@
    presentation) are deliberately dark in both themes.
    ============================================================ */
 
+/* ============================================================
+   Light: a white canvas with white cards that float on soft elevation.
+   Dark:  a near-black canvas with tonal charcoal cards, no glow.
+   Champagne gold is kept for the primary action, selection, key status
+   and small brand details; everything else is neutral.
+   ============================================================ */
 :root {
   color-scheme: light;
 
-  /* Backgrounds and surfaces — warm ivory canvas, warm-white cards */
-  --background: #FAF7F2;
-  --bg-grouped: #F5F0E9;
-  --surface: #FFFDFA;
-  --surface-solid: #FFFDFA;
+  /* Backgrounds and surfaces — white canvas, white floating cards */
+  --background: #FFFFFF;
+  --bg-grouped: #FFFFFF;
+  --surface: #FFFFFF;
+  --surface-solid: #FFFFFF;
   --surface-elevated: #FFFFFF;
-  --card: #FFFDFA;
-  --control-background: #F3EDE4;
+  --surface-subtle: #FAFAF9;
+  --card: #FFFFFF;
+  --control-background: #F4F3F1;
   --input-background: #FFFFFF;
-  --toolbar-background: #FAF7F2;
-  --sidebar-background: #F5F0E9;
-  --scrim: rgba(28, 22, 16, .34);
+  --toolbar-background: #FFFFFF;
+  --sidebar-background: #FAFAF9;
+  --scrim: rgba(20, 18, 16, .32);
+  /* The native launch screen's colour: the web launch view matches it exactly. */
+  --launch-background: #FAF9F6;
 
-  /* Text */
-  --text-primary: #2A2521;
-  --text-secondary: #6E655C;
-  --text-tertiary: #877B70;
-  --placeholder: rgba(42, 37, 33, .36);
+  /* Text — charcoal, warm greys */
+  --text-primary: #24211E;
+  --text-secondary: #6F6963;
+  --text-tertiary: #8A847E;
+  --placeholder: rgba(36, 33, 30, .36);
 
-  /* Lines */
-  --border: rgba(120, 100, 80, .16);
-  --border-strong: rgba(42, 37, 33, .45);
-  --separator: rgba(60, 45, 30, .09);
-  --hairline: rgba(60, 45, 30, .06);
-  --hover: rgba(60, 45, 30, .04);
-  --pressed: rgba(216, 189, 146, .2);
+  /* Lines — cards barely outlined; controls keep a visible edge */
+  --border: rgba(31, 27, 23, .1);
+  --border-strong: rgba(36, 33, 30, .4);
+  --card-border: rgba(31, 27, 23, .045);
+  --separator: rgba(31, 27, 23, .07);
+  --hairline: rgba(31, 27, 23, .045);
+  --hover: rgba(31, 27, 23, .035);
+  --pressed: rgba(181, 138, 75, .12);
 
-  /* Accent — champagne gold fills, bronze text */
-  --accent: #D8BD92;
-  --accent-hover: #CFB081; /* iOS keeps :hover after a tap, so it must not look disabled */
-  --accent-text: #8C6A3C;
-  --on-accent: #2A2521;
-  --accent-soft: rgba(216, 189, 146, .2);
-  --accent-gradient: linear-gradient(180deg, #E4CDA7 0%, #D2B384 100%);
-  --focus-ring: #A6824E;
-  --switch-on: #A6824E;
+  /* Accent — champagne gold fills, bronze text and strokes */
+  --accent: #C9A466;
+  --accent-hover: #C09A5C; /* iOS keeps :hover after a tap, so it must not look disabled */
+  --accent-text: #8A6431;
+  --on-accent: #24211E;
+  --accent-soft: #F5EFE5;
+  --accent-gradient: linear-gradient(180deg, #DCC08F 0%, #C9A466 100%);
+  --focus-ring: #B58A4B;
+  --switch-on: #B58A4B;
 
   /* Selection and strong fills */
   --selected-fill: #FFFFFF;
-  --on-selected: #2A2521;
-  --inverse-surface: #2A2521;
-  --on-inverse: #FAF7F2;
+  --on-selected: #24211E;
+  --inverse-surface: #24211E;
+  --on-inverse: #FFFFFF;
 
   /* Status */
   --destructive: #9C3A2E;
@@ -69,33 +79,33 @@
   --destructive-surface: #FFF4F1;
   --success: #3F7550;
   --warning: #6B4E1E;
-  --warning-surface: rgba(216, 189, 146, .2);
+  --warning-surface: #F5EFE5;
 
   /* Solid surfaces (the names are kept for existing rules) */
-  --glass: #FFFDFA;
-  --glass-strong: #FFFDFA;
+  --glass: #FFFFFF;
+  --glass-strong: #FFFFFF;
   --glass-border: transparent;
   --glass-blur: 0px;
 
-  /* Elevation: soft, warm, low */
-  --shadow: 0 1px 2px rgba(60, 40, 20, .04), 0 10px 30px rgba(60, 40, 20, .07);
-  --shadow-sm: 0 1px 2px rgba(60, 40, 20, .04), 0 4px 14px rgba(60, 40, 20, .05);
-  --shadow-lg: 0 30px 70px rgba(40, 28, 16, .16);
+  /* Elevation: felt rather than seen. Level 1 cards, level 2 sheets and overlays. */
+  --shadow: 0 2px 8px rgba(20, 18, 16, .02), 0 10px 28px rgba(20, 18, 16, .05);
+  --shadow-sm: 0 1px 4px rgba(20, 18, 16, .025), 0 6px 18px rgba(20, 18, 16, .04);
+  --shadow-lg: 0 4px 14px rgba(20, 18, 16, .04), 0 24px 60px rgba(20, 18, 16, .12);
 
-  /* Icon badges: a soft ivory disc holding a bronze line symbol */
-  --badge-bg: #F4EEE5;
-  --badge-fg: #8C6A3C;
+  /* Icon badges: a soft champagne disc holding a thin gold line symbol */
+  --badge-bg: #F5EFE5;
+  --badge-fg: #B58A4B;
 
   --mark-filter: none;
   --apple-button-bg: #000000;
   --apple-button-fg: #FFFFFF;
 
   /* Illustration surfaces (onboarding visuals) */
-  --ob-panel: linear-gradient(160deg, #F7F1E8 0%, #F0E7DA 100%);
-  --ob-plate: #EEE4D6;
-  --ob-plate-border: rgba(216, 189, 146, .5);
-  --ob-card-shadow: 0 24px 60px rgba(60, 48, 36, .14), 0 2px 6px rgba(60, 48, 36, .05);
-  --ob-glow: rgba(216, 189, 146, .2);
+  --ob-panel: linear-gradient(160deg, #FAFAF9 0%, #F3F1EE 100%);
+  --ob-plate: #F1EEEA;
+  --ob-plate-border: rgba(181, 138, 75, .32);
+  --ob-card-shadow: 0 24px 60px rgba(20, 18, 16, .1), 0 2px 6px rgba(20, 18, 16, .04);
+  --ob-glow: rgba(201, 164, 102, .14);
 
   /* Legacy names used across the stylesheets, now theme-aware */
   --sc-panel: var(--surface);
@@ -109,44 +119,47 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  /* Deep warm charcoal, never pure black */
-  --background: #141312;
-  --bg-grouped: #0F0E0D;
-  --surface: #1E1C1A;
-  --surface-solid: #1E1C1A;
-  --surface-elevated: #282522;
-  --card: #1E1C1A;
-  --control-background: #2A2724;
-  --input-background: #1F1D1B;
-  --toolbar-background: #141312;
-  --sidebar-background: #1A1817;
-  --scrim: rgba(0, 0, 0, .56);
+  /* Near-black canvas, slightly lighter tonal cards */
+  --background: #0D0E0F;
+  --bg-grouped: #0D0E0F;
+  --surface: #171819;
+  --surface-solid: #171819;
+  --surface-elevated: #1C1D1F;
+  --surface-subtle: #131415;
+  --card: #171819;
+  --control-background: #232426;
+  --input-background: #1C1D1F;
+  --toolbar-background: #0D0E0F;
+  --sidebar-background: #121314;
+  --scrim: rgba(0, 0, 0, .6);
+  --launch-background: #141312;
 
-  --text-primary: #F2EDE6;
-  --text-secondary: #B8AD9F;
-  --text-tertiary: #978C80;
-  --placeholder: rgba(242, 237, 230, .36);
+  --text-primary: #F6F4F1;
+  --text-secondary: #AAA6A1;
+  --text-tertiary: #827E79;
+  --placeholder: rgba(246, 244, 241, .34);
 
-  --border: rgba(236, 226, 212, .13);
-  --border-strong: rgba(242, 237, 230, .55);
-  --separator: rgba(255, 255, 255, .08);
-  --hairline: rgba(255, 255, 255, .07);
-  --hover: rgba(255, 255, 255, .05);
-  --pressed: rgba(201, 168, 115, .18);
+  --border: rgba(255, 255, 255, .09);
+  --border-strong: rgba(246, 244, 241, .5);
+  --card-border: rgba(255, 255, 255, .04);
+  --separator: rgba(255, 255, 255, .06);
+  --hairline: rgba(255, 255, 255, .045);
+  --hover: rgba(255, 255, 255, .04);
+  --pressed: rgba(208, 164, 102, .14);
 
-  --accent: #C9A873;
-  --accent-hover: #D4B583;
-  --accent-text: #D9BF8F;
-  --on-accent: #1A1714;
-  --accent-soft: rgba(201, 168, 115, .14);
-  --accent-gradient: linear-gradient(180deg, #D6B886 0%, #BF9C66 100%);
-  --focus-ring: #D9BF8F;
-  --switch-on: #C9A873;
+  --accent: #D0A466;
+  --accent-hover: #D9B075;
+  --accent-text: #D0A466;
+  --on-accent: #17130E;
+  --accent-soft: rgba(208, 164, 102, .12);
+  --accent-gradient: linear-gradient(180deg, #DAB277 0%, #C4985A 100%);
+  --focus-ring: #D0A466;
+  --switch-on: #C4985A;
 
-  --selected-fill: #3A3530;
-  --on-selected: #F7F2EA;
-  --inverse-surface: #EAE3D8;
-  --on-inverse: #1A1714;
+  --selected-fill: #2C2D30;
+  --on-selected: #F6F4F1;
+  --inverse-surface: #EDEAE6;
+  --on-inverse: #141414;
 
   --destructive: #F0907F;
   --destructive-fill: #B3443A;
@@ -155,25 +168,26 @@
   --destructive-surface: rgba(240, 144, 127, .1);
   --success: #8CC79A;
   --warning: #E5C07B;
-  --warning-surface: rgba(201, 168, 115, .14);
+  --warning-surface: rgba(208, 164, 102, .12);
 
-  --glass: #1E1C1A;
-  --glass-strong: #1E1C1A;
+  --glass: #171819;
+  --glass-strong: #171819;
   --glass-border: transparent;
   --glass-blur: 0px;
 
-  --shadow: 0 0 0 .5px rgba(255, 255, 255, .05), 0 14px 36px rgba(0, 0, 0, .5);
-  --shadow-sm: 0 0 0 .5px rgba(255, 255, 255, .04), 0 4px 14px rgba(0, 0, 0, .35);
-  --shadow-lg: 0 0 0 .5px rgba(255, 255, 255, .06), 0 30px 80px rgba(0, 0, 0, .6);
+  /* Tonal elevation: the card colour does the work; shadows stay restrained. */
+  --shadow: 0 4px 18px rgba(0, 0, 0, .2);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, .18);
+  --shadow-lg: 0 24px 60px rgba(0, 0, 0, .5);
 
-  --badge-bg: #2A2724;
-  --badge-fg: #D9BF8F;
+  --badge-bg: #222325;
+  --badge-fg: #D0A466;
 
-  --ob-panel: linear-gradient(160deg, #1E1B18 0%, #161412 100%);
-  --ob-plate: #27231F;
-  --ob-plate-border: rgba(201, 168, 115, .24);
-  --ob-card-shadow: 0 0 0 1px rgba(255, 255, 255, .06), 0 24px 60px rgba(0, 0, 0, .55);
-  --ob-glow: rgba(201, 168, 115, .09);
+  --ob-panel: linear-gradient(160deg, #171819 0%, #111213 100%);
+  --ob-plate: #1F2022;
+  --ob-plate-border: rgba(208, 164, 102, .22);
+  --ob-card-shadow: 0 0 0 1px rgba(255, 255, 255, .05), 0 24px 60px rgba(0, 0, 0, .5);
+  --ob-glow: rgba(208, 164, 102, .07);
 
   --mark-filter: brightness(0) invert(.93);
   --apple-button-bg: #FFFFFF;
