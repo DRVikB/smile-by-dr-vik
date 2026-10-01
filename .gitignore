@@ -33,3 +33,6 @@ test images/
 
 # Copied from node_modules at build time (scripts/copy-ort.mjs)
 public/ort/
+
+# macOS Finder metadata
+.DS_Store
