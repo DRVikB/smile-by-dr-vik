@@ -1,5 +1,8 @@
 # Tracking, cookies and device storage (PECR)
 
+> **2026-10-02 implementation update (not deployed):** Macro Stage 1 adds signed-in patient-case state in Supabase and binary patient media in the separate PRIVATE `patient-cases` bucket, with an account-isolated local cache/outbox. This supersedes earlier device-only descriptions for patient cases in this document. AI generation and the clinician reference library remain separate. See [the Stage 1 implementation report](CLOUD_PATIENT_SYNC_STAGE1_2026-10-02.md). Provider contracts, region, backup retention and professional approvals are not verified by this implementation.
+
+
 PECR regulation 6 requires consent for storing or accessing information on a user's device unless it is **strictly necessary** for a service the user requested.
 
 ## Audit (from the code, 2026-09-27)

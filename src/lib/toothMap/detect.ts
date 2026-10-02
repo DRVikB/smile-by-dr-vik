@@ -3,6 +3,10 @@ import { INNER_LIP, pick, type Point } from "../face/geometry";
 import type { Photo } from "../types";
 import { findTeethRegion, segmentTeeth, type SegmentResult } from "./segment";
 import { photoFingerprint, TOOTH_MAP_VERSION, type NormPoint, type ToothMap, type ToothRegion } from "./types";
+import {createRefinementCache} from "./refinementPolicy";
+import {captureWorkspace,onWorkspaceDetach} from "../workspace";
+const refinementCache=createRefinementCache<ToothMap>();
+onWorkspaceDetach(()=>refinementCache.clear());
 
 /** Confidence below this asks the clinician to check the tooth. Never shown as a number to patients. */
 export const REVIEW_BELOW = 0.6;
@@ -32,17 +36,20 @@ export interface DetectionDebug {
   height: number;
 }
 
-export async function detectToothMap(photo: Pick<Photo, "dataUrl">, shotType: "Full face" | "Close-up" = "Full face", onDebug?: (info: DetectionDebug) => void, options: { refine?: boolean; onRefine?: (stats: import("./sam").RefineStats) => void } = {}): Promise<ToothMap | null> {
+export async function detectToothMap(photo: Pick<Photo, "dataUrl">, shotType: "Full face" | "Close-up" = "Full face", onDebug?: (info: DetectionDebug) => void, options: { refine?: boolean; signal?: AbortSignal; onRefine?: (stats: import("./sam").RefineStats) => void } = {}): Promise<ToothMap | null> {
+  options.signal?.throwIfAborted();
   const img = await loadImage(photo.dataUrl);
+  options.signal?.throwIfAborted();
   const W = img.naturalWidth, H = img.naturalHeight;
   let mouth: Point[] | null = null;
   let midlineAt: ((y: number) => number) | null = null;
   if (shotType !== "Close-up") {
     const { detectFace } = await import("../face/landmarks");
-    let points = await detectFace(photo.dataUrl).catch(() => null);
+    options.signal?.throwIfAborted();
+    let points = await detectFace(photo.dataUrl,options.signal).catch(() => null);
     // On a fresh install the face model can still be downloading or starting up on
     // first use; failures are not cached, so one short retry covers it.
-    if (!points) points = await new Promise(resolve => setTimeout(resolve, 900)).then(() => detectFace(photo.dataUrl)).catch(() => null);
+    if (!points) points = await new Promise(resolve => setTimeout(resolve, 100)).then(() => { options.signal?.throwIfAborted(); return detectFace(photo.dataUrl,options.signal); }).catch(() => null);
     if (points && points.length >= 468) {
       mouth = pick(points, INNER_LIP);
       const analysis = analyseSmile(points, W, H);
@@ -53,6 +60,7 @@ export async function detectToothMap(photo: Pick<Photo, "dataUrl">, shotType: "F
     }
   }
 
+  options.signal?.throwIfAborted();
   // Work on the mouth (with a margin), or the whole photo for a close-up.
   let crop = { x: 0, y: 0, w: W, h: H };
   if (mouth) {
@@ -115,19 +123,33 @@ export async function detectToothMap(photo: Pick<Photo, "dataUrl">, shotType: "F
     method: "on-device-v1",
     mouthOpening: mouth ? mouth.map(p => [p[0] / W, p[1] / H] as NormPoint) : undefined,
   };
-  if (options.refine === false) return rough;
+  if (options.refine !== true) return rough;
   const { rememberRoughMap } = await import("./debug");
+  options.signal?.throwIfAborted();
   rememberRoughMap(rough);
-  return refine(img, rough, W, H, options.onRefine);
+  return refine(img, rough, W, H, options.onRefine, options.signal);
+}
+
+/** Explicit refinement never overwrites a clinician-confirmed/manual map. */
+export async function refineToothMap(photo:Pick<Photo,"dataUrl">,map:ToothMap,signal?:AbortSignal):Promise<ToothMap>{
+  const scope=captureWorkspace();scope.assert();signal?.throwIfAborted();
+  if(map.confirmedByClinician||map.method!=="on-device-v1"||map.photoId!==photoFingerprint(photo.dataUrl))return map;
+  const key=map.photoId+JSON.stringify([map.version,map.arch,map.mouthOpening,map.teeth.map(t=>[t.id,t.fdi,t.visible,t.outline])]);
+  const cached=refinementCache.get(key);if(cached)return structuredClone(cached);
+  const img=await loadImage(photo.dataUrl);scope.assert();signal?.throwIfAborted();
+  const refined=await refine(img,map,img.naturalWidth,img.naturalHeight,undefined,signal);
+  scope.assert();signal?.throwIfAborted();
+  if(refined.method==="on-device-sam")refinementCache.set(key,structuredClone(refined));
+  return refined;
 }
 
 /**
  * SlimSAM traces each tooth's real crown edge. If the model can't load or
  * run, the rough map is used unchanged: detection never fails because of it.
  */
-async function refine(img: HTMLImageElement, map: ToothMap, W: number, H: number, onRefine?: (stats: import("./sam").RefineStats) => void): Promise<ToothMap> {
+async function refine(img: HTMLImageElement, map: ToothMap, W: number, H: number, onRefine?: (stats: import("./sam").RefineStats) => void, signal?: AbortSignal): Promise<ToothMap> {
   try {
-    const [{ loadSam }, { refineWithSam }] = await Promise.all([import("./samRuntime"), import("./sam")]);
+    const { refineInWorker } = await import("./refineWorker");
     // The mouth with a margin, at full photo resolution (SlimSAM resizes it to 1024 itself).
     const pts = [...(map.mouthOpening ?? []), ...map.teeth.flatMap(t => t.outline)].map(([x, y]) => [x * W, y * H]);
     const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
@@ -141,11 +163,11 @@ async function refine(img: HTMLImageElement, map: ToothMap, W: number, H: number
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return map;
     ctx.drawImage(img, x0, y0, w, h, 0, 0, w, h);
-    const rt = await loadSam();
-    const { map: refined, stats } = await refineWithSam(rt, map, { rgba: ctx.getImageData(0, 0, w, h).data, width: w, height: h, origin: [x0, y0], photoWidth: W, photoHeight: H });
+    const { map: refined, stats } = await refineInWorker(map, { rgba: ctx.getImageData(0, 0, w, h).data, width: w, height: h, origin: [x0, y0], photoWidth: W, photoHeight: H }, signal);
     onRefine?.(stats);
     return refined;
   } catch {
+    signal?.throwIfAborted();
     return map;
   }
 }

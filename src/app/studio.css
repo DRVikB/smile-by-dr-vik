@@ -728,3 +728,14 @@ input[type="checkbox"][role="switch"],
 /* Subscription: the generation balance, and each plan's allowance line */
 .settings-balance { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .plan-option .plan-allowance { color: var(--text-primary); font-weight: 500; }
+
+/* Quiet disclosure without adding another card to the patient-photo screen. */
+.photo-examples-note { margin: -4px 4px 0; color: var(--text-tertiary); font-size: 11px; letter-spacing: .02em; }
+.photo-option-gallery img:nth-child(3) { object-position: 50% 38%; }
+.photo-option-visual img { display: block; user-select: none; -webkit-user-drag: none; }
+
+/* Invisible/quiet hit-area improvements: preserve the existing visual layout. */
+.studio-card .segmented button, .studio-card .segment-control button,
+.tooth-map-actions button, .tooth-map-review button, .tooth-map-field select {
+  min-height: 44px;
+}

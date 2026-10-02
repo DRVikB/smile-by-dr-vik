@@ -8,13 +8,48 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         excludePatientDataFromBackup()
+        protectPatientData()
         return true
     }
 
+    /// Apple file Data Protection, not application-level encryption. The default
+    /// entitlement covers new files; migrate existing WebKit data explicitly.
+    /// WebKit may choose attributes for its own files: verify on a locked device.
+    private func protectPatientData() {
+        guard let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first else { return }
+        let roots = [library.appendingPathComponent("WebKit", isDirectory: true),
+                     library.appendingPathComponent("Application Support/WebKit", isDirectory: true),
+                     library.appendingPathComponent("Caches/exports", isDirectory: true),
+                     library.appendingPathComponent("Caches/" + (Bundle.main.bundleIdentifier ?? "uk.co.drvik.smilecompose") + "/WebKit", isDirectory: true)]
+        for root in roots {
+            do {
+                try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+                try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: root.path)
+                var directory = root
+                var values = URLResourceValues(); values.isExcludedFromBackup = true
+                try directory.setResourceValues(values)
+            } catch { NSLog("SmileCompose: patient storage protection needs verification") }
+        }
+        DispatchQueue.global(qos: .utility).async {
+            for root in roots {
+                guard let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isSymbolicLinkKey], options: [.skipsPackageDescendants]) else { continue }
+                for case let url as URL in files {
+                    if (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true { files.skipDescendants(); continue }
+                    do { try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path) }
+                    catch { NSLog("SmileCompose: an existing WebKit file could not be reprotected") }
+                }
+            }
+        }
+    }
+
+    func applicationProtectedDataDidBecomeAvailable(_ application: UIApplication) {
+        protectPatientData()
+    }
+
     /// Cases, patient photos and results live in the WebView's storage under
-    /// Library/WebKit. Keep that health data on this device only: out of iCloud
-    /// and computer backups (App Review Guideline 5.1.3). Deleting the app, or
-    /// "Delete all data on this device" in the app, removes it.
+    /// Library/WebKit. Exclude the local cache from iCloud/computer backups.
+    /// Account cloud sync is a separate, authenticated application path;
+    /// deleting the app removes its local cache, not the remote account cases.
     private func excludePatientDataFromBackup() {
         guard var directory = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first?
             .appendingPathComponent("WebKit", isDirectory: true) else { return }

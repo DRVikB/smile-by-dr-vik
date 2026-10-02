@@ -171,6 +171,8 @@ export const SMILE_GUIDE: Framing = {
   height: 0.15,
 };
 export interface Photo {
+  sourceProvenance?: "prepared" | "original" | "legacy-prepared-original";
+  analysisSnapshot?: import("@/services/cases/sync/analysisSnapshot").AnalysisSnapshot;
   /** Device-local painted edit permissions; never sent to the provider. */
   editMask?: string;
   /** Every visible tooth as its own region (on-device); only selected teeth may change. */
@@ -248,6 +250,7 @@ export interface SmileVariant {
   result: GenerationResult;
 }
 export interface CaseLogEntry {
+  draftOnly?: boolean;
   id: string;
   /** Groups visualisations of the same case. Absent on entries saved before cases existed. */
   caseId?: string;
@@ -268,6 +271,8 @@ export interface CaseLogEntry {
   exports?: import("./consultation").ExportRecord[];
 }
 export interface CaseLogMedia {
+  photoMetadata?: Omit<Photo,"dataUrl"|"editMask">;
+  analysisSnapshot?: import("@/services/cases/sync/analysisSnapshot").AnalysisSnapshot;
   id: string;
   image: string;
   originalImage: string;
@@ -287,6 +292,7 @@ export interface UploadAuthority {
   confirmedAt: number;
 }
 export interface SmileCase {
+  preferredDesignId?: string | null;
   /** Stable ID for the working case; see SmileComposeCase in src/models/case.ts. */
   caseId?: string;
   uploadAuthority?: UploadAuthority | null;

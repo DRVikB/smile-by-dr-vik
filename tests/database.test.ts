@@ -38,6 +38,7 @@ before(async () => {
   await db.exec(readFileSync("supabase/migrations/20260928100000_profile_onboarding_storage.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20260928140000_case_library_avatars.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20260929120000_generation_rollover.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261002093305_patient_case_sync.sql", "utf8"));
   await db.exec(`grant all on all tables in schema public to service_role;`);
 });
 
@@ -296,7 +297,7 @@ async function asUser<T>(user: string, run: () => Promise<T>): Promise<T> {
 
 test("storage buckets for avatars and the Case Library are private", async () => {
   const { rows } = await db.query<{ id: string; public: boolean }>(`select id, public from storage.buckets order by id`);
-  assert.deepEqual(rows, [{ id: "case-library", public: false }, { id: "profile-avatars", public: false }]);
+  assert.deepEqual(rows, [{ id: "case-library", public: false }, { id: "patient-cases", public: false }, { id: "profile-avatars", public: false }]);
 });
 
 test("profile photos: users can upload, read, replace and remove only their own avatar objects", async () => {

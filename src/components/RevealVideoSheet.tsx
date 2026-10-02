@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { AI_CONCEPT_DISCLAIMER } from "@/lib/brand";
+import { useEffect, useRef, useState } from "react";
 import { Share2, X } from "lucide-react";
 import { shareFile } from "@/lib/share";
 
@@ -21,6 +22,8 @@ export function RevealVideoSheet({
   patientName?: string;
   onClose: () => void;
 }) {
+  const closeButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => { closeButton.current?.focus(); }, []);
   const [video, setVideo] = useState<{ blob: Blob; url: string; extension: string } | null>(null);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -34,6 +37,7 @@ export function RevealVideoSheet({
         import("@/lib/revealVideo"),
         import("@/lib/face/landmarks"),
       ]);
+      if (!live) return;
       const [pts, size] = await Promise.all([
         detectFace(before),
         new Promise<{ w: number; h: number }>((resolve, reject) => {
@@ -46,6 +50,7 @@ export function RevealVideoSheet({
       const focus = pts
         ? { x: (pts[61][0] + pts[291][0]) / 2 / size.w, y: (pts[61][1] + pts[291][1]) / 2 / size.h }
         : undefined;
+      if (!live) return;
       const { blob, extension } = await recordReveal(before, after, { isDemo, focus });
       if (!live) return;
       url = URL.createObjectURL(blob);
@@ -80,11 +85,12 @@ export function RevealVideoSheet({
       <div className="sheet video-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-heading">
           <h2>Reveal Video</h2>
-          <button className="icon-button" aria-label="Close" onClick={onClose}>
+          <button ref={closeButton} className="icon-button" aria-label="Close" onClick={onClose}>
             <X size={16} />
           </button>
         </div>
         <p className="sheet-sub">Their smile today, with the illustration fading in. Made on this device — no AI credits.</p>
+        <p className="share-concept-note">{AI_CONCEPT_DISCLAIMER}</p>
         {video ? (
           <video className="reveal-video" src={video.url} autoPlay muted loop playsInline controls />
         ) : !error ? (

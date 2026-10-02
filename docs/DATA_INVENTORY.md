@@ -1,5 +1,8 @@
 # Data inventory
 
+> **2026-10-02 implementation update (not deployed):** Macro Stage 1 adds signed-in patient-case state in Supabase and binary patient media in the separate PRIVATE `patient-cases` bucket, with an account-isolated local cache/outbox. This supersedes earlier device-only descriptions for patient cases in this document. AI generation and the clinician reference library remain separate. See [the Stage 1 implementation report](CLOUD_PATIENT_SYNC_STAGE1_2026-10-02.md). Provider contracts, region, backup retention and professional approvals are not verified by this implementation.
+
+
 Every personal-data item SmileCompose V1 handles, based on the code in this repository (as of 2026-09-27). Retention values marked **OWNER DECISION REQUIRED** are proposals; see [DATA_RETENTION.md](DATA_RETENTION.md).
 
 Legend: **Device** means WebView/browser storage on the clinician's device. **Transit** means held in memory only while a request is processed.

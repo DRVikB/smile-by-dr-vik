@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Maximize2 } from "lucide-react";
+import { Minimize2 } from "lucide-react";
 
 export interface ZoomState {
   scale: number;
@@ -60,9 +60,9 @@ export function fillScale(imageWidth: number, imageHeight: number, frameWidth: n
 }
 
 /**
- * Photographs open filling the frame. Pinch to zoom in, or out as far as the
- * whole photograph; drag to pan once zoomed in; double tap to toggle between
- * fill and a closer look.
+ * Photographs open completely contained, with the existing blurred backdrop
+ * filling unused space. Pinch or double tap for a closer look; Fit photo
+ * always returns to the uncropped original framing.
  *
  * At fill (or zoomed out) this stays out of the way: single pointers fall
  * through untouched, so the comparison slider and the tap-and-hold in
@@ -84,7 +84,7 @@ export function ZoomPan({
   label?: string;
   overlay?: React.ReactNode;
   resetKey?: string;
-  /** Zoom to this part of the photo (normalised 0–1), e.g. the teeth; null returns to fill. */
+  /** Zoom to this part of the photo (normalised 0–1), e.g. the teeth; null returns to fit. */
   focus?: { x: number; y: number; width: number; height: number } | null;
 }) {
   const frame = useRef<HTMLDivElement>(null);
@@ -97,7 +97,10 @@ export function ZoomPan({
   const lastTap = useRef(0);
   const tap = useRef<{ id: number; x: number; y: number; time: number } | null>(null);
 
-  const reset = useCallback(() => setState({ scale: fillRef.current, x: 0, y: 0 }), []);
+  const reset = useCallback(() => {
+    setState(IDENTITY); pointers.current.clear(); pinch.current = null;
+    tap.current = null; lastTap.current = 0;
+  }, []);
 
   // A new photo or preview should never inherit the previous one's zoom.
   useEffect(() => reset(), [resetKey, reset]);
@@ -121,11 +124,9 @@ export function ZoomPan({
     return () => { observer.disconnect(); el.removeEventListener("load", measure, true); };
   }, [resetKey]);
 
-  // When the fill level changes, a view resting at fill follows it; a view the clinician zoomed stays put.
+  // Orientation changes must never automatically crop a photograph.
   useEffect(() => {
-    const previous = fillRef.current;
     fillRef.current = fill;
-    setState(s => (Math.abs(s.scale - previous) < 0.01 ? { scale: fill, x: 0, y: 0 } : s));
   }, [fill]);
 
   const size = () => {
@@ -140,7 +141,7 @@ export function ZoomPan({
     return { w, h, cw, ch };
   };
   const max = () => fillRef.current * maxScale;
-  const beyondFill = (scale: number) => scale > fillRef.current * 1.01;
+  const beyondFill = (scale: number) => scale > 1.01;
 
   function onPointerDown(e: React.PointerEvent) {
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -213,9 +214,9 @@ export function ZoomPan({
     const now = Date.now();
     if (now - lastTap.current < 320) {
       const { w, h, cw, ch } = size();
-      const atFill = (scale: number) => Math.abs(scale - fillRef.current) < fillRef.current * 0.01;
+      const atFill = (scale: number) => scale <= 1.01;
       setState((s) =>
-        atFill(s.scale) ? clampPan(zoomAbout(s, fillRef.current * 2.5, 0, 0, max()), w, h, cw, ch) : { scale: fillRef.current, x: 0, y: 0 },
+        atFill(s.scale) ? clampPan(zoomAbout(s, fillRef.current * 2.5, 0, 0, max()), w, h, cw, ch) : IDENTITY,
       );
       lastTap.current = 0;
       e.stopPropagation();
@@ -239,8 +240,8 @@ export function ZoomPan({
     else if (hadFocus.current) { hadFocus.current = false; reset(); }
   }, [Boolean(focus), reset]);
 
-  const zoomed = state.scale > fill * 1.01;
-  const offFill = Math.abs(state.scale - fill) > fill * 0.01;
+  const zoomed = state.scale > 1.01;
+  const offFill = zoomed;
 
   return (
     <div
@@ -261,10 +262,10 @@ export function ZoomPan({
       </div>
       {overlay}
       {offFill && <button type="button" className="photo-framing-toggle"
-        aria-label="Fill the screen"
+        aria-label="Fit whole photo"
         onPointerDown={e => e.stopPropagation()}
         onClick={reset}>
-        <Maximize2 size={14} /> <span className="photo-framing-text">Fill screen</span>
+        <Minimize2 size={14} /> <span className="photo-framing-text">Fit photo</span>
       </button>}
       {!offFill && <span className="zoompan-hint" aria-hidden="true">{label}</span>}
     </div>

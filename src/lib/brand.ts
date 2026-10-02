@@ -1,3 +1,7 @@
+/** Shared wording on screens and in patient exports. */
+export const AI_CONCEPT_SUMMARY = "AI concept · Clinician-designed visual guide, not a guaranteed result.";
+export const AI_CONCEPT_DISCLAIMER = "This AI-generated concept is based on your clinician’s chosen smile design. It is a visual guide for discussion only, not a treatment plan, and is not a guarantee of the final clinical outcome. Final results depend on clinical assessment, treatment planning and biological factors.";
+
 /** Public identity shared by the interface and patient exports. */
 export const SMILECOMPOSE = {
   name: "SmileCompose",
@@ -6,7 +10,7 @@ export const SMILECOMPOSE = {
   descriptor: "Digital Smile Design",
   signature: "Designed by Dr Vik",
   supportingLine: "Plan · Visualise · Communicate · Transform",
-  disclaimer: "Concept visualisation only. Final clinical outcomes depend on diagnosis, treatment planning, biological factors and treatment performed.",
+  disclaimer: AI_CONCEPT_DISCLAIMER,
   colors: {
     ivory: "#FAF9F6", stone: "#E6DED4", sand: "#C9B8A1",
     taupe: "#A08F7E", charcoal: "#3C3C3C", gold: "#D4B583",

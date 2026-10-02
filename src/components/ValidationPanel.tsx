@@ -1,9 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
-import { readLibraryMedia } from "@/lib/caseLibrary";
-import { saveValidationRecord, validationMetrics } from "@/lib/validation";
+import { captureWorkspace } from "@/lib/workspace";
+import { createLibraryStore } from "@/lib/caseLibrary";
+import { createValidationStore, validationMetrics } from "@/lib/validation";
 import type { GenerationResult } from "@/lib/types";
 export function ValidationPanel({ caseId, result, before }: { caseId: string; result: GenerationResult; before: string }) {
+  const [library] = useState(() => createLibraryStore(captureWorkspace()));
+  const [validation] = useState(() => createValidationStore(captureWorkspace()));
+  const { readLibraryMedia } = library;
+  const { saveValidationRecord } = validation;
   const [actual, setActual] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [reviewer, setReviewer] = useState("Dr Vik");

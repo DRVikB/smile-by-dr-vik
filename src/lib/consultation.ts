@@ -1,3 +1,4 @@
+import { AI_CONCEPT_DISCLAIMER } from "./brand";
 import { analysisRows, type AnalysisRow, type SmileAnalysis } from "./face/analysis";
 import { impliesWhitening } from "./implications";
 import { canGuideSmileArc } from "./smilePrinciples";
@@ -301,9 +302,9 @@ export function treatmentOverview(s: SmileSettings): OverviewItem[] {
 
 export const NEXT_STEPS = "Your clinician will talk this concept through with you, confirm what is suitable at a clinical assessment and agree a treatment plan with you before anything begins.";
 
-export const PREVIEW_DISCLAIMER = "This is a visual concept for discussion purposes and is not a guarantee of the final clinical result.";
+export const PREVIEW_DISCLAIMER = AI_CONCEPT_DISCLAIMER;
 
-export const REPORT_DISCLAIMER = "SmileCompose creates visual concepts for consultation and discussion. The concept shown is not a guarantee of the final clinical outcome. Final treatment recommendations and results depend on clinical examination, diagnosis, treatment planning and biological factors.";
+export const REPORT_DISCLAIMER = AI_CONCEPT_DISCLAIMER;
 
 export const DEMO_DISCLAIMER = "Demo preview — sample imagery, not a patient result.";
 

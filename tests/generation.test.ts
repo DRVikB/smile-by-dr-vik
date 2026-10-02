@@ -74,6 +74,20 @@ test("instruction includes the selected anatomy and preservation boundaries", ()
   ])
     assert.ok(prompt.includes(phrase));
 });
+
+test("original tooth exposure wins over material, alignment and full-arch choices", () => {
+  for (const settings of [
+    defaultSettings,
+    { ...defaultSettings, treatment: "Porcelain" as const },
+    { ...defaultSettings, alignment: { arches: "Both" as const } },
+    { ...defaultSettings, treatmentMode: "full_arch" as const, fullArch: { arch: "both" as const, restorationType: "zirconia" as const, prostheticGingiva: "auto" as const } },
+  ]) {
+    const prompt = buildSmileInstruction(settings);
+    assert.match(prompt, /If only upper teeth are visible, keep the lower teeth hidden/);
+    assert.match(prompt, /do not reveal more of them/);
+    assert.match(prompt, /never authorises revealing concealed teeth/);
+  }
+});
 test("API supports mock generation and does not cache patient photos", async () => {
   const response = await POST(
     new Request("http://localhost/api/generate-smile", {

@@ -1,4 +1,4 @@
-import { SMILECOMPOSE } from "@/lib/brand";
+import { AI_CONCEPT_SUMMARY, SMILECOMPOSE } from "@/lib/brand";
 import { Pencil, Plus, Share2 } from "lucide-react";
 import { VisualiseSymbol } from "@/components/icons/SmileIcons";
 export function BottomActionBar({
@@ -36,6 +36,7 @@ export function BottomActionBar({
         <Plus size={19} strokeWidth={1.5} />
         New Design
       </button>
+      <p className="desktop-concept-note">{AI_CONCEPT_SUMMARY}</p>
     </div>
   );
 }

@@ -1,5 +1,8 @@
 # Processors and sub-processors
 
+> **2026-10-02 implementation update (not deployed):** Macro Stage 1 adds signed-in patient-case state in Supabase and binary patient media in the separate PRIVATE `patient-cases` bucket, with an account-isolated local cache/outbox. This supersedes earlier device-only descriptions for patient cases in this document. AI generation and the clinician reference library remain separate. See [the Stage 1 implementation report](CLOUD_PATIENT_SYNC_STAGE1_2026-10-02.md). Provider contracts, region, backup retention and professional approvals are not verified by this implementation.
+
+
 > Contract and transfer status here is **NOT VERIFIED** unless evidence is attached. The repository cannot show that an agreement has been accepted. The owner must complete the due-diligence checklist for each provider and file the evidence (DPA PDF or acceptance screenshot, date, account).
 
 | Provider | Service | Data | Patient data? | Location (to confirm) | Contract / DPA | Transfer mechanism | Status |

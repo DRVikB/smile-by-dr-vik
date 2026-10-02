@@ -1,6 +1,7 @@
 "use client";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { CaptureSymbol, ComposeSymbol, IconTile, PresentSymbol, ShareSymbol, VisualiseSymbol } from "@/components/icons/SmileIcons";
+import { EXAMPLE_COMPARISON, EXAMPLE_PORTRAITS } from "@/lib/exampleImages";
 import { SUBSCRIPTION_PRODUCTS } from "@/config/subscriptions";
 
 /**
@@ -12,22 +13,21 @@ import { SUBSCRIPTION_PRODUCTS } from "@/config/subscriptions";
  */
 const BEFORE = "/onboarding/smile-before.jpg";
 const AFTER = "/onboarding/smile-after.jpg";
-const HERO = "/smile-hero-dr-vik-v2.png";
+const HERO = "/smile-hero-dr-vik-v2.webp";
 /** Smile-region crops of the sample material cases, and a new patient's design. */
 const STYLE_CASES = [
   { src: "/onboarding/case-porcelain.jpg", label: "Porcelain" },
   { src: "/onboarding/case-layered.jpg", label: "Layered" },
   { src: "/onboarding/case-single-shade.jpg", label: "Single shade" },
 ];
-const NEW_DESIGN = "/onboarding/new-design.jpg";
-/** iPad: the pictures fill half the screen, so they use the full-resolution frames of the same case. */
-const BEFORE_LARGE = "/onboarding/portrait-before.jpg";
-const AFTER_LARGE = "/onboarding/portrait-after.jpg";
-const TABLET = "(min-width: 700px)";
-
+const NEW_DESIGN = "/examples/smile-detail-v1-960.webp";
+/** Full-resolution frames of the same case, including on dense mobile displays. */
+const BEFORE_LARGE = EXAMPLE_COMPARISON.before;
+const AFTER_LARGE = EXAMPLE_COMPARISON.after;
+// Full portraits on phones too: viewport width alone is not a reliable indicator
+// of display density or how large a photograph will become in landscape.
 function Photo({ src, large, className }: { src: string; large?: string; className: string }) {
-  const img = <img className={className} src={src} alt="" draggable={false} />;
-  return large ? <picture><source media={TABLET} srcSet={large} />{img}</picture> : img;
+  return <img className={className} src={large ?? src} alt="" draggable={false} decoding="async" />;
 }
 
 /** Before / after of the sample case with an animated reveal. */
@@ -50,7 +50,7 @@ export function SmileReveal({ animate = true, size = "hero", handle = "dot" }: {
         <span className="reveal-tag before" aria-hidden="true">Before</span>
         <span className="reveal-tag after" aria-hidden="true">Concept</span>
       </div>
-      <figcaption className="sr-only">A sample patient smile, before and as a porcelain smile concept.</figcaption>
+      <figcaption className="sr-only">An illustrative demo smile, before and as a smile concept.</figcaption>
     </figure>
   );
 }
@@ -77,7 +77,7 @@ export function HeroPhoto({ photo, eyebrow, title, brandEyebrow = false }: {
 }) {
   return (
     <div className={`ob-hero ob-hero-${photo}`} aria-hidden="true">
-      {photo === "portrait" ? <Photo className="ob-hero-img" src={AFTER} large={AFTER_LARGE} /> : <img className="ob-hero-img" src={HERO} alt="" draggable={false} />}
+      {photo === "portrait" ? <img className="ob-hero-img" {...EXAMPLE_PORTRAITS.woman} sizes="(min-width: 700px) and (orientation: landscape) 66vw, 100vw" alt="" draggable={false} decoding="async" /> : <img className="ob-hero-img" src={HERO} alt="" draggable={false} />}
       <div className="ob-hero-caption">
         <span className={`ob-hero-eyebrow${brandEyebrow ? " is-brand" : ""}`}>{eyebrow}</span>
         <span className="ob-hero-title">{title}</span>
@@ -88,7 +88,7 @@ export function HeroPhoto({ photo, eyebrow, title, brandEyebrow = false }: {
 
 /* "A smarter way": each card's photograph fills its right-hand side. */
 function MediaCapture() {
-  return <img className="how-media-photo how-media-capture" src={AFTER} alt="" draggable={false} />;
+  return <img className="how-media-photo how-media-capture" {...EXAMPLE_PORTRAITS.man} sizes="(min-width: 700px) 280px, 46vw" alt="" draggable={false} decoding="async" />;
 }
 
 function MediaCompose() {
@@ -109,7 +109,7 @@ function MediaShare() {
   return (
     <div className="how-media-tablet">
       <div className="how-media-screen">
-        <img className="how-media-hero" src={AFTER} alt="" draggable={false} />
+        <img className="how-media-hero" src={AFTER_LARGE} alt="" draggable={false} />
         <div className="how-media-strip">
           <img src={BEFORE} alt="" draggable={false} />
           <img src={AFTER} alt="" draggable={false} />
@@ -177,7 +177,7 @@ export function StyleLibraryVisual({ own }: { own?: { src: string; label: string
     <div className="ob-stage style-stage" aria-hidden="true">
       <div className="style-flow">
         <div className="style-cases">
-          <span className="style-flow-label">Your finished cases</span>
+          <span className="style-flow-label">{own?.length ? "Your finished cases" : "Illustrative material examples"}</span>
           <div className={`style-case-row count-${cases.length}`}>
             {cases.map((c, i) => (
               <figure key={c.src} className="style-case" style={{ "--i": i } as React.CSSProperties}>
@@ -193,9 +193,9 @@ export function StyleLibraryVisual({ own }: { own?: { src: string; label: string
           <span className="style-engine-line" />
         </div>
         <figure className="style-result">
-          <span className="style-flow-label">New patient design</span>
-          <img src={NEW_DESIGN} alt="" draggable={false} />
-          <figcaption><Check size={13} strokeWidth={2.2} />Your contour, texture and finish</figcaption>
+          <span className="style-flow-label">{own?.length ? "New patient design" : "Sample design"}</span>
+          <img src={NEW_DESIGN} srcSet="/examples/smile-detail-v1-480.webp 480w, /examples/smile-detail-v1-960.webp 960w, /examples/smile-detail-v1-1536.webp 1536w" sizes="(min-width: 700px) 380px, 320px" alt="" draggable={false} decoding="async" />
+          <figcaption><Check size={13} strokeWidth={2.2} />{own?.length ? "Your contour, texture and finish" : "Illustrative contour, texture and finish"}</figcaption>
         </figure>
       </div>
     </div>

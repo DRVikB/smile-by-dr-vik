@@ -4,7 +4,7 @@ import { planMouthLock } from "./lock";
 
 export interface MouthLockResult {
   image: string;
-  /** True when everything outside the lips is the original photograph. */
+  /** True when everything outside the original mouth opening is restored. */
   locked: boolean;
   lipsMoved: boolean;
 }
@@ -20,7 +20,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 
 /**
  * Put the AI edit back onto the original photograph so that nothing outside
- * the lips can change: skin, eyes, nose, hair and background are the
+ * the original mouth opening can change: lips, skin, eyes, nose, hair and background are the
  * patient's own pixels. If the face can't be found, the edit is returned
  * untouched rather than guessed at.
  */
@@ -55,12 +55,13 @@ export async function lockFaceOutsideLips(
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const editedPixels = ctx.getImageData(0, 0, width, height);
 
-    const mask = polygonMask(plan.polygon, width, height, plan.grow, plan.feather);
+    const mask = polygonMask(plan.polygon, width, height, plan.grow, plan.feather, true);
     const merged = compositeMasked(originalPixels.data, editedPixels.data, width, mask);
     editedPixels.data.set(merged);
     ctx.putImageData(editedPixels, 0, 0);
     return {
-      image: canvas.toDataURL("image/jpeg", 0.95),
+      // JPEG re-encoding would change protected face pixels after restoration.
+      image: canvas.toDataURL("image/png"),
       locked: true,
       lipsMoved: plan.lipsMoved,
     };

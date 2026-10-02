@@ -1,3 +1,4 @@
+import { onWorkspaceDetach } from "../workspace";
 /**
  * The developer-only Tooth Map debug view: tooth outlines, labels, confidence,
  * masks and the unexpected-change heatmap. Available in development builds
@@ -36,3 +37,6 @@ export function rememberRoughMap(map: import("./types").ToothMap): void {
 export function roughMapFor(photoId: string | undefined): import("./types").ToothMap | undefined {
   return photoId ? rough.get(photoId) : undefined;
 }
+
+export function clearToothDebugCache() { store.clear(); rough.clear(); }
+onWorkspaceDetach(clearToothDebugCache);

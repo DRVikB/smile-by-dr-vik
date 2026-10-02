@@ -4,7 +4,10 @@ import { AccountError, createSupabaseAccountStore, createSupabaseMediaStore, typ
 import { createRevenueCatClient, type ProEntitlement, type RevenueCatClient } from "./revenuecat";
 import { accountsMode, allowSandbox, type ServerEnvironment } from "./env";
 
+import { createSupabasePatientCaseStore, type PatientCaseStore } from "./patientCaseStore";
+
 export interface AccountServices {
+  patients?: PatientCaseStore;
   store: AccountStore;
   media: MediaStore;
   revenuecat: RevenueCatClient;
@@ -17,6 +20,7 @@ export interface AccountServices {
 export function accountServicesFromEnv(env: ServerEnvironment): AccountServices | null {
   if (accountsMode(env) !== "required") return null;
   return {
+    patients: createSupabasePatientCaseStore(env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!),
     store: createSupabaseAccountStore(env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!),
     media: createSupabaseMediaStore(env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!),
     revenuecat: createRevenueCatClient(env.REVENUECAT_SECRET_API_KEY!),

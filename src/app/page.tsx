@@ -52,14 +52,13 @@ import {
   type SmileSettings,
   type GenerationResult,
   type SmileVariant,
-  type Treatment,
   type UploadAuthority,
 } from "@/lib/types";
-import { readCase, persistCase } from "@/lib/storage";
+
 import { isNativeApp } from "@/native/platform";
 import { takeNativePhoto } from "@/native/photos";
 import type { ShortcutAction } from "@/native/shortcuts";
-import { updateLogReview } from "@/lib/caseLog";
+
 import { thumbnail } from "@/lib/thumb";
 import { preparePhoto } from "@/lib/photos";
 import { assessResultScaleFromDataUrls } from "@/lib/resultCheck";
@@ -73,6 +72,8 @@ import { toothSummary } from "@/lib/teeth";
 import { AI_CONSENT_VERSION, fingerprintPhotoForConsent, type AiProcessingConsent } from "@/lib/aiConsent";
 import { apiUrl } from "@/services/api/client";
 import { generateSmileImage } from "@/services/ai/smileImageService";
+import { onWorkspaceDetach, type WorkspaceLease } from "@/lib/workspace";
+import { createLibraryStore } from "@/lib/caseLibrary";
 import { getCaseRepository } from "@/services/cases/caseRepository";
 import { SmileGenerationError } from "@/services/ai/smileImageService";
 import { useAccount } from "@/components/account/AccountProvider";
@@ -84,13 +85,9 @@ import { Onboarding } from "@/components/onboarding/Onboarding";
 import { HomeHeadline, ProfileButton, RecentCases } from "@/components/home/HomeWorkspace";
 import { AllowanceBanner, AllowancePill } from "@/components/account/Allowance";
 import { DOCUMENT_VERSIONS } from "@/config/legal";
+import { DEMO_PREVIEW_NOTICE, loadDemoPreview } from "@/lib/demoPreviews";
 
 type Variant = SmileVariant;
-const DEMO_MATERIAL_IMAGES: Record<Exclude<Treatment, "Composite">, string> = {
-  "Single-shade composite": "/demo-single-shade-composite.png",
-  "Layered composite": "/demo-storyboard-after.png",
-  Porcelain: "/demo-porcelain.png",
-};
 
 /** Let the full-screen generation view paint before image processing blocks Safari. */
 function waitForGenerationScreen(): Promise<void> {
@@ -110,19 +107,26 @@ function waitForGenerationScreen(): Promise<void> {
 /**
  * Put the edit back onto the original photograph, on the device. The face
  * lock keeps everything outside the lips; a painted edit area narrows that;
- * the Tooth Map then keeps only the selected teeth — every other pixel,
- * including gums and unselected teeth, is the original photo.
+ * a reviewed Tooth Map protects every selected tooth. Alignment and
+ * full-arch concepts keep their existing generator and facial protection.
  */
 async function lockFace(
   photo: Photo,
   image: string,
   settings: SmileSettings,
+  scope: WorkspaceLease,
 ): Promise<Pick<GenerationResult, "image" | "faceLocked" | "lipsMoved" | "editAreaProtected" | "toothProtection">> {
+  scope.assert();
   const { lockFaceOutsideLips } = await import("@/lib/face/mouthLock");
+  scope.assert();
   const r = await lockFaceOutsideLips(photo.dataUrl, image);
+  scope.assert();
+  const { protectionPlan, protectWithToothMap } = await import("@/lib/toothMap/protect");
+  const preciseTooth = photo.toothMap && protectionPlan(photo.toothMap, photo.dataUrl, settings).ok;
+  if (!r.locked && settings.shotType === "Full face" && !photo.editMask && !preciseTooth)
+    throw new Error("This preview could not be aligned and protected against your original face. It has not been presented. Your photo is safe; use Protect edit area or a clearer photo before trying again.");
   let imageOut = photo.editMask ? await (await import("@/lib/editMask")).protectOutsideEditMask(photo.dataUrl, r.image, photo.editMask) : r.image;
   let toothProtection: GenerationResult["toothProtection"];
-  const { protectionPlan, protectWithToothMap } = await import("@/lib/toothMap/protect");
   const archOnly = settings.treatmentMode === "full_arch" && settings.fullArch && settings.fullArch.arch !== "both" ? settings.fullArch.arch : null;
   const arch = archOnly ? await import("@/lib/toothMap/arch") : null;
   if (arch?.FULL_ARCH_ARCH_COMPOSITE && archOnly && photo.toothMap?.mouthOpening && photo.toothMap.photoId === (await import("@/lib/toothMap/types")).photoFingerprint(photo.dataUrl)) {
@@ -134,8 +138,10 @@ async function lockFace(
     const outcome = await protectWithToothMap(photo.dataUrl, imageOut, photo.toothMap, settings, { debug: TOOTH_MAP_DEBUG });
     imageOut = outcome.image;
     toothProtection = outcome.protection;
+    scope.assert();
     rememberToothDebug(imageOut, { heatmap: outcome.debugImage, mask: outcome.debugMask });
   }
+  scope.assert();
   return { image: imageOut, editAreaProtected: Boolean(photo.editMask), faceLocked: r.locked, lipsMoved: r.lipsMoved, ...(toothProtection ? { toothProtection } : {}) };
 }
 
@@ -152,6 +158,9 @@ function toothFocus(map: Photo["toothMap"]): { x: number; y: number; width: numb
 }
 
 export default function Smile() {
+  const [repository] = useState(getCaseRepository);
+  const [deviceLibrary] = useState(() => createLibraryStore(repository.scope));
+  const { readCase, persistCase, updateLogReview } = repository;
   const [screen, setScreen] = useState<Screen>("start");
   const [photo, setPhoto] = useState<Photo | null>(null);
   // Groups this case's visualisations; see SmileComposeCase in src/models/case.ts.
@@ -314,6 +323,7 @@ export default function Smile() {
 
   /** Route account-related refusals to the right sheet; other errors show as text. */
   function showGenerationError(e: unknown, fallback: string) {
+    if (repository.scope.signal.aborted) return;
     if (e instanceof SmileGenerationError && e.code === "auth_required") { account.openAuth("signIn", "generate"); return; }
     if (e instanceof SmileGenerationError && e.code === "mfa_required") { account.openMfa("challenge"); return; }
     if (e instanceof SmileGenerationError && (e.code === "subscription_required" || e.code === "no_active_allowance")) { void account.refresh(); account.openPaywall(); return; }
@@ -327,14 +337,11 @@ export default function Smile() {
   // Bumped after each version is written to Cases.
   const [caseLogVersion, setCaseLogVersion] = useState(0);
   const caseSession = useRef(0);
+  useEffect(() => onWorkspaceDetach(() => { caseSession.current++; request.current?.abort(); logWrites.current.clear(); }), []);
   const heading = useRef<HTMLHeadingElement>(null);
   const firstScreen = useRef(true);
 
-  useEffect(() => {
-    let active = true;
-    readCase()
-      .then((c) => {
-        if (active && c) {
+  function restoreWorkingCase(c:import("@/lib/types").SmileCase) {
           setCaseId(c.caseId ?? crypto.randomUUID());
           setUploadAuthority(c.uploadAuthority ?? null);
           setRequestLimit(c.requestLimit ?? 0);
@@ -352,6 +359,22 @@ export default function Smile() {
           setSettings(c.settings);
           setResult(c.result);
           setScreen(c.screen);
+  }
+
+  useEffect(()=>repository.subscribeWorkingCase(c=>{
+    // A resolved conflict/deletion also replaces the visible editor, preventing
+    // its old autosave or in-flight result from reintroducing discarded state.
+    caseSession.current++;cancelGeneration();setBatchPending(null);setPendingAiConsent(null);setOptions(null);
+    setShareOpen(false);setVideoOpen(false);setPresenting(false);setFullscreen(false);
+    if(c)restoreWorkingCase(c);else{newSmile();setScreen("start");}
+  }),[repository]);
+
+  useEffect(() => {
+    let active = true;
+    readCase()
+      .then((c) => {
+        if (active && c) {
+          restoreWorkingCase(c);
         }
       })
       .catch(() => {
@@ -362,6 +385,7 @@ export default function Smile() {
       });
     return () => {
       active = false;
+      caseSession.current++;
       request.current?.abort();
     };
   }, []);
@@ -402,10 +426,18 @@ export default function Smile() {
   const photoUrl = photo?.dataUrl;
   useEffect(() => {
     if (screen !== "design" || !photoUrl) return;
+    const analysis=new AbortController();
     void import("@/lib/face/landmarks")
-      .then((m) => m.detectFace(photoUrl))
+      .then(async (m) => {
+        repository.scope.assert();const points=await m.detectFace(photoUrl, analysis.signal);repository.scope.assert();
+        if(analysis.signal.aborted)return;
+        if(points){const {makeAnalysisSnapshot}=await import("@/services/cases/sync/analysisSnapshot");repository.scope.assert();
+          setPhoto(current=>current?.dataUrl===photoUrl&&!current.analysisSnapshot?{...current,analysisSnapshot:makeAnalysisSnapshot(photoUrl,current.width,current.height,points)}:current);
+        }
+      })
       .catch(() => {});
-  }, [screen, photoUrl]);
+    return ()=>analysis.abort();
+  }, [screen, photoUrl, repository.scope]);
 
   useEffect(() => {
     if (firstScreen.current) {
@@ -417,6 +449,7 @@ export default function Smile() {
   }, [screen]);
 
   async function selectPhoto(p: Photo) {
+    p={...p,sourceProvenance:p.sourceProvenance??"prepared"};
     const nextCaseId = testMode || !caseId ? crypto.randomUUID() : caseId;
     setCaseId(nextCaseId);
     const nextSettings = testMode ? { ...defaultSettings } : settings;
@@ -476,7 +509,7 @@ export default function Smile() {
 
   /** The widget's "Recent case": the newest case's latest version in Cases, or Cases when there are none. */
   async function openLatestCase() {
-    const latest = await import("@/lib/caseLog").then(log => log.listActiveLog()).then(list => list[0]).catch(() => undefined);
+    const latest = await repository.listActiveLog().then(list => list[0]).catch(() => undefined);
     setLogEntry(latest?.id);
     setLogOpen(true);
   }
@@ -484,7 +517,7 @@ export default function Smile() {
   // The widget shows when the latest case was edited (only the time), so it follows every change to Cases.
   useEffect(() => {
     if (!ready || logOpen || !isNativeApp()) return;
-    void Promise.all([import("@/lib/caseLog"), import("@/native/shortcuts")])
+    void Promise.all([Promise.resolve(repository), import("@/native/shortcuts")])
       .then(async ([log, widget]) => widget.setWidgetRecentCase((await log.listActiveLog())[0]?.createdAt ?? null))
       .catch(() => { /* the widget keeps its last value */ });
   }, [ready, logOpen, caseLogVersion]);
@@ -508,31 +541,17 @@ export default function Smile() {
     setSampleBusy(true);
     setError("");
     try {
-      const [patientResponse, previewResponse] = await Promise.all([
-        fetch("/demo-storyboard-before.png"),
-        fetch(DEMO_MATERIAL_IMAGES["Single-shade composite"]),
+      const [patientResponse, previewImage] = await Promise.all([
+        fetch("/demo-storyboard-before.webp"),
+        loadDemoPreview(defaultSettings),
       ]);
-      if (!patientResponse.ok || !previewResponse.ok) throw new Error();
-      const [patientBlob, previewBlob] = await Promise.all([
-        patientResponse.blob(),
-        previewResponse.blob(),
-      ]);
-      const [patient, preview] = await Promise.all([
-        preparePhoto(
-          new File([patientBlob], "SmileCompose demo before.png", {
-            type: "image/png",
-          }),
-        ),
-        preparePhoto(
-          new File([previewBlob], "SmileCompose demo after.png", {
-            type: "image/png",
-          }),
-        ),
-      ]);
+      if (!patientResponse.ok) throw new Error();
+      const patientBlob = await patientResponse.blob();
+      const patient = await preparePhoto(new File([patientBlob], "SmileCompose demo before.png", { type: "image/png" }));
       if (caseSession.current !== session) return;
       newSmile();
       setPhoto({ ...patient, isSample: true });
-      setTestPreview(preview.dataUrl);
+      setTestPreview(previewImage);
       setTestMode(true);
       setResult(null);
       setSettings({ ...defaultSettings });
@@ -548,7 +567,7 @@ export default function Smile() {
   async function startValidation(entry: LibraryCase) {
     const session = caseSession.current;
     try {
-      const media = await (await import("@/lib/caseLibrary")).readLibraryMedia(entry.id);
+      const media = await deviceLibrary.readLibraryMedia(entry.id);
       if (!media?.beforeImage) throw new Error("Add a before photograph to this library case first.");
       const blob = await (await fetch(media.beforeImage)).blob();
       const prepared = await preparePhoto(new File([blob], "Validation before.jpg", { type: blob.type }));
@@ -569,31 +588,35 @@ export default function Smile() {
   ): Promise<GenerationResult> {
     const started = performance.now();
     const session = costSession.current;
-    // Nothing the clinician selected is in this photo's tooth map: stop before anything is charged.
+    // Every selected-tooth edit needs reviewed boundaries before a paid request.
+    // Alignment and full arch retain their separate protection paths.
     const toothPlan = (await import("@/lib/toothMap/protect")).protectionPlan(photoIn.toothMap, photoIn.dataUrl, settingsIn);
-    if (!toothPlan.ok && toothPlan.reason === "no-teeth")
-      throw new Error("None of the selected teeth were found in this photo, so nothing could change. Check the tooth map on the Teeth step. No request was sent.");
+    if (!testMode && !toothPlan.ok && !["full-arch", "alignment"].includes(toothPlan.reason))
+      throw new Error(toothPlan.reason === "unconfirmed"
+        ? "Review the selected tooth’s outline and number, then confirm the tooth map on the Teeth step. No request was sent."
+        : "All selected teeth need valid boundaries for this photo. Review the Tooth Map on the Teeth step; remove invisible or missing teeth from the selection. No request was sent.");
     const preferences: PreviewPreferences = { styleReferenceStatus: "off", styleReferenceCount: 0, settings: structuredClone(settingsIn), referenceUsed: Boolean(reference), testMode };
     if (testMode) {
-      const material = settingsIn.treatment === "Composite"
-        ? "Single-shade composite"
-        : settingsIn.treatment;
-      const response = await fetch(DEMO_MATERIAL_IMAGES[material], {
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error("The demo material image couldn’t be loaded. Please try again.");
-      const blob = await response.blob();
-      const prepared = await preparePhoto(new File([blob], `${material}.png`, { type: "image/png" }));
+      const demoImage = await loadDemoPreview(settingsIn, controller.signal);
       await new Promise((resolve) => setTimeout(resolve, 900));
       if (controller.signal.aborted) throw controller.signal.reason;
       const { alignPreview } = await import("@/lib/photos");
-      const locked = await lockFace(photoIn, await alignPreview(prepared.dataUrl, photoIn), settingsIn);
+      const locked = await lockFace(photoIn, await alignPreview(demoImage, photoIn), settingsIn, repository.scope);
       return {
         ...locked,
         mode: "live",
         variationId: crypto.randomUUID(),
         preferences,
       };
+    }
+    // Check existing protection before spending a generation. A reviewed
+    // selected-tooth mask or clinician-painted area can also protect the face.
+    if (settingsIn.shotType === "Full face" && !photoIn.editMask && !toothPlan.ok) {
+      const { detectFace } = await import("@/lib/face/landmarks");
+      repository.scope.assert();
+      const points = await detectFace(photoIn.dataUrl, controller.signal);
+      if (controller.signal.aborted) throw controller.signal.reason;
+      if (!points) throw new Error("Face protection could not find the mouth in this photo. Use a clearer full-face photo or Protect edit area. No generation request was sent.");
     }
     // Case Library style references are attached by the server, from the
     // signed-in account's own private library; the app never sends them. The
@@ -602,8 +625,9 @@ export default function Smile() {
       ? findMatchingStyleReferences(caseLibrary.candidates, settingsIn, DEFAULT_STYLE_REFERENCE_LIMIT).map(m => m.id)
       : [];
     if (controller.signal.aborted) throw controller.signal.reason;
-    const toothMapKey = photoIn.toothMap ? { photoId: photoIn.toothMap.photoId, teeth: photoIn.toothMap.teeth.map(t => [t.fdi, t.visible, t.outline]) } : null;
-    const fingerprint = await previewFingerprint({ image: photoIn.dataUrl, editMask: photoIn.editMask, toothMap: toothMapKey, settings: settingsIn, resolution: effectiveResolution, provider: pricing?.model, reference: reference?.dataUrl, styleReferences });
+    const toothMapKey = toothPlan.ok && photoIn.toothMap ? { precisionVersion: 2, photoId: photoIn.toothMap.photoId, teeth: photoIn.toothMap.teeth.map(t => [t.fdi, t.visible, t.outline]) } : null;
+    const protectionVersion = (await import("@/lib/face/lock")).MOUTH_LOCK_VERSION;
+    const fingerprint = await previewFingerprint({ image: photoIn.dataUrl, editMask: photoIn.editMask, toothMap: toothMapKey, settings: settingsIn, resolution: effectiveResolution, provider: pricing?.model, reference: reference?.dataUrl, styleReferences, protectionVersion });
     const reusable = [result, ...variants.map(v => v.result)].find(r => r?.requestFingerprint === fingerprint);
     if (reusable) return reusable;
     if (exceedsRequestLimit(costs.requested, 1, requestLimit)) throw new Error("This case has reached its generation limit. Change the case limit under Allowance to create more.");
@@ -628,6 +652,7 @@ export default function Smile() {
       accessToken: await account.getAccessToken(),
       onSubmitted: () => setCosts((c) => ({ ...c, requested: c.requested + 1 })),
     });
+    repository.scope.assert();
     if (costSession.current === session) {
       const receipt = next.mode === "mock"
         ? { usd: 0, basis: "usage" as const, model: "mock", resolution: effectiveResolution }
@@ -636,9 +661,10 @@ export default function Smile() {
     }
     const { alignPreview } = await import("@/lib/photos");
     const alignedImage = await alignPreview(next.image, photoIn, requestCanvas);
+    repository.scope.assert();
     next = { ...next, image: alignedImage };
     if (next.mode === "live") {
-      next = { ...next, ...(await lockFace(photoIn, alignedImage, settingsIn)) };
+      next = { ...next, ...(await lockFace(photoIn, alignedImage, settingsIn, repository.scope)) };
       // Advisory only, and only when there's a trustworthy anchor to check
       // against — an uploaded photo has no capture guide to measure from.
       if (photoIn.framing) {
@@ -650,6 +676,7 @@ export default function Smile() {
         if (assessment) next = { ...next, scaleFlag: assessment.flag };
       }
     }
+    repository.scope.assert();
     if (settingsIn.libraryStyle) {
       const used = next.styleReferencesUsed?.count ?? 0;
       preferences.styleReferenceCount = used;
@@ -670,7 +697,7 @@ export default function Smile() {
     const writing = (async () => {
       try {
         const thumb = await thumbnail(entryResult.image);
-        await getCaseRepository().recordVisualisation(
+        await repository.recordVisualisation(
           {
             id,
             caseId: caseId || undefined,
@@ -682,7 +709,7 @@ export default function Smile() {
             summary: `${toothSummary(used)} · ${used.treatmentMode === "full_arch" && used.fullArch ? (used.fullArch.restorationType === "zirconia" ? "Zirconia" : "Provisional") : used.treatment} · ${used.targetShade} · ${used.shape}`,
             thumb,
           },
-          { id, image: entryResult.image, originalImage: photo.dataUrl, preferences: entryResult.preferences ?? { settings: used, testMode }, review: entryResult.review, scaleFlag: entryResult.scaleFlag, aiConsent: testMode ? undefined : consent ?? aiConsent ?? undefined, generation: entryResult.generation },
+          { id, image: entryResult.image, originalImage: photo.dataUrl, photoMetadata: { sourceProvenance:photo.sourceProvenance,name:photo.name,width:photo.width,height:photo.height,framing:photo.framing,quality:photo.quality,toothMap:photo.toothMap,analysisSnapshot:photo.analysisSnapshot }, analysisSnapshot:photo.analysisSnapshot, preferences: entryResult.preferences ?? { settings: used, testMode }, review: entryResult.review, scaleFlag: entryResult.scaleFlag, aiConsent: testMode ? undefined : consent ?? aiConsent ?? undefined, generation: entryResult.generation },
         );
       } catch {
         setStorageError(true);
@@ -840,12 +867,14 @@ export default function Smile() {
     }
   }
 
-  const showAnother = () =>
+  const showAnother = () => {
+    if (testMode) { compareShapes(); return; }
     void generateVariants([
       { label: "Subtle", note: "A natural enhancement.", patch: { intensity: 20 } },
       { label: "Refined", note: "A balanced, polished look.", patch: { intensity: 50 } },
       { label: "Bright", note: "A brighter, more defined smile.", patch: { intensity: 80 } },
     ]);
+  };
 
   /**
    * Optional style exploration. These presets remain subordinate to the
@@ -859,6 +888,7 @@ export default function Smile() {
   };
 
   const harmoniseStyles = () => {
+    if (testMode) { compareShapes(); return; }
     const matched = FORM_FOR_FACE[settings.faceShape] ?? settings.shape;
     const withNote = (extra: string): Partial<SmileSettings> => ({
       notes: [settings.notes.trim(), extra].filter(Boolean).join(". ").slice(0,400),
@@ -900,14 +930,19 @@ export default function Smile() {
     ]);
   };
 
-  const compareMaterials = () => void generateVariants(caseMaterials.map(treatment => ({ label: treatment, note: testMode ? "Prepared material example on the same demo portrait. Other design controls do not change these demo images." : "Same selected goal, tooth plan and shade; material changes. Check contours across these independent illustrations.", patch: { treatment } })));
+  const compareMaterials = () => {
+    if (testMode && settings.alignment?.only && settings.treatmentMode !== "full_arch") { setError("The alignment-only demo preserves tooth shape and material. Turn off Alignment only to compare restorative materials."); return; }
+    void generateVariants(caseMaterials.map(treatment => ({ label: treatment, note: testMode ? `Prepared ${settings.shape.toLowerCase()} material example on the same demo portrait.` : "Same selected goal, tooth plan and shade; material changes. Check contours across these independent illustrations.", patch: { treatment } })));
+  };
 
-  const compareShapes = () =>
+  const compareShapes = () => {
+    if (testMode && settings.alignment?.only && settings.treatmentMode !== "full_arch") { setError("The alignment-only demo preserves tooth shape. Turn off Alignment only to compare the three restorative shapes."); return; }
     void generateVariants([
       { label: "Square", note: "Defined, confident edges.", patch: { shape: "Square" } },
       { label: "Rounded", note: "Soft and natural.", patch: { shape: "Rounded" } },
       { label: "Triangular", note: "Tapered, delicate form.", patch: { shape: "Triangular" } },
     ]);
+  };
 
   function selectOption(v: Variant) {
     setSettings(v.settings);
@@ -1180,7 +1215,7 @@ export default function Smile() {
               </h1>
               <DesignStudio
                 toothMap={toothMap}
-                stage={(teethStep) => result ? (
+                stage={(teethStep) => result && !(teethStep && settings.treatmentMode !== "full_arch" && (toothMap.picking || toothMap.editing || toothMap.adding || toothMap.mode !== "hidden")) ? (
                   <div className="preview-stage">
                     <BeforeAfterSlider
                       original={photo.dataUrl}
@@ -1191,7 +1226,7 @@ export default function Smile() {
                     />
                   </div>
                 ) : (
-                  <PatientPhoto photo={photo} focus={teethStep ? toothFocus(photo.toothMap) : null} overlay={teethStep && settings.treatmentMode !== "full_arch" ? (zoom) => (
+                  <PatientPhoto photo={photo} focus={teethStep && toothMap.mode !== "hidden" ? toothFocus(photo.toothMap) : null} overlay={teethStep && settings.treatmentMode !== "full_arch" ? (zoom) => (
                     <ToothMapOverlay controller={toothMap} settings={settings} width={photo.width} height={photo.height} scale={zoom} />
                   ) : undefined} />
                 )}
@@ -1352,9 +1387,8 @@ export default function Smile() {
               )}
               {result.lipsMoved && (
                 <p className="scale-notice" role="status">
-                  <span>Lips changed</span>This version moved the lip line as
-                  well as the teeth, so it may not match their own smile — try
-                  again for a closer match.
+                  <span>Check smile fit</span>The AI attempted to change the lip line.
+                  {result.faceLocked ? " The original lips and face have been restored. Check that the teeth fit the original opening and that no hidden teeth have appeared." : " Compare with the original before presenting this version."}
                 </p>
               )}
               {result.mode === "mock" && (
@@ -1365,8 +1399,7 @@ export default function Smile() {
               )}
               {testMode && (
                 <p className="test-notice">
-                  Test mode uses three prepared material examples on the same
-                  face. No AI credits are used.
+                  {DEMO_PREVIEW_NOTICE}
                 </p>
               )}
               <GenerationCosts pricing={pricing} resolution={effectiveResolution} onResolution={setResolution} costs={costs} testMode={testMode} busy={busy} open={costsOpen} onOpen={toggleCosts} requestLimit={requestLimit} onRequestLimit={setRequestLimit} />
@@ -1477,11 +1510,12 @@ export default function Smile() {
                   )}
                   <span className="option-cap">
                     <span>{o.label}</span>
-                    <span className="option-pick">{o.note}</span>
+                    {!testMode && <span className="option-pick">{o.note}</span>}
                   </span>
                 </button>
               ))}
             </div>
+            {testMode && <p className="variation-demo-note">{DEMO_PREVIEW_NOTICE}</p>}
           </div>
         </div>
       )}
@@ -1565,7 +1599,7 @@ export default function Smile() {
           This device could not save all case data. Keep this preview open and save any images you need before closing the app.
         </p>
       )}
-      {logOpen && <CaseLog initialEntryId={logEntry} onClose={() => { setLogOpen(false); setLogEntry(undefined); }} />}
+      {logOpen && <CaseLog initialEntryId={logEntry} onReopen={async id=>{const draft=await repository.reopenCase(id);repository.scope.assert();caseSession.current++;request.current?.abort();restoreWorkingCase(draft);setLogOpen(false);setLogEntry(undefined);}} onClose={() => { setLogOpen(false); setLogEntry(undefined); }} />}
       {libraryOpen && (
         <CaseLibrary
           onClose={() => { setLibraryOpen(false); void caseLibrary.refresh(); }}

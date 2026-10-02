@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Play, X } from "lucide-react";
 import { CompareSymbol } from "@/components/icons/SmileIcons";
 import { CenteredBrandHeader } from "./ui/Surface";
-import { designCredit } from "@/lib/brand";
+import { AI_CONCEPT_SUMMARY, designCredit } from "@/lib/brand";
 import { ZoomPan } from "./ZoomPan";
 
 export type RevealPhase = "before" | "after" | "done";
@@ -77,7 +77,7 @@ export function ConsultView({
           <img
             className={`consult-layer${showPreview ? " shown" : ""}`}
             src={preview}
-            alt="Smile preview"
+            alt="AI smile concept"
           />
         </ZoomPan>
       </div>
@@ -138,8 +138,8 @@ export function ConsultView({
               : "Tap and hold to see original"}
         </span>
         <span className="consult-meta">
-          {isMock ? "Demo preview" : "AI illustration"}
-          <small>Concept visualisation only</small>
+          {isMock ? "Demo preview" : "AI concept"}
+          <small>{AI_CONCEPT_SUMMARY}</small>
         </span>
       </div>
     </div>

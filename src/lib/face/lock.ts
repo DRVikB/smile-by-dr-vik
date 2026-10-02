@@ -1,5 +1,6 @@
 import {
   COMMISSURES,
+  INNER_LIP,
   OUTER_LIP,
   STABLE_POINTS,
   applySimilarity,
@@ -25,7 +26,7 @@ export interface LockPlan {
   warp: boolean;
   /** The edit moved the lips themselves, not just the teeth. */
   lipsMoved: boolean;
-  /** The original's outer lip border — the only region the edit may touch. */
+  /** The original mouth opening; the lips themselves are never editable. */
   polygon: Point[];
   grow: number;
   feather: number;
@@ -42,6 +43,9 @@ const MIN_SCALE = 0.85;
 const MAX_SCALE = 1.18;
 const MAX_ANGLE = (8 * Math.PI) / 180;
 
+/** Invalidate reusable results made with the older, lip-inclusive mask. */
+export const MOUTH_LOCK_VERSION = "2026-10-01-original-mouth-opening-v2";
+
 export function planMouthLock(
   original: Point[] | null,
   generated: Point[] | null,
@@ -55,7 +59,8 @@ export function planMouthLock(
   let warp = false;
   let lipsMoved = false;
   if (generated && generated.length >= 468) {
-    const anchors = [...STABLE_POINTS, ...COMMISSURES];
+    // Lip corners may have moved in the AI output, so never align using them.
+    const anchors = [...STABLE_POINTS];
     const from = pick(generated, anchors);
     const to = pick(original, anchors);
     const residual = median(from.map((p, i) => distance(p, to[i])));
@@ -75,15 +80,16 @@ export function planMouthLock(
     const origLips = pick(original, OUTER_LIP);
     lipsMoved =
       median(genLips.map((p, i) => distance(p, origLips[i]))) >
-      LIP_TOLERANCE * mouthWidth;
+      LIP_TOLERANCE * mouthWidth ||
+      median(pick(generated, INNER_LIP).map((p, i) => distance(applySimilarity(transform, p), original[INNER_LIP[i]]))) > LIP_TOLERANCE * mouthWidth;
   }
 
   return {
     transform,
     warp,
     lipsMoved,
-    polygon: pick(original, OUTER_LIP),
-    grow: Math.max(2, 0.015 * mouthWidth),
-    feather: Math.max(4, 0.05 * mouthWidth),
+    polygon: pick(original, INNER_LIP),
+    grow: 0,
+    feather: Math.max(1, 0.005 * mouthWidth),
   };
 }

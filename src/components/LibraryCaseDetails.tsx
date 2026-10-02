@@ -1,10 +1,13 @@
 "use client";
 import { useState } from "react";
 import { CaseFeatures } from "./CaseFeatures";
-import { readLibraryMedia, updateLibraryContext } from "@/lib/caseLibrary";
+import { captureWorkspace } from "@/lib/workspace";
+import { createLibraryStore } from "@/lib/caseLibrary";
 import { supportedTeeth } from "@/lib/teeth";
 import { adjunctTreatments, type CaseContext, type LibraryCase } from "@/lib/types";
 export function LibraryCaseDetails({ entry, onSaved, onValidate }: { entry: LibraryCase; onSaved: () => void; onValidate: (entry: LibraryCase) => void }) {
+  const [library] = useState(() => createLibraryStore(captureWorkspace()));
+  const { readLibraryMedia, updateLibraryContext } = library;
   const [context, setContext] = useState<CaseContext>(entry.context ?? { features: [], teeth: [], adjuncts: [] });
   const [teeth, setTeeth] = useState(context.teeth.join(", "));
   const [holdout, setHoldout] = useState(Boolean(entry.validationOnly));

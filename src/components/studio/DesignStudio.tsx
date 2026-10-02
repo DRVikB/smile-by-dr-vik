@@ -6,7 +6,7 @@ import { upperTeeth, smileArcs, biteContexts, isFullArch } from "@/lib/types";
 import { chooseFullArch as withFullArch, chooseStandard as withStandard } from "@/lib/fullArch";
 import { DESIGN_INTENTS, isNoChangeDesign, resolveDesignPlan } from "@/lib/generation/designPlan";
 import { canGuideSmileArc } from "@/lib/smilePrinciples";
-import { toothSummary } from "@/lib/teeth";
+import { activeToothPlans, toothSummary } from "@/lib/teeth";
 import { GenerationCosts, allowanceLabel, type GenerationCostsProps } from "@/components/GenerationCosts";
 import { AllowanceBanner, AllowanceLine } from "@/components/account/Allowance";
 import { SegmentedControl, SHAPES, ToothForm } from "./StudioParts";
@@ -18,6 +18,7 @@ import { SelectedTeethSummary, SingleToothEdit, ToothControls, ToothMapStatus, T
 import type { ToothMapController } from "@/components/toothMap/useToothMap";
 import { mappedTeeth, teethToReview } from "@/lib/toothMap/types";
 import { ToothMapDebug } from "@/components/toothMap/ToothMapDebug";
+import {protectionPlan} from "@/lib/toothMap/protect";
 
 /**
  * The Design Studio: the patient photograph in a frame, and the design built
@@ -84,6 +85,7 @@ export const restorationLabel = (r: FullArchPlan["restorationType"]) => (r === "
 /** The review drop-down's title: the detected map's state at a glance. */
 function toothMapSummary(c: ToothMapController): string {
   if (c.status === "detecting") return "Tooth map · finding teeth…";
+  if (c.status === "idle" && !c.map) return "Tooth map · optional";
   if (c.status === "none" || !c.map) return "Tooth map · add teeth";
   const check = teethToReview(c.map).length;
   if (c.map.confirmedByClinician) return "Tooth map · confirmed";
@@ -136,7 +138,7 @@ export function DesignStudio({
   const chooseFullArch = () => { toothMap?.setPicking(false); onChange(withFullArch(settings)); };
   const chooseStandard = (patch: Partial<SmileSettings>) => onChange(withStandard(settings, patch));
   const mappedSelection = toothMap?.map ? settings.selectedTeeth.filter(t => mappedTeeth(toothMap.map).includes(t)) : [];
-  const singleTooth = mappedSelection.length === 1 ? mappedSelection[0] : null;
+  const singleTooth = settings.selectedTeeth.length === 1 && mappedSelection.length === 1 ? mappedSelection[0] : null;
   const shape = SHAPES.find(s => s.shape === settings.shape);
   const treatments = settings.treatment === "Composite"
     ? [{ value: "Composite" as Treatment, title: "Composite", detail: "Earlier general composite setting" }, ...TREATMENTS]
@@ -161,6 +163,9 @@ export function DesignStudio({
   );
 
   const alignment = settings.alignment;
+  const precisionNeeded = !costs.testMode && !fullArch && !alignment && activeToothPlans(settings).length>0;
+  const precisionReady = Boolean(toothMap?.photoUrl&&protectionPlan(toothMap.map,toothMap.photoUrl,settings).ok&&toothMap.status!=="refining");
+  const needsBoundaryReview = precisionNeeded && !precisionReady;
   const alignedLabel = alignment ? `Straightened · ${alignment.arches === "Both" ? "both arches" : `${alignment.arches.toLowerCase()} arch`}` : "";
   const restoration = treatments.find(t => t.value === settings.treatment)?.title ?? settings.treatment;
   const summary: { id: StudioTab; value: string }[] = fullArch ? [
@@ -204,13 +209,13 @@ export function DesignStudio({
               ))}
             </div>
             <p className="studio-summary"><strong>{archLabel(fullArch.arch)}</strong><span>Full-arch restoration · {restorationLabel(fullArch.restorationType)}</span></p>
-            <p className="control-hint">{fullArch.arch === "both" ? "Both arches are restored as a matching pair." : `Only the ${fullArch.arch} arch can change; the ${fullArch.arch === "upper" ? "lower" : "upper"} arch stays exactly as photographed.`} The lips, mouth width and face are always kept.</p>
+            <p className="control-hint">{fullArch.arch === "both" ? "Preview both arches as a matching pair." : `Preview the ${fullArch.arch} arch; the AI is instructed to preserve the opposite arch.`} A visual restorative concept for discussion, with the existing lip and face protection.</p>
           </> : <>
             <header className="studio-card-head">
               <h3>Teeth</h3>
               <p>Choose how many upper teeth to design, or plan each tooth.</p>
             </header>
-            {!toothMap?.map && <div className="studio-arch" role="group" aria-label="Upper teeth to design">
+            {!individual && <div className="studio-arch" role="group" aria-label="Upper teeth to design">
               {ARCH.map(({ tooth, w, h }) => {
                 const on = settings.selectedTeeth.includes(tooth);
                 const count = TEETH_COUNTS.find(n => upperTeeth[n].includes(tooth)) ?? 10;
@@ -219,7 +224,7 @@ export function DesignStudio({
                   disabled={individual} onClick={() => setTeeth(count)} />;
               })}
             </div>}
-            {/* Quick choice first. Convenience presets never assume a tooth is present — only mapped teeth can change. */}
+            {/* Presets keep the existing generation baseline independent of detection. */}
             <div className="segmented studio-count" role="group" aria-label="Upper teeth">
               {TEETH_COUNTS.map(n => (
                 <button key={n} type="button" aria-pressed={!individual && !settings.toothPlans && settings.teeth === n}
@@ -233,16 +238,15 @@ export function DesignStudio({
             {toothMap?.map && <ToothPicking controller={toothMap} />}
             {toothMap?.map && toothMap.mode === "single" && singleTooth !== null && <SingleToothEdit controller={toothMap} fdi={singleTooth} />}
             {toothMap?.map && <p className="control-hint">{
-              toothMap.mode === "select" ? `${toothMap.picking && toothMap.display === "auto" ? "" : "Tap a tooth on the photo to add or remove it. "}Press and hold a tooth for its own shape, length, width, edge and shade. Unselected teeth never change.`
+              toothMap.mode === "select" ? `${toothMap.picking && toothMap.display === "auto" ? "" : "Tap a tooth on the photo to add or remove it. "}Press and hold a tooth for its own settings. Templates guide selection; review the detected boundaries before generating.`
                 : toothMap.mode === "single" ? `Tooth ${singleTooth ?? ""} is outlined on the photo. Tap it, or Design tooth ${singleTooth ?? ""}, for its own shape, length, width, edge and shade. No other tooth changes.`
-                  : toothMap.mode === "design" ? "Smile design guides show the tooth contours, smile arc and midline. Only the selected teeth can change; choose Custom to pick teeth on the photo."
-                    : "The tooth map stays hidden for a clean view; only the selected teeth can change. Choose Custom to pick teeth on the photo."
+                  : toothMap.mode === "design" ? "Visual planning guides: tooth form, smile arc and midline. These guides do not constrain the generated smile."
+                    : "The map is hidden for a clean view. Review the tooth boundaries before generating; choose Custom to plan individual teeth."
             }</p>}
             {toothMap?.map && teethToReview(toothMap.map).some(t => t.fdi !== null && settings.selectedTeeth.includes(t.fdi)) && (
               <p className="scale-notice" role="status"><span>Check the tooth map</span>Some selected teeth have uncertain numbers. Review the tooth map below so the right teeth change.</p>
             )}
             {/* Then how the map is shown on the photo. */}
-            {toothMap?.map && <ToothMapView controller={toothMap} />}
             {individual && <ToothChart settings={settings} onChange={onChange} defaultOpen />}
             {toothMap?.controlsFor != null && <ToothControls fdi={toothMap.controlsFor} settings={settings} onChange={onChange} onClose={() => toothMap.openControls(null)} />}
             <More>
@@ -262,6 +266,7 @@ export function DesignStudio({
               <details className="studio-more" open={toothMap.editing || toothMap.adding || toothMap.status === "none" || undefined}>
                 <summary>{toothMapSummary(toothMap)}<ChevronDown size={16} aria-hidden="true" /></summary>
                 <div className="studio-more-body">
+                  <ToothMapView controller={toothMap} settings={settings} onShapeChange={shape => change("shape", shape)} />
                   <ToothMapStatus controller={toothMap} />
                   {toothMap.map && <ToothMapDebug map={toothMap.map} width={toothMap.photoSize.width} height={toothMap.photoSize.height} photo={toothMap.photoUrl ?? undefined} settings={settings} />}
                 </div>
@@ -461,15 +466,15 @@ export function DesignStudio({
             </div>
             <div className="studio-case">{caseBar}</div>
             <div className="studio-variations" role="group" aria-label="Or compare three options">
-              <button type="button" className="studio-variation" disabled={busy || settings.designIntent === "Shade only"} onClick={onHarmonise}>
+              <button type="button" className="studio-variation" disabled={busy || needsBoundaryReview || settings.designIntent === "Shade only"} onClick={onHarmonise}>
                 <VisualiseSymbol size={20} /><span>3 harmonised</span>
                 {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
               </button>
-              <button type="button" className="studio-variation" disabled={busy || noChange || Boolean(fullArch)} onClick={onCompareMaterials}>
+              <button type="button" className="studio-variation" disabled={busy || needsBoundaryReview || noChange || Boolean(fullArch)} onClick={onCompareMaterials}>
                 <CompareSymbol size={20} /><span>3 materials</span>
                 {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
               </button>
-              <button type="button" className="studio-variation" disabled={busy || settings.designIntent === "Shade only"} onClick={onCompare}>
+              <button type="button" className="studio-variation" disabled={busy || needsBoundaryReview || settings.designIntent === "Shade only"} onClick={onCompare}>
                 <ComposeSymbol size={20} /><span>3 shapes</span>
                 {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
               </button>
@@ -481,6 +486,7 @@ export function DesignStudio({
         <div className="studio-generate">
           {tab === "review" && !costs.testMode && <AllowanceLine />}
           {tab === "review" && noChange && <p className="control-hint">No change selected: select teeth to edit and choose a different shade or design goal. No generation is needed.</p>}
+          {tab === "review" && needsBoundaryReview && <p className="control-hint" role="status">Review boundaries and FDI numbers for every selected tooth before generating. <button type="button" className="text-button" onClick={() => { go("teeth"); toothMap?.setEditing(true); }}>Review Tooth Map</button></p>}
           <div className="studio-steps-nav">
             {previous && <button type="button" className="secondary-button studio-back" onClick={() => go(previous.id)} aria-label={`Back to ${previous.id === "teeth" && fullArch ? "Arch" : previous.label}`}>
               <ChevronLeft size={18} aria-hidden="true" />Back
@@ -490,7 +496,7 @@ export function DesignStudio({
                 Next: {next.id === "teeth" && fullArch ? "Arch" : next.label}<ChevronRight size={18} aria-hidden="true" />
               </button>
             ) : (
-              <button className="primary-button generate-button" onClick={onGenerate} disabled={busy || noChange}>
+              <button className="primary-button generate-button" onClick={onGenerate} disabled={busy || noChange || needsBoundaryReview}>
                 <VisualiseSymbol size={20} />
                 {busy ? "Creating your visualisation…" : "Generate Smile"}
                 {costs.open && !busy && <small className="action-cost">{allowanceLabel(1, costs.testMode)}</small>}

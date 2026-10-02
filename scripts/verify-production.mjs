@@ -1,6 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
-import { parseEnv } from 'node:util';
+import { configuredSecrets, clientSecretIssue, unsafePublicName } from './client-secrets.mjs';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
 async function files(dir) {
@@ -31,23 +31,22 @@ const sourceFiles = (await files('src')).filter(f => /\.(ts|tsx)$/.test(f));
 for (const f of sourceFiles) {
   const content = await readFile(f, 'utf8');
   assert.ok(!/https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)/.test(content), `Local URL in ${f}`);
-  // Only provider-designated public client keys may be NEXT_PUBLIC_: the Supabase
-  // anon key (Row Level Security) and the RevenueCat public Apple SDK key.
-  const publicKeys = content.replace(/NEXT_PUBLIC_(SUPABASE_ANON_KEY|REVENUECAT_IOS_API_KEY)\b/g, '');
-  assert.ok(!/NEXT_PUBLIC_\w*(KEY|SECRET|TOKEN)/.test(publicKeys), `Public secret name in ${f}`);
+  assert.ok(!unsafePublicName(content), `Public secret name in ${f}`);
 }
-let secrets = [];
-for (const file of ['.env', '.env.local', '.env.production', '.env.production.local']) {
-  try { secrets.push(...Object.entries(parseEnv(await readFile(file,'utf8'))).filter(([k,v]) => /KEY|SECRET|TOKEN/.test(k) && v.length > 8).map(([,v]) => v)); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-}
-for (const file of (await files('dist/client')).filter(f => /\.(js|html|json|webmanifest|svg|txt)$/.test(f))) {
+const secrets = await configuredSecrets();
+for (const file of (await files('dist/client')).filter(f => /\.(js|html|json|webmanifest|svg|txt|css|map)$/.test(f))) {
   const content = await readFile(file, 'utf8');
-  assert.ok(!secrets.some(secret => content.includes(secret)), `Secret found in browser artifact ${file}`);
+  const issue = clientSecretIssue(content, secrets);
+  assert.ok(!issue, `${issue} found in browser artifact ${file}`);
   assert.ok(!content.includes('generativelanguage.googleapis.com'), `Server provider bundled for browser: ${file}`);
 }
+
 const tracked = execFileSync('git',['ls-files'],{encoding:'utf8'}).split('\n');
-assert.ok(!tracked.some(f => /(^|\/)\.env/.test(f) && !f.endsWith('.env.example')), 'Tracked secret env file');
-for (const file of ['.env','.env.local','.env.production','.env.production.local','private.key','service-account-private.json']) execFileSync('git',['check-ignore','--no-index',file]);
+assert.ok(!tracked.some(f => /(^|\/)(\.env|\.dev.vars)/.test(f) && !f.endsWith('.env.example')), 'Tracked secret env file');
+for (const file of ['.env','.env.local','.env.production','.env.production.local','.dev.vars','.dev.vars.production','private.key','service-account-private.json']) execFileSync('git',['check-ignore','--no-index',file]);
 const sw = await readFile('dist/client/sw.js','utf8');
-assert.ok(!/caches\.(open|put|match)/.test(sw), 'Service worker must not cache patient data');
-console.log('Production checks passed: PWA metadata/icons, relative app URLs, Git ignores, browser secret isolation, network-only service worker.');
+assert.ok(sw.includes('/offline-shell.html') && sw.includes('staticPath'), 'Public offline shell missing');
+const offline = JSON.parse(await readFile('dist/client/offline-assets.json', 'utf8'));
+assert.ok(offline.assets.length > 0 && offline.assets.every(path => /^\/_next\/static\/[^?]+\.(js|css|woff2?)$/.test(path) || /^\/brand\/[^?]+\.(png|svg|webp)$/.test(path) || /^\/(examples|demo-results)\/[^?]+\.webp$/.test(path) || /^\/(vision|ort)\/[^?]+\.(js|mjs|wasm)$/.test(path) || /^\/models\/(face|slimsam)\/[^?]+\.(task|onnx)$/.test(path) || ['/dr-vik-logo.png','/smile-hero-dr-vik-v2.webp','/demo-storyboard-before.webp'].includes(path)), 'Offline manifest must contain only public build assets and bundled illustrative images');
+assert.equal(await readFile('dist/client/offline-shell.html', 'utf8'), html, 'Offline shell must be the public prerender, not an authenticated response');
+console.log('Production checks passed: PWA metadata/icons, relative app URLs, Git ignores, browser secret isolation, public-only offline shell.');

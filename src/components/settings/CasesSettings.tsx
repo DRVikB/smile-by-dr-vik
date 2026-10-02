@@ -6,20 +6,25 @@ import type { CaseLogEntry } from "@/lib/types";
 import type { CaseCounts, CaseState } from "@/lib/caseLog";
 import { Group, Row, formatDate, useSettingsNav } from "./settingsParts";
 
-const loadCaseLog = () => import("@/lib/caseLog");
+import { getCaseRepository } from "@/services/cases/caseRepository";
+import { LegacyCaseImport } from "./LegacyCaseImport";
 
 /** Patient Cases: summary and routes only; the full case browser stays in Cases. Not the Case Library. */
 export function CasesSection() {
+  const [repository] = useState(getCaseRepository);
+  const loadCaseLog = () => Promise.resolve(repository);
   const nav = useSettingsNav();
   const [counts, setCounts] = useState<CaseCounts | null>(null);
 
   useEffect(() => {
-    void loadCaseLog().then(async log => { await log.purgeRecentlyDeleted(); setCounts(await log.caseCounts()); }).catch(() => setCounts(null));
+    const load=()=>{void loadCaseLog().then(async log => { setCounts(await log.caseCounts()); }).catch(() => setCounts(null));};
+    load();return repository.subscribe(load);
   }, []);
 
   const count = (n: number | undefined) => (n === undefined ? "…" : String(n));
   return (
-    <Group id="settings-cases" title="Cases" footer="Patient cases, photos and results are stored only on this device.">
+    <Group id="settings-cases" title="Cases" footer="Patient cases save on this device first and sync privately to your signed-in account.">
+      <LegacyCaseImport />
       <Row label="Active cases" value={count(counts?.active)} />
       <Row label="Archived cases" value={count(counts?.archived)} />
       <Row label="Manage Cases" onClick={() => nav.openPage({ kind: "cases", filter: "active" })} />
@@ -37,6 +42,8 @@ const FILTERS: { key: CaseState; label: string }[] = [
 ];
 
 export function ManageCasesPage({ initialFilter }: { initialFilter: CaseState }) {
+  const [repository] = useState(getCaseRepository);
+  const loadCaseLog = () => Promise.resolve(repository);
   const nav = useSettingsNav();
   const [filter, setFilter] = useState<CaseState>(initialFilter);
   const [entries, setEntries] = useState<CaseLogEntry[] | null>(null);
@@ -54,7 +61,7 @@ export function ManageCasesPage({ initialFilter }: { initialFilter: CaseState })
       setError("Cases couldn’t be opened on this device.");
     }
   }, [filter]);
-  useEffect(() => { setEntries(null); void refresh(); }, [refresh]);
+  useEffect(() => { setEntries(null); void refresh(); return repository.subscribe(() => { void refresh(); }); }, [refresh, repository]);
 
   const shown = useMemo(() => {
     if (!entries) return [];
@@ -65,7 +72,7 @@ export function ManageCasesPage({ initialFilter }: { initialFilter: CaseState })
           : b.createdAt - a.createdAt);
   }, [entries, query, sort]);
 
-  async function run(action: (log: Awaited<ReturnType<typeof loadCaseLog>>) => Promise<unknown>, message: string) {
+  async function run(action: (log: ReturnType<typeof getCaseRepository>) => Promise<unknown>, message: string) {
     setError("");
     try {
       await action(await loadCaseLog());
@@ -103,7 +110,7 @@ export function ManageCasesPage({ initialFilter }: { initialFilter: CaseState })
       </div>
 
       {filter === "deleted" && (
-        <p className="control-hint">Deleted cases stay on this device for {RECENTLY_DELETED_DAYS} days so you can restore them, then they’re permanently removed with their photos.</p>
+        <p className="control-hint">Deleted cases stay in Recently Deleted for {RECENTLY_DELETED_DAYS} days so you can restore them, then they’re permanently removed with their photos.</p>
       )}
       {error && <p className="error-message" role="alert">{error}</p>}
 
@@ -134,7 +141,7 @@ export function ManageCasesPage({ initialFilter }: { initialFilter: CaseState })
                   <button type="button" className="text-button" onClick={() => void run(log => log.restoreCase(entry.id), "Case restored.")} aria-label={`Restore ${name(entry)}`}>Restore</button>
                   <button type="button" className="text-button danger-text" aria-label={`Delete ${name(entry)} permanently`} onClick={() => nav.confirm({
                     title: "Delete this case permanently?",
-                    body: <p className="control-hint">The case, its patient photos and results are removed from this device. This can’t be undone.</p>,
+                    body: <p className="control-hint">The case, its patient photos and results are removed from your account and signed-in devices after sync. This can’t be undone.</p>,
                     confirmLabel: "Delete permanently",
                     destructive: true,
                     onConfirm: async () => { await (await loadCaseLog()).deleteLogEntry(entry.id); await refresh(); return "Case permanently deleted."; },

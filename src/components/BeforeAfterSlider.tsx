@@ -21,7 +21,7 @@ export function BeforeAfterSlider({
   original,
   preview,
   isMock,
-  previewLabel = "After · Concept",
+  previewLabel = "After · AI concept",
   mode: controlledMode,
   onModeChange,
   analysis = false,
@@ -73,7 +73,7 @@ export function BeforeAfterSlider({
               <img
                 className="compare-image"
                 src={preview}
-                alt={isMock ? "Demo preview — original photograph unchanged" : "AI illustration overlaid on the original"}
+                alt={isMock ? "Illustrative demo concept" : "AI illustration overlaid on the original"}
                 style={{ opacity: opacity / 100 }}
               />
               {guides.status === "ready" && <GuideLines guides={guides.guides} scale={scale} />}
@@ -85,8 +85,8 @@ export function BeforeAfterSlider({
                 src={preview}
                 alt={
                   isMock
-                    ? "Demo preview — original photograph unchanged"
-                    : "Generated smile preview"
+                    ? "Illustrative demo concept"
+                    : "AI-generated smile concept"
                 }
               />
               <img

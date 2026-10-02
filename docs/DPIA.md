@@ -1,5 +1,8 @@
 # Data Protection Impact Assessment: SmileCompose V1
 
+> **2026-10-02 implementation update (not deployed):** Macro Stage 1 adds signed-in patient-case state in Supabase and binary patient media in the separate PRIVATE `patient-cases` bucket, with an account-isolated local cache/outbox. This supersedes earlier device-only descriptions for patient cases in this document. AI generation and the clinician reference library remain separate. See [the Stage 1 implementation report](CLOUD_PATIENT_SYNC_STAGE1_2026-10-02.md). Provider contracts, region, backup retention and professional approvals are not verified by this implementation.
+
+
 **Status: FINAL LEGAL/PRIVACY SIGN-OFF REQUIRED**
 
 This draft was prepared from the repository by the engineering team. It is not approved. Only the controller's accountable person, advised by a solicitor/DPO, can approve it. If residual high risk remains that cannot be mitigated, the ICO must be consulted before processing starts (UK GDPR Art. 36).

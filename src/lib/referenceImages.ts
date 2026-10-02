@@ -1,3 +1,4 @@
+import { captureWorkspace, type WorkspaceLease } from "./workspace";
 import { OUTER_LIP, pick } from "./face/geometry";
 
 /**
@@ -44,13 +45,17 @@ export function smileBox(lip: [number, number][], width: number, height: number)
   return { x, y, w, h };
 }
 
-export async function prepareReferenceImages(file: File): Promise<ReferenceImages> {
+export async function prepareReferenceImages(file: File, scope: WorkspaceLease = captureWorkspace()): Promise<ReferenceImages> {
+  scope.assert();
   const { preparePhoto } = await import("./photos");
+  scope.assert();
   const photo = await preparePhoto(file);
   const source = await load(photo.dataUrl);
   const original = draw(source, 0, 0, source.naturalWidth, source.naturalHeight, 2048, 0.88);
   const { detectFace } = await import("./face/landmarks");
+  scope.assert();
   const points = await detectFace(photo.dataUrl).catch(() => null);
+  scope.assert();
   const box = points ? smileBox(pick(points, OUTER_LIP), source.naturalWidth, source.naturalHeight) : null;
   const reference = box
     ? draw(source, box.x, box.y, box.w, box.h, 1280, 0.86)

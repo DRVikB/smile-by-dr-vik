@@ -1,6 +1,7 @@
 import { cp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { inlineScriptHashes, fullPolicy } from "./security-policy.mjs";
 
 // Package the production web build for Capacitor. Run after `npm run build`,
 // which prerenders the app (.next/server/app/index.html) and copies browser
@@ -53,14 +54,12 @@ await rm(`${OUT}/_headers`, { force: true }); // web hosting config, not app con
 let html = await readFile(`${OUT}/index.html`, "utf8");
 if (!/SmileCompose/i.test(html)) throw new Error("Prerendered page is invalid.");
 
-// Network allow-list for the app's WebView: itself, the SmileCompose backend
-// and the on-device face model's files. This also blocks MediaPipe's default
-// usage-metrics upload (odml.pa.googleapis.com). Scripts and images are unaffected.
+// Self-contained workers/WASM; allow only the configured API and account origins.
 const apiOrigin = new URL(process.env.NEXT_PUBLIC_SMILE_API_ORIGIN || "https://smile-by-dr-vik.drvik.workers.dev").origin;
-const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin : null;
-const connectSrc = ["'self'", "capacitor://localhost", "data:", "blob:", apiOrigin, ...(supabaseOrigin ? [supabaseOrigin] : []),
-  "https://cdn.jsdelivr.net", "https://storage.googleapis.com"].join(" ");
-html = html.replace(/<head([^>]*)>/i, `<head$1><meta http-equiv="Content-Security-Policy" content="connect-src ${connectSrc}">`);
+const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin : "";
+const policy = fullPolicy(inlineScriptHashes(html), { apiOrigin, supabaseOrigin, native: true });
+html = html.replace(/<meta\b[^>]*http-equiv="Content-Security-Policy"[^>]*>/gi, '');
+html = html.replace(/<head([^>]*)>/i, `<head$1><meta http-equiv="Content-Security-Policy" content="${policy}">`);
 if (!html.includes("Content-Security-Policy")) throw new Error("Could not add the native network policy.");
 await writeFile(`${OUT}/index.html`, html);
 

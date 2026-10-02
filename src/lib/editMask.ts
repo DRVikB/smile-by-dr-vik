@@ -25,6 +25,6 @@ export async function protectOutsideEditMask(original: string, edited: string, m
   if (!area.data.some((value, i) => i % 4 === 3 && value > 0)) throw new Error("The edit area is empty. Paint the selected teeth before generating.");
   source.data.set(compositeEditMask(source.data, generated.data, area.data));
   ctx.putImageData(source, 0, 0);
-  // Restore original content outside the mask before the usual JPEG encoding.
-  return canvas.toDataURL("image/jpeg", 0.95);
+  // Keep restored anatomy lossless, including when this follows the face lock.
+  return canvas.toDataURL("image/png");
 }

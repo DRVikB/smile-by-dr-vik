@@ -83,7 +83,7 @@
 /* Hero photograph, captioned at its foot ------------------- */
 .ob-hero { position: absolute; inset: 0; isolation: isolate; }
 .ob-hero-img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; }
-.ob-hero-portrait .ob-hero-img { object-position: 50% 22%; }
+.ob-hero-portrait .ob-hero-img { object-position: 50% 40%; }
 .ob-hero-smile .ob-hero-img { object-position: 62% 42%; }
 .ob-hero::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(12, 11, 10, 0) 34%, rgba(12, 11, 10, .3) 60%, rgba(12, 11, 10, .8) 100%); }
 .ob-hero-caption { position: absolute; left: var(--inset); right: var(--inset); bottom: 58px; display: grid; justify-items: start; gap: 6px; color: #FAF9F6; }
@@ -204,7 +204,7 @@
 .how-card-text > span:last-child { font-size: 12.5px; line-height: 1.35; color: var(--text-secondary); }
 .how-card-media { position: relative; overflow: hidden; }
 .how-media-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.how-media-capture { object-position: 50% 28%; }
+.how-media-capture { object-position: 50% 40%; }
 .how-media-compose { object-position: 70% 50%; }
 .how-media-split { position: absolute; inset: 0; overflow: hidden; }
 .how-media-split img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 49%; transform: scale(1.9); transform-origin: 50% 49%; }
@@ -225,7 +225,7 @@
 .ob-visual .style-stage {
   position: relative; inset: auto; display: grid; place-items: center; min-height: 100%;
   padding: calc(var(--inset-top) + 8px) var(--inset) 56px; --card-w: min(100%, 400px);
-  background: url("/smile-hero-dr-vik-v2.png") 64% 50% / cover;
+  background: url("/smile-hero-dr-vik-v2.webp") 64% 50% / cover;
 }
 .ob-visual .style-stage::before { content: ""; position: absolute; inset: 0; z-index: -1; background: rgba(12, 11, 10, .62); }
 .ob-frame[data-step="styleLibrary"] .ob-visual { display: grid; height: auto; min-height: 44dvh; }

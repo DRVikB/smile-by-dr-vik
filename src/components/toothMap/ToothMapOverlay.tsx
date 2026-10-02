@@ -4,6 +4,8 @@ import { toothShapes } from "@/lib/toothMap/outline";
 import { fitSmileTemplate } from "@/lib/toothMap/template";
 import type { SmileSettings } from "@/lib/types";
 import type { ToothMapController } from "./useToothMap";
+import { hitTarget, nearestHit, type ToothHitTarget } from "@/lib/toothMap/hitTargets";
+import { planningFrame } from "./ContourReference";
 
 const LONG_PRESS_MS = 480;
 const MOVE_TOLERANCE = 8;
@@ -34,7 +36,7 @@ export function ToothMapOverlay({ controller, settings, width, height, scale = 1
   const [fit, setFit] = useState(0);
   const press = useRef<{ key: string; x: number; y: number; timer: number; long: boolean } | null>(null);
   const { map, mode, guides } = controller;
-  const visible = mode !== "hidden" && Boolean(map);
+  const visible = controller.adding || (mode !== "hidden" && Boolean(map));
   const reviewing = controller.editing || controller.adding;
   const selectedTeeth = settings.selectedTeeth;
 
@@ -50,30 +52,46 @@ export function ToothMapOverlay({ controller, settings, width, height, scale = 1
     // The SVG only exists while something is drawn: measure again when it appears.
   }, [width, height, visible]);
 
-  const detected = useMemo(() => (reviewing ? toothShapes(map, width, height, selectedTeeth) : []), [reviewing, map, width, height, selectedTeeth]);
+  const detected = useMemo(() => (reviewing || mode === "single" ? toothShapes(map, width, height, selectedTeeth) : []), [reviewing, mode, map, width, height, selectedTeeth]);
   const template = useMemo(
     () => (reviewing ? null : fitSmileTemplate(map, width, height, { settings, proportion: guides.proportion })),
     [reviewing, map, width, height, settings, guides.proportion],
   );
 
-  if (!visible || !map) return null;
+  // A photo change/unmount must not leave a long-press acting on the old tooth.
+  useEffect(() => () => { if (press.current) window.clearTimeout(press.current.timer); press.current = null; }, [map?.photoId, mode]);
+
+  if (!visible) return null;
   const perPx = Math.max(1e-6, fit * scale);
   // Non-scaling strokes are already in screen pixels; only the zoom needs undoing.
   const line = (px: number) => px / Math.max(0.2, scale);
   const selected = new Set(selectedTeeth);
 
+  const hits:ToothHitTarget[] = (reviewing || mode === "single"
+    ? detected.filter(t => reviewing || t.selected).map(t => ({key:t.id, fdi:t.fdi, regionId:t.id,x:t.centroid[0]-t.width/2,y:t.top,width:t.width,height:t.height}))
+    : (template?.teeth.filter(t=>t.mapped&&mode==="select")??[]).map(t=>({key:`t${t.fdi}`,fdi:t.fdi,x:t.cx-t.width/2,y:t.incisalY-t.height,width:t.width,height:t.height})))
+    .map(t=>hitTarget(t,perPx));
+  const pointerHit=(e:React.PointerEvent)=>{
+    const matrix=svg.current?.getScreenCTM();if(!matrix||!svg.current)return;
+    const p=svg.current.createSVGPoint();p.x=e.clientX;p.y=e.clientY;
+    const local=p.matrixTransform(matrix.inverse());return nearestHit(hits,local.x,local.y);
+  };
+  const hitLayer=()=> <g className="tooth-hit-targets">{hits.map(t=><rect key={t.key} x={t.x} y={t.y} width={t.width} height={t.height} fill="transparent" pointerEvents="all" {...handlers(t.key,t.fdi,t.regionId)} />)}</g>;
+
   /** Tap: toggle (select), open its controls (single), or correct it (review). */
   const handlers = (key: string, fdi: number | null, regionId?: string) => ({
     "data-own-taps": "",
     onPointerDown: (e: React.PointerEvent) => {
-      if (controller.adding) return;
+      if (controller.adding || controller.drawingId) return;
+      const hit=pointerHit(e);
+      const activeKey=hit?.key??key, activeFdi=hit?.fdi??fdi, activeRegion=hit?.regionId??regionId;
       const timer = window.setTimeout(() => {
         if (!press.current) return;
         press.current.long = true;
-        if (reviewing && regionId) controller.setFocusedId(regionId);
-        else if (fdi !== null) controller.openControls(fdi);
+        if (reviewing && activeRegion) controller.setFocusedId(activeRegion);
+        else if (activeFdi !== null) controller.openControls(activeFdi);
       }, LONG_PRESS_MS);
-      press.current = { key, x: e.clientX, y: e.clientY, timer, long: false };
+      press.current = { key: activeKey, x: e.clientX, y: e.clientY, timer, long: false };
     },
     onPointerMove: (e: React.PointerEvent) => {
       const p = press.current;
@@ -82,55 +100,68 @@ export function ToothMapOverlay({ controller, settings, width, height, scale = 1
     onPointerUp: (e: React.PointerEvent) => {
       const p = press.current;
       press.current = null;
-      if (!p || p.key !== key) return;
+      if (!p) return;
+      const hit=hits.find(t=>t.key===p.key);
+      const activeFdi=hit?.fdi??fdi, activeRegion=hit?.regionId??regionId;
       window.clearTimeout(p.timer);
       if (p.long || Math.hypot(e.clientX - p.x, e.clientY - p.y) > MOVE_TOLERANCE) return;
-      if (reviewing && regionId) { controller.setFocusedId(regionId); return; }
-      if (fdi === null) return;
-      if (mode === "single") controller.openControls(fdi); else controller.toggle(fdi);
+      if (reviewing && activeRegion) { controller.setFocusedId(activeRegion); return; }
+      if (activeFdi === null) return;
+      if (mode === "single") controller.openControls(activeFdi); else controller.toggle(activeFdi);
     },
     onPointerCancel: () => { if (press.current) window.clearTimeout(press.current.timer); press.current = null; },
     onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
     onKeyDown: (e: React.KeyboardEvent) => {
-      if ((e.key === "Enter" || e.key === " ") && fdi !== null) {
+      if ((e.key === "Enter" || e.key === " ") && (fdi !== null || (reviewing && regionId))) {
         e.preventDefault();
-        if (mode === "single") controller.openControls(fdi); else controller.toggle(fdi);
+        if(reviewing && regionId) controller.setFocusedId(regionId);
+        else if (fdi !== null) { if (mode === "single") controller.openControls(fdi); else controller.toggle(fdi); }
       }
     },
   });
 
   const onAdd = (e: React.MouseEvent) => {
-    if (!controller.adding || !svg.current) return;
+    if ((!controller.adding && !controller.drawingId) || !svg.current) return;
     const point = svg.current.createSVGPoint();
     point.x = e.clientX; point.y = e.clientY;
-    const local = point.matrixTransform(svg.current.getScreenCTM()?.inverse());
-    controller.addToothAt([local.x / width, local.y / height]);
+    const matrix = svg.current.getScreenCTM();
+    if (!matrix) return;
+    const local = point.matrixTransform(matrix.inverse());
+    const position: [number, number] = [local.x / width, local.y / height];
+    if (controller.drawingId) controller.addBoundaryPoint(position);
+    else controller.addToothAt(position);
   };
 
-  if (reviewing) {
+  if (reviewing || mode === "single") {
     // The detected areas: exactly where edits are allowed, so the numbers can be checked.
     return (
-      <svg ref={svg} className={`tooth-map-overlay is-select is-review${controller.adding ? " is-adding" : ""}`} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" role="group" aria-label="Detected teeth: tap one to correct it" onClick={onAdd}>
-        {controller.adding && <rect className="tooth-map-catch" x={0} y={0} width={width} height={height} />}
-        {detected.map(t => {
+      <svg ref={svg} className={`tooth-map-overlay is-${reviewing ? "select is-review" : "single"}${controller.adding || controller.drawingId ? " is-adding" : ""}`} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" role="group" aria-label={reviewing ? "Detected teeth: tap one to correct it" : "Selected tooth: actual edit boundary"} onClick={onAdd}
+        onPointerDown={e => { if (controller.adding || controller.drawingId) e.stopPropagation(); }}>
+        {(controller.adding || controller.drawingId) && <rect className="tooth-map-catch" data-own-taps="" x={0} y={0} width={width} height={height} />}
+        {detected.filter(t => reviewing || t.selected).map(t => {
           const focused = controller.focusedId === t.id;
           return (
             <g key={t.id} className={`tooth-region${t.selected ? " is-selected" : ""}${focused ? " is-focused" : ""}${t.requiresReview ? " needs-review" : ""}`}>
-              <path d={t.path} vectorEffect="non-scaling-stroke" strokeWidth={line(t.selected || focused ? 1.6 : 1)} className="is-tappable" role="button" tabIndex={0}
+              <path d={map?.teeth.find(r => r.id === t.id)?.outline.map(([x, y], i) => `${i ? "L" : "M"}${x * width} ${y * height}`).join(" ") + " Z"} vectorEffect="non-scaling-stroke" strokeWidth={line(t.selected || focused ? 1.6 : 1)} className="is-tappable" role="button" tabIndex={0}
                 aria-label={`Detected tooth ${t.fdi ?? "unnumbered"}${t.requiresReview ? ", check this tooth" : ""}`} {...handlers(t.id, t.fdi, t.id)} />
               {t.width * perPx >= 10 && <text x={t.centroid[0]} y={t.top - 7 / perPx} fontSize={10.5 / perPx} textAnchor="middle">{t.fdi ?? "?"}</text>}
             </g>
           );
         })}
+        {!controller.adding && !controller.drawingId && hitLayer()}
+        {controller.drawingId && <g aria-hidden="true" pointerEvents="none">
+          <polyline points={controller.boundaryPoints.map(([x, y]) => `${x * width},${y * height}`).join(" ")} fill="none" stroke="#fff" strokeWidth={line(1.5)} vectorEffect="non-scaling-stroke" />
+          {controller.boundaryPoints.map(([x, y], i) => <circle key={i} cx={x * width} cy={y * height} r={3 / perPx} fill="#fff" />)}
+        </g>}
       </svg>
     );
   }
 
   if (!template) return null;
-  const showGuides = mode === "single" || mode === "design";
+  const showGuides = mode === "design";
   return (
     <svg ref={svg} className={`tooth-map-overlay is-${mode} is-template`} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" role="group"
-      aria-label={mode === "select" ? "Smile template: tap a tooth to add or remove it" : mode === "single" ? "Selected tooth on the smile template" : "Smile design template"}>
+      aria-label={mode === "select" ? "Smile template: tap a tooth to add or remove it" : "Smile design template"}>
       {template.clip && (
         <defs>
           <clipPath id={clipId}><polygon points={template.clip.map(p => p.join(",")).join(" ")} /></clipPath>
@@ -138,12 +169,13 @@ export function ToothMapOverlay({ controller, settings, width, height, scale = 1
       )}
 
       {guides.proportions && (showGuides || mode === "select") && (
-        // Guides: long axes, contacts, the incisal reference and the gingival line — all quieter than the teeth.
-        <g className="smile-proportions" aria-hidden="true">
+        // Illustrative worksheet geometry only. Review mode above always shows the real edit boundaries.
+        <g className="smile-proportions" aria-hidden="true" pointerEvents="none">
+          {template.teeth.map(t => <polygon key={`f${t.fdi}`} className={`smile-guide-frame${selected.has(t.fdi) ? " is-selected" : ""}`} points={planningFrame(t)} strokeWidth={line(0.8)} vectorEffect="non-scaling-stroke" />)}
           {template.contacts.map((c, i) => <line key={`c${i}`} className="smile-guide-contact" x1={c.x} x2={c.x} y1={c.y0} y2={c.y1} strokeWidth={line(0.8)} vectorEffect="non-scaling-stroke" />)}
-          {template.teeth.map(t => <line key={`a${t.fdi}`} className="smile-guide-axis" x1={t.axis[0][0]} y1={t.axis[0][1]} x2={t.axis[1][0]} y2={t.axis[1][1]} strokeWidth={line(0.8)} vectorEffect="non-scaling-stroke" />)}
-          <line className="smile-guide-incisal" x1={template.incisalLine.x0} x2={template.incisalLine.x1} y1={template.incisalLine.y} y2={template.incisalLine.y} strokeWidth={line(0.8)} vectorEffect="non-scaling-stroke" />
-          <path className="smile-guide-gingival" d={template.gingivalLine} strokeWidth={line(0.8)} vectorEffect="non-scaling-stroke" />
+          {template.teeth.map(t => <line key={`a${t.fdi}`} className="smile-guide-axis" x1={t.axis[0][0]} y1={t.axis[0][1]} x2={t.axis[1][0]} y2={t.axis[1][1]} strokeWidth={line(0.7)} strokeDasharray={`${line(1)} ${line(3)}`} vectorEffect="non-scaling-stroke" />)}
+          <line className="smile-guide-gingival" x1={template.topLine.x0} x2={template.topLine.x1} y1={template.topLine.y} y2={template.topLine.y} strokeWidth={line(0.8)} vectorEffect="non-scaling-stroke" />
+          <path className="smile-guide-incisal" d={template.incisalArc} strokeWidth={line(0.8)} vectorEffect="non-scaling-stroke" />
         </g>
       )}
       {showGuides && (
@@ -156,7 +188,7 @@ export function ToothMapOverlay({ controller, settings, width, height, scale = 1
       <g clipPath={template.clip ? `url(#${clipId})` : undefined}>
         {template.teeth.map(t => {
           const on = selected.has(t.fdi);
-          const tappable = t.mapped && (mode === "select" || (mode === "single" && on));
+          const tappable = t.mapped && mode === "select";
           return (
             <g key={t.fdi} className={`tooth-region${on ? " is-selected" : ""}${t.mapped ? "" : " is-unmapped"}`}>
               <path d={t.path} vectorEffect="non-scaling-stroke" strokeWidth={line(on && mode !== "design" ? 1.6 : 1)} className={tappable ? "is-tappable" : undefined}
@@ -166,7 +198,8 @@ export function ToothMapOverlay({ controller, settings, width, height, scale = 1
         })}
       </g>
 
-      {mode !== "design" && template.teeth.filter(t => (mode === "single" ? selected.has(t.fdi) : t.mapped)).map(t => (
+      {mode === "select" && hitLayer()}
+      {mode !== "design" && template.teeth.filter(t => t.mapped).map(t => (
         <g key={t.fdi} className={`tooth-region${selected.has(t.fdi) ? " is-selected" : ""}`} aria-hidden="true">
           {t.width * perPx >= 10 && <text x={t.label[0]} y={t.label[1]} fontSize={(selected.has(t.fdi) ? 11.5 : 10.5) / perPx} textAnchor="middle">{t.fdi}</text>}
         </g>

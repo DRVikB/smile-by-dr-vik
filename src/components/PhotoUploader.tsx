@@ -18,6 +18,7 @@ import { preparePhoto } from "@/lib/photos";
 import { isNativeApp } from "@/native/platform";
 import { UPLOAD_AUTHORITY_TEXT } from "@/config/legal";
 import { CaptureSymbol, CasesSymbol, IconTile, PhotosSymbol } from "@/components/icons/SmileIcons";
+import { EXAMPLE_COMPARISON, EXAMPLE_PORTRAITS } from "@/lib/exampleImages";
 import { ZoomPan } from "./ZoomPan";
 
 const TIPS = [
@@ -29,13 +30,13 @@ const TIPS = [
   "Avoid flash glare and beauty filters",
 ];
 
-/** Sample smiles shown on the "Choose from photos" card (the app's own sample case), laid out as a mosaic. */
+/** Illustrative gallery only; these are never selected or sent to the generator. */
 const GALLERY = [
-  "/onboarding/smile-before.jpg",
-  "/onboarding/case-porcelain.jpg",
-  "/onboarding/case-layered.jpg",
-  "/onboarding/case-single-shade.jpg",
-  "/onboarding/smile-after.jpg",
+  EXAMPLE_PORTRAITS.man,
+  { src: "/onboarding/case-porcelain.jpg", width: 480, height: 300 },
+  EXAMPLE_PORTRAITS.woman,
+  { src: "/onboarding/case-layered.jpg", width: 480, height: 300 },
+  { src: EXAMPLE_COMPARISON.after, width: 1092, height: 1440 },
 ];
 
 function PhotoTips() {
@@ -236,7 +237,7 @@ export function PhotoUploader({
                 <small>Use the camera, with a guide for the smile.</small>
               </span>
               <span className="photo-option-visual photo-option-capture" aria-hidden="true">
-                <img src={GALLERY[0]} alt="" draggable={false} />
+                <img {...EXAMPLE_PORTRAITS.man} sizes="(min-width: 700px) 600px, 100vw" alt="" draggable={false} decoding="async" />
                 <span className="photo-option-corner tl" /><span className="photo-option-corner tr" />
                 <span className="photo-option-corner bl" /><span className="photo-option-corner br" />
                 <span className="photo-option-shutter" />
@@ -260,7 +261,7 @@ export function PhotoUploader({
                 <small>{native ? "Select a photo from your library." : "JPG, PNG or HEIC, up to 25 MB."}</small>
               </span>
               <span className="photo-option-visual photo-option-gallery" aria-hidden="true">
-                {GALLERY.map(src => <img key={src} src={src} alt="" draggable={false} />)}
+                {GALLERY.map(image => <img key={image.src} {...image} sizes="(min-width: 700px) 180px, 20vw" alt="" draggable={false} decoding="async" />)}
               </span>
               <span className="photo-option-go" aria-hidden="true">
                 {busy ? <LoaderCircle className="spin" size={18} /> : <ChevronRight size={20} strokeWidth={1.7} />}
@@ -268,6 +269,7 @@ export function PhotoUploader({
             </button>
           </div>
 
+          <p className="photo-examples-note">Illustrative sample photographs</p>
           {!authorityConfirmed && <p className="control-hint photo-start-note">Confirm the statement above to add a patient photo.</p>}
           {native && (
             <button type="button" className="text-button photo-file-link" disabled={busy || !authorityConfirmed} onClick={() => input.current?.click()}>

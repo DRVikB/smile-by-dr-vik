@@ -1,7 +1,9 @@
 import type { SmileSettings, ToothProtection } from "../types";
 import { buildEditRegion, compositeWithAlpha, featherFor, measureChange, selectedPlans, toothEditRule } from "./masks";
 import type { Point } from "./segment";
-import { fdiOrder, photoFingerprint, type ToothMap } from "./types";
+import {fillPolygon} from "./segment";
+import {shadeOnlyPixels} from "./shade";
+import { fdiOrder, isValidToothMap, photoFingerprint, type ToothMap } from "./types";
 
 /**
  * The final, mandatory protection step. After generation the ORIGINAL photo is
@@ -9,11 +11,11 @@ import { fdiOrder, photoFingerprint, type ToothMap } from "./types";
  * selected teeth's allowed region (with a narrow feather inside its edge), and
  * every other pixel — lips, skin, gingiva, unselected teeth — is restored from
  * the original. Then it checks: outside the region, the result must match the
- * original to within compression noise.
+ * original in the lossless saved output.
  */
 
-/** Outside the allowed region, at most this share of pixels may differ beyond JPEG noise. */
-export const OUTSIDE_TOLERANCE = 0.002;
+/** Lossless output must leave every protected pixel unchanged. */
+export const OUTSIDE_TOLERANCE = 0;
 
 export interface ProtectOutcome {
   image: string;
@@ -25,15 +27,14 @@ export interface ProtectOutcome {
 }
 
 /** Why the tooth map can't protect this result; the existing lip and face lock still applies. */
-export type ProtectSkip = "no-map" | "stale-map" | "alignment" | "full-arch" | "standard" | "no-teeth";
+export type ProtectSkip = "no-map" | "stale-map" | "alignment" | "full-arch" | "no-teeth" | "unconfirmed" | "incomplete-map" | "invalid-boundary";
 
 /**
- * Precision masking is for SINGLE-TOOTH edits only. Normal 4 / 6 / 8 / 10
- * and multi-tooth designs use the standard generator with the lip and face
- * lock (and any painted edit area) — image quality first. Set to true only
- * if testing shows per-tooth compositing improves multi-tooth results.
+ * Retained compatibility export. Precision is now a required treatment policy,
+ * not an optional quality toggle. Alignment and full arch remain separate.
+ * Live tests must still assess seams and morphology within reviewed boundaries.
  */
-export const PRECISION_FOR_MULTIPLE_TEETH = false;
+export const PRECISION_FOR_MULTIPLE_TEETH = true;
 
 function load(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -47,18 +48,25 @@ function load(src: string): Promise<HTMLImageElement> {
 /** Whether the map can govern this design; if not, why. */
 export function protectionPlan(map: ToothMap | null | undefined, originalDataUrl: string, settings: SmileSettings):
   { ok: true; teeth: number[]; notFound: number[] } | { ok: false; reason: ProtectSkip } {
-  if (!map || !map.teeth.some(t => t.visible && t.fdi !== null)) return { ok: false, reason: "no-map" };
-  if (map.photoId !== photoFingerprint(originalDataUrl)) return { ok: false, reason: "stale-map" };
   // Full-arch protects by arch (arch.ts), not by tooth.
   if (settings.treatmentMode === "full_arch" && settings.fullArch) return { ok: false, reason: "full-arch" };
   // Moving whole teeth isn't a repaint of their outlines: alignment keeps the lip and face lock for now.
-  if (settings.alignment && !settings.alignment.only) return { ok: false, reason: "alignment" };
+  if (settings.alignment) return { ok: false, reason: "alignment" };
   // Chart order (patient's right to left), as the clinician reads it.
   const wanted = fdiOrder([...selectedPlans(settings).keys()]);
-  if (wanted.length > 1 && !PRECISION_FOR_MULTIPLE_TEETH) return { ok: false, reason: "standard" };
+  if (!wanted.length) return { ok: false, reason: "no-teeth" };
+  if (!isValidToothMap(map) || map.version!==1 || !map.teeth.some(t => t.visible && t.fdi !== null)) return { ok: false, reason: "no-map" };
+  if (map.photoId !== photoFingerprint(originalDataUrl)) return { ok: false, reason: "stale-map" };
   const present = new Set(map.teeth.filter(t => t.visible && t.fdi !== null).map(t => t.fdi as number));
   const teeth = wanted.filter(t => present.has(t));
   if (!teeth.length) return { ok: false, reason: "no-teeth" };
+  if (!map.confirmedByClinician) return { ok: false, reason: "unconfirmed" };
+  if (teeth.length !== wanted.length) return { ok: false, reason: "incomplete-map" };
+  const selected = map.teeth.filter(t => t.visible && t.fdi !== null && wanted.includes(t.fdi));
+  if (selected.length !== teeth.length || selected.some(t => {
+    const area = Math.abs(t.outline.reduce((sum,p,i) => { const next=t.outline[(i+1)%t.outline.length]; return sum+p[0]*next[1]-next[0]*p[1]; },0))/2;
+    return area < 0.000001 || area > 0.25;
+  })) return { ok: false, reason: "invalid-boundary" };
   return { ok: true, teeth, notFound: wanted.filter(t => !present.has(t)) };
 }
 
@@ -81,6 +89,7 @@ export function guidanceMask(map: ToothMap, originalDataUrl: string, settings: S
     mouthOpening: map.mouthOpening ? px(map.mouthOpening) : null,
     feather: 0,
   });
+  if (!region.allowed.some(Boolean)) throw new Error("The selected tooth boundary has no usable edit area. Review or redraw it before generating.");
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
@@ -133,21 +142,27 @@ export async function protectWithToothMap(
     selected,
     protectedTeeth,
     mouthOpening: map.mouthOpening ? px(map.mouthOpening) : null,
+    original: original.data,
     feather: featherFor(Math.max(...xs) - Math.min(...xs)),
   });
+  if (!region.allowed.some(Boolean)) throw new Error("The selected tooth boundary has no usable edit area. Review or redraw it before generating.");
 
   const before = measureChange(original.data, candidate.data, region.allowed);
-  const merged = compositeWithAlpha(original.data, candidate.data, region.alpha);
+  let candidatePixels:Uint8ClampedArray=candidate.data;
+  for(const tooth of selected)if(tooth.rule.exactOnly)candidatePixels=shadeOnlyPixels(original.data,candidatePixels,fillPolygon(tooth.outline,W,H));
+  const merged = compositeWithAlpha(original.data, candidatePixels, region.alpha);
   const out = ctx.createImageData(W, H);
   out.data.set(merged);
   ctx.putImageData(out, 0, 0);
-  const image = canvas.toDataURL("image/jpeg", 0.95);
+  // Lossless precision output: JPEG recompression can alter protected
+  // neighbouring teeth and skin even after their pixels were restored.
+  const image = canvas.toDataURL("image/png");
 
-  // Verify what will actually be saved: decode the JPEG and compare outside the region.
+  // Verify the actual encoded output, not only the in-memory composite.
   const saved = await load(image);
   ctx.clearRect(0, 0, W, H);
   ctx.drawImage(saved, 0, 0);
-  const after = measureChange(original.data, ctx.getImageData(0, 0, W, H).data, region.allowed);
+  const after = measureChange(original.data, ctx.getImageData(0, 0, W, H).data, region.allowed, 0);
 
   const protection: ToothProtection = {
     teeth: plan.teeth,
@@ -157,6 +172,7 @@ export async function protectWithToothMap(
     insideChange: Math.round(before.inside * 1000) / 1000,
     verified: after.outside <= OUTSIDE_TOLERANCE,
   };
+  if (!protection.verified) throw new Error("The selected-teeth preview could not be protected reliably. Your original photo is unchanged. Review the tooth boundaries before trying again.");
 
   let debugImage: string | undefined, debugMask: string | undefined;
   if (options.debug) {

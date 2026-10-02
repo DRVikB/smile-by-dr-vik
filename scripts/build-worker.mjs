@@ -1,6 +1,14 @@
 import { build } from "esbuild";
 import { cp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
+import { prepareOfflineShell } from "./offline-shell.mjs";
+import nextEnv from "@next/env";
+import {inlineScriptHashes,fullPolicy} from "./security-policy.mjs";
 // Next prerenders the client application; use the same Web API handler at the edge.
+nextEnv.loadEnvConfig(process.cwd(), false);
+const page=await readFile(".next/server/app/index.html","utf8");
+const hashes=inlineScriptHashes(page);
+if(!page.includes('http-equiv="Content-Security-Policy"'))await writeFile(".next/server/app/index.html",page.replace(/<head([^>]*)>/i,`<head$1><meta http-equiv="Content-Security-Policy" content="${fullPolicy(hashes,{supabaseOrigin:process.env.NEXT_PUBLIC_SUPABASE_URL?new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin:''})}">`));
+await prepareOfflineShell();
 await rm("dist", { recursive: true, force: true });
 await mkdir("dist/client/_next", { recursive: true });
 await mkdir("dist/server", { recursive: true });

@@ -24,6 +24,8 @@ export interface ToothEditRule {
   incisal: number;
   /** Extra room at the gum line; 0 while gingiva is protected. */
   cervical: number;
+  /** Lower teeth grow incisally upwards in the photograph. */
+  direction?: 1 | -1;
 }
 
 export interface MaskOptions {
@@ -45,7 +47,7 @@ export function toothEditRule(settings: SmileSettings, plan: ToothPlan | undefin
   if (intent === "Reshape") { lateral += 0.02; incisal += 0.02; }
   if (plan?.width === 1) lateral += 0.05;
   if (plan?.length === 1) incisal += 0.08;
-  return { exactOnly: false, lateral, incisal, cervical: options.protectGingiva ? 0 : 0.04 };
+  return { exactOnly: false, lateral: Math.min(lateral,0.18), incisal: Math.min(incisal,porcelain?0.2:0.14), cervical: options.protectGingiva ? 0 : 0.04, direction: plan && plan.tooth >= 30 ? -1 : 1 };
 }
 
 /**
@@ -56,11 +58,16 @@ export function influenceOutline(outline: Point[], rule: ToothEditRule): Point[]
   if (rule.exactOnly || !outline.length) return outline;
   const xs = outline.map(p => p[0]), ys = outline.map(p => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-  const ax = (x0 + x1) / 2, ay = y0;
-  const sx = 1 + 2 * rule.lateral, sy = 1 + rule.incisal;
+  const direction=rule.direction??1;
+  const ax = (x0 + x1) / 2, ay = direction===1?y0:y1;
   // Room at the gum line (only when gingiva isn't protected) lifts the top edge, fading to none at the incisal edge.
   const lift = (y1 - y0) * rule.cervical;
-  return outline.map(([x, y]) => [ax + (x - ax) * sx, ay + (y - ay) * sy - lift * (1 - (y - ay) / Math.max(1, y1 - y0))]);
+  return outline.map(([x, y]) => {
+    const progress=Math.max(0,Math.min(1,direction*(y-ay)/Math.max(1,y1-y0)));
+    // No cervical expansion: new lateral contour starts only in the incisal half.
+    const taper=Math.max(0,(progress-0.5)*2);
+    return [ax+(x-ax)*(1+2*rule.lateral*taper),y+direction*(y1-y0)*rule.incisal*taper-direction*lift*(1-progress)];
+  });
 }
 
 /** Box-sum based morphology on a 0/1 mask: `r` is the half-width. */
@@ -118,6 +125,8 @@ export interface EditRegionInput {
   protectedTeeth: Point[][];
   /** The mouth opening; nothing outside it (lips, skin) may change. */
   mouthOpening?: Point[] | null;
+  /** Optional original pixels: influence may only extend into dark oral space, not unmapped enamel or pink gingiva. */
+  original?: Uint8ClampedArray;
   /** Width of the soft edge, in pixels. */
   feather: number;
 }
@@ -132,10 +141,22 @@ export interface EditRegion {
 export function buildEditRegion(input: EditRegionInput): EditRegion {
   const { width: w, height: h } = input;
   const allowed = new Uint8Array(w * h);
+  const exactUnion = new Uint8Array(w * h);
   for (const tooth of input.selected) {
-    const exact = dilate(fillPolygon(tooth.outline, w, h), w, h, 1);
-    const influence = tooth.rule.exactOnly ? exact : fillPolygon(influenceOutline(tooth.outline, tooth.rule), w, h);
-    for (let i = 0; i < allowed.length; i++) if (exact[i] || influence[i]) allowed[i] = 1;
+    const exact = fillPolygon(tooth.outline, w, h);
+    // Without a trustworthy inner-lip boundary, conservative exact editing only.
+    const influence = tooth.rule.exactOnly || !input.mouthOpening || input.mouthOpening.length<3 ? exact : fillPolygon(influenceOutline(tooth.outline, tooth.rule), w, h);
+    for (let i = 0; i < allowed.length; i++) { if(exact[i])exactUnion[i]=1; if (exact[i] || influence[i]) allowed[i] = 1; }
+  }
+  if(input.original){
+    if(input.original.length!==w*h*4)throw new Error("The protection source and masks are different sizes.");
+    for(let i=0,p=0;i<allowed.length;i++,p+=4)if(allowed[i]&&!exactUnion[i]){
+      const r=input.original[p],g=input.original[p+1],b=input.original[p+2];
+      // Fail conservatively: unknown bright/shadowed enamel and red soft tissue
+      // stay original. Dark inter-tooth/oral space can accommodate modest contour.
+      const oralSpace=r<85&&g<75&&b<75&&!(r>45&&r-g>14);
+      if(!oralSpace)allowed[i]=0;
+    }
   }
   // Unselected teeth, with a pixel of margin, are never inside the edit.
   if (input.protectedTeeth.length) {

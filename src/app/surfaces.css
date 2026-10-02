@@ -281,7 +281,7 @@ body { background: var(--background); }
 .photo-option-go { top: 30px; right: 20px; color: var(--text-secondary); }
 .photo-option-visual { grid-column: 1 / -1; border-radius: 18px; }
 .photo-option-capture { aspect-ratio: 16 / 9.2; }
-.photo-option-capture img { object-position: 50% 34%; }
+.photo-option-capture img { object-position: 50% 48%; }
 /* The library: one clean row of rounded thumbnails */
 .photo-option-gallery {
   display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: auto; gap: 6px;
@@ -423,7 +423,7 @@ body { background: var(--background); }
 .consult-top.sc-brand-header .consult-top-actions { width: auto; flex-wrap: nowrap; justify-content: flex-end; }
 .consult-top .sc-brand-header-start .consult-close { display: inline-flex; align-items: center; gap: 7px; }
 :is(.consult-top, .generation-splash-header, .saved-case-header) .sc-lockup { color: #FFFFFF; }
-.saved-case-viewer > .saved-analysis-chip { top: calc(env(safe-area-inset-top, 0px) + 84px); }
+.saved-case-viewer .saved-analysis-chip { top: calc(env(safe-area-inset-top, 0px) + 84px); }
 
 /* ============================================================
    iPad and desktop: comfortable containers, more outer whitespace
@@ -436,9 +436,40 @@ body { background: var(--background); }
 /* Treatment: full-arch controls open under their row, inside the same group */
 .studio-full-arch { display: grid; gap: 14px; padding: 4px 14px 14px; border-top: 1px solid var(--separator); }
 .studio-full-arch .control-group { margin: 0; }
-.studio-full-arch .segmented button { min-height: 40px; }
+.studio-full-arch .segmented button { min-height: 44px; }
 .studio-full-arch .control-hint { margin: 0; }
 .studio-full-arch-advanced { border-top: 0; }
 .studio-full-arch-advanced > summary { min-height: 40px; color: var(--text-secondary); font-weight: 500; }
 .studio-full-arch-advanced[open] > summary svg { transform: rotate(90deg); }
 .studio-treatment.is-muted { opacity: .45; }
+
+/* One caption for prepared demo imagery; keep each comparison card photo-led. */
+.variation-demo-note { margin: 18px 2px 0; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+
+/* Case browsing stays a small, touch-scrollable strip on the hub. */
+.recent-case-pages { position: relative; display: flex; gap: 12px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; border-radius: 14px; }
+.recent-case-pages::-webkit-scrollbar { display: none; }
+.recent-cases ul.recent-case-page { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; }
+.recent-case-pagination { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #fff9; font-size: 11px; margin-top: 4px; }
+.recent-case-pagination > div { display: flex; }
+.recent-case-pagination button { display: grid; place-items: center; width: 44px; min-height: 44px; color: white; background: transparent; border-radius: 50%; }
+.recent-case-pagination button:disabled { opacity: .25; }
+.recent-case-pages:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.share-concept-note { font-size: 12px; line-height: 1.6; color: var(--text-secondary); margin: 12px 0 18px; }
+.compact-preview-dock { flex-wrap: wrap; }
+.compact-concept-note { flex: 0 0 100%; margin: 0; padding: 1px 5px 2px; text-align: center; font-size: 10px; line-height: 1.4; color: var(--text-secondary); }
+.app-shell .preview-screen .compare-label, .app-shell .preview-screen .guide-key { bottom: calc(132px + env(safe-area-inset-bottom)); }
+.saved-case-footer { position: absolute; z-index: 15; bottom: 0; left: 0; right: 0; display: grid; justify-items: center; gap: 6px; padding: 16px max(16px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, #000d); text-align: center; font-size: 12px; }
+.saved-case-footer > p { margin: 0; max-width: 400px; font-size: 11px; line-height: 1.5; }
+.saved-case-footer > button { min-height: 44px; min-width: 180px; }
+.saved-case-viewer .compare-label, .saved-case-viewer .guide-key { bottom: calc(152px + env(safe-area-inset-bottom)); }
+.saved-case-viewer .overlay-controls { bottom: calc(152px + env(safe-area-inset-bottom)); }
+.consult-meta small { max-width: 290px; line-height: 1.5; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .saved-case-footer { left: auto; width: min(380px, 60%); }
+  .saved-case-viewer .overlay-controls { left: max(16px, env(safe-area-inset-left)); right: auto; transform: none; width: min(260px, 30%); bottom: max(16px, env(safe-area-inset-bottom)); }
+}
+
+.saved-case-content { width: 100%; height: 100%; }
+
+.desktop-concept-note { grid-column: 1 / -1; margin: 2px 0 0; text-align: center; font-size: 11px; line-height: 1.5; color: var(--text-secondary); }

@@ -11,8 +11,8 @@ export async function preparePhoto(file: File): Promise<Photo> {
   let blob: Blob = file;
   if (heic) {
     try {
-      const { heicTo } = await import("heic-to");
-      blob = await heicTo({ blob: file, type: "image/jpeg", quality: 0.94 });
+      const { heicToJpeg } = await import("./heic");
+      blob = await heicToJpeg(file);
     } catch {
       throw new Error(
         "This HEIC photo could not be opened. Please export it as JPG and try again.",

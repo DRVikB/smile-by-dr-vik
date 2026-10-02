@@ -8,10 +8,10 @@
 // SmileMark:    the mark exactly as drawn on the Home Screen app icon, without its tile — Light from
 //               public/brand/smilecompose-app-icon.svg (as placed in AppIcon-1024.png), Dark from
 //               scripts/render-app-icons.swift — on a transparent ground.
-// WidgetSmile:  the Home screen's hero photograph (public/smile-hero-dr-vik-v2.png — the app's own
+// WidgetSmile:  the Home screen's hero photograph (assets/photographic-sources/smile-hero-dr-vik-v2.png — the app's own
 //               artwork, not a patient), cropped to the smile. Light lifts the dark studio backdrop
 //               towards ivory so the photo melts into the silk; Dark keeps the original.
-// SampleBefore/SampleAfter: the app's sample case (public/demo-storyboard-before.png and demo-porcelain.png,
+// SampleBefore/SampleAfter: the app's sample case (assets/photographic-sources/demo-storyboard-before.png and demo-porcelain.webp,
 //               the same frames as the onboarding reveal — not a patient), cropped around the smile.
 // DrVikLogo:    public/dr-vik-logo.png as a template image, tinted by the widget for Light and Dark.
 import AppKit
@@ -82,7 +82,7 @@ func silk(width: Int, height hgt: Int, palette: SilkPalette, calm calmAt: (Doubl
 
 /// The smile, cropped from the hero photograph; `lift` melts the dark backdrop and hair towards ivory.
 func smile(lift: Bool) -> CGImage {
-    let source = NSImage(contentsOf: root.appendingPathComponent("public/smile-hero-dr-vik-v2.png"))!
+    let source = NSImage(contentsOf: root.appendingPathComponent("assets/photographic-sources/smile-hero-dr-vik-v2.png"))!
     var rect = CGRect(origin: .zero, size: source.size)
     let hero = source.cgImage(forProposedRect: &rect, context: nil, hints: nil)!
     let crop = hero.cropping(to: CGRect(x: 0, y: 215, width: 1122, height: 950))!
@@ -262,7 +262,7 @@ func singleImageSet(_ name: String, file: String, template: Bool = false) {
 
 // Forehead to below the chin, centred on the smile (the frames are 1092 × 1440 and aligned).
 let sampleCrop = CGRect(x: 0, y: 177, width: 1092, height: 1000)
-for (name, file) in [("SampleBefore", "public/demo-storyboard-before.png"), ("SampleAfter", "public/demo-porcelain.png")] {
+for (name, file) in [("SampleBefore", "assets/photographic-sources/demo-storyboard-before.png"), ("SampleAfter", "assets/photographic-sources/demo-porcelain.png")] {
     singleImageSet(name, file: "\(name).jpg")
     writeJPEG(resample(file, crop: sampleCrop, width: 900, height: 824), catalog.appendingPathComponent("\(name).imageset/\(name).jpg"), quality: 0.84)
 }

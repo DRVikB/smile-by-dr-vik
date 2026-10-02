@@ -59,7 +59,7 @@ export function HelpPage() {
         <div className="settings-help-steps"><HowItWorksSteps /></div>
       </Group>
       <Group title="Questions">
-        <Row label="Where are my cases stored?" detail="Only on this device, excluded from iCloud backups. Export your data from Privacy & data if you need a copy." />
+        <Row label="Where are my cases stored?" detail="Cases save locally first and sync privately to your signed-in account. Cached cases can reopen offline; AI generation needs a connection. Unassigned older cases require explicit import." />
         <Row label="How are generations counted?" detail="Each completed smile visualisation uses one generation from your plan. A generation that fails isn’t counted." />
         <Row label="What is test mode?" detail="A demonstration with sample images that uses no generations and no account." />
         <Row label="Can I undo deleting a case?" detail={`Yes, for ${RECENTLY_DELETED_DAYS} days: open Settings › Case library › Recently Deleted.`} />

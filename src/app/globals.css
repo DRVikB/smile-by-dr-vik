@@ -388,7 +388,7 @@ main {
   background-size: cover;
   background-position: 60% center;
   background-color: #121110;
-  background-image: url("/smile-hero-dr-vik-v2.png");
+  background-image: url("/smile-hero-dr-vik-v2.webp");
 }
 .start-screen::after {
   content: "";

@@ -1,10 +1,14 @@
 "use client";
+import { PatientSyncLifecycle } from "./PatientSyncLifecycle";
+import { flushSync } from "react-dom";
+import { activateWorkspace, captureWorkspace, onWorkspaceDetach } from "@/lib/workspace";
 import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { CustomerInfo } from "@revenuecat/purchases-capacitor";
 import { NATIVE_AUTH_CALLBACK, accountsConfigured } from "@/config/accounts";
 import { isNativeApp } from "@/native/platform";
 import { supabase } from "@/services/auth/supabaseClient";
+import { readOfflineUser } from "@/services/auth/offlineSession";
 import { accessToken, completeAuthCallback, signOut as authSignOut, AuthMessage, type AuthFlow } from "@/services/auth/authService";
 import {
   AccountApiError, fetchAccountStatus, recordConsents, requestAccountDeletion, saveAvatar, updateProfile as saveProfile,
@@ -103,20 +107,43 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [workspaceKey, setWorkspaceKey] = useState(() => captureWorkspace().epoch);
+  useEffect(() => onWorkspaceDetach(() => setWorkspaceKey(captureWorkspace().epoch)), []);
+  const authRevision = useRef(0);
+  const signingOut = useRef(false);
+  const activeUserId = useRef<string | null>(null);
+  const applyUser = useCallback((next: User | null) => {
+    const changed = activeUserId.current !== (next?.id ?? null);
+    if (changed) {
+      authRevision.current++;
+      activeUserId.current = next?.id ?? null;
+      const lease = activateWorkspace(next ? { kind: "account", userId: next.id } : { kind: "unowned" });
+      // Commit the empty incoming tree before any late operation can render.
+      flushSync(() => {
+        setUser(next); setWorkspaceKey(lease.epoch);
+        setStatus(null); setStatusState("idle"); setCustomerInfo(null); setSheet(null);
+      });
+    } else setUser(next);
+  }, []);
   const userId = user?.id ?? null;
+  const sessionLease = useMemo(captureWorkspace, [workspaceKey]);
   const hasProAccess = customerHasPro(customerInfo) || Boolean(status?.pro);
 
   const refreshStatus = useCallback(async () => {
+    const revision = authRevision.current;
     const token = await accessToken();
+    if (revision !== authRevision.current) return;
     if (!token) { setStatus(null); setStatusState("idle"); return; }
     try {
       const next = await fetchAccountStatus(token);
+      if (revision !== authRevision.current) return;
       setStatus(next);
       setStatusState("loaded");
       // Ask once per changed Terms/Privacy version.
       if (next.documents && (!next.documents.terms.accepted || !next.documents.privacy.accepted))
         setSheet(current => (current && current.kind !== "settings" ? current : { kind: "documents" }));
     } catch (error) {
+      if (revision !== authRevision.current) return;
       if (error instanceof AccountApiError && error.code === "mfa_required")
         setSheet(current => (current?.kind === "mfa" ? current : { kind: "mfa", mode: "challenge", back: null }));
       /* otherwise keep the last known status */
@@ -126,7 +153,9 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
 
   // Accounts with an authenticator must complete the second factor after sign-in.
   const checkAssurance = useCallback(async () => {
+    const revision = authRevision.current;
     const { data } = await supabase()?.auth.mfa.getAuthenticatorAssuranceLevel() ?? { data: null };
+    if (revision !== authRevision.current) return;
     if (data?.currentLevel === "aal1" && data.nextLevel === "aal2")
       setSheet(current => (current?.kind === "mfa" ? current : { kind: "mfa", mode: "challenge", back: null }));
   }, []);
@@ -142,7 +171,9 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
 
   const refresh = useCallback(async () => {
     if (!userId) return;
+    const revision = authRevision.current;
     const info = await refreshCustomerInfo().catch(() => null);
+    if (revision !== authRevision.current) return;
     if (info) setCustomerInfo(info);
     await refreshStatus();
   }, [userId, refreshStatus]);
@@ -160,15 +191,26 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
     const client = supabase();
     if (!client) return;
     let active = true;
+    const restoreRevision = authRevision.current;
+    // Only the already signed-in local workspace may reopen offline. API calls
+    // still require a live server-verified JWT; no offline user is sent as proof.
+    const offlineRestore = navigator.onLine === false ? readOfflineUser().then(cached => {
+      if(active && restoreRevision === authRevision.current && !signingOut.current){applyUser(cached);setReady(true);}
+      return cached;
+    }) : Promise.resolve(null);
     const { data: subscription } = client.auth.onAuthStateChange((event, session) => {
       if (!active) return;
-      setUser(session?.user ?? null);
+      if(event === "INITIAL_SESSION" && !session && navigator.onLine === false){
+        void offlineRestore.then(cached => {if(active&&!signingOut.current&&navigator.onLine===false&&activeUserId.current===cached?.id)applyUser(cached);});
+        return;
+      }
+      if (!signingOut.current || !session) applyUser(session?.user ?? null);
       if (event === "PASSWORD_RECOVERY") setSheet({ kind: "auth", mode: "setPassword" });
       if (event === "SIGNED_IN") void checkAssurance();
     });
     void client.auth.getSession().then(({ data }) => {
       if (!active) return;
-      setUser(data.session?.user ?? null);
+      if (restoreRevision === authRevision.current && !signingOut.current) applyUser(data.session?.user ?? null);
       setReady(true);
       if (!isNativeApp()) {
         // detectSessionInUrl has exchanged any ?code= by now; tidy the address bar.
@@ -181,8 +223,10 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
         }
       }
     });
-    return () => { active = false; subscription.subscription.unsubscribe(); };
-  }, [handleFlow, checkAssurance]);
+    const reconnect=()=>{const revision=authRevision.current;void client.auth.getSession().then(({data})=>{if(active&&revision===authRevision.current&&!signingOut.current)applyUser(data.session?.user??null);});};
+    window.addEventListener("online",reconnect);
+    return () => { active = false; subscription.subscription.unsubscribe(); window.removeEventListener("online",reconnect); };
+  }, [handleFlow, checkAssurance, applyUser]);
 
   // iOS: deep links from email, token refresh while foregrounded, refresh on return.
   useEffect(() => {
@@ -228,12 +272,15 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
 
   useEffect(() => {
     if (!userId) return;
+    let stopped = false;
     let stop: (() => void) | undefined;
+    const revision = authRevision.current;
     void onCustomerInfo(info => {
+      if (stopped || revision !== authRevision.current) return;
       setCustomerInfo(info);
       void refreshStatus(); // the server establishes the new period's allowance
-    }).then(unsubscribe => { stop = unsubscribe; });
-    return () => stop?.();
+    }).then(unsubscribe => { if (stopped) unsubscribe(); else stop = unsubscribe; });
+    return () => { stopped = true; stop?.(); };
   }, [userId, refreshStatus]);
 
   // The generation service reads entitlements through this provider.
@@ -273,11 +320,16 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
       }
       return;
     }
+    const lease = sessionLease;
+    lease.assert();
+    if (activeUserId.current !== userId) return;
     const token = await accessToken();
+    lease.assert();
     if (!token) throw new Error("Sign in again to update your profile.");
     const profile = await saveProfile(token, update);
+    lease.assert();
     setStatus(current => (current ? { ...current, profile } : current));
-  }, [userId]);
+  }, [userId, sessionLease]);
 
   useEffect(() => {
     if (!userId || !serverProfile || serverProfile.preferredName || !localName) return;
@@ -285,15 +337,18 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
   }, [userId, serverProfile, localName, updateProfile]);
 
   const signOut = useCallback(async () => {
-    await resetPurchaser();
-    await authSignOut();
+    signingOut.current = true;
+    applyUser(null);
+    try { await authSignOut(); await resetPurchaser(); } finally { signingOut.current = false; }
     writeCachedNames(null);
     setCachedNames(null);
     setSheet(null);
-  }, []);
+  }, [applyUser]);
 
   const deleteAccount = useCallback(async ({ deleteLocalData }: { deleteLocalData: boolean }) => {
+    sessionLease.assert();
     const token = await accessToken();
+    sessionLease.assert();
     if (!token) throw new Error("Sign in again to delete your account.");
     let appleCode: string | undefined;
     if (isNativeApp() && user?.identities?.some(identity => identity.provider === "apple")) {
@@ -303,21 +358,30 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
       if (!credential) throw new Error("Confirm with Apple to delete an account that uses Sign in with Apple.");
       appleCode = credential.authorizationCode;
     }
+    sessionLease.assert();
+    const localData = deleteLocalData ? await import("@/lib/localData") : null;
+    sessionLease.assert();
     await requestAccountDeletion(token, appleCode);
-    await resetPurchaser();
-    await supabase()?.auth.signOut({ scope: "local" }).catch(() => {});
+    sessionLease.assert();
+    signingOut.current = true;
+    const cleanup = localData ? localData.deleteWorkspaceData(sessionLease) : Promise.resolve();
+    applyUser(null);
+    try {
+      await Promise.all([cleanup, (async () => { await supabase()?.auth.signOut({ scope: "local" }); await resetPurchaser(); })()]);
+    } finally { signingOut.current = false; }
     writeCachedNames(null);
-    if (deleteLocalData) await (await import("@/lib/localData")).deleteAllLocalData();
     try { sessionStorage.setItem(NOTICE_KEY, "Your SmileCompose account has been deleted."); } catch { /* notice is optional */ }
     window.location.reload();
-  }, [user]);
+  }, [user, applyUser, sessionLease]);
 
   const recordConsent = useCallback(async (record: ConsentRecordInput, options?: { strict?: boolean }) => {
+    sessionLease.assert();
     const token = user ? await accessToken() : null;
+    sessionLease.assert();
     if (!token) return; // not signed in: kept on the device only
     try { await recordConsents(token, [record]); }
     catch (error) { if (options?.strict) throw error; }
-  }, [user]);
+  }, [user, sessionLease]);
 
   const disableMfa = useCallback(async () => {
     const auth = supabase()?.auth;
@@ -366,19 +430,28 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
   const avatarUrl = userId ? status?.avatarUrl ?? null : null;
 
   const setAvatar = useCallback(async (image: string | null) => {
+    const lease = sessionLease;
+    lease.assert();
+    if (activeUserId.current !== userId) return;
     const token = userId ? await accessToken() : null;
+    lease.assert();
     if (!token) throw new Error("Sign in to add a profile photo.");
     const url = await saveAvatar(token, image);
+    lease.assert();
     setStatus(current => (current ? { ...current, avatarUrl: url } : current));
-  }, [userId]);
+  }, [userId, sessionLease]);
 
+  const lease = sessionLease;
+  const sessionAccessToken = useCallback(async () => {
+    lease.assert(); const token = await accessToken(); lease.assert(); return token;
+  }, [lease]);
   const value = useMemo<AccountContextValue>(() => ({
     configured, ready, user, status, statusState, customerInfo, hasProAccess, notice,
     names, displayName: shownName, initials, avatarUrl, setAvatar, updateProfile,
     clearNotice: () => setNotice(null),
-    refresh, getAccessToken: accessToken, signOut, deleteAccount,
-    openAuth: (mode = "signIn", reason) => setSheet({ kind: "auth", mode, reason }),
-    openPaywall: () => setSheet({ kind: "paywall" }),
+    refresh, getAccessToken: sessionAccessToken, signOut, deleteAccount,
+    openAuth: (mode = "signIn", reason) => { if (lease.signal.aborted || signingOut.current) return; setSheet({ kind: "auth", mode, reason }); },
+    openPaywall: () => { if (!lease.signal.aborted) setSheet({ kind: "paywall" }); },
     openSettings: (section?: SettingsSection) => setSheet({ kind: "settings", section }),
     // Returns to the sheet it was opened from (settings, paywall, sign-in).
     openPrivacy: (document: LegalDocument = "privacy") => setSheet(current => ({ kind: "privacy", document, back: current?.kind === "privacy" ? current.back : current })),
@@ -386,11 +459,12 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
     disableMfa,
     recordConsent,
     closeSheet: () => setSheet(null),
-  }), [configured, ready, user, status, statusState, customerInfo, hasProAccess, notice, names, shownName, initials, avatarUrl, setAvatar, updateProfile, refresh, signOut, deleteAccount, disableMfa, recordConsent]);
+  }), [configured, ready, user, status, statusState, customerInfo, hasProAccess, notice, names, shownName, initials, avatarUrl, setAvatar, updateProfile, refresh, signOut, deleteAccount, disableMfa, recordConsent, sessionAccessToken, lease]);
 
   return (
     <AccountContext.Provider value={value}>
-      <Inner>
+      <Inner key={workspaceKey}>
+      <PatientSyncLifecycle />
       {children}
       {sheet?.kind === "auth" && <AuthSheet initialMode={sheet.mode} reason={sheet.reason} onClose={() => setSheet(null)} onSignedIn={() => setSheet(null)} />}
       {sheet?.kind === "paywall" && <Paywall onClose={() => setSheet(null)} />}

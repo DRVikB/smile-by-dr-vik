@@ -124,17 +124,23 @@ export async function recordReveal(
     ctx.letterSpacing = `${Math.round(fontPx * 0.18)}px`;
     ctx.globalAlpha = 1 - mix;
     ctx.fillStyle = BRAND.paper;
-    ctx.fillText("TODAY", fontPx * 1.4, height - fontPx * 1.6);
+    ctx.fillText("TODAY", fontPx * 1.4, height - fontPx * 3.1);
     ctx.globalAlpha = mix;
     ctx.fillStyle = BRAND.gold;
-    ctx.fillText(options.isDemo ? "DEMO PREVIEW" : "A POSSIBLE SMILE", fontPx * 1.4, height - fontPx * 1.6);
+    ctx.fillText(options.isDemo ? "DEMO PREVIEW" : "AI SMILE CONCEPT", fontPx * 1.4, height - fontPx * 3.1);
     ctx.letterSpacing = "0px";
     ctx.globalAlpha = 1;
     if (!options.isDemo && mix > 0.02) {
       ctx.globalAlpha = mix;
-      drawAiTag(ctx, { x: 0, y: 0, w: width, h: height });
+      drawAiTag(ctx, { x: 0, y: 0, w: width, h: height - fontPx * 1.8 });
       ctx.globalAlpha = 1;
     }
+    ctx.font = `400 ${Math.round(fontPx * 0.6)}px -apple-system, Arial, sans-serif`;
+    ctx.fillStyle = BRAND.paper;
+    ctx.textAlign = "center";
+    ctx.fillText("Clinician-designed visual guide", width / 2, height - fontPx * 1.3);
+    ctx.fillText("Not a guaranteed treatment result", width / 2, height - fontPx * 0.45);
+    ctx.textAlign = "left";
   };
 
   draw(0);

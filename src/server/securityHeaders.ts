@@ -13,13 +13,22 @@ export const BASE_SECURITY_HEADERS: Record<string, string> = {
   "Cross-Origin-Opener-Policy": "same-origin",
 };
 
-export function contentSecurityPolicy(supabaseUrl?: string): string {
+export function contentSecurityPolicy(supabaseUrl?: string,hashes:string[]=[]): string {
   let supabase: string;
   try { supabase = supabaseUrl ? new URL(supabaseUrl).origin : ""; } catch { supabase = ""; }
-  const connect = ["'self'", "data:", "blob:", supabase, "https://cdn.jsdelivr.net", "https://storage.googleapis.com"].filter(Boolean).join(" ");
-  return `connect-src ${connect}; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests`;
+  const connect = ["'self'", "data:", "blob:", supabase].filter(Boolean).join(" ");
+  const script = `script-src 'self' 'wasm-unsafe-eval' ${hashes.filter(h=>/^sha256-[A-Za-z0-9+/]+={0,2}$/.test(h)).map(h=>`'${h}'`).join(" ")}`;
+  return `default-src 'self'; ${script}; script-src-attr 'none'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: ${supabase}; media-src 'self' data: blob:; font-src 'self'; connect-src ${connect}; frame-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests`;
 }
 
-export function pageSecurityHeaders(supabaseUrl?: string): Record<string, string> {
-  return { ...BASE_SECURITY_HEADERS, "Content-Security-Policy": contentSecurityPolicy(supabaseUrl) };
+export function pageSecurityHeaders(supabaseUrl?: string,hashes:string[]=[]): Record<string, string> {
+  return { ...BASE_SECURITY_HEADERS, "Content-Security-Policy": contentSecurityPolicy(supabaseUrl,hashes) };
+}
+/** Build shell only: the Worker uses Web Crypto, never a runtime Node dependency. */
+export async function inlineScriptHashes(html:string):Promise<string[]>{
+  const scripts=[...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)].filter(m=>!(/\bsrc\s*=/.test(m[1]))&&m[2]);
+  return [...new Set(await Promise.all(scripts.map(async m=>{
+    const bytes=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(m[2])));
+    return "sha256-"+btoa(String.fromCharCode(...bytes));
+  })))];
 }

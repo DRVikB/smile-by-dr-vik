@@ -147,12 +147,15 @@ export interface SmileTemplate {
   teeth: TemplateTooth[];
   arc: string;
   midline: VerticalGuide;
-  /** Horizontal reference through the centrals' incisal edges. */
-  incisalLine: { y: number; x0: number; x1: number };
-  /** Smooth curve through the gingival zeniths. */
-  gingivalLine: string;
-  /** Contacts between neighbouring template teeth: the proportion guides. */
+  /**
+   * Proportion lines, as in a smile-design worksheet: the midline, each
+   * anterior contact and the canines' distal edges (canine to canine).
+   */
   contacts: VerticalGuide[];
+  /** Horizontal line across the crown tops (the centrals' gingival level), canine to canine. */
+  topLine: { y: number; x0: number; x1: number };
+  /** Smile arc along the incisal edges, canine to canine. */
+  incisalArc: string;
   /** The inner lip, for clipping the teeth behind the lips (photo pixels). */
   clip: Point[] | null;
 }
@@ -290,7 +293,8 @@ export function fitSmileTemplate(map: ToothMap | null, width: number, height: nu
       const angle = found ? clamp(lerp(idealAngle, -(s.axis * 180) / Math.PI, 0.4), idealAngle - 8, idealAngle + 8) : idealAngle;
       designs.push({ fdi, kind: KINDS[i], family: familyFor(options.settings, fdi), cx, incisalY, width: w, height: heights[i], angle, source: found ? "fitted" : "ideal", mapped: s !== undefined });
       edge = start + w;
-      if (i < 4) contacts.push({ x: midX + side * edge, y0: incisalY - heights[i] * 1.25, y1: incisalY + heights[i] * 0.3 });
+      // Proportion lines at the anterior contacts and the canine's distal edge.
+      if (i < 3) contacts.push({ x: midX + side * edge, y0: 0, y1: 0 });
     }
   }
   // Centrals level and matched: one edge height for the pair.
@@ -301,13 +305,18 @@ export function fitSmileTemplate(map: ToothMap | null, width: number, height: nu
   const span = Math.max(byX[byX.length - 1].cx + byX[byX.length - 1].width / 2 - midX, midX - (byX[0].cx - byX[0].width / 2));
   const arcHalf = Math.min(span + W * 0.25, mouthW * 0.5);
   const arcPoints: Point[] = Array.from({ length: 25 }, (_, i) => { const x = midX - arcHalf + (2 * arcHalf * i) / 24; return [x, arcY(x)]; });
+  // Worksheet guides span canine to canine and reach well beyond the crowns.
+  const canineEdge = Math.max(...contacts.map(c => Math.abs(c.x - midX)), W);
+  const topY = Math.min(...teeth.filter(t => t.kind === "central").map(t => t.gingival[1]));
+  const lines: VerticalGuide[] = [{ x: midX, y0: 0, y1: 0 }, ...contacts].map(c => ({ x: c.x, y0: topY - Hc * 0.75, y1: pairY + Hc * 0.75 }));
+  const anteriorArc: Point[] = Array.from({ length: 17 }, (_, i) => { const x = midX - canineEdge + (2 * canineEdge * i) / 16; return [x, arcY(x)]; });
   return {
     teeth,
     arc: openCurvePath(arcPoints),
     midline: { x: midX, y0: pairY - Hc * 1.9, y1: pairY + Hc * 0.9 },
-    incisalLine: { y: pairY, x0: midX - span, x1: midX + span },
-    gingivalLine: openCurvePath(byX.map(t => t.gingival)),
-    contacts,
+    contacts: lines,
+    topLine: { y: topY, x0: midX - canineEdge, x1: midX + canineEdge },
+    incisalArc: openCurvePath(anteriorArc),
     clip: lip,
   };
 }

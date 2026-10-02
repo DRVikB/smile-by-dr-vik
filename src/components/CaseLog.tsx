@@ -1,7 +1,10 @@
 "use client";
+import { PatientSyncStatus } from "./PatientSyncStatus";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Archive, Check, ChevronLeft, ChevronRight, Pencil, ScanEye, Search, Share2, Star, Trash2, X } from "lucide-react";
 import { AnalysisSymbol, IconTile, SmileSymbol } from "@/components/icons/SmileIcons";
+import { AI_CONCEPT_DISCLAIMER } from "@/lib/brand";
+import { savedCaseExport } from "@/lib/savedCaseExport";
 import { SavedCaseViewer } from "./SavedCaseViewer";
 import { ShareSheet } from "./share/ShareSheet";
 import { EXPORT_NAMES, type ExportKind, type ReportDraft } from "@/lib/consultation";
@@ -9,16 +12,9 @@ import type { CaseLogEntry, CaseLogMedia } from "@/lib/types";
 import {
   CASE_REFERENCE_MAX,
   formatLogDate,
-  listActiveLog,
   matchesQuery,
-  moveAllToRecentlyDeleted,
-  moveToRecentlyDeleted,
-  purgeRecentlyDeleted,
-  readLogMedia,
-  renameCase,
-  setCaseArchived,
-  setFavourite,
 } from "@/lib/caseLog";
+import { getCaseRepository } from "@/services/cases/caseRepository";
 import { caseIdOf } from "@/models/case";
 import { RECENTLY_DELETED_DAYS } from "@/config/cases";
 
@@ -55,7 +51,9 @@ const coverThumbs = (group: CaseGroup) =>
 const timeOf = (ms: number) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 const versionTitle = (entry: CaseLogEntry, index: number, total: number) => entry.label || `Version ${total - index}`;
 
-export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; initialEntryId?: string }) {
+export function CaseLog({ onClose, initialEntryId, onReopen }: { onClose: () => void; initialEntryId?: string; onReopen?: (caseId:string)=>Promise<void> }) {
+  const [repository] = useState(getCaseRepository);
+  const { listActiveLog, moveAllToRecentlyDeleted, moveToRecentlyDeleted, purgeRecentlyDeleted, readLogMedia, renameCase, setCaseArchived, setFavourite } = repository;
   const [entries, setEntries] = useState<CaseLogEntry[] | null>(null);
   const [query, setQuery] = useState("");
   const [openCase, setOpenCase] = useState<string | null>(null);
@@ -83,7 +81,7 @@ export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; init
         setError("Cases couldn’t be opened on this device.");
       });
   }, []);
-  useEffect(() => refresh(), [refresh]);
+  useEffect(() => { refresh(); return repository.subscribe(refresh); }, [refresh, repository]);
 
   const all = useMemo(() => groupCases(entries ?? []), [entries]);
   const shown = all.filter(group => !query.trim() || group.versions.some(v => matchesQuery(v, query)));
@@ -97,6 +95,7 @@ export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; init
   useEffect(() => { setOnlyFavourites(false); setRenaming(null); setConfirmCase(false); }, [openCase]);
 
   async function openEntry(entry: CaseLogEntry) {
+    if(entry.draftOnly){if(onReopen)await onReopen(caseIdOf(entry)).catch(()=>setError("This draft needs its photos downloaded while connected before it can open offline."));return;}
     setMediaError(false);
     setOpen({ entry, media: null });
     const media = await readLogMedia(entry.id).catch(() => null);
@@ -178,6 +177,10 @@ export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; init
   /** After sharing, pick up the export just recorded against this version. */
   async function closeSharing() {
     setSharing(null);
+    await refreshExports();
+  }
+
+  async function refreshExports() {
     const id = open?.entry.id;
     if (!id) return;
     const fresh = await listActiveLog().then(list => list.find(e => e.id === id)).catch(() => undefined);
@@ -198,6 +201,7 @@ export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; init
   return (
     <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-label="Cases" onClick={onClose}>
       <div className="log-panel" onClick={(e) => e.stopPropagation()}>
+        <PatientSyncStatus />
         {current ? (
           <div className="case-page" key={current.key}>
             <div className="case-page-head">
@@ -239,6 +243,7 @@ export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; init
             <p className="control-hint case-hint">Use initials or a practice reference, not the patient’s full name.</p>
 
             {errorBanner}
+            {onReopen&&<button type="button" className="text-button" onClick={()=>void onReopen(current.key).catch(()=>setError("This case needs a saved editable draft and downloaded photos to reopen. Its saved comparisons and exports remain available."))}>Reopen design</button>}
 
             {current.favourites > 0 && (
               <div className="settings-segment case-filter" role="tablist" aria-label="Show versions">
@@ -417,13 +422,14 @@ export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; init
                   <figcaption>Before</figcaption>
                 </figure>
                 <figure>
-                  <img src={open.media.image} alt="Smile preview" />
-                  <figcaption>{open.entry.testMode || open.entry.mode === "mock" ? "Demo preview" : "SmileCompose preview"}</figcaption>
+                  <img src={open.media.image} alt="Saved AI smile concept" />
+                  <figcaption>{open.entry.testMode || open.entry.mode === "mock" ? "Demo preview" : "AI concept"}</figcaption>
                 </figure>
               </div>
             ) : (
               <p className="log-empty">{mediaError ? "The saved images are unavailable on this device." : "Loading images…"}</p>
             )}
+            <p className="share-concept-note">{AI_CONCEPT_DISCLAIMER}</p>
             <div className="log-detail-actions">
               <button className="primary-button" disabled={!open.media} onClick={() => setViewing("compare")}>
                 <ScanEye size={18} /> Reopen comparison
@@ -461,17 +467,10 @@ export function CaseLog({ onClose, initialEntryId }: { onClose: () => void; init
           </div>
         </div>
       )}
-      {viewing && open?.media && <SavedCaseViewer entry={open.entry} media={open.media} analysis={viewing === "analysis"} onClose={() => setViewing(false)} />}
+      {viewing && open?.media && <SavedCaseViewer entry={open.entry} media={open.media} analysis={viewing === "analysis"} onExported={() => void refreshExports()} onClose={() => setViewing(false)} />}
       {sharing && open?.media && (
         <ShareSheet
-          input={{
-            before: open.media.originalImage,
-            after: open.media.image,
-            settings: open.media.preferences?.settings,
-            referenceUsed: open.media.preferences?.referenceUsed,
-            isDemo: Boolean(open.entry.testMode) || open.entry.mode === "mock",
-            patientLabel: open.entry.patientName,
-          }}
+          input={savedCaseExport(open.entry, open.media)}
           entryId={open.entry.id}
           initial={sharing.kind ? { kind: sharing.kind, draft: sharing.draft } : undefined}
           onClose={() => void closeSharing()}

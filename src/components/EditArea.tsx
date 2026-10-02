@@ -22,7 +22,7 @@ export function EditArea({ photo, onSave, onClose }: { photo: Photo; onSave: (ma
   useEffect(() => {
     let active = true;
     requestAnimationFrame(centreView);
-    void import("@/lib/face/landmarks").then((m) => m.detectFace(photo.dataUrl)).then((points) => {
+    void import("@/lib/face/landmarks").then((m) => active ? m.detectFace(photo.dataUrl) : null).then((points) => {
       if (!active) return;
       if (points && points.length >= 468) centre.current = [(points[13][0] + points[14][0]) / 2, (points[13][1] + points[14][1]) / 2];
       centreView();

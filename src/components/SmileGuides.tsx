@@ -38,6 +38,7 @@ export function useSmileGuides(src: string, enabled: boolean): GuidesState {
       const [{ detectFace, faceModelAvailable }, { analyseSmile, analysisRows }, { smileGuides }] = await Promise.all([
         import("@/lib/face/landmarks"), import("@/lib/face/analysis"), import("@/lib/face/guides"),
       ]);
+      if (!live) return;
       const [size, points] = await Promise.all([naturalSize(src), detectFace(src)]);
       const analysis = analyseSmile(points, size.width, size.height);
       if (!live) return;

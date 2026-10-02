@@ -1,4 +1,4 @@
-import { convexHull, resampleClosed, type Point } from "./outline";
+import { resampleClosed, type Point } from "./outline";
 import { fillPolygon } from "./segment";
 import type { ToothMap, ToothRegion } from "./types";
 
@@ -150,18 +150,40 @@ function largestComponent(mask: Uint8Array, width: number, height: number): Uint
   return out;
 }
 
-/** A crown contour from a mask: the edge pixels' convex envelope, evenly resampled. */
-export function maskContour(mask: Uint8Array, width: number, height: number, samples = 40): Point[] {
-  const edge: Point[] = [];
+/** Trace the actual outside boundary, retaining notches rather than filling a convex hull. */
+export function maskContour(mask: Uint8Array, width: number, height: number, samples = 256): Point[] {
+  const stride = width + 1;
+  const edges = new Map<number, number[]>();
+  const add = (a: number, b: number) => { const list = edges.get(a) ?? []; list.push(b); edges.set(a, list); };
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i = y * width + x;
       if (!mask[i]) continue;
-      if (x === 0 || y === 0 || x === width - 1 || y === height - 1 || !mask[i - 1] || !mask[i + 1] || !mask[i - width] || !mask[i + width]) edge.push([x + 0.5, y + 0.5]);
+      const a = y * stride + x, b = a + 1, c = b + stride, d = a + stride;
+      if (!y || !mask[i - width]) add(a, b);
+      if (x === width - 1 || !mask[i + 1]) add(b, c);
+      if (y === height - 1 || !mask[i + width]) add(c, d);
+      if (!x || !mask[i - 1]) add(d, a);
     }
   }
-  const hull = convexHull(edge);
-  return hull.length < 3 ? hull : resampleClosed(hull, samples);
+  let outer: Point[] = [], largest = 0;
+  while (edges.size) {
+    const start = edges.keys().next().value!;
+    const loop: Point[] = [];
+    let vertex = start;
+    do {
+      loop.push([vertex % stride, Math.floor(vertex / stride)]);
+      const next = edges.get(vertex);
+      if (!next?.length) break;
+      const to = next.pop()!;
+      if (!next.length) edges.delete(vertex);
+      vertex = to;
+    } while (vertex !== start);
+    // Holes have the opposite winding; disconnected fragments are smaller.
+    const area = loop.reduce((sum, p, i) => { const q = loop[(i + 1) % loop.length]; return sum + p[0] * q[1] - q[0] * p[1]; }, 0);
+    if (area > largest) { largest = area; outer = loop; }
+  }
+  return outer.length < 3 ? outer : resampleClosed(outer, Math.min(256, samples));
 }
 
 export interface RefineStats { refined: number; kept: number; ms: number; reasons: Record<string, string> }

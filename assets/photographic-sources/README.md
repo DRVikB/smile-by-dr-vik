@@ -1,0 +1,1 @@
+Original illustrative artwork retained for editing. These source PNGs are not shipped in the web/native bundles. Display photographs use quality-95 WebP at the original dimensions. App icons remain lossless PNG.

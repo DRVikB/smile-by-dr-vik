@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { AnalysisSymbol, VisualiseSymbol } from "@/components/icons/SmileIcons";
+import { AI_CONCEPT_SUMMARY } from "@/lib/brand";
 import type { CompareMode } from "./BeforeAfterSlider";
 
 export function PreviewCompactMenu({
@@ -152,6 +153,7 @@ export function PreviewCompactMenu({
           <SlidersHorizontal size={19} strokeWidth={1.7} />
           Options
         </button>
+        <p className="compact-concept-note">{AI_CONCEPT_SUMMARY}</p>
       </div>
     </>
   );

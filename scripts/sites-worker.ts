@@ -1,3 +1,4 @@
+import { handlePatientCases } from "../src/server/patientCaseHandlers";
 import { handlePricingRequest } from "../src/lib/generation/pricing";
 import { handleGenerationRequest } from "../src/lib/generation/handler";
 import type { ServerEnvironment } from "../src/server/env";
@@ -9,7 +10,8 @@ import { handleRevenueCatWebhook } from "../src/server/revenuecatWebhook";
 import type { RequestClaim } from "../src/lib/generation/requestGuard";
 import { preflight, withCors } from "../src/lib/generation/cors";
 import html from "../.next/server/app/index.html";
-import { BASE_SECURITY_HEADERS, pageSecurityHeaders } from "../src/server/securityHeaders";
+import { BASE_SECURITY_HEADERS, pageSecurityHeaders,inlineScriptHashes } from "../src/server/securityHeaders";
+const scriptHashes=inlineScriptHashes(html);
 import { safeLog } from "../src/server/redact";
 export interface Environment extends ServerEnvironment {
   ASSETS?: { fetch(request: Request): Promise<Response> };
@@ -24,7 +26,7 @@ export async function serveRequest(request: Request, env: Environment, claim?: R
     // The packaged iOS app (capacitor://localhost) is the only cross-origin API caller.
     if (url.pathname.startsWith("/api/")) {
       if (request.method === "OPTIONS")
-        return preflight(request, url.pathname === "/api/case-library" ? "GET, POST"
+        return preflight(request, url.pathname.startsWith("/api/patient-cases") ? "GET, POST, PATCH, DELETE, PUT" : url.pathname === "/api/case-library" ? "GET, POST"
           : ["/api/generation-cost", "/api/account/status", "/api/account/export"].includes(url.pathname) ? "GET" : "POST");
       try {
         return withHeaders(withCors(request, await serveApi(request, url, env, claim)), BASE_SECURITY_HEADERS);
@@ -36,13 +38,13 @@ export async function serveRequest(request: Request, env: Environment, claim?: R
     }
     if (url.pathname === "/privacy" || url.pathname === "/terms")
       return Response.redirect(new URL(`${url.pathname}.html`, url).toString(), 308);
-    if (url.pathname === "/") {
+    if (url.pathname === "/" || url.pathname === "/offline-shell.html") {
       if (!["GET", "HEAD"].includes(request.method)) return new Response(null, { status: 405, headers: { Allow: "GET, HEAD" } });
       return new Response(request.method === "HEAD" ? null : html, {
         headers: {
           "Content-Type": "text/html; charset=utf-8",
           "Cache-Control": "no-cache",
-          ...pageSecurityHeaders(env.SUPABASE_URL),
+          ...pageSecurityHeaders(env.SUPABASE_URL,await scriptHashes),
         },
       });
     }
@@ -57,6 +59,10 @@ export async function serveRequest(request: Request, env: Environment, claim?: R
     return new Response("Not found", { status: 404 });
 }
 async function serveApi(request: Request, url: URL, env: Environment, claim?: RequestClaim): Promise<Response> {
+    if (url.pathname === "/api/patient-cases" || url.pathname.startsWith("/api/patient-cases/")) {
+      const accounts=accountServicesFromEnv(env);
+      return handlePatientCases(request,accounts?.patients?{accounts,patients:accounts.patients}:null);
+    }
     if (url.pathname === "/api/generation-cost") {
       if (request.method !== "GET") return new Response(null, { status: 405, headers: { Allow: "GET" } });
       return handlePricingRequest(env);

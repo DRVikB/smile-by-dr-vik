@@ -6,6 +6,7 @@ import { fdiOrder, teethToReview } from "@/lib/toothMap/types";
 import { toothEdges, toothShapes, type SmileSettings, type TargetShade, type ToothPlan } from "@/lib/types";
 import type { ToothMapController, ToothMapDisplay } from "./useToothMap";
 import type { Proportion } from "@/lib/toothMap/template";
+import { ContourReference } from "./ContourReference";
 
 const UPPER_FDI = [17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27];
 
@@ -15,7 +16,10 @@ const UPPER_FDI = [17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27];
  */
 export function ToothMapStatus({ controller }: { controller: ToothMapController }) {
   const { map, status, editing } = controller;
+  if (controller.adding && !map) return <div className="tooth-map-status" role="status"><p>Tap a tooth on the photo to add its suggested area. Review its boundary and number before confirming.</p><button type="button" className="secondary-button" onClick={() => controller.setEditing(false)}>Cancel adding</button></div>;
   if (status === "detecting") return <p className="tooth-map-status" role="status"><span className="tooth-map-dot is-busy" aria-hidden="true" />Finding each tooth in the photo…</p>;
+  if (status === "refining") return <div className="tooth-map-status" role="status"><p><span className="tooth-map-dot is-busy" aria-hidden="true" />Refining tooth boundaries on this device…</p><button type="button" className="text-button" onClick={controller.cancelAnalysis}>Keep suggested map</button></div>;
+  if (status === "idle" && !map) return <div className="tooth-map-status"><p>Selected-tooth edits need reviewed outlines; detection runs on this device.</p><button type="button" className="secondary-button" onClick={controller.redetect}><Eye size={15} /> Find teeth</button></div>;
   if (status === "none" || !map) {
     return (
       <div className="tooth-map-status is-empty" role="status">
@@ -33,7 +37,7 @@ export function ToothMapStatus({ controller }: { controller: ToothMapController 
       <p>
         <span className={`tooth-map-dot${map.confirmedByClinician ? " is-confirmed" : ""}`} aria-hidden="true" />
         {map.confirmedByClinician ? "Tooth map confirmed" : "Tooth map ready"}
-        <small>{map.confirmedByClinician ? "Only the teeth you select can change." : "Suggested numbers: check them, then confirm."}</small>
+        <small>{map.confirmedByClinician ? "Reviewed boundaries protect selected teeth. Unselected regions stay original." : "Check the actual tooth boundaries and FDI numbers, then confirm. The template is a visual guide only."}</small>
       </p>
       {review.length > 0 && (
         <div className="tooth-map-review">
@@ -44,6 +48,7 @@ export function ToothMapStatus({ controller }: { controller: ToothMapController 
           ))}
         </div>
       )}
+      {map.method === "on-device-v1" && <p className="control-hint">Fast suggested boundaries. Review or redraw them before confirming; refinement is optional and is not a clinical accuracy guarantee.</p>}
       {!editing && (
         <div className="tooth-map-actions">
           {/* The map is hidden for standard presets, so it is reviewed on the photo before it is confirmed. */}
@@ -63,7 +68,14 @@ function ToothMapEditor({ controller }: { controller: ToothMapController }) {
   const taken = new Set(map.teeth.filter(t => t.visible && t.fdi !== null).map(t => t.fdi));
   return (
     <div className="tooth-map-editor">
-      {controller.adding ? (
+      {controller.drawingId ? <>
+        <p className="control-hint">Tap around this tooth’s visible edge in order. Exclude gums and other teeth. Use at least 3 points; zoom before drawing if needed.</p>
+        <div className="tooth-map-actions">
+          <button type="button" className="secondary-button" disabled={!controller.boundaryPoints.length} onClick={controller.undoBoundaryPoint}>Undo point</button>
+          <button type="button" className="primary-button" disabled={controller.boundaryPoints.length < 3} onClick={controller.saveBoundary}>Use boundary</button>
+          <button type="button" className="text-button" onClick={() => controller.startBoundary(null)}>Cancel</button>
+        </div>
+      </> : controller.adding ? (
         <p className="control-hint">Tap the tooth on the photo to add it.</p>
       ) : tooth ? (
         <>
@@ -79,6 +91,7 @@ function ToothMapEditor({ controller }: { controller: ToothMapController }) {
             </select>
           </label>
           <div className="tooth-map-actions">
+            <button type="button" className="secondary-button" onClick={() => controller.startBoundary(tooth.id)}>Redraw boundary</button>
             <button type="button" className="secondary-button" onClick={() => controller.markMissing(tooth.id)}>Missing or not applicable</button>
             <button type="button" className="text-button danger" onClick={() => controller.removeTooth(tooth.id)}><Trash2 size={14} /> Not a tooth</button>
           </div>
@@ -86,10 +99,10 @@ function ToothMapEditor({ controller }: { controller: ToothMapController }) {
       ) : (
         <p className="control-hint">Every tooth is shown while you review. Tap one on the photo to correct its number, mark it missing or remove a false detection.</p>
       )}
-      <div className="tooth-map-actions">
+      {!controller.drawingId && <div className="tooth-map-actions">
         <button type="button" className="secondary-button" onClick={() => controller.setAdding(!controller.adding)}><Plus size={15} /> {controller.adding ? "Cancel adding" : "Add a tooth"}</button>
         <button type="button" className="primary-button" onClick={controller.confirm}><Check size={15} /> Confirm tooth map</button>
-      </div>
+      </div>}
       <button type="button" className="text-button" onClick={controller.redetect}><RotateCcw size={14} /> Find teeth again</button>
     </div>
   );
@@ -189,7 +202,7 @@ const DISPLAYS: { value: ToothMapDisplay; label: string }[] = [{ value: "auto", 
  * 4 / 6 / 8 / 10 presets, shows every tooth while picking in Custom, and
  * outlines the tooth when exactly one is selected.
  */
-export function ToothMapView({ controller }: { controller: ToothMapController }) {
+export function ToothMapView({ controller, settings, onShapeChange }: { controller: ToothMapController; settings: SmileSettings; onShapeChange: (shape: SmileSettings["shape"]) => void }) {
   const { display, guides } = controller;
   return (
     <div className="tooth-map-view">
@@ -207,7 +220,7 @@ export function ToothMapView({ controller }: { controller: ToothMapController })
       </label>
       {(guides.design || controller.mode !== "hidden") && (
         <label className="studio-switch-row">
-          <span className="studio-treatment-text"><strong>Guides</strong><small>Long axes, contacts, incisal and gum lines</small></span>
+          <span className="studio-treatment-text"><strong>Planning frames</strong><small>Crown boxes, dotted axes and reference lines</small></span>
           <input type="checkbox" role="switch" className="studio-switch" checked={guides.proportions} onChange={e => controller.setGuides({ ...guides, proportions: e.target.checked })} />
         </label>
       )}
@@ -221,6 +234,7 @@ export function ToothMapView({ controller }: { controller: ToothMapController })
           </div>
         </div>
       )}
+      <ContourReference shape={settings.shape} onChange={onShapeChange} />
     </div>
   );
 }

@@ -1,11 +1,12 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { updateToothPlan } from "@/lib/teeth";
-import { photoFingerprint, renumber, type NormPoint, type ToothMap, type ToothRegion } from "@/lib/toothMap/types";
+import { isValidToothMap, photoFingerprint, renumber, TOOTH_MAP_VERSION, type NormPoint, type ToothMap, type ToothRegion } from "@/lib/toothMap/types";
 import type { Photo, SmileSettings } from "@/lib/types";
 import type { Proportion } from "@/lib/toothMap/template";
+import {needsRefinement} from "@/lib/toothMap/refinementPolicy";
 
-export type ToothMapStatus = "idle" | "detecting" | "ready" | "none";
+export type ToothMapStatus = "idle" | "detecting" | "refining" | "ready" | "none";
 /** The clinician's choice for the overlay: Auto decides from the selection. */
 export type ToothMapDisplay = "auto" | "show" | "hide";
 /**
@@ -32,15 +33,15 @@ function readPrefs(): { display: ToothMapDisplay; guides: ToothGuides } {
 }
 
 /**
- * The tooth map should be smart, not always visible. The map itself always
- * stays active for masks, generation, analysis and protection; only what is
- * drawn on the photo changes.
+ * Display choices never alter the generation rules. The reviewed map governs
+ * single-tooth masks; standard and full-arch generation do not depend on it.
  */
 export function toothOverlayMode({ hasMap, editing, adding, display, picking, guides, selectedMapped }: {
   hasMap: boolean; editing: boolean; adding: boolean; display: ToothMapDisplay; picking: boolean; guides: ToothGuides; selectedMapped: number;
 }): ToothOverlayMode {
   if (!hasMap) return "hidden";
   if (editing || adding || display === "show") return "select";
+  if (display === "hide") return "hidden";
   if (display === "auto") {
     if (picking) return "select";
     if (selectedMapped === 1) return "single";
@@ -70,7 +71,14 @@ export interface ToothMapController {
   markMissing: (id: string) => void;
   removeTooth: (id: string) => void;
   addToothAt: (point: NormPoint) => void;
+  drawingId: string | null;
+  boundaryPoints: NormPoint[];
+  startBoundary: (id: string | null) => void;
+  addBoundaryPoint: (point: NormPoint) => void;
+  undoBoundaryPoint: () => void;
+  saveBoundary: () => void;
   redetect: () => void;
+  cancelAnalysis: () => void;
   /** Auto / Show / Hide, remembered on this device. */
   display: ToothMapDisplay;
   setDisplay: (display: ToothMapDisplay) => void;
@@ -93,8 +101,8 @@ function ellipse(cx: number, cy: number, rx: number, ry: number): NormPoint[] {
 }
 
 /**
- * Detects the tooth map when a photo reaches the Studio (on this device) and
- * keeps it with the photo. Selection is never stored twice: the design's
+ * Detects on demand for Custom, Show, guides or a single tooth, on this device,
+ * and keeps it with the photo. Selection is never stored twice: the design's
  * selected teeth decide what is selected; the map decides where each tooth is.
  */
 export function useToothMap({ photo, setPhoto, settings, onChange, active }: {
@@ -108,9 +116,14 @@ export function useToothMap({ photo, setPhoto, settings, onChange, active }: {
   const [editing, setEditingState] = useState(false);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [drawingId, setDrawingId] = useState<string | null>(null);
+  const [boundaryPoints, setBoundaryPoints] = useState<NormPoint[]>([]);
   const [controlsFor, openControls] = useState<number | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [requestedPhoto, setRequestedPhoto] = useState<string | null>(null);
   const running = useRef<string | null>(null);
+  const refinement=useRef<AbortController|null>(null);
+  const refinementAttempt=useRef<string|null>(null);
   const [prefs, setPrefs] = useState(readPrefs);
   const [picking, setPicking] = useState(false);
   const savePrefs = useCallback((next: typeof prefs) => {
@@ -120,36 +133,56 @@ export function useToothMap({ photo, setPhoto, settings, onChange, active }: {
 
   const dataUrl = photo?.dataUrl ?? null;
   const fingerprint = dataUrl ? photoFingerprint(dataUrl) : null;
-  const current = photo?.toothMap && photo.toothMap.photoId === fingerprint ? photo.toothMap : null;
+  const current = isValidToothMap(photo?.toothMap) && photo.toothMap.photoId === fingerprint ? photo.toothMap : null;
+  const needsMap = settings.treatmentMode !== "full_arch" && ((!settings.alignment&&settings.selectedTeeth.length>0) || picking || editing || adding || prefs.display === "show" || prefs.guides.design || requestedPhoto === fingerprint);
 
   useEffect(() => {
-    if (!active || !dataUrl || !fingerprint) return;
+    setEditingState(false); setAdding(false); setFocusedId(null); openControls(null); setPicking(false); setDrawingId(null); setBoundaryPoints([]);
+  }, [fingerprint]);
+
+  useEffect(() => {
+    if (!active || !needsMap || !dataUrl || !fingerprint) { setStatus("idle"); return; }
     if (current) { setStatus("ready"); return; }
     const key = `${fingerprint}:${attempt}`;
     if (running.current === key) return;
     running.current = key;
     setStatus("detecting");
     let live = true;
+    const cancellation = new AbortController();
     void import("@/lib/toothMap/detect")
-      .then(({ detectToothMap }) => detectToothMap({ dataUrl }, settings.shotType))
+      .then(({ detectToothMap }) => detectToothMap({ dataUrl }, settings.shotType, undefined, { refine:false,signal: cancellation.signal }))
       .then(map => {
         if (!live) return;
         if (!map) { setStatus("none"); return; }
-        setPhoto(p => (p && p.dataUrl === dataUrl ? { ...p, toothMap: map } : p));
+        setPhoto(p => (p && p.dataUrl === dataUrl && (!isValidToothMap(p.toothMap) || p.toothMap.photoId !== fingerprint) ? { ...p, toothMap: map } : p));
         setStatus("ready");
       })
       .catch(() => { if (live) setStatus("none"); });
-    return () => { live = false; running.current = null; };
+    return () => { live = false; running.current = null; cancellation.abort(); };
     // Detect once per photo (and on a deliberate retry), not on every design change.
-  }, [active, fingerprint, attempt, Boolean(current)]);
+  }, [active, needsMap, fingerprint, attempt, Boolean(current), settings.shotType]);
+
+  const refineWanted=needsRefinement(current,{single:settings.selectedTeeth.length===1,custom:picking,review:editing});
+  useEffect(()=>{
+    if(!active||!refineWanted||!current||!dataUrl)return;
+    const key=fingerprint+JSON.stringify(current.teeth.map(t=>[t.fdi,t.visible,t.outline]))+attempt;
+    if(refinementAttempt.current===key)return;
+    refinementAttempt.current=key;
+    const cancel=new AbortController();refinement.current=cancel;let live=true;setStatus("refining");
+    void import("@/lib/toothMap/detect").then(m=>m.refineToothMap({dataUrl},current,cancel.signal)).then(map=>{
+      if(!live||cancel.signal.aborted)return;
+      setPhoto(p=>p?.dataUrl===dataUrl&&p.toothMap===current?{...p,toothMap:map}:p);setStatus("ready");
+    }).catch(()=>{if(live)setStatus("ready");});
+    return()=>{live=false;cancel.abort();if(refinement.current===cancel){refinement.current=null;setStatus(value=>value==="refining"?"ready":value);}};
+  },[active,refineWanted,current,dataUrl,attempt]);
 
   const update = useCallback((change: (map: ToothMap) => ToothMap) => {
-    setPhoto(p => (p?.toothMap ? { ...p, toothMap: change(p.toothMap) } : p));
-  }, [setPhoto]);
+    setPhoto(p => (p?.toothMap && p.toothMap.photoId === fingerprint ? { ...p, toothMap: { ...change(p.toothMap), confirmedByClinician: false } } : p));
+  }, [setPhoto, fingerprint]);
 
   const setEditing = useCallback((on: boolean) => {
     setEditingState(on);
-    if (!on) { setFocusedId(null); setAdding(false); }
+    if (!on) { setFocusedId(null); setAdding(false); setDrawingId(null); setBoundaryPoints([]); }
   }, []);
 
   const toggle = useCallback((fdi: number) => {
@@ -158,13 +191,13 @@ export function useToothMap({ photo, setPhoto, settings, onChange, active }: {
   }, [settings, onChange]);
 
   const tooth = (id: string): ToothRegion | undefined => current?.teeth.find(t => t.id === id);
-  const selectedMapped = current ? current.teeth.filter(t => t.visible && t.fdi !== null && settings.selectedTeeth.includes(t.fdi)).length : 0;
-  const mode = toothOverlayMode({ hasMap: Boolean(current), editing, adding, display: prefs.display, picking, guides: prefs.guides, selectedMapped });
+  const selectedMapped = current && settings.selectedTeeth.length === 1 ? current.teeth.filter(t => t.visible && t.fdi !== null && settings.selectedTeeth.includes(t.fdi)).length : 0;
+  const mode = settings.treatmentMode === "full_arch" ? "hidden" : toothOverlayMode({ hasMap: Boolean(current), editing, adding, display: prefs.display, picking, guides: prefs.guides, selectedMapped });
 
   return {
     map: current,
     photoSize: { width: photo?.width ?? 1, height: photo?.height ?? 1 },
-    status: current ? "ready" : status,
+    status: status==="refining"?"refining":current?"ready":status,
     editing,
     setEditing,
     focusedId,
@@ -175,7 +208,8 @@ export function useToothMap({ photo, setPhoto, settings, onChange, active }: {
     openControls,
     toggle,
     confirm: () => {
-      update(map => ({ ...map, confirmedByClinician: true, teeth: map.teeth.map(t => ({ ...t, requiresReview: false })) }));
+      if(status==="refining")return;
+      setPhoto(p => (p?.toothMap && p.toothMap.photoId === fingerprint ? { ...p, toothMap: { ...p.toothMap, confirmedByClinician: true, teeth: p.toothMap.teeth.map(t => ({ ...t, requiresReview: false })) } } : p));
       setEditing(false);
     },
     renumberTooth: (id, fdi) => update(map => renumber(map, id, fdi)),
@@ -191,26 +225,48 @@ export function useToothMap({ photo, setPhoto, settings, onChange, active }: {
       setFocusedId(null);
     },
     addToothAt: ([x, y]) => {
+      if (x < 0 || x > 1 || y < 0 || y > 1) return;
       const sizes = (current?.teeth ?? []).filter(t => t.visible).map(t => t.bbox);
       const median = (values: number[], fallback: number) => (values.length ? [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] : fallback);
       const rx = median(sizes.map(b => b.width), 0.05) * 0.42, ry = median(sizes.map(b => b.height), 0.07) * 0.46;
-      const id = `m${Date.now().toString(36)}`;
+      const id = `m${crypto.randomUUID()}`;
       const outline = ellipse(x, y, rx, ry);
       const region: ToothRegion = {
         id, fdi: null, detectedIndex: -1, confidence: null,
-        bbox: { x: x - rx, y: y - ry, width: rx * 2, height: ry * 2 }, centroid: { x, y }, outline,
+        bbox: { x: Math.min(...outline.map(p => p[0])), y: Math.min(...outline.map(p => p[1])), width: Math.max(...outline.map(p => p[0])) - Math.min(...outline.map(p => p[0])), height: Math.max(...outline.map(p => p[1])) - Math.min(...outline.map(p => p[1])) }, centroid: { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) }, outline,
         exactMaskRef: `outline:${id}`, influenceMaskRef: `influence:${id}`,
-        visible: true, selected: false, requiresReview: false, source: "manual",
+        visible: true, selected: false, requiresReview: true, source: "manual",
       };
       if (current) update(map => ({ ...map, teeth: [...map.teeth, region] }));
-      else if (dataUrl && fingerprint) setPhoto(p => (p && p.dataUrl === dataUrl ? { ...p, toothMap: { photoId: fingerprint, arch: "upper", teeth: [region], confirmedByClinician: false, version: 1, method: "manual" } } : p));
+      else if (dataUrl && fingerprint) setPhoto(p => (p && p.dataUrl === dataUrl ? { ...p, toothMap: { photoId: fingerprint, arch: "upper", teeth: [region], confirmedByClinician: false, version: TOOTH_MAP_VERSION, method: "manual" } } : p));
+      setEditingState(true);
       setAdding(false);
       setFocusedId(id);
     },
+    drawingId,
+    boundaryPoints,
+    startBoundary: (id) => { setDrawingId(id); setBoundaryPoints([]); setAdding(false); },
+    addBoundaryPoint: ([x, y]) => {
+      if (x >= 0 && x <= 1 && y >= 0 && y <= 1) setBoundaryPoints(points => points.length < 64 ? [...points, [x, y]] : points);
+    },
+    undoBoundaryPoint: () => setBoundaryPoints(points => points.slice(0, -1)),
+    saveBoundary: () => {
+      if (!drawingId || boundaryPoints.length < 3) return;
+      const xs = boundaryPoints.map(p => p[0]), ys = boundaryPoints.map(p => p[1]);
+      update(map => ({ ...map, teeth: map.teeth.map(t => t.id === drawingId ? {
+        ...t, outline: boundaryPoints, source: "manual", confidence: null, requiresReview: true,
+        bbox: { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) },
+        centroid: { x: xs.reduce((a, b) => a + b, 0) / xs.length, y: ys.reduce((a, b) => a + b, 0) / ys.length },
+      } : t) }));
+      setDrawingId(null); setBoundaryPoints([]);
+    },
     redetect: () => {
+      setRequestedPhoto(fingerprint);
+      setFocusedId(null); openControls(null); setDrawingId(null); setBoundaryPoints([]);
       setPhoto(p => (p ? { ...p, toothMap: undefined } : p));
       setAttempt(a => a + 1);
     },
+    cancelAnalysis:()=>{refinement.current?.abort();setStatus(current?"ready":"idle");},
     display: prefs.display,
     setDisplay: (display) => savePrefs({ ...prefs, display }),
     picking,

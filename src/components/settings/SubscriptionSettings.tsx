@@ -118,7 +118,7 @@ export function SubscriptionSection() {
         ) : (
           <Row label="Cloud storage"
             value={storage ? (storage.usedBytes > 0 ? formatBytes(storage.usedBytes) : "Not used") : "Unavailable"}
-            detail={storage ? "Cloud storage holds your Case Library. Patient cases stay on this device." : "Storage usage couldn’t be loaded."} />
+            detail={storage ? "This usage figure covers your Case Library. Patient cases also sync privately; their media usage is not included in this figure." : "Storage usage couldn’t be loaded."} />
         )}
         <Row label="On this device" value={deviceBytes === null ? "…" : formatBytes(deviceBytes)} />
       </Group>

@@ -5,6 +5,8 @@ import {
   compositeMasked,
   fitSimilarity,
   OUTER_LIP,
+  INNER_LIP,
+  pointInPolygon,
   polygonMask,
   type Point,
 } from "../src/lib/face/geometry";
@@ -20,6 +22,10 @@ function face(): Point[] {
   OUTER_LIP.forEach((index, k) => {
     const t = (k / OUTER_LIP.length) * Math.PI * 2;
     pts[index] = [500 + 100 * Math.cos(t), 650 + 40 * Math.sin(t)];
+  });
+  INNER_LIP.forEach((index, k) => {
+    const t = (k / INNER_LIP.length) * Math.PI * 2;
+    pts[index] = [500 + 90 * Math.cos(t), 650 + 18 * Math.sin(t)];
   });
   return pts;
 }
@@ -68,7 +74,7 @@ test("an edit that already lines up is not re-warped", () => {
   const plan = planMouthLock(original, generated)!;
   assert.equal(plan.warp, false);
   assert.equal(plan.lipsMoved, false);
-  assert.deepEqual(plan.polygon, OUTER_LIP.map((i) => original[i]));
+  assert.deepEqual(plan.polygon, INNER_LIP.map((i) => original[i]));
 });
 
 test("an edit the model shifted and rescaled is warped back onto the original", () => {
@@ -93,4 +99,37 @@ test("an edit that moved the lips themselves is flagged", () => {
   const generated = original.map((p) => [...p] as Point);
   for (const i of OUTER_LIP) generated[i] = [generated[i][0], generated[i][1] + 25];
   assert.equal(planMouthLock(original, generated)!.lipsMoved, true);
+});
+
+test("an opened AI smile cannot replace original lips, covered lower teeth or surrounding face pixels", () => {
+  const original = face();
+  const generated = original.map(p => [...p] as Point);
+  // The lower lip retreats to reveal a row that was hidden in the original.
+  for (const i of INNER_LIP) if (generated[i][1] > 650) generated[i][1] += 35;
+  const plan = planMouthLock(original, generated)!;
+  assert.deepEqual(plan.polygon, INNER_LIP.map(i => original[i]));
+  assert.equal(plan.grow, 0);
+  assert.equal(plan.warp, false, "lip changes must not scale/shift the teeth through alignment anchors");
+  const width = 800, height = 900;
+  const mask = polygonMask(plan.polygon, width, height, plan.grow, plan.feather, true);
+  const source = new Uint8ClampedArray(width * height * 4).fill(50);
+  const hostileEdit = new Uint8ClampedArray(source.length).fill(255);
+  const output = compositeMasked(source, hostileEdit, width, mask);
+  let changedInside = 0;
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const pixel = (y * width + x) * 4;
+    if (!pointInPolygon([x + 0.5, y + 0.5], plan.polygon)) assert.equal(output[pixel], source[pixel]);
+    else if (output[pixel] !== source[pixel]) changedInside++;
+  }
+  assert.ok(changedInside > 100, "existing visible teeth remain editable");
+  assert.equal(output[(685 * width + 500) * 4], 50, "new lower row outside the original opening is rejected");
+});
+
+test("inward feather blends only inside the original opening", () => {
+  const mask = polygonMask([[20, 20], [60, 20], [60, 60], [20, 60]], 100, 100, 0, 4, true);
+  assert.equal(mask.x0, 20);
+  assert.equal(mask.width, 40);
+  const at = (x: number, y: number) => mask.alpha[(y - mask.y0) * mask.width + x - mask.x0];
+  assert.ok(at(20, 40) > 0 && at(20, 40) < 1);
+  assert.equal(at(40, 40), 1);
 });

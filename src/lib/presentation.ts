@@ -156,7 +156,7 @@ export async function composePresentation(
     ctx.letterSpacing = "0px";
   };
   caption(left.x, "Before", false);
-  caption(right.x, options.isDemo ? "After · Demo" : "After · Concept", true);
+  caption(right.x, options.isDemo ? "After · Demo" : "After · AI concept", true);
 
   // The line.
   ctx.fillStyle = BRAND.paper;
@@ -178,7 +178,7 @@ export async function composePresentation(
   );
 
   const note = options.isDemo
-    ? "Demo preview — sample imagery, not a patient result."
+    ? `Demo preview — sample imagery, not a patient result. ${SMILECOMPOSE.disclaimer}`
     : SMILECOMPOSE.disclaimer;
   ctx.font = sans(23);
   const words = note.split(" ");
@@ -186,7 +186,7 @@ export async function composePresentation(
   let ly = footY + 82;
   for (const word of words) {
     const next = line ? `${line} ${word}` : word;
-    if (ctx.measureText(next).width > contentW - 460) {
+    if (ctx.measureText(next).width > contentW) {
       ctx.fillText(line, margin, ly);
       line = word;
       ly += 32;

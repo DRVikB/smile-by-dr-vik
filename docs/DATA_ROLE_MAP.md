@@ -1,5 +1,8 @@
 # Data role map (controller / processor)
 
+> **2026-10-02 implementation update (not deployed):** Macro Stage 1 adds signed-in patient-case state in Supabase and binary patient media in the separate PRIVATE `patient-cases` bucket, with an account-isolated local cache/outbox. This supersedes earlier device-only descriptions for patient cases in this document. AI generation and the clinician reference library remain separate. See [the Stage 1 implementation report](CLOUD_PATIENT_SYNC_STAGE1_2026-10-02.md). Provider contracts, region, backup retention and professional approvals are not verified by this implementation.
+
+
 > **REQUIRES LEGAL REVIEW.** This is the engineering team's working assumption, recorded so the rest of the documentation is consistent. It is not a legal conclusion. A solicitor or DPO must confirm the roles, and the customer contract (Terms plus a data processing agreement) must match them.
 
 Owner details still required: legal entity name, registered address, company number, ICO registration (see `src/config/legal.ts` and [PROFESSIONAL_REVIEW_REQUIRED.md](PROFESSIONAL_REVIEW_REQUIRED.md)).

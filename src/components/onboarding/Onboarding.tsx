@@ -1,4 +1,5 @@
 "use client";
+import { getCaseRepository } from "@/services/cases/caseRepository";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
@@ -41,7 +42,8 @@ export function Onboarding({ appReady, onCreateFirst }: {
 
   useEffect(() => {
     setLocal(readLocalOnboarding());
-    void import("@/lib/caseLog")
+    const repository = getCaseRepository();
+    void Promise.resolve(repository)
       .then(async log => { const c = await log.caseCounts(); return c.active + c.archived + c.deleted > 0; })
       .catch(() => false)
       .then(setDeviceHasCases);

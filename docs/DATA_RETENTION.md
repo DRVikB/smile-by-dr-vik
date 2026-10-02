@@ -1,5 +1,8 @@
 # Data retention schedule
 
+> **2026-10-02 implementation update (not deployed):** Macro Stage 1 adds signed-in patient-case state in Supabase and binary patient media in the separate PRIVATE `patient-cases` bucket, with an account-isolated local cache/outbox. This supersedes earlier device-only descriptions for patient cases in this document. AI generation and the clinician reference library remain separate. See [the Stage 1 implementation report](CLOUD_PATIENT_SYNC_STAGE1_2026-10-02.md). Provider contracts, region, backup retention and professional approvals are not verified by this implementation.
+
+
 **Status: OWNER DECISION REQUIRED.** The periods below marked "proposed" are engineering proposals. The owner must decide them, with legal advice, and then update the privacy policy (§7 placeholders) and any automated jobs.
 
 | Data | Location | Current behaviour (code) | Proposed retention | Deletion mechanism | Decision |

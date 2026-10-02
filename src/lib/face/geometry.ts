@@ -128,8 +128,8 @@ export interface Mask {
 /**
  * A soft mask for a closed polygon: fully on inside it and for `grow` pixels
  * beyond its edge, then falling smoothly to zero over `feather` pixels. The
- * soft edge lands on skin just outside the lips, where the original and the
- * edit already agree, so the join cannot be seen.
+ * With inward=true, every pixel outside the polygon is protected and the
+ * feather lies entirely inside it; no generated lip or skin pixels bleed out.
  */
 export function polygonMask(
   poly: Point[],
@@ -137,8 +137,9 @@ export function polygonMask(
   imageHeight: number,
   grow: number,
   feather: number,
+  inward = false,
 ): Mask {
-  const reach = grow + feather;
+  const reach = inward ? 0 : grow + feather;
   const xs = poly.map((p) => p[0]), ys = poly.map((p) => p[1]);
   const x0 = Math.max(0, Math.floor(Math.min(...xs) - reach));
   const y0 = Math.max(0, Math.floor(Math.min(...ys) - reach));
@@ -150,7 +151,18 @@ export function polygonMask(
     for (let x = 0; x < width; x++) {
       const p: Point = [x0 + x + 0.5, y0 + y + 0.5];
       let value: number;
-      if (pointInPolygon(p, poly)) value = 1;
+      const inside = pointInPolygon(p, poly);
+      if (inward) {
+        value = 0;
+        if (inside) {
+          let d = Infinity;
+          for (let i = 0, j = poly.length - 1; i < poly.length; j = i++)
+            d = Math.min(d, segmentDistance(p, poly[j], poly[i]));
+          const t = feather > 0 ? Math.min(1, d / feather) : 1;
+          value = t * t * (3 - 2 * t);
+        }
+      }
+      else if (inside) value = 1;
       else {
         let d = Infinity;
         for (let i = 0, j = poly.length - 1; i < poly.length; j = i++)

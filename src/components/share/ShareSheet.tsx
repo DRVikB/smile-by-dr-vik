@@ -1,4 +1,6 @@
 "use client";
+import { getCaseRepository } from "@/services/cases/caseRepository";
+import { AI_CONCEPT_DISCLAIMER } from "@/lib/brand";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, ChevronRight, Copy, Download, FileText, Film, Mail, Share2, X } from "lucide-react";
 import {
@@ -60,6 +62,7 @@ export function ShareSheet({
   onClose: () => void;
   onRevealVideo?: () => void;
 }) {
+  const [repository] = useState(getCaseRepository);
   const [step, setStep] = useState<Step>("choose");
   const [making, setMaking] = useState<ExportKind>("preview");
   const [made, setMade] = useState<Made | null>(null);
@@ -70,6 +73,12 @@ export function ShareSheet({
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const started = useRef(false);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    closeButton.current?.focus();
+    return () => { if (previous?.isConnected) previous.focus(); };
+  }, []);
 
   // Object URLs go when the export changes or the sheet closes.
   useEffect(() => () => made?.urls.forEach(u => URL.revokeObjectURL(u)), [made]);
@@ -87,8 +96,9 @@ export function ShareSheet({
     if (analysis || reading) return;
     setReading(true);
     void import("@/lib/face/analysisReport")
-      .then(({ prepareReportAnalysis }) => prepareReportAnalysis(input.before, input.after))
+      .then(({ prepareReportAnalysis }) => { repository.scope.assert(); return prepareReportAnalysis(input.before, input.after); })
       .then(result => {
+        repository.scope.assert();
         setAnalysis(result);
         // Fill in observations unless the clinician is reopening reviewed ones.
         setDraft(d => d.observations.length || initial?.draft
@@ -109,7 +119,7 @@ export function ShareSheet({
   async function record(kind: ExportKind, reviewed?: ReportDraft) {
     if (!entryId) return;
     try {
-      const { recordExport } = await import("@/lib/caseLog");
+      const { recordExport } = repository;
       await recordExport(entryId, { kind, createdAt: Date.now(), ...(reviewed ? { draft: reviewed } : {}) });
     } catch { /* the export itself still stands */ }
   }
@@ -122,6 +132,7 @@ export function ShareSheet({
     try {
       const { composeSmilePreview } = await import("@/lib/smilePreview");
       const image = await composeSmilePreview(input);
+      repository.scope.assert();
       setMade({ kind: "preview", image, urls: [URL.createObjectURL(image)], omitted: [] });
       setStep("ready");
       void record("preview");
@@ -141,6 +152,7 @@ export function ShareSheet({
       const content = reportContent(draft, { settings: input.settings, referenceUsed: input.referenceUsed, analysis: analysis?.face ?? null, isDemo: input.isDemo });
       const { pages, omitted } = await composeConsultationReport(input, content, analysis);
       const image = pages.length > 1 ? await stackPages(pages, 36) : pages[0];
+      repository.scope.assert();
       setMade({ kind: "report", image, pages, urls: pages.map(p => URL.createObjectURL(p)), omitted });
       setStep("ready");
       void record("report", draft);
@@ -184,30 +196,43 @@ export function ShareSheet({
       const { shareExport } = await import("@/lib/exportActions");
       // The preview travels best as an image; the report as a PDF.
       const blob = made.kind === "report" ? await pdf() : made.image;
+      repository.scope.assert();
       return outcomeNote(await shareExport(blob, `${stem}.${made.kind === "report" ? "pdf" : "jpg"}`, title));
     }),
     image: () => act("image", async () => {
       const { saveExport } = await import("@/lib/exportActions");
+      repository.scope.assert();
       return outcomeNote(await saveExport(made.image, `${stem}.jpg`, title));
     }),
     pdf: () => act("pdf", async () => {
       const { saveExport } = await import("@/lib/exportActions");
-      return outcomeNote(await saveExport(await pdf(), `${stem}.pdf`, title));
+      const blob = await pdf(); repository.scope.assert();
+      return outcomeNote(await saveExport(blob, `${stem}.pdf`, title));
     }),
     copy: () => act("copy", async () => {
       const { copyExportImage } = await import("@/lib/exportActions");
+      repository.scope.assert();
       if (!(await copyExportImage(made.image))) throw new Error("No clipboard");
       return "Copied. Paste it into a message or email.";
     }),
     email: () => act("email", async () => {
       const { emailExport } = await import("@/lib/exportActions");
-      return outcomeNote(await emailExport(await pdf(), `${stem}.pdf`, title));
+      const blob = await pdf(); repository.scope.assert();
+      return outcomeNote(await emailExport(blob, `${stem}.pdf`, title));
     }),
   };
 
   return (
     <div className="sheet-backdrop share-backdrop" role="dialog" aria-modal="true" aria-label="Share with patient" onClick={onClose}>
-      <div className={`sheet share-sheet is-${step}`} onClick={e => e.stopPropagation()}>
+      <div className={`sheet share-sheet is-${step}`} onClick={e => e.stopPropagation()}
+        onKeyDown={e => {
+          if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); }
+          if (e.key !== "Tab") return;
+          const controls = [...e.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href]")].filter(el => el.getClientRects().length);
+          if (!controls.length) return;
+          if (e.shiftKey && document.activeElement === controls[0]) { e.preventDefault(); controls.at(-1)?.focus(); }
+          else if (!e.shiftKey && document.activeElement === controls.at(-1)) { e.preventDefault(); controls[0]?.focus(); }
+        }}>
         <div className="share-head">
           {(step === "review" || step === "ready") && (
             <button type="button" className="icon-button share-back" aria-label="Back" onClick={() => setStep(step === "ready" && made?.kind === "report" ? "review" : "choose")}>
@@ -221,9 +246,10 @@ export function ShareSheet({
               : step === "ready" ? (made?.kind === "report" ? "Send it now, or save it for the patient record." : "Ready to send: it looks good in Messages, WhatsApp, email and Photos.")
                 : "Choose what you’d like to send."}</p>
           </div>
-          <button type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>
+          <button ref={closeButton} type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>
         </div>
 
+        <p className="share-concept-note">{AI_CONCEPT_DISCLAIMER}</p>
         {error && <p className="share-error" role="alert">{error}</p>}
 
         {step === "choose" && (

@@ -1,5 +1,6 @@
 import { readdir, readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { configuredSecrets, clientSecretIssue } from "./client-secrets.mjs";
 
 // Verifies the web bundle Capacitor copied into the iOS app (run after `cap sync ios`).
 //  - removes file-sync duplicates ("chunk 2.js") that iCloud Drive creates in
@@ -44,26 +45,12 @@ if (config.appName !== "SmileCompose") problems.push(`appName is ${config.appNam
 if (config.server?.url) problems.push(`server.url is set (${config.server.url}): the app must load its bundled files, not a dev server`);
 
 const text = (await Promise.all((await walk(PUBLIC)).filter(f => /\.(js|html|json|css|txt)$/.test(f)).map(f => readFile(f, "utf8")))).join("\n");
-const SECRET_PATTERNS = [
-  [/AIza[0-9A-Za-z_-]{30,}/, "Google API key"],
-  [/sb_secret_[A-Za-z0-9_-]{10,}/, "Supabase secret key"],
-  [/"role"\s*:\s*"service_role"/, "Supabase service-role token"],
-  [/\bsk_(live|test)_[A-Za-z0-9]{16,}/, "secret API key"],
-  [/\bsk-[A-Za-z0-9_-]{32,}/, "OpenAI key"],
-  [/whsec_[A-Za-z0-9]{10,}/, "webhook secret"],
-  [/-----BEGIN (EC |RSA )?PRIVATE KEY-----/, "private key"],
-];
-for (const [pattern, name] of SECRET_PATTERNS) if (pattern.test(text)) problems.push(`bundle contains a ${name}`);
-// Any server secret actually configured on this machine must not appear verbatim.
-for (const envFile of [".env.local", ".env.production", ".dev.vars"]) {
-  const body = await readFile(envFile, "utf8").catch(() => "");
-  for (const line of body.split("\n")) {
-    const m = line.match(/^([A-Z0-9_]+)=(.+)$/);
-    if (!m || m[1].startsWith("NEXT_PUBLIC_")) continue;
-    const value = m[2].trim().replace(/^["']|["']$/g, "");
-    if (value.length >= 12 && text.includes(value)) problems.push(`bundle contains the value of server variable ${m[1]} (${envFile})`);
-  }
-}
+const secretIssue = clientSecretIssue(text, await configuredSecrets());
+if (secretIssue) problems.push(`bundle contains a ${secretIssue}`);
+const html = await readFile(`${PUBLIC}/index.html`, "utf8");
+if (!html.includes("script-src 'self' 'wasm-unsafe-eval'") || /script-src[^;]*'unsafe-(?:inline|eval)'/.test(html)) problems.push("strict native script policy missing");
+for (const path of ['vision/heic-worker.js', 'vision/face-worker.js', 'vision/vision_wasm_internal.js', 'vision/vision_wasm_internal.wasm', 'models/face/face_landmarker.task', 'ort/sam-worker.js'])
+  if (!(await exists(`${PUBLIC}/${path}`))) problems.push(`bundled runtime missing: ${path}`);
 if (text.includes("placeholder-project")) problems.push("bundle was built with placeholder Supabase configuration");
 
 const accounts = /https:\/\/[a-z0-9-]+\.supabase\.co/.test(text);

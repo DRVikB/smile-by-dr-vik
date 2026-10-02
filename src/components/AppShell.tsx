@@ -1,3 +1,5 @@
+"use client";
+import { useEffect, useRef } from "react";
 import { CenteredBrandHeader } from "./ui/Surface";
 import { ChevronLeft, Ellipsis } from "lucide-react";
 import type { Screen } from "@/lib/types";
@@ -20,6 +22,13 @@ export function AppShell({
   step?: { current: number; total: number };
   children: React.ReactNode;
 }) {
+  const menu=useRef<HTMLDetailsElement>(null);
+  useEffect(()=>{
+    const close=(event:PointerEvent)=>{if(menu.current?.open&&!menu.current.contains(event.target as Node))menu.current.open=false;};
+    const escape=(event:KeyboardEvent)=>{if(event.key==="Escape"&&menu.current?.open){menu.current.open=false;menu.current.querySelector("summary")?.focus();}};
+    document.addEventListener("pointerdown",close);document.addEventListener("keydown",escape);
+    return()=>{document.removeEventListener("pointerdown",close);document.removeEventListener("keydown",escape);};
+  },[screen]);
   return (
     <div className="app-shell" data-screen={screen}>
       {screen !== "start" && <CenteredBrandHeader
@@ -54,11 +63,11 @@ export function AppShell({
           {tools}
           {screen === "photo" ? <>
             <div className="photo-desktop-actions">{action}</div>
-            <details className="app-menu photo-mobile-menu">
+            <details ref={menu} className="app-menu photo-mobile-menu">
               <summary aria-label="More options"><Ellipsis size={22} /></summary>
               {action}
             </details>
-          </> : screen === "design" || screen === "preview" ? <details className="app-menu" key={screen}>
+          </> : screen === "design" || screen === "preview" ? <details ref={menu} className="app-menu" key={screen}>
             <summary aria-label="More options"><Ellipsis size={22} /></summary>
             {action}
           </details> : action}

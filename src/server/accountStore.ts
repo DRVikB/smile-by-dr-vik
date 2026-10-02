@@ -441,7 +441,7 @@ export function createSupabaseMediaStore(url: string, serviceRoleKey: string): M
       return error || !data ? null : new Uint8Array(await data.arrayBuffer());
     },
     async removeAllFor(userId) {
-      for (const bucket of [AVATAR_BUCKET, CASE_LIBRARY_BUCKET]) {
+      for (const bucket of [AVATAR_BUCKET, CASE_LIBRARY_BUCKET, "patient-cases"]) {
         // Objects are "<user id>/<file>" (avatars) or "<user id>/<case id>/<file>" (Case Library).
         const pending = [userId];
         while (pending.length) {

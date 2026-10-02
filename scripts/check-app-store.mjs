@@ -1,4 +1,6 @@
 import { readFile } from "node:fs/promises";
+import nextEnv from "@next/env";
+nextEnv.loadEnvConfig(process.cwd(), false);
 
 // Static App Store readiness checks for the iOS project. Engineering checks
 // fail the command; items that need the owner's information are reported as
@@ -37,6 +39,7 @@ check(pbx.includes("PrivacyInfo.xcprivacy in Resources"), "Privacy manifest bund
 check(manifest.includes("NSPrivacyAccessedAPICategoryFileTimestamp") && manifest.includes("C617.1"), "Required-reason API declared: file timestamps");
 check(/NSPrivacyTracking<\/key>\s*<false\/>/.test(manifest), "No tracking declared");
 check(appDelegate.includes("isExcludedFromBackup = true"), "Patient data excluded from iCloud backup (5.1.3)");
+check(entitlements.includes("NSFileProtectionComplete") && appDelegate.includes("FileProtectionType.complete"), "Complete Data Protection configured; physical lock/unlock verification required");
 check(pbx.includes("SecureStoragePlugin.swift in Sources") && secureStorage.includes("kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly"), "Sign-in session stored in the Keychain (this device only)");
 check(sceneDelegate.includes("sceneWillResignActive") && sceneDelegate.includes("privacyCover"), "App Switcher snapshot covered (no patient photo in snapshots)");
 check(!Object.keys(pkg.dependencies ?? {}).some((d) => /stripe/i.test(d)), "No Stripe or external payment SDK in the app (3.1.1)");

@@ -165,11 +165,11 @@ for (const [label, selected] of [
   });
 }
 
-test("precision masking is for one tooth: presets use the standard generator; a single tooth gets its own mask", () => {
+test("precision requires complete reviewed boundaries for presets and single teeth", () => {
   const map = mapFromOutlines();
-  // 4 / 6 / 8 / 10: the standard path, with no per-tooth compositing and no request blocked.
-  for (const n of [4, 6, 8, 10] as const)
-    assert.deepEqual(protectionPlan(map, "data:image/jpeg;base64,photo", settings({ teeth: n, selectedTeeth: upperTeeth[n] })), { ok: false, reason: "standard" });
+  for (const n of [4, 6, 8] as const)
+    assert.equal(protectionPlan(map, "data:image/jpeg;base64,photo", settings({ teeth: n, selectedTeeth: upperTeeth[n] })).ok,true);
+  assert.deepEqual(protectionPlan(map, "data:image/jpeg;base64,photo", settings({teeth:10,selectedTeeth:upperTeeth[10]})),{ok:false,reason:"incomplete-map"});
   // Exactly one tooth: precision.
   const one = protectionPlan(map, "data:image/jpeg;base64,photo", updateToothPlan(settings({ selectedTeeth: [] }), { tooth: 11, intent: "Auto", condition: "Natural" }));
   assert.ok(one.ok);
@@ -208,7 +208,7 @@ function mapFromOutlines(): ToothMap {
     outline: o.map(([x, y]) => [x / W, y / H] as [number, number]),
     exactMaskRef: `outline:t${i}`, visible: true, selected: false, requiresReview: i === 7, source: "detected",
   }));
-  return { photoId: photoFingerprint("data:image/jpeg;base64,photo"), arch: "upper", teeth, confirmedByClinician: false, version: 1, method: "on-device-v1", mouthOpening: MOUTH.map(([x, y]) => [x / W, y / H] as [number, number]) };
+  return { photoId: photoFingerprint("data:image/jpeg;base64,photo"), arch: "upper", teeth, confirmedByClinician: true, version: 1, method: "on-device-v1", mouthOpening: MOUTH.map(([x, y]) => [x / W, y / H] as [number, number]) };
 }
 
 test("presets never assume a tooth is there; selection comes from the design, not the map", () => {
@@ -218,7 +218,7 @@ test("presets never assume a tooth is there; selection comes from the design, no
   const selected = withSelection(map, settings({ selectedTeeth: [11, 21] })).teeth.filter(t => t.selected).map(t => t.fdi);
   assert.deepEqual(selected, [11, 21]);
   assert.deepEqual(fdiOrder([21, 11, 13, 22, 12, 23]), [13, 12, 11, 21, 22, 23]);
-  assert.deepEqual(teethToReview(map).map(t => t.fdi), [24]);
+  assert.deepEqual(teethToReview({ ...map, confirmedByClinician: false }).map(t => t.fdi), [24]);
   assert.equal(teethToReview({ ...map, confirmedByClinician: true }).length, 0);
 });
 
@@ -234,8 +234,8 @@ test("correcting a number swaps it with the tooth that held it; stored maps are 
 test("protection needs this photo's map, and nothing is sent when no selected tooth is in it", () => {
   const map = mapFromOutlines();
   const photo = "data:image/jpeg;base64,photo";
-  assert.deepEqual(protectionPlan(undefined, photo, settings()), { ok: false, reason: "no-map" });
-  assert.deepEqual(protectionPlan(map, "data:image/jpeg;base64,other", settings()), { ok: false, reason: "stale-map" });
+  assert.deepEqual(protectionPlan(undefined, photo, settings({ selectedTeeth: [11] })), { ok: false, reason: "no-map" });
+  assert.deepEqual(protectionPlan(map, "data:image/jpeg;base64,other", settings({ selectedTeeth: [11] })), { ok: false, reason: "stale-map" });
   assert.deepEqual(protectionPlan(map, photo, settings({ alignment: { arches: "Upper" } })), { ok: false, reason: "alignment" });
   const missing = updateToothPlan(settings({ teeth: 4, selectedTeeth: [12, 11, 21, 22] }), { tooth: 11, intent: "Auto", condition: "Natural" });
   const onlyAbsent = { ...missing, toothPlans: [{ tooth: 25, intent: "Auto" as const, condition: "Natural" as const }], selectedTeeth: [25] };
@@ -398,8 +398,20 @@ test("SlimSAM helpers: an upper crown joined to the lower tooth is cut at the wa
   cutAtWaist(clean, w, h, 20, 40);
   assert.equal(clean.reduce((a, b) => a + b, 0), 600);
   const contour = maskContour(clean, w, h);
-  assert.equal(contour.length, 40);
+  assert.equal(contour.length, 256);
   assert.ok(contour.every(([x, y]) => x >= 10 && x <= 30 && y >= 0 && y <= 30));
+});
+
+test("SlimSAM precision contours preserve an incisal notch instead of allowing its convex envelope", () => {
+  const width = 32, height = 32;
+  const mask = new Uint8Array(width * height);
+  for (let y = 4; y < 26; y++) for (let x = 4; x < 26; x++)
+    if (!(x >= 12 && x < 18 && y >= 18)) mask[y * width + x] = 1;
+  const contour = maskContour(mask, width, height);
+  const reconstructed = fillPolygon(contour, width, height);
+  assert.equal(reconstructed[22 * width + 15], 0, "the notch remains protected");
+  assert.equal(reconstructed[10 * width + 15], 1, "the crown remains available to edit");
+  assert.ok(contour.length <= 256, "saved outlines stay within the map schema limit");
 });
 
 test("the SlimSAM model input is the photo resized to 1024 on its longest side, normalised and padded", () => {
@@ -409,4 +421,28 @@ test("the SlimSAM model input is the photo resized to 1024 on its longest side, 
   assert.equal(pixels.length, 3 * 1024 * 1024);
   assert.ok(Math.abs(pixels[0] - (1 - 0.485) / 0.229) < 1e-5, "white, normalised");
   assert.equal(pixels[1023 * 1024], 0, "padding below the photo");
+});
+
+
+test("missing or stale segmentation blocks selected-tooth edits but retains separate alignment/full-arch paths", () => {
+  const photo = "data:image/jpeg;base64,photo";
+  const stale = { ...mapFromOutlines(), photoId: "old-photo" };
+  for (const map of [undefined, stale]) {
+    for (const n of [4, 6, 8, 10] as const)
+      assert.deepEqual(protectionPlan(map, photo, settings({ teeth: n, selectedTeeth: upperTeeth[n] })), { ok: false, reason: map?"stale-map":"no-map" });
+    assert.deepEqual(protectionPlan(map, photo, settings({ selectedTeeth: [11], alignment: { arches: "Upper", only: true } })), { ok: false, reason: "alignment" });
+    assert.deepEqual(protectionPlan(map, photo, settings({ treatmentMode: "full_arch", fullArch: { arch: "both", restorationType: "zirconia", prostheticGingiva: "auto" } })), { ok: false, reason: "full-arch" });
+  }
+});
+
+test("single-tooth protection needs clinician review; a sparse map cannot reduce a preset to one tooth", () => {
+  const photo = "data:image/jpeg;base64,photo";
+  const map = { ...mapFromOutlines(), teeth: mapFromOutlines().teeth.filter(t => t.fdi === 11) };
+  assert.deepEqual(protectionPlan(map, photo, settings()), { ok: false, reason: "incomplete-map" });
+  assert.deepEqual(protectionPlan({ ...map, confirmedByClinician: false }, photo, settings({ selectedTeeth: [11] })), { ok: false, reason: "unconfirmed" });
+  assert.deepEqual(protectionPlan(map, photo, settings({ selectedTeeth: [11] })), { ok: true, teeth: [11], notFound: [] });
+});
+
+test("Hide suppresses optional guides as well as the automatic tooth overlay", () => {
+  assert.equal(toothOverlayMode({ hasMap: true, editing: false, adding: false, display: "hide", picking: false, guides: { design: true, proportions: true, proportion: "natural" }, selectedMapped: 1 }), "hidden");
 });

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "../zod";
 import { upperTeeth, caseFeatures, smileArcs, biteContexts, toothShapes, toothEdges } from "../types";
 import { supportedTeeth } from "../teeth";
 import { generationModes } from "./modes";

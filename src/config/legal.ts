@@ -36,7 +36,7 @@ export function legalDetailsComplete(): boolean {
  */
 export const DOCUMENT_VERSIONS = {
   terms: "2026-09-27-draft",
-  privacy: "2026-09-28b",
+  privacy: "2026-10-02-patient-sync-draft",
   upload_authority: "upload-authority-v1",
   ai_processing: AI_CONSENT_VERSION,
   case_library_authority: "case-library-authority-v1",

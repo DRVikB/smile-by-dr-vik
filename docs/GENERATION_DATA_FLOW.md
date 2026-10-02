@@ -1,5 +1,8 @@
 # Generation data-flow trace
 
+> **2026-10-02 implementation update (not deployed):** Macro Stage 1 adds signed-in patient-case state in Supabase and binary patient media in the separate PRIVATE `patient-cases` bucket, with an account-isolated local cache/outbox. This supersedes earlier device-only descriptions for patient cases in this document. AI generation and the clinician reference library remain separate. See [the Stage 1 implementation report](CLOUD_PATIENT_SYNC_STAGE1_2026-10-02.md). Provider contracts, region, backup retention and professional approvals are not verified by this implementation.
+
+
 Traced from the code (2026-09-27; Case Library references added 2026-09-28). Each step lists what data exists, where, and for how long.
 
 **Case Library references (2026-09-28).** After step 12 (reserve), if `settings.libraryStyle` is true, the Worker lists the authenticated user's `reference_cases`, runs `findMatchingStyleReferences` (material → teeth → count → conditions → recency; validation-only cases excluded), downloads the matching `reference.jpg` smile crops (only paths under `{user_id}/`) from private Supabase Storage with the service role, and appends them to the provider request after the patient photo, with prompt text that labels them STYLE REFERENCES (not patients to edit). The IDs are committed to `generation_ledger.reference_case_ids`; the response returns `styleReferencesUsed {count, caseIds}`. Any `styleReferences` sent by the app are ignored when accounts are enforced. Nothing is sent when the option is off or nothing matches.

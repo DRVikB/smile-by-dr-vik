@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
-import { ChevronRight, Settings } from "lucide-react";
+import { getCaseRepository } from "@/services/cases/caseRepository";
+import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
-import type { CaseLogEntry } from "@/lib/types";
+import { recentCasePages, type RecentCase } from "@/lib/recentCases";
 import { greeting } from "@/lib/profile";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 
@@ -35,50 +36,72 @@ export function ProfileButton({ className = "" }: { className?: string }) {
   );
 }
 
-/** The three most recently updated patient cases on this device (a favourite version is the cover). */
+/** Swipe through all local cases, three covers at a time. */
 export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unknown; onOpen: (id: string) => void; onSeeAll: () => void }) {
-  const [entries, setEntries] = useState<(CaseLogEntry & { versions: number })[]>([]);
+  const [pages, setPages] = useState<RecentCase[][]>([]);
+  const [page, setPage] = useState(0);
+  const scroller = useRef<HTMLDivElement>(null);
+  function goToPage(index: number) {
+    const target = scroller.current?.children.item(index) as HTMLElement | null;
+    if (target) scroller.current?.scrollTo({ left: target.offsetLeft, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
   useEffect(() => {
     let live = true;
-    void import("@/lib/caseLog")
-      .then(log => log.listActiveLog())
+    const repository = getCaseRepository();
+    const load = () => { void repository.listActiveLog()
       .then(list => {
-        const cases = new Map<string, CaseLogEntry[]>();
-        for (const e of list) cases.set(e.caseId ?? e.id, [...(cases.get(e.caseId ?? e.id) ?? []), e]);
-        const recent = [...cases.values()]
-          .map(group => {
-            const newest = group[0]; // listActiveLog is newest first
-            const cover = group.find(e => e.favourite) ?? newest;
-            return { ...cover, createdAt: newest.createdAt, patientName: group.find(e => e.patientName)?.patientName ?? "", versions: group.length };
-          })
-          .sort((a, b) => b.createdAt - a.createdAt)
-          .slice(0, 3);
-        if (live) setEntries(recent);
+        if (live) {
+          setPages(recentCasePages(list));
+          setPage(0);
+          scroller.current?.scrollTo({ left: 0, behavior: "instant" });
+        }
       })
-      .catch(() => { if (live) setEntries([]); });
-    return () => { live = false; };
+      .catch(() => { if (live) setPages([]); }); };
+    load(); const off = repository.subscribe(load);
+    return () => { live = false; off(); };
   }, [refreshKey]);
 
-  if (!entries.length) return null;
+  if (!pages.length) return null;
   return (
     <section className="recent-cases" aria-labelledby="recent-cases-title">
       <div className="recent-cases-head">
         <h2 id="recent-cases-title">Recent Cases</h2>
         <button type="button" className="recent-cases-all" onClick={onSeeAll}>See all <ChevronRight size={14} strokeWidth={1.8} aria-hidden="true" /></button>
       </div>
-      <ul>
-        {entries.map(entry => (
-          <li key={entry.id}>
-            <button type="button" className="recent-case" onClick={() => onOpen(entry.id)}>
-              <img src={entry.thumb} alt="" />
+      <div ref={scroller} className="recent-case-pages" role="region" aria-label="Recent case pages" tabIndex={0}
+        onScroll={e => {
+          const box = e.currentTarget;
+          const children = [...box.children] as HTMLElement[];
+          const nearest = children.reduce((best, child, i) => Math.abs(child.offsetLeft - box.scrollLeft) < Math.abs(children[best].offsetLeft - box.scrollLeft) ? i : best, 0);
+          setPage(nearest);
+        }}
+        onKeyDown={e => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+            e.preventDefault();
+            goToPage(Math.max(0, Math.min(pages.length - 1, page + (e.key === "ArrowRight" ? 1 : -1))));
+          }
+        }}>
+        {pages.map((entries, i) => <ul className="recent-case-page" key={entries[0].id} aria-label={`Page ${i + 1} of ${pages.length}`}>
+          {entries.map(entry => <li key={entry.id}>
+            <button type="button" className="recent-case" onClick={() => onOpen(entry.id)} onFocus={() => goToPage(i)}>
+              <img src={entry.thumb} alt="" loading="lazy" decoding="async" />
               <span>
                 <strong>{entry.patientName || "Unnamed case"}</strong>
                 <small>{new Date(entry.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}{entry.versions > 1 ? ` · ${entry.versions}` : ""}</small>
+                <small>{entry.testMode || entry.mode === "mock" ? "Demo concept" : "AI concept"}</small>
               </span>
             </button>
-          </li>
-        ))}
-      </ul>
+          </li>)}
+        </ul>)}
+      </div>
+      {pages.length > 1 && <div className="recent-case-pagination">
+        <span aria-live="polite">Page {page + 1} of {pages.length} · Swipe for more</span>
+        <div>
+          <button type="button" aria-label="Previous recent cases" disabled={page === 0} onClick={() => goToPage(page - 1)}><ChevronLeft size={17} /></button>
+          <button type="button" aria-label="Next recent cases" disabled={page === pages.length - 1} onClick={() => goToPage(page + 1)}><ChevronRight size={17} /></button>
+        </div>
+      </div>}
     </section>
   );
 }

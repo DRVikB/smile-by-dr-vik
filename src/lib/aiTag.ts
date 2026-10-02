@@ -4,7 +4,7 @@
  * surgery (ASA, May 2025: an AI image of a cosmetic effect must not stand in
  * for real results).
  */
-export const AI_TAG = "AI illustration";
+export const AI_TAG = "AI concept";
 
 export interface Box {
   x: number;

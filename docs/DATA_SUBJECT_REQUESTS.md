@@ -1,5 +1,8 @@
 # Data subject requests (DSAR) procedure
 
+> **2026-10-02 implementation update (not deployed):** Macro Stage 1 adds signed-in patient-case state in Supabase and binary patient media in the separate PRIVATE `patient-cases` bucket, with an account-isolated local cache/outbox. This supersedes earlier device-only descriptions for patient cases in this document. AI generation and the clinician reference library remain separate. See [the Stage 1 implementation report](CLOUD_PATIENT_SYNC_STAGE1_2026-10-02.md). Provider contracts, region, backup retention and professional approvals are not verified by this implementation.
+
+
 Contact point: the configured `NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL` ([OWNER DECISION REQUIRED]). Deadline: **one calendar month** from receipt, extendable by two further months for complex or numerous requests, provided the person is told within the first month. No fee unless a request is manifestly unfounded or excessive. Verify identity proportionately. Log every request (date received, type, identity check, action, date closed).
 
 ## 1. Requests from clinicians (SmileCompose is controller)

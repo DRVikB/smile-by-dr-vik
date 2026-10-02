@@ -1,3 +1,7 @@
+import { captureWorkspace, type WorkspaceLease } from "./workspace";
+import { createCaseRepository, getCaseRepository } from "@/services/cases/caseRepository";
+import { createLibraryStore } from "./caseLibrary";
+import { createValidationStore } from "./validation";
 /**
  * "Export my data": everything SmileCompose holds for this clinician, as one
  * JSON file — the cases, photos, visualisations, notes and library on this
@@ -19,28 +23,34 @@ export interface DataExport {
   account: unknown;
 }
 
-export async function buildDataExport(accountData: unknown = null): Promise<DataExport> {
-  const [{ listAllLog, readLogMedia }, { readCase }, { exportLibrary }, { validationRecords }] = await Promise.all([
-    import("./caseLog"), import("./storage"), import("./caseLibrary"), import("./validation"),
-  ]);
+export async function buildDataExport(accountData: unknown = null, scope: WorkspaceLease = captureWorkspace()): Promise<DataExport> {
+  const current=getCaseRepository();
+  const { listAllLog, readLogMedia, readCase } = current.scope.key===scope.key&&current.scope.epoch===scope.epoch?current:createCaseRepository(scope);
+  const { exportLibrary } = createLibraryStore(scope);
+  const { validationRecords } = createValidationStore(scope);
   const entries = await listAllLog().catch(() => []); // includes archived and Recently Deleted
   const cases = await Promise.all(entries.map(async entry => ({ entry, media: await readLogMedia(entry.id).catch(() => null) })));
   const preferences: Record<string, string> = {};
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key?.startsWith("smile.")) preferences[key] = localStorage.getItem(key) ?? "";
+      if (key?.startsWith("smile.") && key !== "smile.account-profile") preferences[key] = localStorage.getItem(key) ?? "";
     }
   } catch { /* storage unavailable */ }
+  scope.assert();
+  const currentCase = await readCase();
+  const library = await exportLibrary();
+  const validationScores = await validationRecords();
+  scope.assert();
   return {
     format: "smilecompose-data-export",
     version: 1,
     exportedAt: new Date().toISOString(),
     device: {
       cases,
-      currentCase: await readCase().catch(() => null),
-      library: await exportLibrary().catch(() => null),
-      validationScores: await validationRecords().catch(() => []),
+      currentCase,
+      library,
+      validationScores,
       preferences,
     },
     account: accountData,

@@ -4,17 +4,13 @@ import { Check, Download, ImagePlus, Trash2, Upload, X } from "lucide-react";
 import { IconTile, LibrarySymbol } from "@/components/icons/SmileIcons";
 import type { CaseMaterial, LibraryCase } from "@/lib/types";
 import { LibraryCaseDetails } from "./LibraryCaseDetails";
-import { exportValidationRecords } from "@/lib/validation";
+import { captureWorkspace } from "@/lib/workspace";
+import { createValidationStore } from "@/lib/validation";
+import { createLibraryStore } from "@/lib/caseLibrary";
 import { caseMaterials } from "@/lib/types";
 import {
   MAX_STYLE_REFERENCES,
-  addLibraryCase,
   chooseLibraryCases,
-  clearLibrary,
-  deleteLibraryCase,
-  exportLibrary,
-  importLibrary,
-  listLibrary,
 } from "@/lib/caseLibrary";
 
 /**
@@ -34,6 +30,11 @@ export function CaseLibrary({
   onCountChange: (count: number) => void;
   onValidate: (entry: LibraryCase) => void;
 }) {
+  const [scope] = useState(captureWorkspace);
+  const [library] = useState(() => createLibraryStore(scope));
+  const { addLibraryCase, clearLibrary, deleteLibraryCase, exportLibrary, importLibrary, listLibrary } = library;
+  const [validation] = useState(() => createValidationStore(captureWorkspace()));
+  const { exportValidationRecords } = validation;
   const [cases, setCases] = useState<LibraryCase[] | null>(null);
   const [material, setMaterial] = useState<CaseMaterial>("Layered composite");
   const [label, setLabel] = useState("");
@@ -123,6 +124,7 @@ export function CaseLibrary({
         type: "application/json",
       });
       const { saveFile } = await import("@/lib/share");
+      scope.assert();
       await saveFile(blob, `smilecompose-case-library_${new Date().toISOString().slice(0, 10)}.json`, "SmileCompose case library");
     } catch {
       setError("The library couldn’t be exported.");
@@ -371,7 +373,8 @@ function LibraryThumb({ id, label }: { id: string; label: string }) {
   const [src, setSrc] = useState("");
   useEffect(() => {
     let live = true;
-    import("@/lib/caseLibrary")
+    const library = createLibraryStore(captureWorkspace());
+    Promise.resolve(library)
       .then((m) => m.readLibraryMedia(id))
       .then((media) => {
         if (live && media) setSrc(media.thumb);
