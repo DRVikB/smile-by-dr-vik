@@ -11,7 +11,7 @@ export function ToothChart({ settings, onChange, defaultOpen = false }: { settin
   const update = (patch: Partial<ToothPlan>) => onChange(updateToothPlan(settings, { ...current, ...patch }));
   return <details className="clinical-details" open={defaultOpen || undefined}>
     <summary>Individual teeth · {toothSummary(settings)}</summary>
-    <p className="control-hint">Tap a tooth to set its instructions. FDI numbers: patient’s right to left. Unselected and missing teeth stay unchanged. Only visible, identifiable teeth can be illustrated.</p>
+    <p className="control-hint">Tap a tooth to set its instructions. FDI numbers: patient’s right to left. The AI is instructed to preserve unselected teeth and existing gaps. Check these areas in every concept. Only visible, identifiable teeth can be illustrated.</p>
     {[upperArch, lowerArch].map((arch, i) => <div key={i} className="tooth-arch">
       <strong>{i ? "Lower" : "Upper"}</strong>
       <div className="tooth-grid" role="group" aria-label={`${i ? "Lower" : "Upper"} tooth chart`}>

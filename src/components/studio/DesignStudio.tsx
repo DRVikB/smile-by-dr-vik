@@ -238,7 +238,7 @@ export function DesignStudio({
             {toothMap?.map && toothMap.mode === "single" && singleTooth !== null && <SingleToothEdit controller={toothMap} fdi={singleTooth} />}
             {toothMap?.map && <p className="control-hint">{
               toothMap.mode === "select" ? `${toothMap.picking && toothMap.display === "auto" ? "" : "Tap a tooth on the photo to add or remove it. "}Press and hold a tooth for its own settings. Boundary protection is optional for single-tooth edits; multi-tooth concepts use automatic face protection.`
-                : toothMap.mode === "single" ? `Tooth ${singleTooth ?? ""} is outlined on the photo. Tap it, or Design tooth ${singleTooth ?? ""}, for its own shape, length, width, edge and shade. ${precisionReady ? "Other teeth stay original." : "Confirm its boundary for precise tooth protection; quick concepts use automatic face protection."}`
+                : toothMap.mode === "single" ? `Tooth ${singleTooth ?? ""} is outlined on the photo. Tap it, or Design tooth ${singleTooth ?? ""}, for its own shape, length, width, edge and shade. ${precisionReady ? "Pixels outside the confirmed boundaries stay original. Check that the outlines match the tooth." : "Confirm its boundary for precise tooth protection; quick concepts use automatic face protection."}`
                   : toothMap.mode === "design" ? "Visual planning guides: tooth form, smile arc and midline. These guides do not constrain the generated smile."
                     : "Generate a quick concept now. Optional boundary protection is available for single-tooth edits; choose Custom to plan individual teeth."
             }</p>}
