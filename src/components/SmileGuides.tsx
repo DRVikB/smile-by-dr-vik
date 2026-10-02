@@ -55,7 +55,7 @@ export function useSmileGuides(src: string, enabled: boolean): GuidesState {
  * image of the same box, they land exactly on it and zoom with it. `scale`
  * is the viewer's zoom, so lines keep a constant on-screen weight.
  */
-export function GuideLines({ guides, scale = 1 }: { guides: SmileGuides; scale?: number }) {
+export function GuideLines({ guides, scale = 1, advanced = false }: { guides: SmileGuides; scale?: number; advanced?: boolean }) {
   const clip = useId();
   const s = Math.max(0.2, scale);
   const common = { fill: "none", vectorEffect: "non-scaling-stroke", strokeLinecap: "round", strokeLinejoin: "round" } as const;
@@ -74,10 +74,10 @@ export function GuideLines({ guides, scale = 1 }: { guides: SmileGuides; scale?:
       <g clipPath={`url(#${clip})`}>
         {line("eyeLine", guides.eyeLine)}
         {line("midline", guides.midline)}
-        {line("mouthLine", guides.mouthLine)}
+        {advanced && line("mouthLine", guides.mouthLine)}
         <path {...common} d={smoothCurvePath(guides.smileArc)} stroke={GUIDE_STYLES.smileArc.colour} strokeWidth={2.6 / s} />
         {guides.pupils.map((p, i) => dot(p, GUIDE_STYLES.eyeLine.colour, i))}
-        {guides.commissures.map((p, i) => dot(p, GUIDE_STYLES.mouthLine.colour, i + 2))}
+        {advanced && guides.commissures.map((p, i) => dot(p, GUIDE_STYLES.mouthLine.colour, i + 2))}
       </g>
     </svg>
   );
@@ -89,16 +89,23 @@ const MESSAGES: Record<Exclude<GuidesState["status"], "off" | "ready">, string> 
   unavailable: "Smile analysis couldn’t start. It needs a connection the first time it’s used on this device.",
 };
 
-/** What each line is, and the readings, in readable type over the photo. */
-export function GuideKey({ state, className = "" }: { state: GuidesState; className?: string }) {
+/** Technical detail lives below the photo, never over the patient's face. */
+export function GuideKey({ state, advanced, onAdvanced, onHide }: { state: GuidesState; advanced: boolean; onAdvanced: (value: boolean) => void; onHide?: () => void }) {
   if (state.status === "off") return null;
   return (
-    <div className={`guide-key ${className}`.trim()} role="status" aria-label="Smile analysis"
+    <section className="analysis-details" aria-label="Smile analysis details"
       onPointerDown={(e) => e.stopPropagation()}>
+      <div className="analysis-details-head"><strong>Smile analysis</strong>{onHide && <button type="button" className="text-button" onClick={onHide}>Hide analysis</button>}</div>
       {state.status === "ready" ? (
         <>
+          <div className="settings-segment" role="group" aria-label="Analysis guides">
+            <button type="button" aria-pressed={!advanced} onClick={() => onAdvanced(false)}>Basic</button>
+            <button type="button" aria-pressed={advanced} onClick={() => onAdvanced(true)}>Advanced</button>
+          </div>
+          <details>
+          <summary>Guide key &amp; measurements</summary>
           <ul className="guide-key-lines">
-            {GUIDE_ORDER.map((key) => (
+            {GUIDE_ORDER.filter(key => advanced || key !== "mouthLine").map((key) => (
               <li key={key}>
                 <i className={`guide-swatch${GUIDE_STYLES[key].dashed ? " dashed" : ""}${key === "smileArc" ? " arc" : ""}`}
                   style={{ "--guide": GUIDE_STYLES[key].colour } as React.CSSProperties} aria-hidden="true" />
@@ -112,10 +119,11 @@ export function GuideKey({ state, className = "" }: { state: GuidesState; classN
             ))}
           </dl>
           <p className="guide-key-note">Relative guides from facial landmarks. Not a measurement of the teeth.</p>
+          </details>
         </>
       ) : (
-        <p className="guide-key-message">{MESSAGES[state.status]}</p>
+        <p className="guide-key-message" role="status">{MESSAGES[state.status]}</p>
       )}
-    </div>
+    </section>
   );
 }

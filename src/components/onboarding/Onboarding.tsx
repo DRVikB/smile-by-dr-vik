@@ -222,7 +222,7 @@ function AccountStep({ configured, name, onDefer }: { configured: boolean; name:
   return (
     <Frame step="account" configured={configured} mark hero={<HeroPhoto photo="portrait" eyebrow={greeting(name)} title="Your plan goes where you do." />} head={<>
       <h1 ref={heading} tabIndex={-1} className="ob-title">Your SmileCompose account</h1>
-      <p className="ob-copy">Keep your subscription and generation allowance with you on iPhone, iPad and the web. Patient cases stay securely on this device.</p>
+      <p className="ob-copy">Keep your subscription and generation allowance with you on iPhone, iPad and the web. Saved cases sync privately to your account.</p>
     </>}>
       <div className="ob-actions">
         <AppleSignInButton onClick={() => void apple()} disabled={busy} label="Continue with Apple" />
@@ -302,7 +302,7 @@ function HowItWorksStep({ configured, onContinue }: { configured: boolean; onCon
   return (
     <Frame step="howItWorks" configured={configured} head={<>
       <h1 ref={heading} tabIndex={-1} className="ob-title">A smarter way to design beautiful smiles.</h1>
-      <p className="ob-copy">From capture to consultation, in one seamless workflow. Patient photos stay on this device until you choose to generate.</p>
+      <p className="ob-copy">From capture to consultation, in one workflow. Saved cases sync privately to your account. AI generation requires your confirmation.</p>
     </>}>
       <HowItWorksVisual />
       <div className="ob-actions">

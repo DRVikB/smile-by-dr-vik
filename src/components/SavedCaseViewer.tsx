@@ -31,13 +31,13 @@ export function SavedCaseViewer({ entry, media, analysis: startWithAnalysis = fa
         inverse
         right={<button className="icon-button" onClick={onClose} aria-label="Close saved comparison"><X size={22} /></button>}
       />
-      <button className="analysis-chip saved-analysis-chip" aria-pressed={analysis} onClick={() => setAnalysis(v => !v)}><AnalysisSymbol size={18} />Smile analysis</button>
       <BeforeAfterSlider original={media.originalImage} preview={media.image} isMock={isDemo}
-        previewLabel={isDemo ? "Demo preview" : "Saved · AI concept"} analysis={analysis} />
+        previewLabel={isDemo ? "Demo preview" : "Saved · AI concept"} analysis={analysis} onHideAnalysis={() => setAnalysis(false)} />
       <footer className="saved-case-footer">
         <span>{entry.patientName || "Saved case"} · {entry.label || "Before & after"}</span>
         <p>{isDemo ? "Demo concept · Sample imagery, not a patient result." : AI_CONCEPT_SUMMARY}</p>
-        <button type="button" className="primary-button" onClick={() => setSharing(true)}><Share2 size={17} />Export &amp; share</button>
+        <div className="saved-case-actions"><button type="button" className="primary-button" onClick={() => setSharing(true)}><Share2 size={17} />Export &amp; share</button>
+        {!analysis && <button type="button" className="text-button" onClick={() => setAnalysis(true)}><AnalysisSymbol size={16} />Smile analysis</button>}</div>
       </footer>
     </div>
     {sharing && <ShareSheet input={savedCaseExport(entry, media)} entryId={entry.id}

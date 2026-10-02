@@ -1,5 +1,6 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { containedPhotoRect } from "@/lib/photoViewport";
 import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
 import { ZoomPan } from "./ZoomPan";
 import { GuideKey, GuideLines, useSmileGuides } from "./SmileGuides";
@@ -25,6 +26,7 @@ export function BeforeAfterSlider({
   mode: controlledMode,
   onModeChange,
   analysis = false,
+  onHideAnalysis,
 }: {
   original: string;
   preview: string;
@@ -33,31 +35,49 @@ export function BeforeAfterSlider({
   mode?: CompareMode;
   onModeChange?: (mode: CompareMode) => void;
   analysis?: boolean;
+  onHideAnalysis?: () => void;
 }) {
   // Found on the patient's own photo: the face they're measured against.
   const guides = useSmileGuides(original, analysis);
   const [position, setPosition] = useState(50);
   const [opacity, setOpacity] = useState(50);
   const [localMode, setLocalMode] = useState<CompareMode>("slide");
+  const [advanced, setAdvanced] = useState(false);
   const mode = controlledMode ?? localMode;
   const changeMode = (next: CompareMode) => { setLocalMode(next); onModeChange?.(next); };
   const overlay = mode === "overlay";
   const root = useRef<HTMLDivElement>(null);
+  const photoFrame = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState<ReturnType<typeof containedPhotoRect>>(null);
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const measure = () => {
+      const image = el.querySelector<HTMLImageElement>(".compare-image");
+      setViewport(containedPhotoRect(el.clientWidth, el.clientHeight, image?.naturalWidth ?? 0, image?.naturalHeight ?? 0));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    el.addEventListener("load", measure, true);
+    return () => { observer.disconnect(); el.removeEventListener("load", measure, true); };
+  }, [original, preview]);
   const dragging = useRef<number | null>(null);
   // The divider's handle slides the comparison at any zoom level. Zoomed in,
   // dragging anywhere else pans the photo instead.
   const slideTo = (clientX: number) => {
-    const box = root.current?.getBoundingClientRect();
+    const box = photoFrame.current?.getBoundingClientRect();
     if (box?.width) setPosition(Math.round(Math.min(100, Math.max(0, ((clientX - box.left) / box.width) * 100))));
   };
   return (
-    <div ref={root} className={`comparison${overlay ? " comparison-overlay" : ""}${guides.status !== "off" ? " has-guides" : ""}`}>
+    <div className={`comparison${overlay ? " comparison-overlay" : ""}${analysis ? " has-guides" : ""}`}>
+      <div ref={root} className="compare-canvas">
       <img className="photo-backdrop" src={original} alt="" aria-hidden="true" />
-      <div className="compare-frame">
+      <div ref={photoFrame} className="compare-frame" style={viewport ? { inset: "auto", ...viewport, overflow: "hidden" } : { visibility: "hidden" }}>
         <ZoomPan
           className="comparison-zoom"
           resetKey={preview}
-          label={overlay ? "Pinch to zoom · use slider to blend" : "Pinch to zoom · drag to compare"}
+          label=""
           overlay={!overlay ? <input
             type="range" min={0} max={100}
             value={position}
@@ -76,7 +96,7 @@ export function BeforeAfterSlider({
                 alt={isMock ? "Illustrative demo concept" : "AI illustration overlaid on the original"}
                 style={{ opacity: opacity / 100 }}
               />
-              {guides.status === "ready" && <GuideLines guides={guides.guides} scale={scale} />}
+              {guides.status === "ready" && <GuideLines guides={guides.guides} scale={scale} advanced={advanced} />}
             </>
           ) : (
             <>
@@ -95,24 +115,11 @@ export function BeforeAfterSlider({
                 alt="Original smile"
                 style={{ clipPath: `inset(0 calc(${50 + (50 - position) / scale}% + ${x / scale}px) 0 0)` }}
               />
-              {guides.status === "ready" && <GuideLines guides={guides.guides} scale={scale} />}
+              {guides.status === "ready" && <GuideLines guides={guides.guides} scale={scale} advanced={advanced} />}
             </>
           )}
         </ZoomPan>
-      </div>
-      <div className="compare-vignette" aria-hidden="true" />
-      <GuideKey state={guides} />
-      {!overlay && <><span className="compare-label original-label">Before</span><span className="compare-label preview-label">{previewLabel}</span></>}
-      {overlay ? (
-        <div className="compare-label overlay-readout overlay-controls" role="group" aria-label="Overlay strength">
-          <button type="button" aria-label="Decrease overlay strength" disabled={opacity === 0} onClick={() => setOpacity(v => Math.max(0, v - 10))}><Minus size={18} /></button>
-          <input type="range" min={0} max={100} step={1} value={opacity}
-            onChange={e => setOpacity(Number(e.target.value))}
-            aria-label="AI illustration overlay strength" aria-valuetext={overlayValueText(opacity)} />
-          <button type="button" aria-label="Increase overlay strength" disabled={opacity === 100} onClick={() => setOpacity(v => Math.min(100, v + 10))}><Plus size={18} /></button>
-          <span className="overlay-percentage" aria-hidden="true">{opacity}%</span>
-        </div>
-      ) : (
+      {!overlay && viewport && (
         <div className="compare-divider" style={{ left: `${position}%` }}>
           <span
             className="compare-grab"
@@ -132,6 +139,21 @@ export function BeforeAfterSlider({
           </span>
         </div>
       )}
+      </div>
+      <div className="compare-vignette" aria-hidden="true" />
+      {!overlay && <><span className="compare-label original-label">Before</span><span className="compare-label preview-label">{previewLabel}</span></>}
+      {overlay ? (
+        <div className="compare-label overlay-readout overlay-controls" role="group" aria-label="Overlay strength">
+          <button type="button" aria-label="Decrease overlay strength" disabled={opacity === 0} onClick={() => setOpacity(v => Math.max(0, v - 10))}><Minus size={18} /></button>
+          <input type="range" min={0} max={100} step={1} value={opacity}
+            onChange={e => setOpacity(Number(e.target.value))}
+            aria-label="AI illustration overlay strength" aria-valuetext={overlayValueText(opacity)} />
+          <button type="button" aria-label="Increase overlay strength" disabled={opacity === 100} onClick={() => setOpacity(v => Math.min(100, v + 10))}><Plus size={18} /></button>
+          <span className="overlay-percentage" aria-hidden="true">{opacity}%</span>
+        </div>
+      ) : (
+        null
+      )}
       <div
         className="compare-mode"
         role="group"
@@ -148,6 +170,8 @@ export function BeforeAfterSlider({
       {isMock && (
         <div className="demo-image-label">DEMO · ORIGINAL PHOTO UNCHANGED</div>
       )}
+      </div>
+      {analysis && <GuideKey state={guides} advanced={advanced} onAdvanced={setAdvanced} onHide={() => { setAdvanced(false); onHideAnalysis?.(); }} />}
     </div>
   );
 }

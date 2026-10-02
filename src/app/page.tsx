@@ -242,6 +242,7 @@ export default function Smile() {
   // Smile analysis opens in its own sheet from the result screen.
   // Smile analysis lines drawn on the result's comparison.
   const [analysisOn, setAnalysisOn] = useState(false);
+  useEffect(() => { setAnalysisOn(false); }, [result?.image]);
 
   // Undo / redo for the Studio's design choices. A burst of changes (a slider
   // drag, quick taps) within HISTORY_BURST_MS is one step.
@@ -1267,7 +1268,7 @@ export default function Smile() {
                       <X size={18} />
                     </button>
                   </div>
-                  <p id="patient-name-hint" className="control-hint">Stays on this device. Use initials or a practice reference — not full names, dates of birth, NHS numbers or contact details.{testMode && <b> Test mode.</b>}</p>
+                  <p id="patient-name-hint" className="control-hint">{testMode ? "Test mode. " : "Saved cases sync privately to your account. "}Use initials or a practice reference — not full names, dates of birth, NHS numbers or contact details.</p>
                 </>}
                 costs={{ pricing, resolution: effectiveResolution, onResolution: setResolution, costs, testMode, busy, open: costsOpen, onOpen: toggleCosts, requestLimit, onRequestLimit: setRequestLimit }}
                 onEditArea={() => setEditAreaOpen(true)}
@@ -1302,6 +1303,7 @@ export default function Smile() {
                   mode={previewMode}
                   onModeChange={setPreviewMode}
                   analysis={analysisOn}
+                  onHideAnalysis={() => setAnalysisOn(false)}
                 />
                 <button
                   className="fullscreen-button"
@@ -1309,11 +1311,6 @@ export default function Smile() {
                 >
                   <Maximize2 size={14} strokeWidth={1.8} />
                   Consultation view
-                </button>
-                {/* Always visible on the result, on every device: lines on or off. */}
-                <button className="analysis-chip" aria-pressed={analysisOn} onClick={() => setAnalysisOn(v => !v)}>
-                  <AnalysisSymbol size={18} />
-                  Smile analysis
                 </button>
               </div>
               <FloatingPanel className="review-drawer" title="Review & refine" subtitle={result.mode === "live" && !testMode ? "Check anatomy · options & treatment notes" : "Analysis, options & treatment notes"} open={reviewOpen} onOpenChange={setReviewOpen}>
