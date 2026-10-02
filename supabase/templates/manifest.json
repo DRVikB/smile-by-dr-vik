@@ -1,0 +1,46 @@
+{
+  "senderName": "SmileCompose",
+  "assetOrigin": "https://smile-by-dr-vik-staging.drvik.workers.dev",
+  "templates": [
+    {
+      "key": "confirmation",
+      "subject": "Confirm your SmileCompose account",
+      "file": "confirmation.html"
+    },
+    {
+      "key": "recovery",
+      "subject": "Reset your SmileCompose password",
+      "file": "recovery.html"
+    },
+    {
+      "key": "email_change",
+      "subject": "Confirm your SmileCompose email change",
+      "file": "email_change.html"
+    },
+    {
+      "key": "magic_link",
+      "subject": "Your SmileCompose sign-in link",
+      "file": "magic_link.html"
+    },
+    {
+      "key": "invite",
+      "subject": "Your invitation to SmileCompose",
+      "file": "invite.html"
+    },
+    {
+      "key": "reauthentication",
+      "subject": "Your SmileCompose verification code",
+      "file": "reauthentication.html"
+    },
+    {
+      "key": "password_changed_notification",
+      "subject": "Your SmileCompose password changed",
+      "file": "password_changed_notification.html"
+    },
+    {
+      "key": "email_changed_notification",
+      "subject": "Your SmileCompose email address changed",
+      "file": "email_changed_notification.html"
+    }
+  ]
+}
