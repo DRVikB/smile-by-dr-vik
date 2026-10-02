@@ -37,18 +37,18 @@ export class SmileGenerationError extends Error {
   }
 }
 
-const NOT_COUNTED = "Your generation has not been counted.";
+const CHECK_ALLOWANCE = "Check your allowance before retrying.";
 
 export const GENERATION_MESSAGES = {
-  failed: `We couldn’t create this smile preview. ${NOT_COUNTED} Please try again.`,
+  failed: `We couldn’t create this smile preview. ${CHECK_ALLOWANCE} Please try again.`,
   offline: "You’re offline. Connect to the internet to create a new smile.",
-  network: `We couldn’t reach SmileCompose. Check your connection and try again. ${NOT_COUNTED}`,
-  timeout: `This preview took too long. ${NOT_COUNTED} Please try again.`,
-  invalidImage: `The image service declined this request. Your photo is unchanged. ${NOT_COUNTED}`,
-  noImage: `No finished preview was returned. Your photo and selections are safe. ${NOT_COUNTED} Please try again.`,
+  network: `We couldn’t reach SmileCompose. Check your connection and try again. ${CHECK_ALLOWANCE}`,
+  timeout: `This preview took too long. ${CHECK_ALLOWANCE} Please try again.`,
+  invalidImage: `The image service declined this request. Your photo is unchanged. ${CHECK_ALLOWANCE}`,
+  noImage: `No finished preview was returned. Your photo and selections are unchanged. ${CHECK_ALLOWANCE} Please try again.`,
   tooLarge: "This photo is too large to send. Please try a smaller image.",
-  unavailable: `Smile generation is temporarily unavailable. ${NOT_COUNTED} Please try again later.`,
-  busy: `SmileCompose is busy right now. Please wait a moment and try again. ${NOT_COUNTED}`,
+  unavailable: `Smile generation is temporarily unavailable. ${CHECK_ALLOWANCE} Please try again later.`,
+  busy: `SmileCompose is busy right now. Please wait a moment and try again. ${CHECK_ALLOWANCE}`,
   consent: "Clinician permission is required before this photo is sent for AI processing. No request was sent.",
   duplicate: "This request has already been submitted. Check the saved result before creating another preview; the earlier request may have incurred a charge.",
   paused: "Generation is paused for a moment. No request was sent. Please try again shortly.",
@@ -58,7 +58,7 @@ export const GENERATION_MESSAGES = {
   signIn: "Sign in to your SmileCompose account to generate a smile. No request was sent.",
   subscribe: "SmileCompose Pro is required to generate smiles. No request was sent.",
   allowanceUsed: "You’ve used your available SmileCompose generations. No request was sent.",
-  accountUnavailable: `Your account couldn’t be checked right now. ${NOT_COUNTED} Please try again.`,
+  accountUnavailable: `Your account couldn’t be checked right now. ${CHECK_ALLOWANCE} Please try again.`,
   mfa: "Enter your two-factor code to continue. No request was sent.",
 } as const;
 

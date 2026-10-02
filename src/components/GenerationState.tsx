@@ -4,21 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { SmileMark } from "./Brand";
 import { CenteredBrandHeader } from "./ui/Surface";
 import { SMILECOMPOSE } from "@/lib/brand";
-import { Check, X } from "lucide-react";
-
-const LIVE_STEPS = [
-  "Analysing your smile…",
-  "Composing the design…",
-  "Creating your visualisation…",
-  "Finishing the details…",
-];
-
-const DEMO_STEPS = [
-  "Opening the demo",
-  "Preparing smile examples",
-  "Aligning comparisons",
-  "Finalising preview",
-];
+import { X } from "lucide-react";
 
 export function GenerationState({
   onCancel,
@@ -29,19 +15,14 @@ export function GenerationState({
   testMode: boolean;
   photo: string;
 }) {
-  const [stage, setStage] = useState(0);
+  const [takingLonger, setTakingLonger] = useState(false);
   const cancelButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     cancelButton.current?.focus();
-    const timings = testMode ? [350, 800, 1300] : [2500, 6500, 12000];
-    const timers = timings.map((delay, index) =>
-      window.setTimeout(() => setStage(index + 1), delay),
-    );
-    return () => timers.forEach(window.clearTimeout);
-  }, [testMode]);
-
-  const steps = testMode ? DEMO_STEPS : LIVE_STEPS;
+    const timer = window.setTimeout(() => setTakingLonger(true), 20000);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <section
@@ -63,7 +44,7 @@ export function GenerationState({
         inverse
         right={
           <div className="generation-splash-actions">
-            <button ref={cancelButton} type="button" onClick={onCancel}>
+            <button ref={cancelButton} type="button" onClick={onCancel} aria-label="Cancel generation">
               <X size={17} strokeWidth={1.8} />
               <span>Cancel</span>
             </button>
@@ -82,34 +63,9 @@ export function GenerationState({
               : "Creating your visualisation from your photograph and design choices."}
           </p>
 
-          <ol className="generation-splash-steps">
-            {steps.map((label, index) => (
-              <li
-                key={label}
-                className={index < stage ? "is-done" : index === stage ? "is-current" : ""}
-              >
-                <span className="generation-splash-step-mark" aria-hidden="true">
-                  {index < stage ? <Check size={16} strokeWidth={1.8} /> : null}
-                </span>
-                <span>{label}</span>
-              </li>
-            ))}
-          </ol>
-
-          <div
-            className="generation-splash-progress"
-            role="progressbar"
-            aria-label="Preview preparation stage"
-            aria-valuemin={1}
-            aria-valuemax={4}
-            aria-valuenow={stage + 1}
-            aria-valuetext={`Stage ${stage + 1} of 4: ${steps[stage]}`}
-          >
-            <span className="generation-splash-progress-track">
-              <span style={{ width: `${[14, 38, 65, 87][stage]}%` }} />
-            </span>
-            <span className="generation-splash-progress-count">{stage + 1} / 4</span>
-          </div>
+          <p role="status" aria-live="polite">{takingLonger
+            ? "Still preparing your concept. Keep SmileCompose open, or cancel to return to your design."
+            : testMode ? "Preparing the sample preview…" : "Preparing your concept… Keep SmileCompose open."}</p>
         </div>
       </div>
 
