@@ -78,6 +78,17 @@ test("mouth-boundary compositing does not classify discoloured tooth pixels as g
 test("no face means no lock, rather than a guess", () => {
   assert.equal(planMouthLock(null, null), null);
   assert.equal(planMouthLock(face().slice(0, 100), null), null);
+  assert.equal(planMouthLock(face(), null), null, "a mouth-only provider output cannot be pasted into the original face");
+  assert.equal(planMouthLock(face(), face().slice(0, 100)), null);
+});
+
+test("non-finite or inconsistent generated landmarks cannot produce a face lock", () => {
+  const original = face();
+  const invalid = face(); invalid[33] = [NaN, 10];
+  assert.equal(planMouthLock(original, invalid), null);
+  const distorted = face();
+  distorted[33][0] += 70; distorted[263][1] -= 60; distorted[1][0] -= 65;
+  assert.equal(planMouthLock(original, distorted), null, "a plausible overall scale does not validate distorted anchors");
 });
 
 test("an edit that already lines up is not re-warped", () => {

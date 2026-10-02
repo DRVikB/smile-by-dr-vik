@@ -7,6 +7,8 @@ export interface MouthLockResult {
   /** True when everything outside the original mouth opening is restored. */
   locked: boolean;
   lipsMoved: boolean;
+  /** The source has a face but the returned image cannot be aligned to it. */
+  invalidAlignment?: boolean;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -30,15 +32,19 @@ export async function lockFaceOutsideLips(
 ): Promise<MouthLockResult> {
   const untouched = { image: generated, locked: false, lipsMoved: false };
   try {
-    const [origPoints, genPoints] = await Promise.all([
+    const [origPoints, genPoints, o, g] = await Promise.all([
       detectFace(original),
       detectFace(generated),
+      loadImage(original), loadImage(generated),
     ]);
-    const plan = planMouthLock(origPoints, genPoints);
-    if (!plan) return untouched;
-
-    const [o, g] = await Promise.all([loadImage(original), loadImage(generated)]);
     const width = o.naturalWidth, height = o.naturalHeight;
+    // drawImage below normalises the output to the source canvas. Landmarks
+    // must be in that same coordinate system before fitting the transform.
+    const sameAspect = Math.abs((g.naturalWidth / g.naturalHeight) / (width / height) - 1) <= 0.03;
+    const scaledPoints = genPoints?.map(([x, y]): [number, number] =>
+      [x * width / g.naturalWidth, y * height / g.naturalHeight]) ?? null;
+    const plan = sameAspect ? planMouthLock(origPoints, scaledPoints) : null;
+    if (!plan) return { ...untouched, invalidAlignment: Boolean(origPoints) };
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;

@@ -11,6 +11,8 @@ test('photographic request keeps the essential envelope and drops impossible exa
  assert.match(p,/same visible upper\/lower tooth exposure/);
  assert.match(p,/intact central incisor must not become longer/);
  assert.match(p,/preserve untreated teeth in both arches/);
+ assert.match(p,/ONE complete edited source photograph/);
+ assert.match(p,/Never return an enlarged mouth, isolated teeth, a close-up crop/);
  assert.doesNotMatch(p,/exactly the same pixel dimensions/);
 });
 test('individual Preserve and Missing teeth remain excluded from editable selection',()=>{

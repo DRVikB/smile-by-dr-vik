@@ -121,6 +121,8 @@ async function lockFace(
   scope.assert();
   const r = await lockFaceOutsideLips(photo.dataUrl, image);
   scope.assert();
+  if (r.invalidAlignment)
+    throw new Error("The image service returned a preview that does not match your original photo's framing. It has not been shown or saved. Please generate again; your photo and selections are unchanged.");
   const { generationProtectionPlan, protectWithToothMap } = await import("@/lib/toothMap/protect");
   const preciseTooth = photo.toothMap && generationProtectionPlan(photo.toothMap, photo.dataUrl, settings).ok;
   if (!r.locked && settings.shotType === "Full face" && !photo.editMask && !preciseTooth)

@@ -44,13 +44,18 @@ const MAX_SCALE = 1.18;
 const MAX_ANGLE = (8 * Math.PI) / 180;
 
 /** Invalidate reusable results made with the older, lip-inclusive mask. */
-export const MOUTH_LOCK_VERSION = "2026-10-02-original-mouth-boundary-v4";
+export const MOUTH_LOCK_VERSION = "2026-10-02-validated-mouth-boundary-v5";
 
 export function planMouthLock(
   original: Point[] | null,
   generated: Point[] | null,
 ): LockPlan | null {
-  if (!original || original.length < 468) return null;
+  // A mask is not evidence that the returned image is a full-face edit. In
+  // particular, never paste a provider's mouth close-up into a face using an
+  // identity transform simply because no face could be found in that output.
+  if (![original, generated].every(points => points && points.length >= 468 &&
+    points.every(p => p.length === 2 && p.every(Number.isFinite)))) return null;
+  if (!original || !generated) return null;
   const [left, right] = pick(original, COMMISSURES);
   const mouthWidth = distance(left, right);
   if (!(mouthWidth >= 20)) return null;
@@ -76,6 +81,11 @@ export function planMouthLock(
       transform = fitted;
       warp = true;
     }
+    // A least-squares fit can still return a plausible scale for unrelated or
+    // distorted faces. Check the aligned anchors, not just the transform.
+    const alignedResiduals = from.map((p, i) => distance(applySimilarity(transform, p), to[i]));
+    if (median(alignedResiduals) > Math.max(3, 0.04 * mouthWidth) ||
+      alignedResiduals.filter(d => d > Math.max(6, 0.1 * mouthWidth)).length > 1) return null;
     const genLips = pick(generated, OUTER_LIP).map((p) => applySimilarity(transform, p));
     const origLips = pick(original, OUTER_LIP);
     lipsMoved =
