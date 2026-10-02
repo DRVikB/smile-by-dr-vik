@@ -438,7 +438,14 @@ export function createSupabaseMediaStore(url: string, serviceRoleKey: string): M
     },
     async download(bucket, path) {
       const { data, error } = await admin.storage.from(bucket).download(path);
-      return error || !data ? null : new Uint8Array(await data.arrayBuffer());
+      if (error) {
+        // Only a missing object is permanent. Outages/auth/bucket errors remain retryable.
+        const code = "code" in error ? error.code : undefined;
+        if (code === "NoSuchKey" || (code === "not_found" && Number(error.statusCode) === 404)) return null;
+        fail();
+      }
+      if (!data) fail();
+      return new Uint8Array(await data!.arrayBuffer());
     },
     async removeAllFor(userId) {
       for (const bucket of [AVATAR_BUCKET, CASE_LIBRARY_BUCKET, "patient-cases"]) {

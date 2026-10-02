@@ -65,23 +65,23 @@ test("a reused operation ID with a different payload is rejected",async()=>{cons
 test("accepted update increments revision once across retries",async()=>{const m=create();await server.store.mutate(A,m);const patch=update(m,1);assert.equal((await server.store.mutate(A,patch)).revision,2);assert.equal((await server.store.mutate(A,patch)).revision,2);});
 test("stale revision returns HTTP 409 without overwriting",async()=>{const d=device(server),m=create();await d.api.mutate(m);await d.api.mutate(update(m,1));await assert.rejects(d.api.mutate({...update(m,1),state:state("stale")}),e=>e instanceof PatientSyncError&&e.status===409);assert.deepEqual((await d.api.get(m.id)).state,EMPTY_STATE());d.stop();});
 test("two device conflict preserves the losing local clinical draft",async()=>{
- const a=device(server),b=device(server),id=uuid();await a.sync.enqueue(id,state("initial"),EMPTY_SUMMARY());await a.sync.run();await b.sync.run();
- await a.sync.enqueue(id,state("phone edit"),EMPTY_SUMMARY());await a.sync.run();await b.sync.enqueue(id,state("iPad offline edit"),EMPTY_SUMMARY());await b.sync.run();
+ const a=device(server),b=device(server),id=uuid();await a.sync.enqueue(id,state("initial"),EMPTY_SUMMARY());await a.sync.run();await b.sync.run();b.sync.disconnect();
+ await a.sync.enqueue(id,state("phone edit"),EMPTY_SUMMARY());await a.sync.run();await b.sync.enqueue(id,state("iPad offline edit"),EMPTY_SUMMARY());b.sync.connect(b.api);await b.sync.run();
  const c=await b.store.getCase(id);assert.equal(c?.status,"conflict");assert.deepEqual(c?.state,state("iPad offline edit"));assert.deepEqual(c?.conflict?.cloud.state,state("phone edit"));a.stop();b.stop();
 });
 test("conflict can explicitly adopt cloud",async()=>{
- const a=device(server),b=device(server),id=uuid();await a.sync.enqueue(id,state(),EMPTY_SUMMARY());await a.sync.run();await b.sync.run();await a.sync.enqueue(id,state("cloud"),EMPTY_SUMMARY());await a.sync.run();await b.sync.enqueue(id,state("local"),EMPTY_SUMMARY());await b.sync.run();await b.sync.resolve(id,"cloud");assert.deepEqual((await b.store.getCase(id))?.state,state("cloud"));assert.equal((await b.store.outbox()).length,0);a.stop();b.stop();
+ const a=device(server),b=device(server),id=uuid();await a.sync.enqueue(id,state(),EMPTY_SUMMARY());await a.sync.run();await b.sync.run();b.sync.disconnect();await a.sync.enqueue(id,state("cloud"),EMPTY_SUMMARY());await a.sync.run();await b.sync.enqueue(id,state("local"),EMPTY_SUMMARY());b.sync.connect(b.api);await b.sync.run();assert.equal((await b.store.getCase(id))?.status,"conflict");await b.sync.resolve(id,"cloud");assert.deepEqual((await b.store.getCase(id))?.state,state("cloud"));assert.equal((await b.store.outbox()).length,0);a.stop();b.stop();
 });
 test("conflict can preserve local as a different stable case",async()=>{
- const a=device(server),b=device(server),id=uuid();await a.sync.enqueue(id,state(),EMPTY_SUMMARY());await a.sync.run();await b.sync.run();await a.sync.enqueue(id,state("cloud"),EMPTY_SUMMARY());await a.sync.run();await b.sync.enqueue(id,state("local"),EMPTY_SUMMARY());await b.sync.run();await b.sync.resolve(id,"preserve-local");const cases=await b.store.cases();assert.ok(cases.some(c=>c.id!==id&&(c.state.draft as Record<string,unknown>)?.patientName==="local"));assert.deepEqual((await b.store.getCase(id))?.state,state("cloud"));a.stop();b.stop();
+ const a=device(server),b=device(server),id=uuid();await a.sync.enqueue(id,state(),EMPTY_SUMMARY());await a.sync.run();await b.sync.run();b.sync.disconnect();await a.sync.enqueue(id,state("cloud"),EMPTY_SUMMARY());await a.sync.run();await b.sync.enqueue(id,state("local"),EMPTY_SUMMARY());b.sync.connect(b.api);await b.sync.run();assert.equal((await b.store.getCase(id))?.status,"conflict");await b.sync.resolve(id,"preserve-local");const cases=await b.store.cases();assert.ok(cases.some(c=>c.id!==id&&(c.state.draft as Record<string,unknown>)?.patientName==="local"));assert.deepEqual((await b.store.getCase(id))?.state,state("cloud"));a.stop();b.stop();
 });
 test("a conflict copy remaps thumbnails, concepts and preferred version references and syncs successfully",async()=>{
  const a=device(server),b=device(server),id=uuid(),version=uuid();
  const enc=await encodePatientState(a.scope,a.store,id,{entries:[{id:version,caseId:id,patientName:"AB",createdAt:1,mode:"live",summary:"",thumb:image}],media:[{id:version,image,originalImage:image}],draft:{caseId:id,photo:{dataUrl:image,width:10,height:10,name:"x"},settings:defaultSettings,result:{variationId:version,image,mode:"live"},screen:"preview"},preferredDesignId:version});
  await a.sync.enqueue(id,enc.state,enc.summary,enc.assets);await a.sync.run();await b.sync.run();
  for(const asset of (await b.store.assets()).filter(a=>a.meta.caseId===id))await b.sync.loadAsset(id,asset.id);
- await a.sync.enqueue(id,{...enc.state,preferredDesignId:null},enc.summary);await a.sync.run();
- await b.sync.enqueue(id,{...enc.state,draft:{...enc.state.draft as object,patientName:"Preserve local"}},enc.summary);await b.sync.run();
+ b.sync.disconnect();await a.sync.enqueue(id,{...enc.state,preferredDesignId:null},enc.summary);await a.sync.run();
+ await b.sync.enqueue(id,{...enc.state,draft:{...enc.state.draft as object,patientName:"Preserve local"}},enc.summary);b.sync.connect(b.api);await b.sync.run();assert.equal((await b.store.getCase(id))?.status,"conflict");
  await b.sync.resolve(id,"preserve-local");await b.sync.run();
  const copy=(await b.store.cases()).find(c=>c.id!==id&&(c.state.draft as Record<string,unknown>)?.patientName==="Preserve local")!;assert.equal(copy.status,"synced");
  assert.notEqual(copy.state.preferredDesignId,version);assert.equal((copy.state.draft as {result:{variationId:string}}).result.variationId,copy.state.preferredDesignId);

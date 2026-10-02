@@ -41,6 +41,11 @@ export function createPatientLocalStore(scope:WorkspaceLease,factory:IDBFactory=
   },
   async putAsset(asset:LocalAsset){await transaction<void>(["assets"],"readwrite",tx=>{tx.objectStore("assets").put(asset);});},
   async retry(op:OutboxOperation,error:string,blocked=false){await transaction<void>(["outbox"],"readwrite",tx=>{tx.objectStore("outbox").put({...op,status:blocked?"blocked":"pending",attempts:op.attempts+1,error,updatedAt:Date.now(),nextAttemptAt:Date.now()+Math.min(60000,1000*2**Math.min(op.attempts,6))});});},
+  async retryCase(caseId:string){await transaction<void>(["cases","outbox"],"readwrite",tx=>{
+   const c=tx.objectStore("cases").get(caseId);c.onsuccess=()=>{if(c.result?.status==="conflict"||c.result?.deletedAt)return;
+    const r=tx.objectStore("outbox").getAll();r.onsuccess=()=>{for(const op of r.result as OutboxOperation[])if(op.caseId===caseId){const {error:_error,...rest}=op;void _error;tx.objectStore("outbox").put({...rest,status:"pending",nextAttemptAt:0});}};
+   };
+  });},
   async acknowledge(op:OutboxOperation,cloud?:PatientCase,asset?:PatientAsset){
    await transaction<void>(["cases","assets","outbox"],"readwrite",tx=>{
     tx.objectStore("outbox").delete(op.id);

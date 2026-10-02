@@ -1597,7 +1597,7 @@ export default function Smile() {
           This device could not save all case data. Keep this preview open and save any images you need before closing the app.
         </p>
       )}
-      {logOpen && <CaseLog initialEntryId={logEntry} onReopen={async id=>{const draft=await repository.reopenCase(id);repository.scope.assert();caseSession.current++;request.current?.abort();restoreWorkingCase(draft);setLogOpen(false);setLogEntry(undefined);}} onClose={() => { setLogOpen(false); setLogEntry(undefined); }} />}
+      {logOpen && <CaseLog onSignIn={() => { setLogOpen(false); account.openAuth("signIn"); }} initialEntryId={logEntry} onReopen={async id=>{const draft=await repository.reopenCase(id);repository.scope.assert();caseSession.current++;request.current?.abort();restoreWorkingCase(draft);setLogOpen(false);setLogEntry(undefined);}} onClose={() => { setLogOpen(false); setLogEntry(undefined); }} />}
       {libraryOpen && (
         <CaseLibrary
           onClose={() => { setLibraryOpen(false); void caseLibrary.refresh(); }}

@@ -1,5 +1,7 @@
 "use client";
 import { PatientSyncStatus } from "./PatientSyncStatus";
+import { CaseMediaStatus } from "./CaseMediaStatus";
+import { useCaseMedia } from "./useCaseMedia";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Archive, Check, ChevronLeft, ChevronRight, Pencil, ScanEye, Search, Share2, Star, Trash2, X } from "lucide-react";
 import { AnalysisSymbol, IconTile, SmileSymbol } from "@/components/icons/SmileIcons";
@@ -51,15 +53,19 @@ const coverThumbs = (group: CaseGroup) =>
 const timeOf = (ms: number) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 const versionTitle = (entry: CaseLogEntry, index: number, total: number) => entry.label || `Version ${total - index}`;
 
-export function CaseLog({ onClose, initialEntryId, onReopen }: { onClose: () => void; initialEntryId?: string; onReopen?: (caseId:string)=>Promise<void> }) {
+export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClose: () => void; initialEntryId?: string; onReopen?: (caseId:string)=>Promise<void>; onSignIn?: () => void }) {
   const [repository] = useState(getCaseRepository);
-  const { listActiveLog, moveAllToRecentlyDeleted, moveToRecentlyDeleted, purgeRecentlyDeleted, readLogMedia, renameCase, setCaseArchived, setFavourite } = repository;
+  const { listActiveLog, moveAllToRecentlyDeleted, moveToRecentlyDeleted, purgeRecentlyDeleted, renameCase, setCaseArchived, setFavourite } = repository;
   const [entries, setEntries] = useState<CaseLogEntry[] | null>(null);
   const [query, setQuery] = useState("");
   const [openCase, setOpenCase] = useState<string | null>(null);
   const [onlyFavourites, setOnlyFavourites] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
-  const [open, setOpen] = useState<{ entry: CaseLogEntry; media: CaseLogMedia | null } | null>(null);
+  const [detail, setOpen] = useState<{ entry: CaseLogEntry; media: CaseLogMedia | null } | null>(null);
+  const { media, status: mediaStatus, retry: retryMedia } = useCaseMedia(repository, detail?.entry.id);
+  const open = detail ? { ...detail, media } : null;
+  const [syncIndicators, setSyncIndicators] = useState<Record<string, string>>({});
+  const [reopening, setReopening] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmCase, setConfirmCase] = useState(false);
   const [error, setError] = useState("");
@@ -67,7 +73,6 @@ export function CaseLog({ onClose, initialEntryId, onReopen }: { onClose: () => 
   const [viewing, setViewing] = useState<false | "compare" | "analysis">(false);
   // Share with patient from this saved version; `kind` reopens an earlier export.
   const [sharing, setSharing] = useState<null | { kind?: ExportKind; draft?: ReportDraft }>(null);
-  const [mediaError, setMediaError] = useState(false);
   const [notice, setNotice] = useState("");
   const [openedInitial, setOpenedInitial] = useState(false);
 
@@ -82,6 +87,13 @@ export function CaseLog({ onClose, initialEntryId, onReopen }: { onClose: () => 
       });
   }, []);
   useEffect(() => { refresh(); return repository.subscribe(refresh); }, [refresh, repository]);
+  useEffect(() => {
+    let live = true;
+    const load = () => { void repository.caseSyncIndicators().then(next => { if (live) setSyncIndicators(next); }).catch(() => {}); };
+    load(); const off = repository.subscribe(load);
+    window.addEventListener("online", load); window.addEventListener("offline", load);
+    return () => { live = false; off(); window.removeEventListener("online", load); window.removeEventListener("offline", load); };
+  }, [repository]);
 
   const all = useMemo(() => groupCases(entries ?? []), [entries]);
   const shown = all.filter(group => !query.trim() || group.versions.some(v => matchesQuery(v, query)));
@@ -95,12 +107,15 @@ export function CaseLog({ onClose, initialEntryId, onReopen }: { onClose: () => 
   useEffect(() => { setOnlyFavourites(false); setRenaming(null); setConfirmCase(false); }, [openCase]);
 
   async function openEntry(entry: CaseLogEntry) {
-    if(entry.draftOnly){if(onReopen)await onReopen(caseIdOf(entry)).catch(()=>setError("This draft needs its photos downloaded while connected before it can open offline."));return;}
-    setMediaError(false);
+    if(entry.draftOnly){await reopenDesign(caseIdOf(entry));return;}
     setOpen({ entry, media: null });
-    const media = await readLogMedia(entry.id).catch(() => null);
-    setOpen((cur) => (cur && cur.entry.id === entry.id ? { entry, media } : cur));
-    if (!media) setMediaError(true);
+  }
+  async function reopenDesign(id: string) {
+    if (!onReopen || reopening) return;
+    setReopening(true); setError("");
+    try { await onReopen(id); }
+    catch { setError("Couldn't reopen this design. Connect and try again. Older cases may only have a saved comparison, which you can open below."); }
+    finally { setReopening(false); }
   }
 
   // Opened from Home › Recent Cases: go straight to that patient's case.
@@ -201,7 +216,7 @@ export function CaseLog({ onClose, initialEntryId, onReopen }: { onClose: () => 
   return (
     <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-label="Cases" onClick={onClose}>
       <div className="log-panel" onClick={(e) => e.stopPropagation()}>
-        <PatientSyncStatus />
+        <PatientSyncStatus showPending={false} />
         {current ? (
           <div className="case-page" key={current.key}>
             <div className="case-page-head">
@@ -243,7 +258,8 @@ export function CaseLog({ onClose, initialEntryId, onReopen }: { onClose: () => 
             <p className="control-hint case-hint">Use initials or a practice reference, not the patient’s full name.</p>
 
             {errorBanner}
-            {onReopen&&<button type="button" className="text-button" onClick={()=>void onReopen(current.key).catch(()=>setError("This case needs a saved editable draft and downloaded photos to reopen. Its saved comparisons and exports remain available."))}>Reopen design</button>}
+            {onReopen&&<button type="button" className="text-button" disabled={reopening} onClick={()=>void reopenDesign(current.key)}>{reopening ? "Opening design…" : "Reopen design"}</button>}
+            {syncIndicators[current.key] && <p className="control-hint" role="status">{syncIndicators[current.key]}</p>}
 
             {current.favourites > 0 && (
               <div className="settings-segment case-filter" role="tablist" aria-label="Show versions">
@@ -334,8 +350,9 @@ export function CaseLog({ onClose, initialEntryId, onReopen }: { onClose: () => 
                   <li key={group.key}>
                     <button className="log-row case-row" onClick={() => setOpenCase(group.key)}>
                       <span className={`case-cover count-${Math.min(3, group.versions.length)}`} aria-hidden="true">
-                        {coverThumbs(group).map(v => <img key={v.id} src={v.thumb} alt="" draggable={false} />)}
+                        {coverThumbs(group).map(v => v.thumb ? <img key={v.id} src={v.thumb} alt="" draggable={false} /> : <SmileSymbol key={v.id} size={26} />)}
                       </span>
+                      {syncIndicators[group.key] && <small className="case-sync-indicator">{syncIndicators[group.key]}</small>}
                       <span className="log-row-text">
                         <strong>{caseName(group)}</strong>
                         <span className="log-date">{formatLogDate(group.updatedAt)}</span>
@@ -415,6 +432,7 @@ export function CaseLog({ onClose, initialEntryId, onReopen }: { onClose: () => 
               </span>
             </div>
             {errorBanner}
+            <CaseMediaStatus status={mediaStatus} onRetry={retryMedia} onSignIn={onSignIn} />
             {open.media ? (
               <div className="log-pair">
                 <figure>
@@ -427,7 +445,7 @@ export function CaseLog({ onClose, initialEntryId, onReopen }: { onClose: () => 
                 </figure>
               </div>
             ) : (
-              <p className="log-empty">{mediaError ? "The saved images are unavailable on this device." : "Loading images…"}</p>
+              <p className="control-hint">{mediaStatus?.state === "MISSING" ? "If these images are still on another device, keep that copy. This saved version needs both images for comparison and export." : "Comparison, analysis and exports will be available when the images are downloaded."}</p>
             )}
             <p className="share-concept-note">{AI_CONCEPT_DISCLAIMER}</p>
             <div className="log-detail-actions">
@@ -454,11 +472,12 @@ export function CaseLog({ onClose, initialEntryId, onReopen }: { onClose: () => 
             {open.entry.exports && open.entry.exports.length > 0 && (
               <section className="log-exports" aria-label="Shared with patient">
                 <h3>Shared with patient</h3>
+                <p className="control-hint">Recreate an export from this saved version and its report settings.</p>
                 <ul>
                   {open.entry.exports.map(record => (
                     <li key={record.createdAt}>
                       <span><strong>{EXPORT_NAMES[record.kind]}</strong><small>{formatLogDate(record.createdAt)}</small></span>
-                      <button type="button" className="text-button" disabled={!open.media} onClick={() => setSharing({ kind: record.kind, draft: record.draft })}>Open</button>
+                      <button type="button" className="text-button" disabled={!open.media} onClick={() => setSharing({ kind: record.kind, draft: record.draft })}>Recreate</button>
                     </li>
                   ))}
                 </ul>

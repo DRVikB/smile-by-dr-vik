@@ -1,6 +1,8 @@
 import "fake-indexeddb/auto";
 import { before,after,test } from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import sharp from "sharp";
 import { IDBFactory } from "fake-indexeddb";
 import { backend,lease,A } from "./fixtures/patient-sync";
 import { createCaseRepository,type CaseRepository } from "../src/services/cases/caseRepository";
@@ -11,16 +13,104 @@ import { importLegacyCases,listLegacyCases } from "../src/services/cases/legacyI
 import { defaultSettings,type CaseLogEntry,type CaseLogMedia,type SmileCase } from "../src/lib/types";
 import { makeAnalysisSnapshot } from "../src/services/cases/sync/analysisSnapshot";
 import { photoFingerprint } from "../src/lib/toothMap/types";
+import { PatientSyncError } from "../src/services/cases/sync/types";
 let server:Awaited<ReturnType<typeof backend>>;const repositories:CaseRepository[]=[];
 before(async()=>{server=await backend();});after(async()=>{repositories.forEach(r=>r.disconnect());await server.db.close();});
-const png="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+const png="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAE0lEQVQYlWM4u2Xaf3yYYWQoAADN88WBHfFyHQAAAABJRU5ErkJggg==";
 const uuid=()=>crypto.randomUUID();
+test("a recovered full-size demo photograph decodes after second-device download and restart", async()=>{
+ const bytes=await readFile("public/sample-smile.jpg");
+ const dataUrl=`data:image/jpeg;base64,${bytes.toString("base64")}`;
+ const expected=await sharp(bytes).raw().toBuffer({resolveWithObject:true});
+ const a=repo(),f=fixture();
+ f.media.image=dataUrl;f.media.originalImage=dataUrl;
+ await a.recordVisualisation(f.entry,f.media);await a.refreshSync();a.disconnect();
+ const factory=new IDBFactory(),b=repo(factory);await b.refreshSync();
+ assert.equal((await b.mediaStatus(f.version)).available,false);
+ const recovered=await b.readPresentationMedia(f.version);b.disconnect();
+ const c=repo(factory);c.disconnect(); // offline restart uses the durable binary cache
+ for(const media of [recovered,await c.readPresentationMedia(f.version)]) {
+  assert.ok(media);
+  for(const image of [media.image,media.originalImage]) {
+   const decoded=await sharp(Buffer.from(image.split(",")[1],"base64")).raw().toBuffer({resolveWithObject:true});
+   assert.deepEqual(decoded.info,expected.info);
+   assert.deepEqual(decoded.data,expected.data);
+  }
+ }
+ assert.equal((await c.mediaStatus(f.version)).available,true);
+});
 function repo(factory=new IDBFactory()){globalThis.indexedDB=factory;const scope=lease();const r=createCaseRepository(scope);repositories.push(r);r.connect(createPatientApi(scope,async()=>A,server.request));return r;}
 function fixture(id=uuid()){
  const version=uuid();const entry:CaseLogEntry={id:version,caseId:id,patientName:"AB",createdAt:Date.now(),mode:"live",summary:"Single-shade",thumb:png};
  const media:CaseLogMedia={id:version,image:png,originalImage:png,preferences:{settings:defaultSettings}};
  const draft:SmileCase={caseId:id,patientName:"AB",photo:{dataUrl:png,name:"x",width:1,height:1},settings:defaultSettings,variants:[],result:{image:png,variationId:version,mode:"live"},screen:"preview"};return {id,version,entry,media,draft};
 }
+test("pending upload never prevents comparison/export locally, including offline",async()=>{
+ const r=repo(),f=fixture();r.disconnect();await r.recordVisualisation(f.entry,f.media);
+ assert.equal((await r.mediaStatus(f.version)).state,"PENDING_UPLOAD");
+ assert.equal((await r.mediaStatus(f.version)).available,true);
+ Object.defineProperty(navigator,"onLine",{value:false,configurable:true});
+ try {assert.equal((await r.mediaStatus(f.version)).state,"OFFLINE");assert.deepEqual(await r.readPresentationMedia(f.version),f.media);}
+ finally {Object.defineProperty(navigator,"onLine",{value:true,configurable:true});}
+ r.connect(createPatientApi(r.scope,async()=>A,server.request));await r.refreshSync();
+ assert.equal((await r.mediaStatus(f.version)).state,"SYNCED");r.disconnect();
+});
+test("cloud-only version downloads on demand, reports progress and reopens without duplicate cases",async()=>{
+ const a=repo(),f=fixture();await a.recordVisualisation(f.entry,f.media);await a.refreshSync();a.disconnect();
+ const b=repo();await b.refreshSync();assert.equal((await b.mediaStatus(f.version)).state,"CLOUD_ONLY");
+ const api=createPatientApi(b.scope,async()=>A,server.request);
+ let release!:()=>void,started!:()=>void;const gate=new Promise<void>(r=>release=r),begin=new Promise<void>(r=>started=r);
+ b.connect({...api,download:async(c,id)=>{started();await gate;return api.download(c,id);}});
+ const first=b.readPresentationMedia(f.version),second=b.readPresentationMedia(f.version);await begin;
+ const during=await b.mediaStatus(f.version);assert.equal(during.state,"DOWNLOADING");assert.equal(during.available,false);assert.equal(during.total,2);
+ release();assert.deepEqual(await first,f.media);assert.deepEqual(await second,f.media);
+ assert.equal((await b.mediaStatus(f.version)).state,"SYNCED");
+ assert.equal((await b.listLog()).filter(e=>e.caseId===f.id).length,1);b.disconnect();
+});
+test("download failure exposes retry and recovers on the next sync cycle",async()=>{
+ const a=repo(),f=fixture();await a.recordVisualisation(f.entry,f.media);await a.refreshSync();a.disconnect();
+ const b=repo();await b.refreshSync();const api=createPatientApi(b.scope,async()=>A,server.request);
+ b.connect({...api,download:async()=>{throw new PatientSyncError(503,"media_unavailable");}});
+ await assert.rejects(b.readPresentationMedia(f.version));const failed=await b.mediaStatus(f.version);
+ assert.equal(failed.state,"SYNC_FAILED");assert.equal(failed.retry,true);assert.equal(failed.available,false);
+ b.connect(api);await b.refreshSync();assert.deepEqual(await b.readPresentationMedia(f.version),f.media);
+ assert.equal((await b.mediaStatus(f.version)).available,true);b.disconnect();
+});
+test("genuinely missing cloud image differs from a temporary download failure",async()=>{
+ const a=repo(),f=fixture();await a.recordVisualisation(f.entry,f.media);await a.refreshSync();a.disconnect();
+ const asset=(await a.cache.assets()).find(x=>x.meta.caseId===f.id&&x.meta.kind==="GENERATED_CONCEPT")!;server.media.delete(asset.meta.objectPath);
+ const b=repo();await b.refreshSync();await assert.rejects(b.readPresentationMedia(f.version),(e:unknown)=>e instanceof PatientSyncError&&e.status===404);
+ const missing=await b.mediaStatus(f.version);assert.equal(missing.state,"MISSING");assert.equal(missing.retry,false);assert.equal(missing.available,false);b.disconnect();
+});
+test("comparison does not download optional editable masks or discard draft metadata",async()=>{
+ const a=repo(),f=fixture();f.draft.photo.editMask=png;
+ await a.persistCase(f.draft);await a.recordVisualisation(f.entry,f.media);await a.refreshSync();a.disconnect();
+ const raw=(await a.cache.assets()).find(x=>x.meta.caseId===f.id&&x.meta.kind==="EDIT_MASK")!;server.media.delete(raw.meta.objectPath);
+ const b=repo();await b.refreshSync();const presentation=await b.readPresentationMedia(f.version);
+ assert.equal(presentation?.image,png);assert.equal(presentation?.originalImage,png);
+ assert.equal((await b.mediaStatus(f.version)).available,true);
+ assert.ok(JSON.stringify((await b.cache.getCase(f.id))?.state.draft).includes(raw.id));b.disconnect();
+});
+test("failed upload remains usable and manual retry preserves immutable case/asset IDs",async()=>{
+ const r=repo(),f=fixture(),api=createPatientApi(r.scope,async()=>A,server.request);
+ r.connect({...api,upload:async()=>{throw new PatientSyncError(503,"upload_unavailable");}});
+ await r.recordVisualisation(f.entry,f.media);await r.refreshSync();const failed=await r.mediaStatus(f.version);
+ assert.equal(failed.state,"SYNC_FAILED");assert.equal(failed.available,true);assert.equal(failed.retry,true);assert.deepEqual(await r.readPresentationMedia(f.version),f.media);
+ const ids=(await r.cache.assets()).filter(a=>a.meta.caseId===f.id).map(a=>a.id).sort();
+ r.connect(api);await r.retryMedia(f.version);assert.equal((await r.mediaStatus(f.version)).state,"SYNCED");
+ assert.deepEqual((await r.cache.assets()).filter(a=>a.meta.caseId===f.id).map(a=>a.id).sort(),ids);r.disconnect();
+});
+test("force-close during upload keeps durable work and resumes once without duplicates",async()=>{
+ const factory=new IDBFactory(),a=repo(factory),f=fixture(),api=createPatientApi(a.scope,async()=>A,server.request);
+ let release!:()=>void,started!:()=>void;const gate=new Promise<void>(r=>release=r),begin=new Promise<void>(r=>started=r);
+ a.connect({...api,upload:async()=>{started();await gate;throw new PatientSyncError(503,"interrupted");}});
+ await a.recordVisualisation(f.entry,f.media);const syncing=a.refreshSync();await begin;
+ assert.equal((await a.mediaStatus(f.version)).state,"UPLOADING");
+ (a.scope as ReturnType<typeof lease>).abort();a.disconnect();release();await syncing;
+ const b=repo(factory);await b.resume();assert.equal((await b.mediaStatus(f.version)).state,"SYNCED");
+ assert.deepEqual(await b.readPresentationMedia(f.version),f.media);
+ assert.equal((await b.listLog()).filter(e=>e.caseId===f.id).length,1);b.disconnect();
+});
 test("repository records locally, queues privately and restores saved comparison/export media on a second origin",async()=>{
  const a=repo(),f=fixture();await a.persistCase(f.draft);await a.recordVisualisation(f.entry,f.media);assert.equal((await a.listCases())[0].id,f.id);assert.ok((await a.cache.outbox()).length);await a.refreshSync();const b=repo();await b.refreshSync();const entries=await b.listActiveLog();assert.ok(entries.some(e=>e.id===f.version));assert.deepEqual(await b.readLogMedia(f.version),f.media);assert.deepEqual(await b.reopenCase(f.id),f.draft);a.disconnect();b.disconnect();
 });
@@ -62,4 +152,14 @@ test("explicit legacy migration is resumable, excludes demo content and verifies
  globalThis.indexedDB=new IDBFactory();activateWorkspace({kind:"unowned"});const legacy=createCaseLogStore(legacyWorkspace()),f=fixture(),demo=fixture();await legacy.addLogEntry(f.entry,f.media);await legacy.addLogEntry({...demo.entry,testMode:true,mode:"mock"},demo.media);
  const scope=activateWorkspace({kind:"account",userId:A});const choices=await listLegacyCases(scope);const chosen=choices.find(c=>c.caseId===f.id)!;assert.ok(choices.find(c=>c.caseId===demo.id)?.sample);await importLegacyCases([chosen.key],scope);await importLegacyCases([chosen.key],scope);
  const {getCaseRepository}=await import("../src/services/cases/caseRepository");const r=getCaseRepository();repositories.push(r);r.connect(createPatientApi(scope,async()=>A,server.request));await r.refreshSync();const cloud=await r.cache.getCase(f.id);assert.equal(cloud?.status,"synced");assert.equal((await r.listLog()).filter(e=>e.id===f.version).length,1);assert.equal((await r.cache.getCase(demo.id)),undefined);assert.ok((await createCaseLogStore(legacyWorkspace()).readLogMedia(f.version)));r.disconnect();
+});
+
+test("expired session requests sign-in recovery without declaring cloud images missing",async()=>{
+ const a=repo(),f=fixture();await a.recordVisualisation(f.entry,f.media);await a.refreshSync();a.disconnect();
+ const b=repo();await b.refreshSync();const api=createPatientApi(b.scope,async()=>A,server.request);
+ b.connect({...api,download:async()=>{throw new PatientSyncError(401,"auth_required");}});
+ await assert.rejects(b.readPresentationMedia(f.version));
+ const status=await b.mediaStatus(f.version);
+ assert.equal(status.label,"Sign in to download images");assert.equal(status.needsSignIn,true);assert.equal(status.available,false);assert.equal(status.retry,false);
+ b.connect(api);await b.refreshSync();assert.deepEqual(await b.readPresentationMedia(f.version),f.media);b.disconnect();
 });

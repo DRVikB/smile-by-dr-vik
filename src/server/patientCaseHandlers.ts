@@ -102,7 +102,7 @@ async function handleAsset(request:Request,s:PatientServices,owner:string,id:str
  const a=await s.patients.asset(owner,id,assetId);if(!a||a.objectPath!==assetPath(owner,id,a.id,a.kind)||a.uploadStatus==="deleted")return fail(404,"not_found");
  if(request.method==="GET") {
   if(a.uploadStatus!=="confirmed")return fail(409,"asset_pending");
-  const bytes=await s.accounts.media.download(PATIENT_BUCKET,a.objectPath);if(!bytes)return fail(503,"media_unavailable");
+  const bytes=await s.accounts.media.download(PATIENT_BUCKET,a.objectPath);if(!bytes)return fail(404,"media_missing");
   return new Response(bytes as Uint8Array<ArrayBuffer>,{headers:{...headers,"Content-Type":a.mimeType,"Content-Length":String(bytes.byteLength),"X-Content-Type-Options":"nosniff"}});
  }
  if(request.method!=="PUT")return new Response(null,{status:405,headers:{...headers,Allow:"GET, PUT"}});

@@ -41,6 +41,8 @@ export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unkn
   const [pages, setPages] = useState<RecentCase[][]>([]);
   const [page, setPage] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
+  const caseOrder = useRef("");
+  const [syncIndicators, setSyncIndicators] = useState<Record<string, string>>({});
   function goToPage(index: number) {
     const target = scroller.current?.children.item(index) as HTMLElement | null;
     if (target) scroller.current?.scrollTo({ left: target.offsetLeft, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
@@ -51,12 +53,19 @@ export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unkn
     const load = () => { void repository.listActiveLog()
       .then(list => {
         if (live) {
-          setPages(recentCasePages(list));
-          setPage(0);
-          scroller.current?.scrollTo({ left: 0, behavior: "instant" });
+          const next = recentCasePages(list);
+          const order = next.flat().map(e => e.id).join(",");
+          setPages(next);
+          if (caseOrder.current !== order) {
+            caseOrder.current = order;
+            setPage(0);
+            scroller.current?.scrollTo({ left: 0, behavior: "instant" });
+          }
         }
       })
-      .catch(() => { if (live) setPages([]); }); };
+      .catch(() => { if (live) setPages([]); });
+      void repository.caseSyncIndicators().then(next => { if (live) setSyncIndicators(next); }).catch(() => {});
+    };
     load(); const off = repository.subscribe(load);
     return () => { live = false; off(); };
   }, [refreshKey]);
@@ -85,11 +94,12 @@ export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unkn
         {pages.map((entries, i) => <ul className="recent-case-page" key={entries[0].id} aria-label={`Page ${i + 1} of ${pages.length}`}>
           {entries.map(entry => <li key={entry.id}>
             <button type="button" className="recent-case" onClick={() => onOpen(entry.id)} onFocus={() => goToPage(i)}>
-              <img src={entry.thumb} alt="" loading="lazy" decoding="async" />
+              {entry.thumb ? <img src={entry.thumb} alt="" loading="lazy" decoding="async" /> : <span className="recent-case-placeholder" aria-hidden="true" />}
               <span>
                 <strong>{entry.patientName || "Unnamed case"}</strong>
                 <small>{new Date(entry.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}{entry.versions > 1 ? ` · ${entry.versions}` : ""}</small>
                 <small>{entry.testMode || entry.mode === "mock" ? "Demo concept" : "AI concept"}</small>
+                {syncIndicators[entry.caseId ?? entry.id] && <small>{syncIndicators[entry.caseId ?? entry.id]}</small>}
               </span>
             </button>
           </li>)}

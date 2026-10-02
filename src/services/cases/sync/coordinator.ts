@@ -2,8 +2,12 @@ import type { WorkspaceLease } from "@/lib/workspace";
 import type { LocalAsset, LocalPatientCase, OutboxOperation, PatientLocalStore } from "./localStore";
 import { EMPTY_STATE, EMPTY_SUMMARY, PatientSyncError, uuidValid, type PatientApi, type PatientCase, type PatientState, type PatientSummary } from "./types";
 import { checksum, referencedAssets } from "./media";
+import type { MediaTransfers } from "./mediaStatus";
 export function createSyncCoordinator(scope:WorkspaceLease,store:PatientLocalStore,onChange:()=>void,onCloud:(c:LocalPatientCase)=>Promise<void>) {
  let pinnedCaseId:string|undefined;
+ const uploads=new Set<string>(),downloads=new Map<string,Promise<Blob>>();
+ const downloadFailures=new Map<string,{caseId:string;kind:"missing"|"download"|"pending"|"auth"}>();
+ const transfers=():MediaTransfers=>({uploading:[...uploads],downloading:[...downloads.keys()],failures:Object.fromEntries([...downloadFailures].map(([id,f])=>[id,f.kind]))});
  let api:PatientApi|null=null,running:Promise<void>|null=null,rerun=false,serial=Promise.resolve(),retryTimer:ReturnType<typeof setTimeout>|undefined;
  function owner(){scope.assert();if(scope.owner.kind!=="account")throw new Error("Not an account workspace.");return scope.owner.userId;}
  function own(c:{ownerUserId:string}){if(c.ownerUserId!==owner())throw new PatientSyncError(403,"wrong_owner");}
@@ -37,14 +41,22 @@ export function createSyncCoordinator(scope:WorkspaceLease,store:PatientLocalSto
    status:old?.status==="conflict"?"conflict":"pending",createdAt:old?.createdAt??new Date(now).toISOString(),updatedAt:new Date(now).toISOString(),archivedAt:op.mutation.archivedAt??null,deletedAt:deleted?new Date(now).toISOString():null,...(old?.conflict?{conflict:old.conflict}:{})};
   await store.commit(record,assets,newOps);onChange();kick();return record;
  }
- async function loadAsset(caseId:string,id:string):Promise<Blob>{
+ async function readAsset(caseId:string,id:string):Promise<Blob>{
   scope.assert();const a=await store.asset(id);if(!a||a.meta.caseId!==caseId)throw new Error("Patient media is not available offline yet.");own(a.meta);
   if(a.blob){await store.putAsset({...a,lastAccess:Date.now()});return a.blob;}
-  if(!api)throw new Error("Patient media is not available offline yet.");
+  if(!api)throw new PatientSyncError(503,"offline");
   const b=await api.download(caseId,id);scope.assert();if(await checksum(b)!==a.meta.checksum)throw new PatientSyncError(503,"media_checksum_mismatch");scope.assert();
   // A tombstone that arrived while downloading must not repopulate deleted media.
   const record=await store.getCase(caseId);if(record?.deletedAt)throw new PatientSyncError(410,"deleted");
   await store.putAsset({...a,blob:b,lastAccess:Date.now()});return b;
+ }
+ function loadAsset(caseId:string,id:string):Promise<Blob>{
+  const existing=downloads.get(id);if(existing)return existing;
+  const request=readAsset(caseId,id).then(blob=>{downloadFailures.delete(id);return blob;}).catch(error=>{
+   if(!scope.signal.aborted)downloadFailures.set(id,{caseId,kind:error instanceof PatientSyncError&&error.status===401?"auth":error instanceof PatientSyncError&&[404,410].includes(error.status)?"missing":error instanceof PatientSyncError&&error.code==="asset_pending"?"pending":"download"});
+   throw error;
+  }).finally(()=>{downloads.delete(id);if(!scope.signal.aborted)onChange();});
+  downloads.set(id,request);if(!scope.signal.aborted)onChange();return request;
  }
  async function refresh(){
   if(!api)return;let cursor:string|undefined;
@@ -77,7 +89,9 @@ export function createSyncCoordinator(scope:WorkspaceLease,store:PatientLocalSto
     try{
      if(op.type==="UPLOAD_ASSET"){
       const a=await store.asset(op.assetId!);if(!a?.blob)throw new Error("Pending photo bytes missing; keep the local case.");own(a.meta);
-      const accepted=await api.upload(a.meta,a.blob);scope.assert();own(accepted);await queue(()=>store.acknowledge(op,undefined,accepted));
+      uploads.add(op.id);onChange();
+      try{const accepted=await api.upload(a.meta,a.blob);scope.assert();own(accepted);await queue(()=>store.acknowledge(op,undefined,accepted));}
+      finally{uploads.delete(op.id);if(!scope.signal.aborted)onChange();}
      }else{
       const cloud=await api.mutate(op.mutation!);scope.assert();own(cloud);await queue(()=>store.acknowledge(op,cloud));
       if(cloud.deletedAt){await store.invalidateMedia(cloud.id);const local=await store.getCase(cloud.id);if(local)await onCloud(local);}
@@ -96,13 +110,16 @@ export function createSyncCoordinator(scope:WorkspaceLease,store:PatientLocalSto
  async function run(){
   if(!api||scope.signal.aborted)return;
   if(running){rerun=true;return running;}
-  running=(async()=>{do{rerun=false;await serial;await flush();await refresh();await store.evict(undefined,pinnedCaseId);}while(rerun&&api&&!scope.signal.aborted);})().catch(()=>{/* Local work remains durable. Account detach is expected. */}).finally(()=>{
+  running=(async()=>{do{rerun=false;await serial;await flush();await refresh();await store.evict(undefined,pinnedCaseId);}while(rerun&&api&&!scope.signal.aborted);
+   // Retry only media previously requested by a viewer, never the entire library.
+   if(api&&!(typeof navigator!=="undefined"&&navigator.onLine===false))for(const [id,f] of [...downloadFailures])if(f.kind!=="missing")await loadAsset(f.caseId,id).catch(()=>{});
+  })().catch(()=>{/* Local work remains durable. Account detach is expected. */}).finally(()=>{
    running=null;if(!scope.signal.aborted&&api){void store.outbox().then(ops=>{const blocked=new Set(ops.filter(o=>o.status==="blocked").map(o=>o.caseId));const pending=ops.filter(o=>o.status==="pending"&&!blocked.has(o.caseId));if(pending.length){clearTimeout(retryTimer);retryTimer=setTimeout(()=>{void run();},Math.max(1000,Math.min(60000,...pending.map(o=>o.nextAttemptAt-Date.now()))));}}).catch(()=>{});}
   });return running;
  }
  function kick(){if(api&&!scope.signal.aborted){if(running)rerun=true;clearTimeout(retryTimer);retryTimer=setTimeout(()=>{void run();},250);}}
  scope.signal.addEventListener("abort",()=>{api=null;clearTimeout(retryTimer);},{once:true});
- return {store,scope,pinCase(id:string|undefined){pinnedCaseId=id;},enqueue:(...args:Parameters<typeof stage>)=>queue(()=>stage(...args)),loadAsset,run,kick,
+ return {store,scope,transfers,async retry(caseId:string){await store.retryCase(caseId);for(const [id,f]of downloadFailures)if(f.caseId===caseId)downloadFailures.delete(id);onChange();await run();},pinCase(id:string|undefined){pinnedCaseId=id;},enqueue:(...args:Parameters<typeof stage>)=>queue(()=>stage(...args)),loadAsset,run,kick,
   connect(client:PatientApi){scope.assert();api=client;kick();},disconnect(){api=null;clearTimeout(retryTimer);},
   async conflicts(){return (await store.cases()).filter(c=>c.status==="conflict");},
   async resolve(id:string,choice:"cloud"|"preserve-local",prepare?:(selected:PatientCase|LocalPatientCase)=>Promise<void>){

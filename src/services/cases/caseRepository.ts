@@ -6,7 +6,8 @@ import { buildCase, caseIdOf, summariseCases } from "@/models/case";
 import { restoreAnalysisSnapshot } from "./sync/analysisSnapshot";
 import { createPatientLocalStore } from "./sync/localStore";
 import { createSyncCoordinator } from "./sync/coordinator";
-import { encodePatientState, hydrate } from "./sync/media";
+import { encodePatientState, hydrate, referencedAssets } from "./sync/media";
+import { caseMediaStatus } from "./sync/mediaStatus";
 import { uuidValid, type Json, type PatientApi } from "./sync/types";
 
 /** UI -> this session-bound repository -> immediate local working copy + durable cloud outbox. */
@@ -29,11 +30,15 @@ export function createCaseRepository(scope: WorkspaceLease) {
   if(c.deletedAt){const d=await drafts.readCase();if(d?.caseId===c.id){await drafts.persistCase(null);workingChange(null);}}
  });
  const isAccount=scope.owner.kind==="account"&&uuidValid(scope.owner.userId);
+ async function storedVersion(id:string){
+  const entry=(await log.listAllLog()).find(e=>e.id===id);
+  const record=entry?await local.getCase(caseIdOf(entry)):undefined;
+  const value=record?.state.media.find(m=>!!m&&typeof m==="object"&&!Array.isArray(m)&&m.id===id);
+  return {record, value:value as Record<string,Json>|undefined};
+ }
  async function mediaFor(id:string):Promise<CaseLogMedia|null>{
   const saved=await log.readLogMedia(id);if(saved)return saved;
-  const entry=(await log.listAllLog()).find(e=>e.id===id);
-  const c=entry?await local.getCase(caseIdOf(entry)):null;
-  const m=c?.state.media.find(m=>!!m&&typeof m==="object"&&!Array.isArray(m)&&m.id===id);
+  const {record:c,value:m}=await storedVersion(id);
   if(m&&c){const media=await hydrate<CaseLogMedia>(m,aid=>sync.loadAsset(c.id,aid),scope);await restoreAnalysisSnapshot(media.originalImage,media.analysisSnapshot??media.photoMetadata?.analysisSnapshot);scope.assert();return media;}
   return log.readLogMedia(id);
  }
@@ -70,6 +75,21 @@ export function createCaseRepository(scope: WorkspaceLease) {
  const methods={
   ...log,
   readLogMedia:mediaFor,
+  readPresentationMedia:mediaFor,
+  async mediaStatus(id:string){
+   const [{record,value},saved,assets,operations]=await Promise.all([storedVersion(id),log.readLogMedia(id),local.assets(),local.outbox()]);
+   return caseMediaStatus({record,assets,operations,required:value?[...referencedAssets(value)]:[],localAvailable:!!saved,online:typeof navigator==="undefined"||navigator.onLine!==false,transfers:sync.transfers()});
+  },
+  async retryMedia(id:string){const {record}=await storedVersion(id);if(record)await sync.retry(record.id);return mediaFor(id);},
+  async caseSyncIndicators(){
+   const [cases,operations]=await Promise.all([local.cases(),local.outbox()]);
+   const active=sync.transfers().uploading;
+   return Object.fromEntries(cases.filter(c=>!c.deletedAt).map(c=>{
+    const ops=operations.filter(o=>o.caseId===c.id);
+    const label=c.status==="conflict"?"Needs review":ops.some(o=>o.error)?"Sync failed":ops.length?(typeof navigator!=="undefined"&&navigator.onLine===false?"Offline · saved locally":ops.some(o=>active.includes(o.id))?"Uploading…":"Waiting to sync"):"";
+    return [c.id,label];
+   }));
+  },
   async listCases(){return summariseCases(await log.listLog());},
   async getCase(id:string){const entries=(await log.listLog()).filter(e=>caseIdOf(e)===id&&!e.draftOnly),media=new Map<string,CaseLogMedia>();for(const e of entries){const m=await mediaFor(e.id);if(m)media.set(e.id,m);}return buildCase(id,entries,media);},
   async recordVisualisation(entry:CaseLogEntry,media:CaseLogMedia){if(!entry.testMode&&entry.mode!=="mock")return write(async()=>{await log.addLogEntry(entry,media);await snapshot(caseIdOf(entry));change();});},
