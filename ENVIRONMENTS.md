@@ -2,12 +2,14 @@
 
 SmileCompose has three environments. Keep each one's backend, database and keys separate.
 
-**2026-10-02 release-candidate status:** local checkpoint `v1.0.0-rc1`
-(`6f48042865e45fbd7ddee8440186696b82509f2f`). Stage 3 remote provisioning,
-deployment and live tests are deferred at the owner's request. The staging
-Worker exists but still returns 404 for `/api/patient-cases`. The local public
-Supabase URL is configured, but its identity as a dedicated staging project is
-not confirmed. Do not deploy or migrate until that is confirmed. See
+**2026-10-02 release-candidate status:** original local checkpoint `v1.0.0-rc1`
+(`6f48042865e45fbd7ddee8440186696b82509f2f`). The owner resumed setup:
+**smilecompose-staging** (`wukcqlpuzkzwxmdkotfg`, London) is verified, eight
+migrations are recorded, and the staging Worker/web release is deployed.
+`/api/patient-cases` no longer returns 404. Safe live account/storage/sync and
+one synthetic Gemini generation passed. Production was not changed.
+RevenueCat currently has Test Store only; App Store setup, signing, legal review
+and physical acceptance still block TestFlight. See
 [the Stage 3 handover](docs/STAGING_TESTFLIGHT_STAGE3_2026-10-02.md).
 
 | | Development | Staging (device testing, TestFlight) | Production |
@@ -56,7 +58,7 @@ Checks that enforce this:
 
 ## Setting up staging for a physical iPhone test
 
-The Worker currently deployed at `smile-by-dr-vik.drvik.workers.dev` predates the account, Case Library and iOS CORS changes (it has no `/api/account/*` or `/api/case-library` routes and rejects the app's CORS preflight). Until a current build is deployed, sign-in and generation cannot work from a device. Nothing has been deployed by the assistant.
+The current release is deployed at `smile-by-dr-vik-staging.drvik.workers.dev` and its account, Case Library, patient sync, native preflight and generation routes have passed safe live checks. Production at `smile-by-dr-vik.drvik.workers.dev` was not deployed or revalidated during this staging pass. Apple purchases/sign-in and physical-device acceptance remain incomplete.
 
 1. **Supabase (staging project)** — create the project; run the migrations in `supabase/migrations/` in order (see PAYMENTS_AUTH_SETUP.md step 2); set Auth → URL Configuration redirect URLs including `uk.co.drvik.smilecompose://auth-callback*`; enable the Apple provider with Client ID `uk.co.drvik.smilecompose`.
 2. **RevenueCat** — project with the App Store app, `pro` entitlement and the monthly/annual products (PAYMENTS_AUTH_SETUP.md). For testing without purchases, grant yourself complimentary access (below).

@@ -39,6 +39,8 @@ before(async () => {
   await db.exec(readFileSync("supabase/migrations/20260928140000_case_library_avatars.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20260929120000_generation_rollover.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261002093305_patient_case_sync.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261002153000_trigger_privilege_hardening.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261002154000_identity_deletion_audit.sql", "utf8"));
   await db.exec(`grant all on all tables in schema public to service_role;`);
 });
 
@@ -46,6 +48,33 @@ const period = (user: string, allowance: number, start = "now() - interval '1 da
   db.query<{ id: string }>(`select ensure_allowance_period($1, '${source}', 'production', 'uk.co.drvik.smilecompose.pro.monthly', ${start}, ${end}, $2) as id`, [user, allowance]);
 const reserve = (user: string, id: string) => db.query<{ remaining: number }>(`select * from reserve_generation($1, $2, 'case-1')`, [user, id]);
 const uuid = () => crypto.randomUUID();
+
+test("append-only and timestamp triggers resolve only trusted catalog names", async () => {
+  const { rows } = await db.query<{ proname: string; proconfig: string[] }>(`
+    select proname, proconfig from pg_proc
+    where pronamespace = 'public'::regnamespace
+      and proname in ('reject_ledger_update','touch_updated_at','reject_update','guard_security_audit_log')
+    order by proname
+  `);
+  assert.equal(rows.length, 4);
+  for (const row of rows) assert.deepEqual(row.proconfig, ["search_path=pg_catalog"]);
+});
+
+test("identity unlink audits retain the owner; account deletion cascades without a dangling audit FK", async () => {
+  const user = uuid();
+  await db.query(`insert into auth.users (id,email) values ($1,'identity-cascade@example.test')`, [user]);
+  const insert = () => db.query(`insert into auth.identities (user_id,provider) values ($1,'email')`, [user]);
+  await insert();
+  await db.query(`delete from auth.identities where user_id=$1`, [user]);
+  assert.equal((await db.query<{count:number}>(`select count(*)::int as count from security_audit_log where user_id=$1 and event_type='sign_in_method_unlinked'`, [user])).rows[0].count, 1);
+  await insert();
+  const before = (await db.query<{count:number}>(`select count(*)::int as count from security_audit_log where user_id is null and event_type='sign_in_method_unlinked'`)).rows[0].count;
+  await db.query(`delete from auth.users where id=$1`, [user]);
+  assert.equal((await db.query(`select 1 from auth.identities where user_id=$1`, [user])).rows.length, 0);
+  assert.equal((await db.query(`select 1 from security_audit_log where user_id=$1`, [user])).rows.length, 0);
+  const after = (await db.query<{count:number}>(`select count(*)::int as count from security_audit_log where user_id is null and event_type='sign_in_method_unlinked'`)).rows[0].count;
+  assert.equal(after, before + 2); // earlier unlink is pseudonymised, and the cascade adds one.
+});
 
 test("new auth users get a profile", async () => {
   const { rows } = await db.query<{ email: string; subscription_tier: string }>(`select email, subscription_tier from profiles where id = $1`, [alice]);

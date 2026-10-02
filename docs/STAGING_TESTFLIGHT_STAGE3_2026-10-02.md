@@ -2,9 +2,9 @@
 
 Date: 2 October 2026. This is an engineering handover, not legal approval or certification of clinical accuracy.
 
-**Completed:** local release checkpoint, regression/build checks, local Worker runtime checks, Capacitor sync, Release simulator compilation and launch, configuration/signing audit, and the testing/upload instructions below.
+**Completed:** local release checkpoint, regression/build checks, staging Supabase migration reconciliation and activation, private storage/live owner-isolation tests, staging Worker/web deployment, one synthetic live Gemini generation, real staging ledger tests, simulated-device sync against the hosted staging API, Capacitor sync, Release simulator compilation/launch, and configuration/signing audit.
 
-**Deferred by the owner:** Supabase login/project confirmation, RevenueCat setup, and dependent staging activation/live validation. No remote deployment, migration, test account creation, patient upload, paid generation or Apple upload was performed. Production was not changed. App functionality and design were not changed in this pass.
+The owner resumed Supabase setup and connected the RevenueCat plugin after the initial preparation-only handover. Only staging was deployed/migrated. Production and Apple distribution were not changed. No real patient photograph was used. No app redesign or new product feature was added; two database fixes address security warnings and an account-deletion failure discovered during live validation.
 
 ## Release checkpoint
 
@@ -19,49 +19,44 @@ Date: 2 October 2026. This is an engineering handover, not legal approval or cer
 | Package version | `1.0.0` |
 | Xcode version/build | `1.0` / `1` (existing convention preserved for both app and widget) |
 
-This handover and the environment documentation are separate preparation changes after the RC tag. The tag is not moved or amended. It is not a claim that the RC has been deployed.
+The original RC tag is not moved or amended. Staging deployment uses that app-code checkpoint; the two database fixes and this updated handover are subsequent release-preparation changes. Neither the tag nor branch was pushed.
 
-## A. Staging database — NOT READY
+## A. Staging database — READY
 
-Supabase CLI access was unavailable (`Access token not provided`). Local configuration uses project ref `wukcqlpuzkzwxmdkotfg`; its project name and separation from production are unconfirmed. No migrations were applied. Do not assume this is staging merely because the app API origin points to the staging Worker.
+Confirmed via logged-in Supabase CLI: **smilecompose-staging**, ref `wukcqlpuzkzwxmdkotfg`, region **eu-west-2 (London)**, ACTIVE_HEALTHY. The owner confirmed this is the staging target.
 
-When ready, the first user step is:
+The first push found existing account tables without migration history. Rather than resetting or replaying them, the first four migrations were compared to the remote schema: 16 tables, 141 columns, 25 function bodies/configurations, 87 constraints, 29 indexes, 19 policies, 12 triggers and 40 expected grants. Equivalent baseline migrations were recorded with `migration repair --status applied`. The rollover and patient-sync migrations then applied successfully. No table was removed.
 
-```sh
-cd "/Users/vik/Documents/New project/smile"
-npx --yes supabase login
-```
+Two additional migrations applied only to staging:
 
-Then confirm the dedicated staging project name/ref. After confirmation, the operator must inspect the linked target and migration history, review `db push --dry-run`, and apply the complete migration chain to that project only. The Stage 1 migration is `supabase/migrations/20261002093305_patient_case_sync.sql`; it needs the earlier account/library infrastructure as well.
+- `20261002153000_trigger_privilege_hardening.sql`: lock four trigger search paths to `pg_catalog`; revoke API-role execution of Supabase's optional administrative RLS event-trigger function without removing it.
+- `20261002154000_identity_deletion_audit.sql`: retain an unlink audit with a null user reference when Auth deletes an identity by account-deletion cascade. Ordinary unlinking retains the existing owner reference. This fixes the live foreign-key failure on account deletion.
 
-Expected schema: `patient_cases`, `patient_case_assets`, `patient_case_mutations`, `patient_case_cleanup_jobs`, owner RLS, revision/idempotency RPCs, and the private `patient-cases` bucket. Local PGlite tests pass; remote migration, grants and policy existence are not verified. Do not use a remote `db reset`.
+All eight local/remote migration versions match. Patient case, asset, mutation and cleanup tables exist with RLS enabled. The owner SELECT policies and registered-upload storage policies are present. No production migration was applied.
 
-Reference: [Supabase database migrations](https://supabase.com/docs/guides/local-development/database-migrations).
+Final security advisors: only **leaked-password protection disabled** remains. Enable it in Supabase Auth password-security settings if the project's plan supports it; no paid plan upgrade was made. The six database function warnings were resolved. Guidance: [Supabase functions](https://supabase.com/docs/guides/database/functions), [password security](https://supabase.com/docs/guides/auth/password-security).
 
-## B. Staging storage — NOT READY
+## B. Staging storage — READY FOR DEVICE TESTING
 
-The code/migration defines private patient media, owned metadata, immutable checksummed assets and retryable cleanup. This was verified locally, not on the hosted bucket. The bucket's actual privacy, policy configuration, storage region, backup retention and deletion behaviour are unverified.
+`patient-cases` is **PRIVATE**, with a 25 MiB limit and JPEG/PNG/WebP/PDF allowlist. All other inspected media buckets are private too.
 
-Live test plan, using a synthetic PNG only:
+A procedural 1×1 PNG passed owner authorisation/upload, SHA-256 verification, immutable retry, owner fetch and temporary signed access/expiry. Foreign-account case/asset access, public URL access, an unregistered object path and checksum mismatch were rejected. No clinical photograph was uploaded to storage.
 
-1. Create A's case, authorise a pending asset through the API, and upload bytes with the declared size/checksum.
-2. Fetch as A; compare checksum. Request a short-lived signed URL as A and verify its expiry.
-3. Fetch case/thumbnail/asset as B and through unauthenticated/public paths; access must be denied.
-4. Attempt B-owned metadata pointing to A's object, a forged owner/case/kind path, and an unknown asset ID; all must fail.
-5. Retry identical upload; it must keep one confirmed immutable asset. A mismatched checksum must fail.
-6. Permanently delete the case; verify the tombstone and object removal. Simulate a cleanup failure in the isolated test environment, then retry; pending cleanup must survive.
+Deletion produced a tombstone, denied app asset access with 410, and removed the storage object and cleanup job. One immediate request to the previously fetched storage URL returned cached bytes; a fresh cache-busted request was denied and `storage.objects` confirmed zero objects. This is a **REVIEW** record, not a promise that previously downloaded bytes can be recalled. Live failed-cleanup/retry injection was not performed; that path remains covered by isolated regression tests.
 
-Private storage and access policy guidance: [Supabase Storage access control](https://supabase.com/docs/guides/storage/security/access-control).
+Both disposable accounts were subsequently deleted through the real account-deletion route, including their RevenueCat records. Final QA users/cases/assets/cleanup counts are checked separately. Supabase backup retention, provider infrastructure retention and physical-device cache behaviour still require owner/privacy review.
 
-## C. Staging backend — NOT READY
+## C. Staging backend — READY
 
-Cloudflare OAuth and access to account **DrVik** work. Target: `smile-by-dr-vik-staging`, URL `https://smile-by-dr-vik-staging.drvik.workers.dev`. The current RC bundles successfully and Wrangler staging dry-run passes, including `REQUEST_GUARD` Durable Object and assets.
+Deployed **smile-by-dr-vik-staging**:
 
-The staging secret *names* already present are `SMILE_GEMINI_API_KEY`, `SMILE_GEMINI_DATA_TERMS`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `REVENUECAT_SECRET_API_KEY`. Values were not printed, and their validity/project mapping was not verified. `REVENUECAT_WEBHOOK_AUTH` and Apple revocation secrets were absent from that list.
+https://smile-by-dr-vik-staging.drvik.workers.dev
 
-Current config is **Gemini**, model `gemini-3.1-flash-image`, not mock. Observability is disabled. Each environment needs its own bindings/secrets; see [Cloudflare environments](https://developers.cloudflare.com/workers/wrangler/configuration/#environments).
+Worker version: `82b5d00a-1c62-42b0-aac9-63ab7c54277c`.
 
-Once the dedicated staging project is confirmed and migrated, build with the matching public configuration and deploy **only**:
+The verified staging Supabase URL/service-role key were securely installed as Worker secrets. No value was printed. Existing Google and RevenueCat server credentials passed live generation/subscriber checks. Gemini model remains `gemini-3.1-flash-image`; observability remains disabled, and the Durable Object request guard is active. There is no hosted mock/free-credit bypass.
+
+`REVENUECAT_WEBHOOK_AUTH` and Apple revocation secrets are still absent; see J. No production Worker was deployed. Repeat staging deployment only with:
 
 ```sh
 cd "/Users/vik/Documents/New project/smile"
@@ -69,82 +64,95 @@ npm run build:cloudflare
 npx wrangler deploy --env staging
 ```
 
-Do not use `npm run deploy:cloudflare` here: it targets production.
+Each environment needs separate bindings/secrets: [Cloudflare environments](https://developers.cloudflare.com/workers/wrangler/configuration/#environments).
 
-## D. Staging web — NOT READY
+## D. Staging web — READY FOR DEVICE TESTING
 
-The web build passes and is bundled with the Worker assets. Web API requests are relative; native requests use `NEXT_PUBLIC_SMILE_API_ORIGIN`. The local native build uses the staging API origin. The staging web shell is not updated to this RC; its account project still requires verification before publishing.
+The production-style web assets were deployed with the staging Worker. Build-time Supabase URL/anon key were verified against the confirmed staging project. Native API origin is `https://smile-by-dr-vik-staging.drvik.workers.dev`; web calls use their own origin. Production was not replaced.
 
-Build-time public configuration must match the verified staging project:
+Required public build variables:
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL=https://wukcqlpuzkzwxmdkotfg.supabase.co`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — configured with the verified public anon key
 - `NEXT_PUBLIC_SMILE_API_ORIGIN=https://smile-by-dr-vik-staging.drvik.workers.dev`
-- `NEXT_PUBLIC_REVENUECAT_IOS_API_KEY` (real App Store public `appl_…` key for native)
+- `NEXT_PUBLIC_REVENUECAT_IOS_API_KEY` — currently Test Store; an App Store `appl_…` key is still needed for native TestFlight
 
-No server secret belongs in a `NEXT_PUBLIC_` variable. Public Supabase keys are designed for client use with RLS; they are not service-role keys. The current bundle still contains a RevenueCat Test Store public key, so it is an engineering build, not a final beta.
+Server secrets are excluded from browser/native bundles. The current native bundle is an engineering build until the RevenueCat and legal release guards are satisfied.
 
 ## E. API smoke results
 
-| Endpoint/check | Existing remote staging (read only) | Current local Worker |
-| --- | --- | --- |
-| `/api/account/status` | 401 `auth_required` | 503 account configuration unavailable; route exists |
-| `/api/case-library` | 401 `auth_required` | 503 unavailable; route exists |
-| `/api/patient-cases` | **404** | 503 unavailable; route exists |
-| Patient-case detail / asset routes | Not exercised remotely | 503 unavailable; routes exist, `no-store` |
-| Native patient API preflight | Not revalidated remotely | 204, exact `capacitor://localhost` origin; required methods/headers |
-| Unrelated-origin preflight | Not exercised remotely | 403 |
-| Mock generation + duplicate requests | No generation invoked | One 200, concurrent/repeated duplicate 409 |
-| Page/PWA/icons/service worker | Not revalidated remotely | Pass; GET/HEAD 200, unknown route 404, generation GET 405 |
+| Hosted staging check | Result |
+| --- | --- |
+| `/api/account/status`, `/api/case-library`, `/api/patient-cases` without auth | 401, `no-store`; routes exist |
+| Authenticated account status | 200; live RevenueCat lookup verified |
+| Patient collection/detail/create/update/delete | PASS against hosted Worker and staging Supabase |
+| Asset authorisation/upload/fetch | PASS, private/checksummed/owner scoped |
+| Native preflight | 204 for exact `capacitor://localhost` origin |
+| Foreign-origin preflight | 403 |
+| Generation without auth / subscription / per-case permission | Rejected before paid generation |
+| Live Gemini + rapid duplicate + reconnect retry | One success, duplicates 409, one credit consumed |
+| Account deletion | Initial FK failure fixed; A and B then returned 200 with `deleted:true`, `revenuecatDeleted:true` |
 
-Local requests intentionally have no Supabase/RevenueCat secrets and fail closed. Browser requests to the web's own origin do not need CORS preflight; only the packaged native origin is allowed cross-origin. `capacitor://localhost` is the on-device bundled WebView origin, **not a localhost API dependency**. Development-only CLI/test URLs remain local by design.
-
-The original remote patient-case 404 is **not resolved yet** because deployment is deferred.
+The previous remote patient-case **404 is resolved**. Browser same-origin requests need no CORS preflight. `capacitor://localhost` is the on-device bundled WebView origin, not a localhost API dependency.
 
 ## F. Account/authentication/isolation
 
-Local tests pass for auth requirements, account namespaces, stale response prevention and owner isolation. Live account creation/email/Apple sign-in, session persistence, logout/switch, Supabase RLS and remote thumbnail/draft/outbox isolation remain **NOT RUN**. Create disposable A/B accounts only after staging identity is confirmed. Never use production accounts for destructive acceptance tests.
+Two disposable, confirmed password accounts were created via the staging admin API without sending email. Password login, session refresh, logout, revoked refresh token, re-login and persistence of the same case all passed. Foreign-account API/table/storage access was denied. Simulated IndexedDB namespaces proved account switch isolation and rejection of an aborted previous-account lease.
 
-## G. Cloud sync
+Both accounts and their RevenueCat customer records were removed after testing. Patient content and QA access overrides were cascaded away; pseudonymous audit/deletion markers remain by the existing policy.
 
-Local regression passes for UUID stability, revisions, idempotency, binary upload/checksum, thumbnail-on-demand, preferred smile, Tooth Map, analysis, restart/offline outbox, conflicts/local-copy preservation, remote tombstones and cleanup retry. These use PGlite, fake IndexedDB and test transports; they are not live Supabase or physical-device proof.
+Email confirmation/reset links and Sign in with Apple were not exercised. Confirm Supabase Auth URL configuration permits the staging web URL and `uk.co.drvik.smilecompose://auth-callback*`; configure the Apple provider/client. Physical Keychain/session and account-switch flows remain owner acceptance tests.
 
-For live validation, create/edit/fetch the same UUID; advance to revision 8; send a revision-7 update and require HTTP 409 without losing local work. Exercise deletion and reconnection from a second session. Every scenario is still pending remotely.
+## G. Cloud sync — READY FOR PHYSICAL DEVICE TESTING
 
-## H. Live generation
+The real client API adapter/coordinator used the hosted staging backend with two separate **simulated IndexedDB devices**, plus a separate account namespace. Passed: stable UUID, upload/fetch, edit propagation, durable offline outbox, coordinator/store restart, reconnect flush, conflict preservation, preserving the losing draft as a new case, account isolation and deletion propagation.
 
-**No paid generation was run; 0 generations spent in this pass.** Current backend activation, real Google credentials/data terms and live allowances are unverified. Use the [acceptance script](TESTFLIGHT_ACCEPTANCE_V1_2026-10-02.md) and Stage 2's [20-run visual matrix](GENERATION_HARDENING_STAGE2_2026-10-02.md#r-exact-macro-stage-3-live-generation-matrix). Start with one synthetic reviewed 6-tooth case; assess before spending on the full matrix.
+Separate direct API checks advanced revision 1→8, retained Preferred Smile/Tooth Map/analysis metadata, and returned 409 plus the cloud revision for a revision-7 update. Private thumbnail upload/fetch passed.
 
-Precision acceptance requires selected teeth to change appropriately while all unselected teeth, gingiva, lips, expression, mouth width/opening, head position and source framing stay preserved, without mask seams. Review the original and full-resolution final PNG as well as the overlay. A pixel comparison supports review; it does not establish clinical feasibility or cosmetic accuracy. Alignment/full-arch are separate concept paths, not selected-tooth precision guarantees.
+Evidence: 12/12 live-coordinator checks pass; direct API/storage suite has 53 PASS and one cached-deletion REVIEW. This is live backend/database integration, not physical iPhone→iPad→web proof. Follow the acceptance script on hardware; real OS force-close, memory pressure and backgrounding remain pending.
 
-## I. Allowance/refund/idempotency
+## H. Live generation — READY FOR HUMAN QA
 
-Local tests pass for commit on success, refund on provider failure, reservation locking and exhausted allowance rejection. The mocked local Worker proves duplicate protection in the runtime. Real staging ledger/RevenueCat integration and reconnect/concurrent accounting remain **NOT RUN**.
+**One paid provider generation** used the existing synthetic demo portrait, 6 upper teeth, single-shade composite, Whiten and 512 draft resolution. Google returned a live image and the expected model/prompt receipt. The app's usage-based cost estimate was **US$0.045977**; this is not a verified billing invoice.
 
-After activation, record balance/ledger before one success (one generation consumed), then test a controlled provider failure (refund), retries and double taps (no second charge). Prefer isolated stub-provider integration checks for failure/concurrency instead of repeatedly spending real AI generations. Never weaken entitlement checks or expose a mock bypass on the hosted beta.
+Auth, subscription and per-case permission rejection passed. No real patient photograph was submitted. The raw provider image is retained in ignored local evidence for review. It is **not** the client-composited, selected-tooth-protected final presentation, so this test does not certify lips, gingiva or untreated-tooth preservation. Those protections pass local regression; full app/device visual QA is still required.
 
-## J. RevenueCat / StoreKit — manual actions deferred
+Use the [acceptance script](TESTFLIGHT_ACCEPTANCE_V1_2026-10-02.md) and [20-run matrix](GENERATION_HARDENING_STAGE2_2026-10-02.md#r-exact-macro-stage-3-live-generation-matrix) for eventual clinician review. Record PASS/REVIEW/FAIL per case, inspect original/full-resolution final/overlay, and never infer clinical feasibility from cosmetic appeal alone.
 
-| Configuration | Expected |
+## I. Allowance/refund/idempotency — PASS WITH STATED SCOPE
+
+Hosted live generation consumed exactly one credit. A rapid identical request and a later reconnect retry returned 409 without a second paid call or balance change.
+
+An isolated local handler used the **real staging auth/allowance database** and a deliberately failing fictional provider transport. It verified full refund and idempotent repeated refund with zero additional paid provider calls. Two concurrent distinct reservations consumed exactly two credits; exhausted balance and duplicate reservation were rejected; concurrent release restored the original balance. Seven checks passed.
+
+The temporary three-credit server-side QA override was scoped to the disposable staging account, expired after one hour, and removed with account deletion. No fake subscription was added, no ordinary-user bypass was enabled, and no override remains from these tests. Actual StoreKit purchase/renewal/grace/restore accounting is pending.
+
+## J. RevenueCat / StoreKit — CONNECTED; APP STORE SETUP REQUIRED
+
+The installed RevenueCat plugin's official CLI successfully authenticated and inspected project **SmileCompose** (`proja5f9a8da`). Its current resources are:
+
+| Item | Verified state |
 | --- | --- |
-| Project/App | SmileCompose / App Store app |
-| Bundle identifier | `uk.co.drvik.smilecompose` |
-| Entitlement | `pro` |
-| Monthly product | `uk.co.drvik.smilecompose.pro.monthly` |
-| Annual product | `uk.co.drvik.smilecompose.pro.annual` |
-| Current offering | `default` |
-| Packages | `$rc_monthly` → monthly; `$rc_annual` → annual |
-| Native public SDK variable | `NEXT_PUBLIC_REVENUECAT_IOS_API_KEY` (`appl_…`) |
-| Server secret | `REVENUECAT_SECRET_API_KEY` |
-| Staging webhook | `https://smile-by-dr-vik-staging.drvik.workers.dev/api/webhooks/revenuecat` |
-| Webhook authorization | Exact configured value in server-only `REVENUECAT_WEBHOOK_AUTH` |
-| Sandbox handling | `REVENUECAT_ALLOW_SANDBOX` defaults true; needed for TestFlight |
+| App | Test Store only; no App Store app yet |
+| Entitlement | `pro`, active; both test products attached |
+| Offering | `default`, current |
+| Monthly package | `$rc_monthly` → `uk.co.drvik.smilecompose.pro.monthly`, Test Store, P1M |
+| Annual package | `$rc_annual` → `uk.co.drvik.smilecompose.pro.annual`, Test Store, **P1M (incorrect for annual)** |
+| Webhooks | None |
+| Hosted server credential | Subscriber lookup and deletion succeeded |
 
-**Not verified remotely:** existence/status of either StoreKit product, product mappings, entitlement/offering, agreements/tax/banking, price/trial setup, Apple IAP key integration or webhook delivery. The current iOS key starts `test_`, and cannot be used as the Apple SDK key.
+The supplied `test_…` public key remains in the engineering bundle. A key starting `appl_…` cannot be retrieved until an App Store app exists. No purchase or fake entitlement was manufactured.
 
-When ready: RevenueCat → SmileCompose → API keys → App Store app → public `appl_…` key; place it in `.env.local`, not chat. Configure products/offering and sandbox webhook in the dashboards. Apple IAP `.p8`, issuer/key ID belong in RevenueCat's secure App Store configuration, never the browser bundle. See [PAYMENTS_AUTH_SETUP.md](../PAYMENTS_AUTH_SETUP.md) and [RevenueCat Apple sandbox testing](https://www.revenuecat.com/docs/test-and-launch/sandbox/apple-app-store).
+### Exact next owner steps
 
-No fake subscription or fabricated key was added. Test mode remains a clearly labelled bundled synthetic demo with no real AI, not a free-credit bypass for real patient generation.
+1. Confirm/create the SmileCompose app record in App Store Connect with bundle ID `uk.co.drvik.smilecompose`.
+2. In [RevenueCat Apps](https://app.revenuecat.com/projects/a5f9a8da/apps), add/select an **App Store** app with that same bundle ID. Connect its Apple In-App Purchase key/issuer/key ID directly in RevenueCat. Do not put `.p8` keys in chat or client code.
+3. In App Store Connect, create/confirm the monthly and annual subscription IDs above in one group: monthly **1 month**, annual **1 year**. Finish the necessary Apple agreements and product metadata. Import/map the App Store products in RevenueCat; attach both to `pro` and the corresponding packages in `default`. Test Store products are not Apple products. Correct the annual Test Store duration to P1Y for consistent tests.
+4. Let the operator retrieve the App Store public SDK key via the connected plugin, or place it in `.env.local` as `NEXT_PUBLIC_REVENUECAT_IOS_API_KEY`. It is public; no private key belongs in a `NEXT_PUBLIC_` variable.
+5. Configure a sandbox-only staging webhook for the App Store app at `https://smile-by-dr-vik-staging.drvik.workers.dev/api/webhooks/revenuecat`. Set a random Authorization header and securely install its identical value as Worker `REVENUECAT_WEBHOOK_AUTH`. Keep any future production webhook separate. Configure/verify restore behaviour and test purchase/restore/renewal in Apple sandbox/TestFlight.
+6. For Apple-linked account deletion, configure server-only `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_CLIENT_ID=uk.co.drvik.smilecompose`, plus the matching Supabase Apple provider/callback configuration. Password-account deletion now passes; Apple revocation does not have credentials yet.
+
+See [PAYMENTS_AUTH_SETUP.md](../PAYMENTS_AUTH_SETUP.md), [RevenueCat Test Store guidance](https://www.revenuecat.com/docs/test-and-launch/sandbox/test-store) and [Apple sandbox testing](https://www.revenuecat.com/docs/test-and-launch/sandbox/apple-app-store). Apple credential entry remains a human action; nothing was uploaded to Apple.
 
 ## K. Legal/privacy — manual review required
 
@@ -196,14 +204,14 @@ No `.xcarchive` or `.ipa` was created. The current native output is a production
 | Check | Result |
 | --- | --- |
 | `npm run check:production` | PASS (includes lint, tests, production web build and verifier) |
-| Full suite | **524 tests / 524 pass / 0 fail / 0 skipped / 0 cancelled** |
+| Full suite | **526 tests / 526 pass / 0 fail / 0 skipped / 0 cancelled** |
 | ESLint | PASS, zero warnings |
 | TypeScript | PASS |
 | `npm run build` | PASS |
 | Cloudflare bundling | PASS |
-| Wrangler staging deploy dry-run | PASS; no deployment |
+| Wrangler staging deployment | PASS; staging-only version `82b5d00a-1c62-42b0-aac9-63ab7c54277c` |
 | Mocked local Worker runtime smoke | PASS; no paid AI |
-| Local current account/patient routes + native preflight | PASS, fail-closed unavailable responses / 204 native preflight |
+| Hosted account/patient/storage/generation routes + native preflight | PASS; private access, auth gates and 204 native preflight |
 | Native packaging → Capacitor sync → bundle verifier | PASS |
 | Xcode Release simulator compile | **BUILD SUCCEEDED** |
 | Release launch on iPhone 18 Pro Max / iPad Pro 11-inch M5 simulators, iOS 27 | PASS, fresh screenshots inspected; branding/start controls within screen |
@@ -213,7 +221,7 @@ No `.xcarchive` or `.ipa` was created. The current native output is a production
 | Runtime npm audit | 0 known vulnerabilities |
 | Full npm audit | 3 moderate, dev-only Capacitor CLI → xcode → uuid; 0 high/critical |
 
-The full suite includes simulated multi-device and database policies; do not relabel those as live/physical checks. No app-code change was made after regression. Only preparation documentation was changed. Evidence logs, metadata and simulator screenshots are retained in ignored `output/stage3-evidence/`; no private keys or real patient fixtures are included there. The existing Node module-type warning in bundle inspection is non-fatal.
+The full suite includes simulated multi-device and database policies; do not relabel those as live/physical checks. Two database migrations and two meaningful database regression tests were added; application UI/runtime code was not redesigned. Final regression ran after both fixes. Evidence logs, metadata and simulator screenshots are retained in ignored `output/stage3-evidence/`; no private keys or real patient fixtures are included there. The existing Node module-type warning in bundle inspection is non-fatal.
 
 ## P. Physical tests requiring the owner
 
@@ -223,7 +231,7 @@ The current simulator launches are not exhaustive flow, camera, safe-area, hardw
 
 ## Q. Internal TestFlight upload checklist — perform later
 
-1. Resolve/confirm staging schema, storage, secrets and deployment; pass live API/account/sync checks.
+1. Staging schema/storage/deployment and safe live API checks now pass. Complete physical sync, clinician generation QA, Auth callbacks/Apple sign-in, and remaining security/privacy review.
 2. Finish RevenueCat App Store key/product mappings/sandbox setup, signing profiles and the repository's legal release guard. Rebuild final assets with **matching staging public keys**:
 
    ```sh
@@ -249,19 +257,17 @@ The current simulator launches are not exhaustive flow, camera, safe-area, hardw
 
 ## S. Remaining blockers / resume order
 
-1. Supabase CLI login and explicit dedicated-staging project identity; migrations/private bucket/live owner-policy verification.
-2. Matching verified Worker secrets/public build configuration; deploy current staging backend/web and resolve remote `/api/patient-cases` 404.
-3. Safe staging A/B auth/sync/private asset/allowance/live generation validation.
-4. RevenueCat `appl_…` key, real StoreKit product mappings, webhook authorization and sandbox testing.
-5. Apple capability/profile refresh and successful signed device/archive build; Apple revocation secrets for account deletion and Auth callback/provider configuration.
-6. Legal identity, professionally reviewed privacy/terms/DPA/DPIA/retention/transfers, stale disclosures and licensing review; preserve the release guard.
-7. Physical-device acceptance and clinician visual QA. App Store Connect version/build history and actual upload remain manual.
+1. RevenueCat App Store app/public `appl_…` key, actual Apple monthly/annual product mappings, sandbox webhook and purchase/restore validation. Only Test Store exists today; annual test duration is wrong.
+2. Apple capability/profile refresh and successful signed device/archive build; Apple revocation secrets and Supabase callback/provider configuration. Password auth/deletion works; Apple sign-in/deletion is untested.
+3. Legal identity, professionally reviewed privacy/terms/DPA/DPIA/retention/transfers, stale disclosures and licensing review. The release guard remains enabled. Review/enable leaked-password protection and direct-storage cached URL behaviour; backup retention is unverified.
+4. Physical-device acceptance, real iPhone→iPad→web sync and clinician visual QA of protected full-resolution outcomes. Auth email/link flows remain untested.
+5. App Store Connect app/build history, unused build number, signed Archive and internal TestFlight upload remain manual. Nothing has been uploaded.
 
-STAGING BACKEND: NOT READY
+STAGING BACKEND: READY
 
-PATIENT CLOUD SYNC: NOT READY
+PATIENT CLOUD SYNC: READY FOR PHYSICAL DEVICE TESTING
 
-LIVE GENERATION: NOT READY
+LIVE GENERATION: READY FOR HUMAN QA
 
 IOS BUILD: NOT READY
 
