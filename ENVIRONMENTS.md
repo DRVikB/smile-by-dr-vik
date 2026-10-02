@@ -2,6 +2,14 @@
 
 SmileCompose has three environments. Keep each one's backend, database and keys separate.
 
+**2026-10-02 release-candidate status:** local checkpoint `v1.0.0-rc1`
+(`6f48042865e45fbd7ddee8440186696b82509f2f`). Stage 3 remote provisioning,
+deployment and live tests are deferred at the owner's request. The staging
+Worker exists but still returns 404 for `/api/patient-cases`. The local public
+Supabase URL is configured, but its identity as a dedicated staging project is
+not confirmed. Do not deploy or migrate until that is confirmed. See
+[the Stage 3 handover](docs/STAGING_TESTFLIGHT_STAGE3_2026-10-02.md).
+
 | | Development | Staging (device testing, TestFlight) | Production |
 |---|---|---|---|
 | Web/app bundle | `npm run dev` (web) or a local `npm run ios:sync` | `npm run ios:sync` with staging public keys | `npm run ios:release` with production public keys |
@@ -52,7 +60,7 @@ The Worker currently deployed at `smile-by-dr-vik.drvik.workers.dev` predates th
 
 1. **Supabase (staging project)** — create the project; run the migrations in `supabase/migrations/` in order (see PAYMENTS_AUTH_SETUP.md step 2); set Auth → URL Configuration redirect URLs including `uk.co.drvik.smilecompose://auth-callback*`; enable the Apple provider with Client ID `uk.co.drvik.smilecompose`.
 2. **RevenueCat** — project with the App Store app, `pro` entitlement and the monthly/annual products (PAYMENTS_AUTH_SETUP.md). For testing without purchases, grant yourself complimentary access (below).
-3. **Worker (staging)** — set secrets with `--env staging` (provider key, `SMILE_GEMINI_DATA_TERMS`, Supabase URL + service role, RevenueCat secret + webhook auth). The staging config uses `SMILE_PROVIDER=mock` by default (no AI); to test real generation, change `SMILE_PROVIDER` to `gemini` in `wrangler.jsonc` → `env.staging.vars` before deploying. Deploy: `npx wrangler deploy --env staging`. Note the URL it prints.
+3. **Worker (staging)** — set secrets with `--env staging` (provider key, `SMILE_GEMINI_DATA_TERMS`, Supabase URL + service role, RevenueCat secret + webhook auth). The current staging configuration already uses `SMILE_PROVIDER=gemini` and `GEMINI_IMAGE_MODEL=gemini-3.1-flash-image`; it is not a free mock deployment. After verifying the dedicated staging database and matching public build keys, build with `npm run build:cloudflare`, then deploy with `npx wrangler deploy --env staging`. Note the URL it prints. Do not use the unqualified production deploy command for this beta.
 4. **App** — in `.env.local` set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_REVENUECAT_IOS_API_KEY` and `NEXT_PUBLIC_SMILE_API_ORIGIN=<staging Worker URL>`, then `npm run ios:sync` (the bundle check should report "accounts configured").
 
 ### Complimentary access for your own testing
@@ -70,7 +78,7 @@ Revoke with `update public.access_overrides set revoked_at = now() where user_id
 
 Features that a free Personal Team cannot sign, each switched on in Xcode (select the target → Signing & Capabilities):
 
-1. **Sign in with Apple** (target `App`): restore `ios/App/App/App.entitlements` from commit `06d289e` (key `com.apple.developer.applesignin` = `Default`) and select the paid team.
+1. **Sign in with Apple and Data Protection** (target `App`): both are already in `ios/App/App/App.entitlements` (`Default` and `NSFileProtectionComplete`). Select the paid team and refresh the provisioning profile; do not restore an older entitlement file. The Stage 3 signed device build failed because the existing profile did not include these capabilities. See the handover for the exact manual steps.
 2. **Widget greeting** (targets `App` and `SmileComposeWidgetExtension`): + Capability → **App Groups** → add `group.uk.co.drvik.smilecompose` on both. The app already writes the clinician's preferred name there (`ShortcutsPlugin.setWidgetName`); without the group the widget shows its generic text ("New smile design") instead of "Welcome, Dr Vik." Only the clinician's own name is shared, never patient information.
 3. Select the paid team for both targets (`App`, `SmileComposeWidgetExtension`); the widget's bundle ID is `uk.co.drvik.smilecompose.widget`.
 
