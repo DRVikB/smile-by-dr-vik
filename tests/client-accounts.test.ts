@@ -9,6 +9,56 @@ import { customerHasPro } from "../src/services/purchases/purchases";
 import { accountsConfigured, LEGAL_LINKS } from "../src/config/accounts";
 import type { User } from "@supabase/supabase-js";
 import type { CustomerInfo } from "@revenuecat/purchases-capacitor";
+import { acceptConsentDocuments, ConsentError, fetchConsentDocuments, recordConsents, type ConsentDocuments } from "../src/services/account/accountApi";
+
+const currentDocuments: ConsentDocuments = {
+  terms: { version: "server-terms-v2", html: "<h1>Current terms</h1>" },
+  privacy: { version: "server-privacy-v3", html: "<h1>Current privacy</h1>" },
+};
+
+test("agreement saves the reviewed server versions together and verifies both persisted", async () => {
+  const requests: string[] = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    requests.push(String(input));
+    if (init?.method === "POST") {
+      assert.deepEqual(JSON.parse(String(init.body)).records, [
+        { type: "terms", version: currentDocuments.terms.version },
+        { type: "privacy", version: currentDocuments.privacy.version },
+      ]);
+      return Response.json({ recorded: 2 });
+    }
+    return Response.json({ documents: {
+      terms: { current: currentDocuments.terms.version, accepted: true },
+      privacy: { current: currentDocuments.privacy.version, accepted: true },
+    } });
+  };
+  await acceptConsentDocuments("test-token", currentDocuments, fetcher);
+  assert.deepEqual(requests, ["/api/account/consents", "/api/account/status"]);
+});
+
+test("a successful POST cannot dismiss agreement when either record was not saved", async () => {
+  const fetcher: typeof fetch = async (_input, init) => init?.method === "POST" ? Response.json({ recorded: 2 }) : Response.json({ documents: {
+    terms: { current: currentDocuments.terms.version, accepted: true },
+    privacy: { current: currentDocuments.privacy.version, accepted: false },
+  } });
+  await assert.rejects(acceptConsentDocuments("test-token", currentDocuments, fetcher), (error: unknown) => error instanceof ConsentError && error.code === "consent_unavailable");
+});
+
+test("documents changing during acceptance require a new review without automatic retry", async () => {
+  let calls = 0;
+  const fetcher: typeof fetch = async () => { calls++; return Response.json({ code: "documents_changed" }, { status: 409 }); };
+  await assert.rejects(acceptConsentDocuments("test-token", currentDocuments, fetcher), (error: unknown) => error instanceof ConsentError && error.code === "documents_changed");
+  assert.equal(calls, 1);
+});
+
+test("document load failures and expired sign-ins give actionable recovery messages", async () => {
+  await assert.rejects(fetchConsentDocuments(async () => Response.json({}, { status: 503 })), /connection and retry/);
+  await assert.rejects(fetchConsentDocuments(async () => Response.json({ terms: currentDocuments.terms })), /couldn’t be loaded/);
+  await assert.rejects(recordConsents("test-token", [], async () => Response.json({ code: "auth_required" }, { status: 401 })), /Sign out and sign in again/);
+  await assert.rejects(recordConsents("test-token", [], async () => new Response(null, { status: 404 })), /server needs an app update/);
+  const bundle = await fetchConsentDocuments(async (_input, init) => { assert.equal(init?.cache, "no-store"); return Response.json(currentDocuments); });
+  assert.deepEqual(bundle, currentDocuments);
+});
 
 class MemoryStorage {
   private map = new Map<string, string>();

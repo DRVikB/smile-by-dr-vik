@@ -378,7 +378,10 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
     sessionLease.assert();
     const token = user ? await accessToken() : null;
     sessionLease.assert();
-    if (!token) return; // not signed in: kept on the device only
+    if (!token) {
+      if (options?.strict) throw new Error("Your sign-in has expired. Sign out and sign in again to continue.");
+      return; // not signed in: kept on the device only
+    }
     try { await recordConsents(token, [record]); }
     catch (error) { if (options?.strict) throw error; }
   }, [user, sessionLease]);

@@ -2,6 +2,8 @@ import { AccountError, AVATAR_BUCKET, type AccountStore, type AuthenticatedUser,
 import { decodeJpegDataUrl } from "./images";
 import { safeLog } from "./redact";
 import { DOCUMENT_VERSIONS } from "@/config/legal";
+import { privacyPolicyHtml } from "@/legal/privacyPolicy";
+import { termsOfServiceHtml } from "@/legal/termsOfService";
 import { NAME_LIMITS, normaliseName } from "@/lib/profile";
 import { authenticate, evaluateAccess, type AccountServices } from "./access";
 import { buildEntitlement } from "./entitlement";
@@ -171,14 +173,24 @@ const CASE_ID = /^[A-Za-z0-9_-]{1,100}$/;
  * AI-processing confirmations are recorded by the generation endpoint itself.
  */
 export async function handleConsents(request: Request, services: AccountServices | null): Promise<Response> {
+  // Native apps can outlive their bundled legal documents. Return the exact
+  // documents and versions the server accepts together, without account data.
+  if (request.method === "GET") return Response.json({
+    terms: { version: DOCUMENT_VERSIONS.terms, html: termsOfServiceHtml() },
+    privacy: { version: DOCUMENT_VERSIONS.privacy, html: privacyPolicyHtml() },
+  }, { headers });
   if (!services) return Response.json({ error: "Accounts are not configured.", code: "accounts_unavailable" }, { status: 503, headers });
-  if (request.method !== "POST") return new Response(null, { status: 405, headers: { Allow: "POST" } });
+  if (request.method !== "POST") return new Response(null, { status: 405, headers: { Allow: "GET, POST" } });
   try {
     const user = await authenticate(request, services);
     if (!user) throw new AccountError("auth_required");
     const body = await request.json().catch(() => ({})) as { records?: unknown };
     const records = Array.isArray(body.records) ? body.records.slice(0, 5) : [];
+    if (records.some(r => r && typeof r === "object" && ["terms", "privacy"].includes(r.type)
+      && r.version !== DOCUMENT_VERSIONS[r.type as "terms" | "privacy"]))
+      return Response.json({ error: "These documents have changed. Review the updated documents and agree again.", code: "documents_changed" }, { status: 409, headers });
     const valid = records.filter((r): r is { type: ConsentType; version: string; caseId?: string } => {
+      if (!r || typeof r !== "object") return false;
       const record = r as { type?: unknown; version?: unknown; caseId?: unknown };
       return CLIENT_CONSENTS.includes(record.type as ConsentType)
         && record.version === DOCUMENT_VERSIONS[record.type as keyof typeof DOCUMENT_VERSIONS]

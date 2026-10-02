@@ -27,6 +27,7 @@ export async function serveRequest(request: Request, env: Environment, claim?: R
     if (url.pathname.startsWith("/api/")) {
       if (request.method === "OPTIONS")
         return preflight(request, url.pathname.startsWith("/api/patient-cases") ? "GET, POST, PATCH, DELETE, PUT" : url.pathname === "/api/case-library" ? "GET, POST"
+          : url.pathname === "/api/account/consents" ? "GET, POST"
           : ["/api/generation-cost", "/api/account/status", "/api/account/export"].includes(url.pathname) ? "GET" : "POST");
       try {
         return withHeaders(withCors(request, await serveApi(request, url, env, claim)), BASE_SECURITY_HEADERS);

@@ -349,12 +349,35 @@ test("consent records accept only current document versions and random case IDs"
   }), services(store));
   assert.equal((await post([{ type: "terms", version: DOCUMENT_VERSIONS.terms }, { type: "privacy", version: DOCUMENT_VERSIONS.privacy }])).status, 200);
   assert.equal((await post([{ type: "upload_authority", version: DOCUMENT_VERSIONS.upload_authority, caseId: "0f8e-case" }])).status, 200);
-  assert.equal((await post([{ type: "terms", version: "old" }])).status, 400);
+  assert.equal((await post([{ type: "terms", version: "old" }])).status, 409);
+  assert.equal((await post([null])).status, 400);
   assert.equal((await post([{ type: "upload_authority", version: DOCUMENT_VERSIONS.upload_authority, caseId: "Jane Smith" }])).status, 400);
   assert.equal((await post([{ type: "ai_processing", version: DOCUMENT_VERSIONS.ai_processing }])).status, 400);
   assert.deepEqual(calls.filter(c => c.startsWith("consent")), [
     `consent:terms:${DOCUMENT_VERSIONS.terms}:`, `consent:privacy:${DOCUMENT_VERSIONS.privacy}:`, `consent:upload_authority:${DOCUMENT_VERSIONS.upload_authority}:0f8e-case`,
   ]);
+});
+
+test("legal document versions and text are supplied together without authentication or caching", async () => {
+  const response = await handleConsents(new Request("https://smile.test/api/account/consents"), null);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  const bundle = await response.json();
+  for (const type of ["terms", "privacy"] as const) {
+    assert.equal(bundle[type].version, DOCUMENT_VERSIONS[type]);
+    assert.ok(bundle[type].html.includes(`Version ${DOCUMENT_VERSIONS[type]}`));
+  }
+});
+
+test("an app with stale documents gets an actionable response and records no agreement", async () => {
+  const { store, calls } = fakeStore();
+  const response = await handleConsents(new Request("https://smile.test/api/account/consents", {
+    method: "POST", headers: { Authorization: "Bearer good-token", "Content-Type": "application/json" },
+    body: JSON.stringify({ records: [{ type: "terms", version: DOCUMENT_VERSIONS.terms }, { type: "privacy", version: "2026-09-27-draft" }] }),
+  }), services(store));
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).code, "documents_changed");
+  assert.deepEqual(calls.filter(c => c.startsWith("consent")), []);
 });
 
 test("account export returns only the signed-in user's server data and is audited", async () => {
