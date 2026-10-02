@@ -43,8 +43,18 @@ test("thought-only and non-image responses cannot be presented as completed gene
       calls++;
       return Response.json({ candidates: [{ content: { parts } }] });
     } });
-    await assert.rejects(provider.generate(input), (e: unknown) => e instanceof GenerationError && e.code === "image_not_processed");
+    await assert.rejects(provider.generate(input), (e: unknown) => e instanceof GenerationError && e.code === "provider_no_image");
     assert.equal(calls, 1);
+  }
+});
+
+test("a completed candidate is used without accepting a truncated or blocked image", async () => {
+  for(const finishReason of ["MAX_TOKENS","IMAGE_SAFETY"]){
+    const provider=new GeminiSmileProvider({apiKey:"test",fetcher:async()=>Response.json({candidates:[
+      {finishReason,content:{parts:[{inlineData:{mimeType:"image/png",data:PNG_1x1}}]}},
+      {finishReason:"STOP",content:{parts:[{inlineData:{mimeType:"image/jpeg",data:encoded}}]}},
+    ]})});
+    assert.equal((await provider.generate(input)).image,input.originalImage);
   }
 });
 
@@ -69,6 +79,7 @@ test("Gemini adapter sends one authenticated generateContent edit with all denta
       assert.equal(parts[0].inlineData.mimeType, "image/jpeg");
       assert.equal(parts[0].inlineData.data, encoded);
       assert.deepEqual(body.generationConfig.responseModalities, ["IMAGE"]);
+      assert.equal(body.generationConfig.thinkingConfig.includeThoughts, false);
       assert.ok(typeof body.generationConfig.imageConfig.aspectRatio === "string");
       const prompt = String(parts[1].text);
       for (const token of [
@@ -223,7 +234,10 @@ test("auth, access, rate limits and malformed output are safe recoverable errors
     [403, {}, "model_access_required"],
     [404, {}, "model_access_required"],
     [429, { error: { status: "RESOURCE_EXHAUSTED", message: "DO_NOT_EXPOSE" } }, "rate_limited"],
-    [200, { candidates: [{ content: { parts: [{ text: "refused" }] } }] }, "image_not_processed"],
+    [200, { candidates: [{ content: { parts: [{ text: "refused" }] } }] }, "provider_no_image"],
+    [200, { candidates: [{ finishReason: "IMAGE_SAFETY", content: { parts: [] } }] }, "image_not_processed"],
+    [200, { promptFeedback: { blockReason: "SAFETY" } }, "image_not_processed"],
+    [200, { candidates: {} }, "provider_no_image"],
     [200, { candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: "garbage" } }] } }] }, "invalid_provider_image"],
   ] as const) {
     let calls = 0;

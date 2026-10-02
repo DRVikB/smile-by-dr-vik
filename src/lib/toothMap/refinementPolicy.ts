@@ -1,5 +1,9 @@
 import type { ToothMap } from "./types";
-/** Presets use fast detection; valid reviewed/saved maps never trigger SAM. */
+/** A selection alone never starts detection; individual mapping is opt-in. */
+export function needsDetection({single,custom,review,show,guides,requested}:{single:boolean;custom:boolean;review:boolean;show:boolean;guides:boolean;requested:boolean}){
+  return custom||review||requested||(single&&(show||guides));
+}
+/** Valid reviewed/saved maps never trigger SAM. */
 export function needsRefinement(map:ToothMap|null,{single,custom,review}:{single:boolean;custom:boolean;review:boolean}){
   return Boolean(map&&!map.confirmedByClinician&&map.method==="on-device-v1"&&(single||custom||review));
 }

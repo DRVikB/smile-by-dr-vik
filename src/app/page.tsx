@@ -121,8 +121,8 @@ async function lockFace(
   scope.assert();
   const r = await lockFaceOutsideLips(photo.dataUrl, image);
   scope.assert();
-  const { protectionPlan, protectWithToothMap } = await import("@/lib/toothMap/protect");
-  const preciseTooth = photo.toothMap && protectionPlan(photo.toothMap, photo.dataUrl, settings).ok;
+  const { generationProtectionPlan, protectWithToothMap } = await import("@/lib/toothMap/protect");
+  const preciseTooth = photo.toothMap && generationProtectionPlan(photo.toothMap, photo.dataUrl, settings).ok;
   if (!r.locked && settings.shotType === "Full face" && !photo.editMask && !preciseTooth)
     throw new Error("This preview could not be aligned and protected against your original face. It has not been presented. Your photo is safe; use Protect edit area or a clearer photo before trying again.");
   let imageOut = photo.editMask ? await (await import("@/lib/editMask")).protectOutsideEditMask(photo.dataUrl, r.image, photo.editMask) : r.image;
@@ -133,7 +133,7 @@ async function lockFace(
     // Full-arch, one arch (only when enabled): everything outside that arch — the opposite arch included — is the original photo.
     const outcome = await arch.protectArch(photo.dataUrl, imageOut, photo.toothMap, archOnly);
     if (outcome) { imageOut = outcome.image; toothProtection = outcome.protection; }
-  } else if (photo.toothMap && protectionPlan(photo.toothMap, photo.dataUrl, settings).ok) {
+  } else if (photo.toothMap && preciseTooth) {
     const { TOOTH_MAP_DEBUG, rememberToothDebug } = await import("@/lib/toothMap/debug");
     const outcome = await protectWithToothMap(photo.dataUrl, imageOut, photo.toothMap, settings, { debug: TOOTH_MAP_DEBUG });
     imageOut = outcome.image;
@@ -256,7 +256,7 @@ export default function Smile() {
     setSettings(next);
     syncHistory();
   }
-  // Every visible tooth as its own region, found on this device when a photo reaches the Studio.
+  // Detailed tooth mapping runs only when requested; presets can generate immediately.
   const toothMap = useToothMap({ photo, setPhoto, settings, onChange: changeSettings, active: screen === "design" && Boolean(photo) });
   function undoSettings() {
     const h = history.current;
@@ -588,13 +588,9 @@ export default function Smile() {
   ): Promise<GenerationResult> {
     const started = performance.now();
     const session = costSession.current;
-    // Every selected-tooth edit needs reviewed boundaries before a paid request.
-    // Alignment and full arch retain their separate protection paths.
-    const toothPlan = (await import("@/lib/toothMap/protect")).protectionPlan(photoIn.toothMap, photoIn.dataUrl, settingsIn);
-    if (!testMode && !toothPlan.ok && !["full-arch", "alignment"].includes(toothPlan.reason))
-      throw new Error(toothPlan.reason === "unconfirmed"
-        ? "Review the selected tooth’s outline and number, then confirm the tooth map on the Teeth step. No request was sent."
-        : "All selected teeth need valid boundaries for this photo. Review the Tooth Map on the Teeth step; remove invisible or missing teeth from the selection. No request was sent.");
+    // Use a reviewed map when available, but never wait for tooth detection or
+    // require map confirmation for a quick concept. Mouth/face protection remains.
+    const toothPlan = (await import("@/lib/toothMap/protect")).generationProtectionPlan(photoIn.toothMap, photoIn.dataUrl, settingsIn);
     const preferences: PreviewPreferences = { styleReferenceStatus: "off", styleReferenceCount: 0, settings: structuredClone(settingsIn), referenceUsed: Boolean(reference), testMode };
     if (testMode) {
       const demoImage = await loadDemoPreview(settingsIn, controller.signal);
@@ -634,7 +630,7 @@ export default function Smile() {
     const { prepareGenerationPhoto } = await import("@/lib/photos");
     const requestCanvas = await prepareGenerationPhoto(photoIn);
     if (controller.signal.aborted) throw controller.signal.reason;
-    const editMask = photoIn.toothMap
+    const editMask = toothPlan.ok && photoIn.toothMap
       ? (await import("@/lib/toothMap/protect")).guidanceMask(photoIn.toothMap, photoIn.dataUrl, settingsIn, requestCanvas.photo, requestCanvas.sourceBounds)
       : undefined;
     let next = await generateSmileImage({

@@ -30,7 +30,8 @@ test("straightening both arches permits whole-tooth movement, including the lowe
   assert.match(prompt, /may reposition \(never reshape or recolour\) the visible teeth of the upper and lower arches/);
   // Gums still never edited, midline still kept, the concept framing still first.
   assert.match(prompt, /Do not edit the gingiva/);
-  assert.match(prompt, /do not recontour, level, recentre or add gum tissue/);
+  assert.match(prompt, /Natural gum tissue and visible margins stay exactly as photographed/);
+  assert.match(prompt, /Do not move, recontour, level, recentre or add natural gum tissue/);
   assert.match(prompt, /Keep the upper dental midline close to its original position/);
   assert.ok(prompt.indexOf("concept visualisation") < prompt.indexOf("ORTHODONTIC ALIGNMENT CONCEPT"));
 });

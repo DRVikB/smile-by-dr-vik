@@ -6,6 +6,15 @@ import { buildSmileInstruction } from "../src/lib/generation/prompt";
 import { settingsSchema } from "../src/lib/generation/schema";
 import { generateSmile } from "../src/lib/generation/provider";
 
+test("anatomical fit protects existing length and canine identity without inferring a face beyond a close-up",()=>{
+  const full=buildSmileInstruction(defaultSettings);
+  assert.match(full,/A face shape does not prescribe one ideal tooth length/);
+  assert.match(full,/each canine recognisable with a natural cusp and mesial\/distal shoulders/);
+  assert.match(full,/floating enamel, sharp mask-like cut-offs, merged contacts/);
+  const close=buildSmileInstruction({...defaultSettings,shotType:"Close-up"});
+  assert.match(close,/do not infer facial proportions or lip curvature beyond this crop/);
+});
+
 for (const treatment of ["Composite", "Single-shade composite", "Layered composite", "Porcelain"] as Treatment[]) {
   for (const designIntent of DESIGN_INTENTS) {
     test(`${treatment} / ${designIntent}: protect anatomy and use one ordered goal`, () => {

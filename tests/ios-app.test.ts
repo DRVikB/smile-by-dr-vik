@@ -86,6 +86,8 @@ test("provider errors become clinician-friendly copy without provider details", 
     assert.equal(friendlyGenerationError(503, code).message, GENERATION_MESSAGES.unavailable);
   assert.equal(friendlyGenerationError(504).message, GENERATION_MESSAGES.timeout);
   assert.equal(friendlyGenerationError(422, "image_not_processed").message, GENERATION_MESSAGES.invalidImage);
+  assert.equal(friendlyGenerationError(502, "provider_no_image").message, GENERATION_MESSAGES.noImage);
+  assert.doesNotMatch(friendlyGenerationError(502, "provider_no_image").message, /well-lit|different photo/);
   assert.equal(friendlyGenerationError(500).message, GENERATION_MESSAGES.failed);
   for (const message of Object.values(GENERATION_MESSAGES)) assert.doesNotMatch(message, /gemini|google|api key|model/i);
 });

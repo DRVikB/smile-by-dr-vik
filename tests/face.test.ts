@@ -63,6 +63,18 @@ test("compositing keeps the original wherever the mask is off", () => {
   assert.equal(out[12], 10); // pixel 3: outside the mask
 });
 
+test("mouth-boundary compositing does not classify discoloured tooth pixels as gums", () => {
+  // Brown/red enamel, tooth shadows and warm restorations can resemble tissue.
+  // Colour must not punch holes into an otherwise permitted mouth edit.
+  const original = new Uint8ClampedArray([80,45,50,255, 170,75,85,255, 200,170,120,255, 190,185,175,255]);
+  const edited = new Uint8ClampedArray(original.length).fill(255);
+  const mask = {x0:1,y0:0,width:2,height:1,alpha:new Float32Array([1,1])};
+  const output = compositeMasked(original,edited,4,mask);
+  assert.deepEqual(output.slice(0,4),original.slice(0,4));
+  assert.deepEqual(output.slice(4,12),edited.slice(4,12));
+  assert.deepEqual(output.slice(12),original.slice(12));
+});
+
 test("no face means no lock, rather than a guess", () => {
   assert.equal(planMouthLock(null, null), null);
   assert.equal(planMouthLock(face().slice(0, 100), null), null);

@@ -6,7 +6,7 @@ import {shadeOnlyPixels} from "./shade";
 import { fdiOrder, isValidToothMap, photoFingerprint, type ToothMap } from "./types";
 
 /**
- * The final, mandatory protection step. After generation the ORIGINAL photo is
+ * Optional precise protection when a reviewed map is available. The ORIGINAL photo is
  * the source of truth: the concept keeps generated pixels only inside the
  * selected teeth's allowed region (with a narrow feather inside its edge), and
  * every other pixel — lips, skin, gingiva, unselected teeth — is restored from
@@ -29,9 +29,17 @@ export interface ProtectOutcome {
 /** Why the tooth map can't protect this result; the existing lip and face lock still applies. */
 export type ProtectSkip = "no-map" | "stale-map" | "alignment" | "full-arch" | "no-teeth" | "unconfirmed" | "incomplete-map" | "invalid-boundary";
 
+/** The app uses a tooth boundary only for one-tooth editing. Multi-tooth
+ * concepts keep the mouth/face lock instead of stitching individual outlines.
+ */
+export function generationProtectionPlan(map: ToothMap | null | undefined, originalDataUrl: string, settings: SmileSettings) {
+  if (selectedPlans(settings).size !== 1) return { ok: false, reason: "multiple-teeth" } as const;
+  return protectionPlan(map, originalDataUrl, settings);
+}
+
 /**
- * Retained compatibility export. Precision is now a required treatment policy,
- * not an optional quality toggle. Alignment and full arch remain separate.
+ * Retained compatibility export. Reviewed maps protect multiple teeth too;
+ * quick concepts fall back to mouth/face protection. Alignment and full arch remain separate.
  * Live tests must still assess seams and morphology within reviewed boundaries.
  */
 export const PRECISION_FOR_MULTIPLE_TEETH = true;

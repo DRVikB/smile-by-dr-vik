@@ -1,12 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createInferenceWorker,type WorkerPort} from '../src/lib/vision/workerClient';
-import {createRefinementCache,needsRefinement} from '../src/lib/toothMap/refinementPolicy';
+import {createRefinementCache,needsDetection,needsRefinement} from '../src/lib/toothMap/refinementPolicy';
 import {activateWorkspace,captureWorkspace} from '../src/lib/workspace';
 import type {ToothMap} from '../src/lib/toothMap/types';
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
 function fixture(timeout=1000){const ports:{port:WorkerPort;messages:{id:number;payload:unknown}[];closed:boolean}[]=[];const rpc=createInferenceWorker(()=>{const record={port:null as unknown as WorkerPort,messages:[] as {id:number;payload:unknown}[],closed:false};record.port={onmessage:null,onerror:null,postMessage(message){record.messages.push(message as {id:number;payload:unknown});},terminate(){record.closed=true;}};ports.push(record);return record.port;},timeout);return {ports,rpc,respond(index:number,value:unknown){const r=ports[index],id=r.messages.at(-1)!.id;r.port.onmessage?.({data:{id,result:value}} as MessageEvent);}};}
 const map={method:'on-device-v1',confirmedByClinician:false} as ToothMap;
+test('quick presets and a single selection do not start detection; individual mapping is opt-in',()=>{
+  const quick={single:false,custom:false,review:false,show:false,guides:false,requested:false};
+  assert.equal(needsDetection(quick),false);
+  assert.equal(needsDetection({...quick,single:true}),false);
+  for(const flag of ['custom','review','requested'] as const)assert.equal(needsDetection({...quick,[flag]:true}),true,flag);
+  for(const flag of ['show','guides'] as const){assert.equal(needsDetection({...quick,[flag]:true}),false);assert.equal(needsDetection({...quick,single:true,[flag]:true}),true);}
+});
 test('ordinary Studio preset does not invoke SlimSAM',()=>assert.equal(needsRefinement(map,{single:false,custom:false,review:false}),false));
 test('Custom and Review invoke refinement when required',()=>{assert.equal(needsRefinement(map,{single:false,custom:true,review:false}),true);assert.equal(needsRefinement(map,{single:false,custom:false,review:true}),true);});
 test('single-tooth invokes refinement only for an unreviewed classical map',()=>{assert.equal(needsRefinement(map,{single:true,custom:false,review:false}),true);for(const current of [{...map,confirmedByClinician:true},{...map,method:'on-device-sam' as const},{...map,method:'manual' as const},null])assert.equal(needsRefinement(current,{single:true,custom:true,review:true}),false);});

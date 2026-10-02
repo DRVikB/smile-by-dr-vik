@@ -4,7 +4,7 @@ import { updateToothPlan } from "@/lib/teeth";
 import { isValidToothMap, photoFingerprint, renumber, TOOTH_MAP_VERSION, type NormPoint, type ToothMap, type ToothRegion } from "@/lib/toothMap/types";
 import type { Photo, SmileSettings } from "@/lib/types";
 import type { Proportion } from "@/lib/toothMap/template";
-import {needsRefinement} from "@/lib/toothMap/refinementPolicy";
+import {needsDetection,needsRefinement} from "@/lib/toothMap/refinementPolicy";
 
 export type ToothMapStatus = "idle" | "detecting" | "refining" | "ready" | "none";
 /** The clinician's choice for the overlay: Auto decides from the selection. */
@@ -134,7 +134,11 @@ export function useToothMap({ photo, setPhoto, settings, onChange, active }: {
   const dataUrl = photo?.dataUrl ?? null;
   const fingerprint = dataUrl ? photoFingerprint(dataUrl) : null;
   const current = isValidToothMap(photo?.toothMap) && photo.toothMap.photoId === fingerprint ? photo.toothMap : null;
-  const needsMap = settings.treatmentMode !== "full_arch" && ((!settings.alignment&&settings.selectedTeeth.length>0) || picking || editing || adding || prefs.display === "show" || prefs.guides.design || requestedPhoto === fingerprint);
+  const needsMap = settings.treatmentMode !== "full_arch" && needsDetection({
+    single: !settings.alignment && settings.selectedTeeth.length === 1,
+    custom: picking, review: editing || adding, show: prefs.display === "show",
+    guides: prefs.guides.design, requested: requestedPhoto !== null && requestedPhoto === fingerprint,
+  });
 
   useEffect(() => {
     setEditingState(false); setAdding(false); setFocusedId(null); openControls(null); setPicking(false); setDrawingId(null); setBoundaryPoints([]);
@@ -162,7 +166,7 @@ export function useToothMap({ photo, setPhoto, settings, onChange, active }: {
     // Detect once per photo (and on a deliberate retry), not on every design change.
   }, [active, needsMap, fingerprint, attempt, Boolean(current), settings.shotType]);
 
-  const refineWanted=needsRefinement(current,{single:settings.selectedTeeth.length===1,custom:picking,review:editing});
+  const refineWanted=needsRefinement(current,{single:settings.selectedTeeth.length===1&&needsMap,custom:picking,review:editing});
   useEffect(()=>{
     if(!active||!refineWanted||!current||!dataUrl)return;
     const key=fingerprint+JSON.stringify(current.teeth.map(t=>[t.fdi,t.visible,t.outline]))+attempt;

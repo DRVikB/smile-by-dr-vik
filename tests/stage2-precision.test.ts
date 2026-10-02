@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildEditRegion, compositeWithAlpha, influenceOutline, measureChange, toothEditRule } from '../src/lib/toothMap/masks';
-import { protectionPlan } from '../src/lib/toothMap/protect';
+import { generationProtectionPlan, protectionPlan } from '../src/lib/toothMap/protect';
 import { shadeOnlyPixels } from '../src/lib/toothMap/shade';
 import { fillPolygon, type Point } from '../src/lib/toothMap/segment';
 import { photoFingerprint, type ToothMap } from '../src/lib/toothMap/types';
@@ -13,6 +13,11 @@ const outlines:Point[][]=fdis.map((_,i)=>[[10+i*22,30],[28+i*22,30],[28+i*22,68]
 const mouth:Point[]=[[5,24],[235,24],[235,87],[5,87]];
 const settings=(selectedTeeth:number[],patch:Partial<SmileSettings>={}):SmileSettings=>({...defaultSettings,selectedTeeth,...patch});
 const map:ToothMap={photoId:photoFingerprint(photo),version:1,arch:'upper',method:'manual',confirmedByClinician:true,mouthOpening:mouth.map(([x,y])=>[x/W,y/H]),teeth:outlines.map((o,i)=>({id:`t${i}`,fdi:fdis[i],detectedIndex:i,confidence:null,bbox:{x:o[0][0]/W,y:30/H,width:18/W,height:38/H},centroid:{x:(19+i*22)/W,y:49/H},outline:o.map(([x,y])=>[x/W,y/H]),exactMaskRef:`t${i}`,visible:true,selected:false,requiresReview:false,source:'manual'}))};
+test('generation uses reviewed outlines only for a single active tooth; old multi-tooth maps cannot clip a preset result',()=>{
+ for(const n of [4,6,8,10] as const)assert.deepEqual(generationProtectionPlan(map,photo,settings(upperTeeth[n])),{ok:false,reason:'multiple-teeth'});
+ assert.equal(generationProtectionPlan(map,photo,settings([23])).ok,true);
+ assert.equal(generationProtectionPlan(undefined,photo,settings([23])).ok,false);
+});
 function image(){const pixels=new Uint8ClampedArray(W*H*4);for(let i=0;i<W*H;i++)pixels.set([45,30,30,255],i*4);for(const outline of outlines){const mask=fillPolygon(outline,W,H);for(let i=0;i<mask.length;i++)if(mask[i])pixels.set([190,185,175,255],i*4);}return pixels;}
 function region(selected:number[],patch:Partial<SmileSettings>={},original?:Uint8ClampedArray){return buildEditRegion({width:W,height:H,selected:outlines.filter((_,i)=>selected.includes(fdis[i])).map((outline,i)=>({outline,rule:toothEditRule(settings(selected,patch),{tooth:selected[i],intent:'Auto',condition:'Natural'})})),protectedTeeth:outlines.filter((_,i)=>!selected.includes(fdis[i])),mouthOpening:mouth,original,feather:1});}
 for(const n of [4,6,8,10] as const)test(`${n} selected teeth: complete map; union changes selected teeth only`,()=>{
@@ -31,6 +36,7 @@ test('unselected tooth restoration includes unknown/unassigned map outlines',()=
 test('gingival scallop and lip/face pixels remain original against a hostile full-image edit',()=>{const r=region([11,21]),original=image(),hostile=new Uint8ClampedArray(original.length).fill(255),final=compositeWithAlpha(original,hostile,r.alpha);for(let y=0;y<30;y++)for(let x=0;x<W;x++)assert.equal(final[(y*W+x)*4],original[(y*W+x)*4]);assert.equal(measureChange(original,final,r.allowed,0).outside,0);});
 test('unmapped lower enamel and pink gingiva block contour extension',()=>{const original=image();for(let y=68;y<80;y++)for(let x=95;x<125;x++)original.set(x<110?[200,190,170,255]:[170,75,85,255],(y*W+x)*4);const r=region([11],{},original);assert.equal(r.allowed[69*W+103],0);assert.equal(r.allowed[69*W+113],0);});
 test('without a trustworthy lip boundary, morphology is limited to exact teeth',()=>{const r=buildEditRegion({width:W,height:H,selected:[{outline:outlines[4],rule:toothEditRule(settings([11]),undefined)}],protectedTeeth:[],feather:0});assert.deepEqual(r.allowed,fillPolygon(outlines[4],W,H));});
+test('reviewed tooth enamel stays editable regardless of source colour',()=>{for(const colour of [[80,45,50,255],[170,75,85,255],[200,170,120,255]]){const original=image(),p=(40*W+110)*4;original.set(colour,p);const r=region([11],{},original);assert.equal(r.allowed[40*W+110],1);}});
 test('partial preset, stale photo, unreviewed map, duplicate FDI and zero-area boundaries cannot start precision',()=>{
  assert.deepEqual(protectionPlan({...map,teeth:map.teeth.slice(1)},photo,settings(upperTeeth[10])),{ok:false,reason:'incomplete-map'});
  assert.deepEqual(protectionPlan(map,photo+'changed',settings([11])),{ok:false,reason:'stale-map'});

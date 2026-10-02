@@ -44,7 +44,7 @@ const MAX_SCALE = 1.18;
 const MAX_ANGLE = (8 * Math.PI) / 180;
 
 /** Invalidate reusable results made with the older, lip-inclusive mask. */
-export const MOUTH_LOCK_VERSION = "2026-10-01-original-mouth-opening-v2";
+export const MOUTH_LOCK_VERSION = "2026-10-02-original-mouth-boundary-v4";
 
 export function planMouthLock(
   original: Point[] | null,

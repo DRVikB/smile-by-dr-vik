@@ -114,6 +114,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
       contents: [{ parts: requestParts }],
       generationConfig: {
         responseModalities: ["IMAGE"],
+        ...(model.startsWith("gemini-3") ? { thinkingConfig: { includeThoughts: false } } : {}),
         imageConfig: {
           aspectRatio: nearestAspectRatio(dimensions.width, dimensions.height),
           ...(model === PRICED_GEMINI_MODEL ? { imageSize: resolution } : {}),
@@ -209,7 +210,11 @@ export class GeminiSmileProvider implements SmileImageProvider {
     }
 
     const body = await response.json().catch(() => null);
-    const parts: GeminiPart[] = body?.candidates?.[0]?.content?.parts ?? [];
+    const candidates = Array.isArray(body?.candidates) ? body.candidates : [];
+    const completed = candidates.filter((candidate: { finishReason?: string }) =>
+      candidate && (!candidate.finishReason || candidate.finishReason === "STOP"));
+    const parts: GeminiPart[] = completed.flatMap((candidate: { content?: { parts?: GeminiPart[] } }) =>
+      Array.isArray(candidate?.content?.parts) ? candidate.content.parts : []);
     // Gemini can return draft/thought images before the completed edit. Never
     // present those (or fall back to one when the final image is missing).
     const imagePart = parts.filter((p) => p?.thought !== true &&
@@ -223,11 +228,29 @@ export class GeminiSmileProvider implements SmileImageProvider {
     const image = data ? `data:${outMime};base64,${data}` : "";
 
     if (!image) {
-      // Model returned no image (e.g. a safety refusal returns text only).
+      // Empty/text-only output is not proof that the photo was unsuitable.
+      // Keep raw provider text, images and signatures out of diagnostics.
+      const reasons = candidates.map((candidate: { finishReason?: string }) => candidate?.finishReason);
+      const blocked = Boolean(body?.promptFeedback?.blockReason) || reasons.some((reason: string) =>
+        ["SAFETY", "IMAGE_SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "RECITATION", "IMAGE_RECITATION"].includes(reason));
+      safeLog("warn", "gemini_no_final_image", {
+        category: blocked ? "blocked" : reasons.includes("MAX_TOKENS") ? "incomplete" : "no_final_image",
+        candidates: candidates.length,
+        thoughtImages: parts.filter(p => p?.thought === true && Boolean(p.inlineData?.data)).length,
+        // Only documented enum values and structural counts, never provider
+        // text or patient content. These distinguish refusal from parsing loss.
+        finish: reasons.map((reason: unknown) => typeof reason === "string" &&
+          ["STOP", "MAX_TOKENS", "SAFETY", "RECITATION", "OTHER", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "MALFORMED_FUNCTION_CALL", "IMAGE_SAFETY", "IMAGE_PROHIBITED_CONTENT", "IMAGE_RECITATION", "IMAGE_OTHER", "NO_IMAGE"].includes(reason) ? reason : "unknown").join(","),
+        textParts: parts.filter(p => typeof p?.text === "string").length,
+        imageParts: parts.filter(p => Boolean(p?.inlineData?.data)).length,
+        aspect: nearestAspectRatio(dimensions.width, dimensions.height),
+        resolution,
+      });
       throw new GenerationError(
-        "Gemini couldn’t process this photograph. Please choose a different, clear smiling photo.",
-        422,
-        "image_not_processed",
+        blocked ? "Google declined this image request. Your original photograph is unchanged."
+          : "Google returned no finished preview. Your photo and selections are safe — please try again.",
+        blocked ? 422 : 502,
+        blocked ? "image_not_processed" : "provider_no_image",
       );
     }
     if (!imageSchema.safeParse(image).success)

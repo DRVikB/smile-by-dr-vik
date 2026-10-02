@@ -1,5 +1,7 @@
 # SmileCompose V1 — Macro Stage 2 handover
 
+**Later owner-requested change:** mandatory tooth-map review was removed to restore quick generation. This document describes the original Stage 2 implementation; its mandatory-generation policy and blocked-map expectations are superseded by [the device/quick-generation follow-up](DEVICE_GENERATION_FIX_2026-10-02.md). Reviewed-map precision remains available; quick concepts use the existing mouth/face protection.
+
 Completed locally on 2 October 2026. **No staging/production deployment, database migration deployment, TestFlight upload or paid AI generation was performed. Stop at Stage 2.**
 
 This is an engineering handover. Pixel protection and responsive inference are tested; cosmetic quality, clinical accuracy and App Store/legal clearance are not established by these tests.
