@@ -75,7 +75,7 @@ Required public build variables:
 - `NEXT_PUBLIC_SUPABASE_URL=https://wukcqlpuzkzwxmdkotfg.supabase.co`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — configured with the verified public anon key
 - `NEXT_PUBLIC_SMILE_API_ORIGIN=https://smile-by-dr-vik-staging.drvik.workers.dev`
-- `NEXT_PUBLIC_REVENUECAT_IOS_API_KEY` — currently Test Store; an App Store `appl_…` key is still needed for native TestFlight
+- `NEXT_PUBLIC_REVENUECAT_IOS_API_KEY` — verified App Store `appl_…` key configured locally and bundled in native assets
 
 Server secrets are excluded from browser/native bundles. The current native bundle is an engineering build until the RevenueCat and legal release guards are satisfied.
 
@@ -128,32 +128,30 @@ An isolated local handler used the **real staging auth/allowance database** and 
 
 The temporary three-credit server-side QA override was scoped to the disposable staging account, expired after one hour, and removed with account deletion. No fake subscription was added, no ordinary-user bypass was enabled, and no override remains from these tests. Actual StoreKit purchase/renewal/grace/restore accounting is pending.
 
-## J. RevenueCat / StoreKit — CONNECTED; APP STORE SETUP REQUIRED
+## J. RevenueCat / StoreKit — APPLE CONFIGURATION CONNECTED; PURCHASE VALIDATION PENDING
 
-The installed RevenueCat plugin's official CLI successfully authenticated and inspected project **SmileCompose** (`proja5f9a8da`). Its current resources are:
+RevenueCat project **SmileCompose** (`proja5f9a8da`) now has an App Store app (`appb4a1d5eb2d`) with bundle ID `uk.co.drvik.smilecompose`. The App Store Connect and In-App Purchase credentials both passed RevenueCat validation. The public Apple SDK key is configured in ignored `.env.local` and verified in the native bundle; no private Apple key is bundled.
 
 | Item | Verified state |
 | --- | --- |
-| App | Test Store only; no App Store app yet |
-| Entitlement | `pro`, active; both test products attached |
+| Entitlement | `pro`; Apple monthly/annual products attached |
 | Offering | `default`, current |
-| Monthly package | `$rc_monthly` → `uk.co.drvik.smilecompose.pro.monthly`, Test Store, P1M |
-| Annual package | `$rc_annual` → `uk.co.drvik.smilecompose.pro.annual`, Test Store, **P1M (incorrect for annual)** |
-| Webhooks | None |
-| Hosted server credential | Subscriber lookup and deletion succeeded |
+| Monthly package | `$rc_monthly` → Apple `uk.co.drvik.smilecompose.pro.monthly`, ONE_MONTH, GBP 29.99 |
+| Annual package | `$rc_annual` → Apple `uk.co.drvik.smilecompose.pro.annual`, ONE_YEAR, GBP 299.99 |
+| Apple metadata | RevenueCat store state reported MISSING_METADATA, empty localizations/review information; dashboard metadata may have since changed and must be rechecked |
+| Introductory trials | None reported in Apple; planned trials are not yet confirmed |
+| Webhook | `SmileCompose staging sandbox`, sandbox only, App Store app filter, all events |
+| Server webhook authentication | Random bearer header installed as staging `REVENUECAT_WEBHOOK_AUTH`; unauthorized request → 401, authenticated synthetic TEST without user → 200 ignored_unknown_user |
+| Actual purchase/restore/renewal | Not tested; no purchase or fake subscription manufactured |
 
-The supplied `test_…` public key remains in the engineering bundle. A key starting `appl_…` cannot be retrieved until an App Store app exists. No purchase or fake entitlement was manufactured.
+### Remaining owner steps
 
-### Exact next owner steps
+1. In [the staging webhook settings](https://app.revenuecat.com/projects/a5f9a8da/integrations/webhooks/whintgr253ab15b85), **General → Authorization header value** (directly below Webhook URL): paste the entire single line from ignored `.env.revenuecat-webhook.local`, including `Bearer `, and Save. RevenueCat's API cannot set this field. Do not put the credential in chat or Git. Actual RevenueCat delivery remains unverified until this is saved and Send test event passes.
+2. Finish Apple product availability, metadata, review information and any intended introductory offers; verify current store state, then test purchase, restore, renewal and allowance accounting in Apple sandbox.
+3. The historical Test Store annual product remains P1M; adjust separately if continuing Test Store testing. It does not change the correctly configured ONE_YEAR Apple product.
+4. Apple-linked account deletion still needs server-only `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_CLIENT_ID=uk.co.drvik.smilecompose`, and matching Supabase Apple provider/callback configuration. Password-account deletion passes; Apple revocation remains unverified.
 
-1. Confirm/create the SmileCompose app record in App Store Connect with bundle ID `uk.co.drvik.smilecompose`.
-2. In [RevenueCat Apps](https://app.revenuecat.com/projects/a5f9a8da/apps), add/select an **App Store** app with that same bundle ID. Connect its Apple In-App Purchase key/issuer/key ID directly in RevenueCat. Do not put `.p8` keys in chat or client code.
-3. In App Store Connect, create/confirm the monthly and annual subscription IDs above in one group: monthly **1 month**, annual **1 year**. Finish the necessary Apple agreements and product metadata. Import/map the App Store products in RevenueCat; attach both to `pro` and the corresponding packages in `default`. Test Store products are not Apple products. Correct the annual Test Store duration to P1Y for consistent tests.
-4. Let the operator retrieve the App Store public SDK key via the connected plugin, or place it in `.env.local` as `NEXT_PUBLIC_REVENUECAT_IOS_API_KEY`. It is public; no private key belongs in a `NEXT_PUBLIC_` variable.
-5. Configure a sandbox-only staging webhook for the App Store app at `https://smile-by-dr-vik-staging.drvik.workers.dev/api/webhooks/revenuecat`. Set a random Authorization header and securely install its identical value as Worker `REVENUECAT_WEBHOOK_AUTH`. Keep any future production webhook separate. Configure/verify restore behaviour and test purchase/restore/renewal in Apple sandbox/TestFlight.
-6. For Apple-linked account deletion, configure server-only `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_CLIENT_ID=uk.co.drvik.smilecompose`, plus the matching Supabase Apple provider/callback configuration. Password-account deletion now passes; Apple revocation does not have credentials yet.
-
-See [PAYMENTS_AUTH_SETUP.md](../PAYMENTS_AUTH_SETUP.md), [RevenueCat Test Store guidance](https://www.revenuecat.com/docs/test-and-launch/sandbox/test-store) and [Apple sandbox testing](https://www.revenuecat.com/docs/test-and-launch/sandbox/apple-app-store). Apple credential entry remains a human action; nothing was uploaded to Apple.
+See [PAYMENTS_AUTH_SETUP.md](../PAYMENTS_AUTH_SETUP.md). No binary has been uploaded to Apple.
 
 ## K. Legal/privacy — manual review required
 
@@ -180,32 +178,26 @@ Apple guidance: [internal testers](https://developer.apple.com/help/app-store-co
 
 Physical privacy cover, file attributes after lock/unlock, Keychain persistence and permission/share flows still need hardware tests.
 
-## M. Signing status — NOT READY
+## M. Signing status — DEBUG DEVICE BUILD AND INSTALL PASSED
 
-A valid Apple Development identity for the selected team exists. However, the signed generic iOS device build failed (exit 65): the profile `iOS Team Provisioning Profile: uk.co.drvik.smilecompose` lacks **Data Protection**, **Sign In with Apple** and their entitlements. Automatic signing is configured; it has **not** succeeded with the current profile. No distribution identity/archive was verified.
+The initial automatic profile lacked Sign in with Apple and Data Protection. A signed Debug build with `-allowProvisioningUpdates -allowProvisioningDeviceRegistration` refreshed it and **BUILD SUCCEEDED**. The embedded profile was verified to include `com.apple.developer.applesignin = Default`, `com.apple.developer.default-data-protection = NSFileProtectionComplete`, and both physical device identifiers. Neither entitlement was removed.
 
-Manual steps when ready:
+The updated engineering app was installed successfully on Vikas' iPhone 17 Pro Max and Dr VIK's iPad Pro 11-inch M5. iPhone launch succeeded. Automatic iPad launch was blocked while the device was locked; the owner must unlock/open it. Physical terms/privacy acceptance and clinical QA remain owner checks. No signed distribution archive or TestFlight upload was performed.
 
-1. Open Xcode via `npm run ios:open`; Settings → Accounts → sign in and select the paid team.
-2. Apple Developer → Certificates, Identifiers & Profiles → Identifiers → `uk.co.drvik.smilecompose`: enable Sign in with Apple and Data Protection (Complete). Confirm both capabilities appear for App in Xcode. Do not remove entitlements to force a build.
-3. Enable automatic signing for App and SmileComposeWidgetExtension, select team `7TPF7LT884`, and let Xcode refresh/register profiles. A capability change affects provisioning profiles: [Apple capability guidance](https://developer.apple.com/help/account/identifiers/enable-app-capabilities/).
-4. Connect/unlock/trust each device, enable Developer Mode if requested, choose it in Xcode and build. Accept any dashboard agreement or provisioning prompt personally.
-5. Re-run the signed build after profile refresh; confirm success before calling device/archive signing ready.
-
-The paired iPad Pro 11-inch (M5) and iPhone 17 Pro Max are available locally. Neither physical app install nor physical acceptance testing was performed. App Groups are optional for personalized widget greeting and are not required for patient sync; do not add unrelated capabilities merely to fix signing.
+The native bundle contains the current consent fix, verified staging API origin and Apple public SDK key. See [the device/generation follow-up](DEVICE_GENERATION_FIX_2026-10-02.md).
 
 ## N. Version / archive
 
 Preserved marketing version **1.0**, build **1**, package **1.0.0**. The Release simulator bundle reports 1.0/1. App Store Connect build history was not accessible/checked. If build 1 has already been uploaded for this version, use the next unused increasing build number for **both targets**, rebuild and sync. Do not silently overwrite an existing uploaded build.
 
-No `.xcarchive` or `.ipa` was created. The current native output is a production-optimized engineering bundle with test-key/legal blockers, not a final TestFlight artifact.
+No `.xcarchive` or `.ipa` was created. The current native output is a production-optimized engineering bundle with legal release blockers, not a final TestFlight artifact.
 
 ## O. Final automated checks
 
 | Check | Result |
 | --- | --- |
 | `npm run check:production` | PASS (includes lint, tests, production web build and verifier) |
-| Full suite | **526 tests / 526 pass / 0 fail / 0 skipped / 0 cancelled** |
+| Full suite | **534 tests / 534 pass / 0 fail / 0 skipped / 0 cancelled** |
 | ESLint | PASS, zero warnings |
 | TypeScript | PASS |
 | `npm run build` | PASS |
@@ -216,9 +208,9 @@ No `.xcarchive` or `.ipa` was created. The current native output is a production
 | Native packaging → Capacitor sync → bundle verifier | PASS |
 | Xcode Release simulator compile | **BUILD SUCCEEDED** |
 | Release launch on iPhone 18 Pro Max / iPad Pro 11-inch M5 simulators, iOS 27 | PASS, fresh screenshots inspected; branding/start controls within screen |
-| Signed Debug generic iOS device build | **FAIL**, missing provisioning capabilities above |
-| Release packaging guard | **Correctly blocked** by Test Store key and legal markers |
-| App Store static readiness | **31/34 satisfied**, 3 owner-action categories, not release approval |
+| Signed Debug physical iOS device build and iPhone/iPad installation | **PASS**, refreshed profile includes both required capabilities |
+| Release packaging guard | **Correctly blocked** by unresolved legal markers; Apple SDK key passes |
+| App Store static readiness | **32/34 satisfied**, 2 owner-action categories, not release approval |
 | Runtime npm audit | 0 known vulnerabilities |
 | Full npm audit | 3 moderate, dev-only Capacitor CLI → xcode → uuid; 0 high/critical |
 
@@ -258,8 +250,8 @@ The current simulator launches are not exhaustive flow, camera, safe-area, hardw
 
 ## S. Remaining blockers / resume order
 
-1. RevenueCat App Store app/public `appl_…` key, actual Apple monthly/annual product mappings, sandbox webhook and purchase/restore validation. Only Test Store exists today; annual test duration is wrong.
-2. Apple capability/profile refresh and successful signed device/archive build; Apple revocation secrets and Supabase callback/provider configuration. Password auth/deletion works; Apple sign-in/deletion is untested.
+1. Save the staging webhook Authorization header and validate actual delivery; finish Apple product metadata/availability/introductory offers and sandbox purchase/restore tests. App Store credentials, public key and product mappings are connected. Historical annual Test Store duration is still wrong.
+2. Signed distribution archive; Apple revocation secrets and Supabase callback/provider configuration. Signed Debug build and physical installation passed. Password auth/deletion works; Apple sign-in/deletion is untested.
 3. Legal identity, professionally reviewed privacy/terms/DPA/DPIA/retention/transfers, stale disclosures and licensing review. The release guard remains enabled. Review/enable leaked-password protection and direct-storage cached URL behaviour; backup retention is unverified.
 4. Physical-device acceptance, real iPhone→iPad→web sync and clinician visual QA of protected full-resolution outcomes. Auth email/link flows remain untested.
 5. App Store Connect app/build history, unused build number, signed Archive and internal TestFlight upload remain manual. Nothing has been uploaded.
@@ -270,7 +262,7 @@ PATIENT CLOUD SYNC: READY FOR PHYSICAL DEVICE TESTING
 
 LIVE GENERATION: READY FOR HUMAN QA
 
-IOS BUILD: NOT READY
+IOS DEBUG DEVICE BUILD: READY; DISTRIBUTION RELEASE REMAINS BLOCKED
 
 INTERNAL TESTFLIGHT: NOT READY
 

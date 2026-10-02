@@ -29,6 +29,8 @@ type GeminiOptions = {
 };
 
 type GeminiPart = {
+  /** Interim reasoning images are never a patient-facing result. */
+  thought?: boolean;
   text?: string;
   inlineData?: { mimeType?: string; data?: string };
 };
@@ -208,7 +210,11 @@ export class GeminiSmileProvider implements SmileImageProvider {
 
     const body = await response.json().catch(() => null);
     const parts: GeminiPart[] = body?.candidates?.[0]?.content?.parts ?? [];
-    const imagePart = parts.find((p) => typeof p?.inlineData?.data === "string");
+    // Gemini can return draft/thought images before the completed edit. Never
+    // present those (or fall back to one when the final image is missing).
+    const imagePart = parts.filter((p) => p?.thought !== true &&
+      typeof p?.inlineData?.data === "string" &&
+      ["image/png", "image/jpeg"].includes(p.inlineData.mimeType ?? "")).at(-1);
     const data = imagePart?.inlineData?.data ?? "";
     const outMime =
       imagePart?.inlineData?.mimeType === "image/jpeg"

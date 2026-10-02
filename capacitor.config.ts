@@ -13,6 +13,8 @@ const config: CapacitorConfig = {
   // Native views use dynamic Light/Dark colours (SmileComposeColors in the
   // bridge view controller); these are only the pre-load fallback.
   backgroundColor: "#FFFFFF",
+  // Bridge debug output can include Keychain session values; keep it off on devices.
+  loggingBehavior: "none",
   ios: {
     // The web layout handles notch, Dynamic Island and Home Indicator itself
     // with env(safe-area-inset-*) and viewport-fit=cover.

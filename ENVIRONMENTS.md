@@ -8,8 +8,10 @@ SmileCompose has three environments. Keep each one's backend, database and keys 
 migrations are recorded, and the staging Worker/web release is deployed.
 `/api/patient-cases` no longer returns 404. Safe live account/storage/sync and
 one synthetic Gemini generation passed. Production was not changed.
-RevenueCat currently has Test Store only; App Store setup, signing, legal review
-and physical acceptance still block TestFlight. See
+RevenueCat App Store credentials passed validation; Apple products are mapped and
+the public Apple SDK key is bundled. Signed Debug build and physical iPhone/iPad
+installation passed. Webhook dashboard authorization, StoreKit validation, legal
+review and device acceptance still block TestFlight. See
 [the Stage 3 handover](docs/STAGING_TESTFLIGHT_STAGE3_2026-10-02.md).
 
 | | Development | Staging (device testing, TestFlight) | Production |

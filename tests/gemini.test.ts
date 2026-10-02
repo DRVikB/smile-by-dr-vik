@@ -21,6 +21,33 @@ const input = {
 const PNG_1x1 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 
+test("Gemini skips intermediate thought images and returns only the finished photograph", async () => {
+  const provider = new GeminiSmileProvider({ apiKey: "test", fetcher: async () => Response.json({
+    candidates: [{ content: { parts: [
+      { thought: true, inlineData: { mimeType: "image/png", data: PNG_1x1 } },
+      { thought: true, text: "Internal draft" },
+      { inlineData: { mimeType: "image/jpeg", data: encoded } },
+      { thought: true, inlineData: { mimeType: "image/png", data: PNG_1x1 } },
+    ] } }],
+  }) });
+  assert.equal((await provider.generate(input)).image, input.originalImage);
+});
+
+test("thought-only and non-image responses cannot be presented as completed generations", async () => {
+  for (const parts of [
+    [{ thought: true, inlineData: { mimeType: "image/png", data: PNG_1x1 } }],
+    [{ inlineData: { mimeType: "application/octet-stream", data: PNG_1x1 } }],
+  ]) {
+    let calls = 0;
+    const provider = new GeminiSmileProvider({ apiKey: "test", fetcher: async () => {
+      calls++;
+      return Response.json({ candidates: [{ content: { parts } }] });
+    } });
+    await assert.rejects(provider.generate(input), (e: unknown) => e instanceof GenerationError && e.code === "image_not_processed");
+    assert.equal(calls, 1);
+  }
+});
+
 test("Gemini adapter sends one authenticated generateContent edit with all dental choices", async () => {
   let calls = 0;
   const provider = new GeminiSmileProvider({
