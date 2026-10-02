@@ -44,7 +44,7 @@ A procedural 1×1 PNG passed owner authorisation/upload, SHA-256 verification, i
 
 Deletion produced a tombstone, denied app asset access with 410, and removed the storage object and cleanup job. One immediate request to the previously fetched storage URL returned cached bytes; a fresh cache-busted request was denied and `storage.objects` confirmed zero objects. This is a **REVIEW** record, not a promise that previously downloaded bytes can be recalled. Live failed-cleanup/retry injection was not performed; that path remains covered by isolated regression tests.
 
-Both disposable accounts were subsequently deleted through the real account-deletion route, including their RevenueCat records. Final QA users/cases/assets/cleanup counts are checked separately. Supabase backup retention, provider infrastructure retention and physical-device cache behaviour still require owner/privacy review.
+Both disposable accounts were subsequently deleted through the real account-deletion route, including their RevenueCat records. Final verification confirms **0 QA accounts, 0 patient cases, 0 asset metadata rows, 0 cleanup jobs and 0 patient storage objects**. Supabase backup retention, provider infrastructure retention and physical-device cache behaviour still require owner/privacy review.
 
 ## C. Staging backend — READY
 
@@ -90,6 +90,7 @@ Server secrets are excluded from browser/native bundles. The current native bund
 | Native preflight | 204 for exact `capacitor://localhost` origin |
 | Foreign-origin preflight | 403 |
 | Generation without auth / subscription / per-case permission | Rejected before paid generation |
+| Hosted page/manifest/Apple icon/manifest icons/service worker | 200; correct branding; unknown page 404 |
 | Live Gemini + rapid duplicate + reconnect retry | One success, duplicates 409, one credit consumed |
 | Account deletion | Initial FK failure fixed; A and B then returned 200 with `deleted:true`, `revenuecatDeleted:true` |
 
