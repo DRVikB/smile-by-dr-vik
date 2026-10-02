@@ -78,7 +78,8 @@ test("Gemini adapter sends one authenticated generateContent edit with all denta
       const parts = body.contents[0].parts;
       assert.equal(parts[0].inlineData.mimeType, "image/jpeg");
       assert.equal(parts[0].inlineData.data, encoded);
-      assert.deepEqual(body.generationConfig.responseModalities, ["IMAGE"]);
+      assert.deepEqual(body.generationConfig.responseModalities, ["TEXT", "IMAGE"]);
+      assert.equal(body.contents[0].role, "user");
       assert.equal(body.generationConfig.thinkingConfig.includeThoughts, false);
       assert.ok(typeof body.generationConfig.imageConfig.aspectRatio === "string");
       const prompt = String(parts[1].text);

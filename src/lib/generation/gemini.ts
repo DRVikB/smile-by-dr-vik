@@ -3,7 +3,7 @@ import type { SmileImageProvider } from "./provider";
 import type { GenerationInput } from "./schema";
 import type { GenerationResult } from "../types";
 import { imageSchema } from "./schema";
-import { buildSmileInstruction } from "./prompt";
+import { buildImageEditPrompt } from "./imageEditPrompt";
 import { GenerationError } from "./errors";
 import { imageDimensions } from "./openai";
 import { geminiCostReceipt, PRICED_GEMINI_MODEL } from "./cost";
@@ -101,7 +101,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
     const withMask = Boolean(this.options.maskGuidance && input.editMask);
     if (withMask) requestParts.push({ inlineData: { mimeType: "image/png", data: input.editMask!.split(",")[1] } });
     requestParts.push({
-      text: buildSmileInstruction(
+      text: buildImageEditPrompt(
         input.settings,
         Boolean(input.referenceImage),
         input.framing,
@@ -111,9 +111,12 @@ export class GeminiSmileProvider implements SmileImageProvider {
       ),
     });
     const requestBody = {
-      contents: [{ parts: requestParts }],
+      contents: [{ role: "user", parts: requestParts }],
       generationConfig: {
-        responseModalities: ["IMAGE"],
+        // Use the documented multimodal edit format. IMAGE-only can suppress
+        // an explanation and leave a NO_IMAGE candidate with no content.
+        // Text is diagnostic only; only a completed image becomes a preview.
+        responseModalities: ["TEXT", "IMAGE"],
         ...(model.startsWith("gemini-3") ? { thinkingConfig: { includeThoughts: false } } : {}),
         imageConfig: {
           aspectRatio: nearestAspectRatio(dimensions.width, dimensions.height),
@@ -245,6 +248,10 @@ export class GeminiSmileProvider implements SmileImageProvider {
         imageParts: parts.filter(p => Boolean(p?.inlineData?.data)).length,
         aspect: nearestAspectRatio(dimensions.width, dimensions.height),
         resolution,
+        explanation: classifyNoImageExplanation(parts),
+        referenceImages: styleReferences.length + (input.referenceImage ? 1 : 0),
+        maskGuidance: withMask,
+        hasNotes: Boolean(input.settings.notes.trim()),
       });
       throw new GenerationError(
         blocked ? "Google declined this image request. Your original photograph is unchanged."
@@ -262,4 +269,15 @@ export class GeminiSmileProvider implements SmileImageProvider {
     return { image, mode: "live", variationId: crypto.randomUUID(),
       cost: geminiCostReceipt(model, resolution, body?.usageMetadata) };
   }
+}
+
+/** Bounded categories only: provider text may contain clinical/patient details. */
+function classifyNoImageExplanation(parts: GeminiPart[]): string {
+  const text = parts.filter(p => p?.thought !== true && typeof p?.text === "string").map(p => p.text).join(" ");
+  if (!text) return "none";
+  if (/safety|policy|prohibited|not allowed|public figure|celebrity/i.test(text)) return "policy";
+  if (/exact.*(pixel|dimension)|pixel.*exact|resolution|aspect ratio/i.test(text)) return "dimensions";
+  if (/medical advice|diagnos|treatment plan/i.test(text)) return "medical_context";
+  if (/cannot|can't|unable|sorry|not able/i.test(text)) return "declined";
+  return "other";
 }

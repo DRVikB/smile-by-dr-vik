@@ -207,8 +207,8 @@ test("CRITICAL: relevant Case Library references are actually included in the ou
   const prompt = String(parts.at(-1)!.text);
   assert.match(prompt, /the first image is the SOURCE PATIENT to edit/);
   assert.match(prompt, /STYLE REFERENCES, not patients to edit/);
-  assert.match(prompt, /Preserve this patient's identity, facial anatomy, lips, skin, head position, lighting/);
-  assert.match(prompt, /Do not copy any of these patients' tooth positions, gum levels, identities, facial anatomy, gingival architecture, backgrounds/);
+  assert.match(prompt, /Keep the original face, expression, lips, mouth opening, gums, background, lighting and camera framing unchanged/);
+  assert.match(prompt, /Keep all identity, gum architecture and tooth positions from the first image; never average arrangements or copy reference anatomy/);
   assert.deepEqual(w.commits.at(-1)!.referenceCaseIds, [porcelain], "reference IDs recorded with the generation");
 });
 

@@ -7,7 +7,7 @@ import { clinicalDataInstruction } from "./clinicalData";
 const percent = (n: number) => Math.round(n * 100);
 
 /** Recorded in each result's generation metadata. Bump when instructions change. */
-export const SMILE_PROMPT_VERSION = "2026-10-02-soft-tissue-and-anatomy-v3";
+export const SMILE_PROMPT_VERSION = "2026-10-02-photographic-edit-v4";
 
 const VISIBLE_SMILE_INSTRUCTION = "VISIBLE DENTITION IS FIXED BY THE ORIGINAL PHOTO: keep the same lip coverage and upper/lower tooth exposure. If only upper teeth are visible, keep the lower teeth hidden; do not add a visible lower row. If lower teeth are partly visible, do not reveal more of them. Selecting Both arches, straightening teeth, changing material or using a reference smile never authorises revealing concealed teeth, lowering a lip, dropping the jaw or opening the bite. Work only within the original visible smile.";
 
@@ -26,7 +26,7 @@ export function toothDesignInstruction(p: import("../types").ToothPlan): string 
   return parts.length ? ` Design: ${parts.join("; ")}.` : "";
 }
 
-function alignmentInstruction(alignment: NonNullable<SmileSettings["alignment"]>): string {
+export function alignmentInstruction(alignment: NonNullable<SmileSettings["alignment"]>): string {
   const upper = alignment.arches !== "Lower";
   const lower = alignment.arches !== "Upper";
   const scope = upper && lower ? "upper and lower arches (FDI 1x, 2x, 3x and 4x)" : upper ? "upper arch (FDI 1x and 2x)" : "lower arch (FDI 3x and 4x)";
