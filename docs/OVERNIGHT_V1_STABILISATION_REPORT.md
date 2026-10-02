@@ -225,6 +225,7 @@ Other recorded failures:
 - Synthetic PNG full decoding failed; replaced fixture, added full-photo decoded recovery/restart test. Earlier DOM-state checks are not promoted to image proof.
 - `npm test` launcher failed on sandbox IPC permission before executing tests. Equivalent `node --import tsx --test tests/*.test.ts` ran the unchanged suite successfully.
 - Sandboxed Next build stalled; stopped it and reran the same production/native build with normal permissions. Build passed. Existing legal distribution guard still fails intentionally; no gate was weakened.
+- Final `codesign --verify --deep --strict` returned nonzero in the sandbox; the same read-only verification with normal permissions passed. Packaged asset hashes matched.
 - Review-pack helper initially failed on CJS top-level await; wrapped its local runner and completed. No provider calls occurred.
 
 ## Performance and observed counts — no readiness percentages
