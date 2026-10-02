@@ -13,7 +13,7 @@ export class AuthMessage extends Error {
 
 const MESSAGES: Record<string, string> = {
   invalid_credentials: "That email and password don’t match. Please try again.",
-  email_not_confirmed: "Please confirm your email address first. Check your inbox for the link.",
+  email_not_confirmed: "This account still needs email confirmation. Use the link from your signup email, or request a new one below.",
   weak_password: "Choose a stronger password: at least 10 characters, mixing letters and numbers.",
   same_password: "Choose a password you haven’t used for this account before.",
   over_email_send_rate_limit: "Too many emails were requested. Please wait a few minutes and try again.",

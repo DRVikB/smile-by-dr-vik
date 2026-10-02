@@ -29,17 +29,27 @@ export function AuthSheet({ initialMode, reason, onClose, onSignedIn }: {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [unconfirmedEmail, setUnconfirmedEmail] = useState("");
   const [info, setInfo] = useState("");
   const [sentFor, setSentFor] = useState<"signUp" | "forgot">("signUp");
+
+  function changeMode(next: AuthMode) {
+    setMode(next);
+    setError("");
+    setInfo("");
+    setUnconfirmedEmail("");
+  }
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setError("");
     setInfo("");
+    setUnconfirmedEmail("");
     try {
       await action();
     } catch (e) {
       setError(e instanceof AuthMessage ? e.message : "Something went wrong. Please try again.");
+      if (e instanceof AuthMessage && e.code === "email_not_confirmed") setUnconfirmedEmail(email.trim());
     } finally {
       setBusy(false);
     }
@@ -74,11 +84,14 @@ export function AuthSheet({ initialMode, reason, onClose, onSignedIn }: {
           <div className="account-stack">
             <p className="sheet-sub">
               {sentFor === "signUp"
-                ? `We’ve sent a confirmation link to ${email || "your email"}. Open it on this device to finish creating your account.`
+                ? `If ${email || "your email address"} needs confirmation, look for a confirmation link in your inbox or junk folder. Open it on this device to finish creating your account.`
                 : `If an account exists for ${email || "that address"}, we’ve sent a link to reset your password. Open it on this device.`}
             </p>
-            {sentFor === "signUp" && <button className="secondary-button" disabled={busy} onClick={() => void run(async () => { await resendVerification(email); setInfo("We’ve sent another email."); })}>Resend email</button>}
-            <button className="text-button" onClick={() => setMode("signIn")}>Back to sign in</button>
+            {sentFor === "signUp" && <>
+              <p className="sheet-sub">Already confirmed your account? Sign in with your existing password. You don’t need another confirmation email.</p>
+              <button className="secondary-button" disabled={busy} onClick={() => void run(async () => { await resendVerification(email); setInfo("Confirmation requested. If this address needs confirmation, check your inbox and junk folder."); })}>Resend confirmation link</button>
+            </>}
+            <button className="text-button" disabled={busy} onClick={() => changeMode("signIn")}>Back to sign in</button>
           </div>
         ) : (
           <form className="account-stack" onSubmit={submit}>
@@ -113,11 +126,11 @@ export function AuthSheet({ initialMode, reason, onClose, onSignedIn }: {
             </button>
             {mode === "signIn" && (
               <div className="account-links">
-                <button type="button" className="text-button" onClick={() => setMode("forgot")}>Forgot password?</button>
-                <button type="button" className="text-button" onClick={() => setMode("signUp")}>Create an account</button>
+                <button type="button" className="text-button" disabled={busy} onClick={() => changeMode("forgot")}>Forgot password?</button>
+                <button type="button" className="text-button" disabled={busy} onClick={() => changeMode("signUp")}>Create an account</button>
               </div>
             )}
-            {(mode === "signUp" || mode === "forgot") && <button type="button" className="text-button" onClick={() => setMode("signIn")}>I already have an account</button>}
+            {(mode === "signUp" || mode === "forgot") && <button type="button" className="text-button" disabled={busy} onClick={() => changeMode("signIn")}>I already have an account</button>}
             {mode === "signUp" && (
               <p className="control-hint">
                 By creating an account you agree to the <TermsLink /> and acknowledge the <PrivacyLink />.
@@ -126,6 +139,13 @@ export function AuthSheet({ initialMode, reason, onClose, onSignedIn }: {
           </form>
         )}
         {error && <p className="error-message" role="alert">{error}</p>}
+        {mode === "signIn" && unconfirmedEmail === email.trim() && unconfirmedEmail && (
+          <button className="secondary-button" disabled={busy} onClick={() => void run(async () => {
+            await resendVerification(unconfirmedEmail);
+            setSentFor("signUp");
+            setMode("checkEmail");
+          })}>Send confirmation link</button>
+        )}
         {info && <p className="save-status" role="status">{info}</p>}
       </div>
     </div>

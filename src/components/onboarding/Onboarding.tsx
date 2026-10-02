@@ -226,7 +226,8 @@ function AccountStep({ configured, name, onDefer }: { configured: boolean; name:
     </>}>
       <div className="ob-actions">
         <AppleSignInButton onClick={() => void apple()} disabled={busy} label="Continue with Apple" />
-        <button className="secondary-button ob-button" disabled={busy} onClick={() => openAuth("signUp")}>Continue with Email</button>
+        <button className="secondary-button ob-button" disabled={busy} onClick={() => openAuth("signIn")}>Sign in with email</button>
+        <button className="text-button" disabled={busy} onClick={() => openAuth("signUp")}>Create an account</button>
         {error && <p className="error-message" role="alert">{error}</p>}
         <p className="ob-legal">By continuing you agree to the <TermsLink /> and acknowledge the <PrivacyLink />.</p>
         <button className="text-button ob-quiet" onClick={onDefer}>Explore without an account</button>
