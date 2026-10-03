@@ -1,4 +1,5 @@
 "use client";
+import { generationUnavailable, INTERNAL_SINGLE_TOOTH, INTERNAL_ALIGNMENT, INTERNAL_FULL_ARCH } from "@/lib/generation/availability";
 import { useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, ImagePlus, X } from "lucide-react";
 import type { AlignmentArches, CurrentShade, FaceShape, FullArchPlan, Photo, ShotType, SmileCharacter, SmileSettings, TargetShade, TeethCount, TextureLevel, Treatment } from "@/lib/types";
@@ -134,6 +135,7 @@ export function DesignStudio({
   const change = <K extends keyof SmileSettings>(key: K, value: SmileSettings[K]) => onChange({ ...settings, [key]: value });
   const setTeeth = (teeth: TeethCount) => onChange({ ...settings, teeth, toothPlans: undefined, selectedTeeth: upperTeeth[teeth] });
   const noChange = isNoChangeDesign(settings);
+  const unavailable = generationUnavailable(settings);
   const fullArch = isFullArch(settings) ? settings.fullArch : null;
   const setFullArch = (patch: Partial<FullArchPlan>) => onChange(withFullArch(settings, patch));
   const chooseFullArch = () => { toothMap?.setPicking(false); onChange(withFullArch(settings)); };
@@ -165,7 +167,7 @@ export function DesignStudio({
 
   const alignment = settings.alignment;
   const precisionReady = Boolean(toothMap?.photoUrl&&generationProtectionPlan(toothMap.map,toothMap.photoUrl,settings).ok&&toothMap.status!=="refining");
-  const suggestBoundaryReview = !costs.testMode && !fullArch && !alignment && activeToothPlans(settings).length===1 && !precisionReady;
+  const suggestBoundaryReview = INTERNAL_SINGLE_TOOTH && !costs.testMode && !fullArch && !alignment && activeToothPlans(settings).length===1 && !precisionReady;
   const alignedLabel = alignment ? `Straightened · ${alignment.arches === "Both" ? "both arches" : `${alignment.arches.toLowerCase()} arch`}` : "";
   const restoration = treatments.find(t => t.value === settings.treatment)?.title ?? settings.treatment;
   const summary: { id: StudioTab; value: string }[] = fullArch ? [
@@ -213,7 +215,7 @@ export function DesignStudio({
           </> : <>
             <header className="studio-card-head">
               <h3>Teeth</h3>
-              <p>Choose how many upper teeth to design, or plan each tooth.</p>
+              <p>Choose how many upper teeth to design, or choose Custom for two or more teeth.</p>
             </header>
             {!individual && <div className="studio-arch" role="group" aria-label="Upper teeth to design">
               {ARCH.map(({ tooth, w, h }) => {
@@ -236,8 +238,8 @@ export function DesignStudio({
             </div>
             <SelectedTeethSummary settings={settings} notFound={toothMap?.map ? settings.selectedTeeth.filter(t => !mappedTeeth(toothMap.map).includes(t)) : []} />
             {toothMap?.map && <ToothPicking controller={toothMap} />}
-            {toothMap?.map && toothMap.mode === "single" && singleTooth !== null && <SingleToothEdit controller={toothMap} fdi={singleTooth} />}
-            {toothMap?.map && <p className="control-hint">{
+            {INTERNAL_SINGLE_TOOTH && toothMap?.map && toothMap.mode === "single" && singleTooth !== null && <SingleToothEdit controller={toothMap} fdi={singleTooth} />}
+            {toothMap?.map && <p className="control-hint">{!INTERNAL_SINGLE_TOOTH ? "Choose two or more teeth. The AI is instructed to preserve unselected teeth; check the concept before sharing." :
               toothMap.mode === "select" ? `${toothMap.picking && toothMap.display === "auto" ? "" : "Tap a tooth on the photo to add or remove it. "}Press and hold a tooth for its own settings. Boundary protection is optional for single-tooth edits; multi-tooth concepts use automatic face protection.`
                 : toothMap.mode === "single" ? `Tooth ${singleTooth ?? ""} is outlined on the photo. Tap it, or Design tooth ${singleTooth ?? ""}, for its own shape, length, width, edge and shade. ${precisionReady ? "Pixels outside the confirmed boundaries stay original. Check that the outlines match the tooth." : "Confirm its boundary for precise tooth protection; quick concepts use automatic face protection."}`
                   : toothMap.mode === "design" ? "Visual planning guides: tooth form, smile arc and midline. These guides do not constrain the generated smile."
@@ -248,7 +250,7 @@ export function DesignStudio({
             )}
             {/* Then how the map is shown on the photo. */}
             {individual && <ToothChart settings={settings} onChange={onChange} defaultOpen />}
-            {toothMap?.controlsFor != null && <ToothControls fdi={toothMap.controlsFor} settings={settings} onChange={onChange} onClose={() => toothMap.openControls(null)} />}
+            {INTERNAL_SINGLE_TOOTH && toothMap?.controlsFor != null && <ToothControls fdi={toothMap.controlsFor} settings={settings} onChange={onChange} onClose={() => toothMap.openControls(null)} />}
             <More>
               <div className="control-group">
                 <label className="control-label" htmlFor="design-intent">Design goal</label>
@@ -346,7 +348,7 @@ export function DesignStudio({
               <h3>Treatment</h3>
               <p>Choose how you’d like to transform the smile.</p>
             </header>
-            <div className="studio-align">
+            {INTERNAL_ALIGNMENT && <div className="studio-align">
               <label className="studio-switch-row">
                 <span className="studio-treatment-text"><strong>Straighten teeth</strong><small>Show the teeth aligned, as after orthodontics</small></span>
                 <input type="checkbox" role="switch" className="studio-switch" checked={Boolean(alignment) && !fullArch}
@@ -366,20 +368,20 @@ export function DesignStudio({
                 </label>
                 <p className="control-hint">A concept for discussion. Orthodontic suitability, timing and retention need assessment.</p>
               </>}
-            </div>
+            </div>}
             <div className="studio-treatments" role="radiogroup" aria-label="Restoration">
               {treatments.map(t => (
                 <button key={t.value} type="button" role="radio" aria-checked={!fullArch && settings.treatment === t.value} className={`studio-treatment${alignment?.only && !fullArch ? " is-muted" : ""}`}
-                  disabled={Boolean(alignment?.only) && !fullArch} onClick={() => chooseStandard({ treatment: t.value })}>
+                  disabled={INTERNAL_ALIGNMENT && Boolean(alignment?.only) && !fullArch} onClick={() => chooseStandard({ treatment: t.value, ...(!INTERNAL_ALIGNMENT ? { alignment: undefined } : {}) })}>
                   <span className="studio-treatment-text"><strong>{t.title}</strong><small>{t.detail}</small></span>
                   <span className="studio-check" aria-hidden="true">{!fullArch && settings.treatment === t.value && <Check size={14} strokeWidth={2.6} />}</span>
                 </button>
               ))}
-              <button type="button" role="radio" aria-checked={Boolean(fullArch)} className="studio-treatment" onClick={chooseFullArch}>
+              {INTERNAL_FULL_ARCH && <button type="button" role="radio" aria-checked={Boolean(fullArch)} className="studio-treatment" onClick={chooseFullArch}>
                 <span className="studio-treatment-text"><strong>Full-arch restoration</strong><small>Upper, lower or dual-arch visualisation</small></span>
                 <span className="studio-check" aria-hidden="true">{fullArch && <Check size={14} strokeWidth={2.6} />}</span>
-              </button>
-              {fullArch && (
+              </button>}
+              {INTERNAL_FULL_ARCH && fullArch && (
                 <div className="studio-full-arch">
                   <div className="control-group">
                     <div className="control-label">Arch</div>
@@ -467,15 +469,15 @@ export function DesignStudio({
             </div>
             <div className="studio-case">{caseBar}</div>
             <div className="studio-variations" role="group" aria-label="Or compare three options">
-              <button type="button" className="studio-variation" disabled={busy || settings.designIntent === "Shade only" || (!fullArch && settings.treatment === "Whitening")} onClick={onHarmonise}>
+              <button type="button" className="studio-variation" disabled={Boolean(unavailable) || busy || settings.designIntent === "Shade only" || (!fullArch && settings.treatment === "Whitening")} onClick={onHarmonise}>
                 <VisualiseSymbol size={20} /><span>3 harmonised</span>
                 {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
               </button>
-              <button type="button" className="studio-variation" disabled={busy || noChange || Boolean(fullArch)} onClick={onCompareMaterials}>
+              <button type="button" className="studio-variation" disabled={Boolean(unavailable) || busy || noChange || Boolean(fullArch)} onClick={onCompareMaterials}>
                 <CompareSymbol size={20} /><span>3 materials</span>
                 {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
               </button>
-              <button type="button" className="studio-variation" disabled={busy || settings.designIntent === "Shade only" || (!fullArch && settings.treatment === "Whitening")} onClick={onCompare}>
+              <button type="button" className="studio-variation" disabled={Boolean(unavailable) || busy || settings.designIntent === "Shade only" || (!fullArch && settings.treatment === "Whitening")} onClick={onCompare}>
                 <ComposeSymbol size={20} /><span>3 shapes</span>
                 {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
               </button>
@@ -487,6 +489,7 @@ export function DesignStudio({
 
         <div className="studio-generate">
           {tab === "review" && !costs.testMode && <AllowanceLine />}
+          {unavailable && <p className="control-hint" role="status">{unavailable}</p>}
           {tab === "review" && noChange && <p className="control-hint">No change selected: select teeth to edit and choose a different shade or design goal. No generation is needed.</p>}
           {tab === "review" && suggestBoundaryReview && <p className="control-hint">Ready to generate with automatic face protection. <button type="button" className="text-button" onClick={() => { go("teeth"); toothMap?.setEditing(true); }}>Optional tooth-map review</button></p>}
           <div className="studio-steps-nav">
@@ -498,7 +501,7 @@ export function DesignStudio({
                 Next: {next.id === "teeth" && fullArch ? "Arch" : next.label}<ChevronRight size={18} aria-hidden="true" />
               </button>
             ) : (
-              <button className="primary-button generate-button" onClick={onGenerate} disabled={busy || noChange}>
+              <button className="primary-button generate-button" onClick={onGenerate} disabled={Boolean(unavailable) || busy || noChange}>
                 <VisualiseSymbol size={20} />
                 {busy ? "Creating your visualisation…" : "Generate Smile"}
                 {costs.open && !busy && <small className="action-cost">{allowanceLabel(1, costs.testMode)}</small>}

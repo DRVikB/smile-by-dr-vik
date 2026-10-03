@@ -1,4 +1,5 @@
 import { safeProviderDiagnostic, type ProviderDiagnostic } from "@/lib/generation/providerDiagnostics";
+import { generationUnavailable } from "@/lib/generation/availability";
 import type { Framing, GenerationResult, SmileSettings } from "@/lib/types";
 import type { ImageResolution } from "@/lib/generation/cost";
 import { modeForResolution } from "@/lib/generation/modes";
@@ -66,6 +67,7 @@ export const GENERATION_MESSAGES = {
 /** Map a backend error to clinician-facing copy. Raw provider text is never shown. */
 export function friendlyGenerationError(status: number, code?: string): SmileGenerationError {
   const byCode: Record<string, string> = {
+    mode_unavailable: "This design mode is not available in this version. Choose a supported multi-tooth design. No request was sent to the image service.",
     ai_consent_required: GENERATION_MESSAGES.consent,
     duplicate_request: GENERATION_MESSAGES.duplicate,
     request_guard_unavailable: GENERATION_MESSAGES.paused,
@@ -123,6 +125,8 @@ export async function generateSmileImage(
   request: SmileGenerationRequest,
   options: GenerateOptions = {},
 ): Promise<GenerationResult> {
+  const unavailable = generationUnavailable(request.settings);
+  if (unavailable) throw new SmileGenerationError(unavailable, "mode_unavailable");
   const { signal, fetcher = (input, init) => globalThis.fetch(input, init), online = () => navigator.onLine, timeoutMs = 255_000 } = options;
   const mode = modeForResolution(request.resolution);
   if (!online()) throw new SmileGenerationError(GENERATION_MESSAGES.offline, "offline");

@@ -1,4 +1,5 @@
 "use client";
+import { INTERNAL_SINGLE_TOOTH } from "@/lib/generation/availability";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { updateToothPlan } from "@/lib/teeth";
 import { isValidToothMap, photoFingerprint, renumber, TOOTH_MAP_VERSION, type NormPoint, type ToothMap, type ToothRegion } from "@/lib/toothMap/types";
@@ -135,7 +136,7 @@ export function useToothMap({ photo, setPhoto, settings, onChange, active }: {
   const fingerprint = dataUrl ? photoFingerprint(dataUrl) : null;
   const current = isValidToothMap(photo?.toothMap) && photo.toothMap.photoId === fingerprint ? photo.toothMap : null;
   const needsMap = settings.treatmentMode !== "full_arch" && needsDetection({
-    single: !settings.alignment && settings.selectedTeeth.length === 1,
+    single: INTERNAL_SINGLE_TOOTH && !settings.alignment && settings.selectedTeeth.length === 1,
     custom: picking, review: editing || adding, show: prefs.display === "show",
     guides: prefs.guides.design, requested: requestedPhoto !== null && requestedPhoto === fingerprint,
   });
@@ -166,7 +167,7 @@ export function useToothMap({ photo, setPhoto, settings, onChange, active }: {
     // Detect once per photo (and on a deliberate retry), not on every design change.
   }, [active, needsMap, fingerprint, attempt, Boolean(current), settings.shotType]);
 
-  const refineWanted=needsRefinement(current,{single:settings.selectedTeeth.length===1&&needsMap,custom:picking,review:editing});
+  const refineWanted=needsRefinement(current,{single:INTERNAL_SINGLE_TOOTH&&settings.selectedTeeth.length===1&&needsMap,custom:picking,review:editing});
   useEffect(()=>{
     if(!active||!refineWanted||!current||!dataUrl)return;
     const key=fingerprint+JSON.stringify(current.teeth.map(t=>[t.fdi,t.visible,t.outline]))+attempt;
@@ -196,8 +197,9 @@ export function useToothMap({ photo, setPhoto, settings, onChange, active }: {
 
   const tooth = (id: string): ToothRegion | undefined => current?.teeth.find(t => t.id === id);
   const selectedMapped = current && settings.selectedTeeth.length === 1 ? current.teeth.filter(t => t.visible && t.fdi !== null && settings.selectedTeeth.includes(t.fdi)).length : 0;
-  const mode = settings.treatmentMode === "full_arch" ? "hidden" : toothOverlayMode({ hasMap: Boolean(current), editing, adding, display: prefs.display, picking, guides: prefs.guides, selectedMapped });
+  const requestedMode = settings.treatmentMode === "full_arch" ? "hidden" : toothOverlayMode({ hasMap: Boolean(current), editing, adding, display: prefs.display, picking, guides: prefs.guides, selectedMapped });
 
+  const mode = !INTERNAL_SINGLE_TOOTH && requestedMode === "single" ? "select" : requestedMode;
   return {
     map: current,
     photoSize: { width: photo?.width ?? 1, height: photo?.height ?? 1 },
@@ -209,7 +211,7 @@ export function useToothMap({ photo, setPhoto, settings, onChange, active }: {
     adding,
     setAdding,
     controlsFor,
-    openControls,
+    openControls: fdi => openControls(INTERNAL_SINGLE_TOOTH ? fdi : null),
     toggle,
     confirm: () => {
       if(status==="refining")return;

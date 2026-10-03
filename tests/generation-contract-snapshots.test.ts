@@ -3,13 +3,18 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { contractExamples } from "./fixtures/generation-contract-examples";
 import { buildImageEditPrompt } from "../src/lib/generation/imageEditPrompt";
-import { generateSmileImage } from "../src/services/ai/smileImageService";
+// Exercise preserved internal modes as well as the public V1 contract.
+process.env.NEXT_PUBLIC_SMILE_INTERNAL_SINGLE_TOOTH = "1";
+process.env.NEXT_PUBLIC_SMILE_INTERNAL_ALIGNMENT = "1";
+process.env.NEXT_PUBLIC_SMILE_INTERNAL_FULL_ARCH = "1";
+
 import { generateSmile } from "../src/lib/generation/provider";
 import { GeminiSmileProvider } from "../src/lib/generation/gemini";
 
 const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j4WQAAAAASUVORK5CYII=";
 for (const [name, settings] of Object.entries(contractExamples)) {
   test(`${name}: exact contract snapshot and real client → provider request agree`, async () => {
+    const { generateSmileImage } = await import("../src/services/ai/smileImageService");
     const snapshots = JSON.parse(readFileSync(new URL("./fixtures/generation-contract-prompts.json", import.meta.url), "utf8"));
     assert.equal(buildImageEditPrompt(settings), snapshots[name]);
     let calls = 0;

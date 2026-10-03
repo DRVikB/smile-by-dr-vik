@@ -1,4 +1,5 @@
 "use client";
+import { generationUnavailable } from "@/lib/generation/availability";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
@@ -598,6 +599,8 @@ export default function Smile() {
     consentVersion?: string,
     onStage: (stage: GenerationStage) => void = () => {},
   ): Promise<GenerationResult> {
+    const unavailable = generationUnavailable(settingsIn);
+    if (unavailable) throw new SmileGenerationError(unavailable, "mode_unavailable");
     onStage("preflight");
     const started = performance.now();
     const session = costSession.current;
@@ -796,6 +799,8 @@ export default function Smile() {
   async function generate(override?: Partial<SmileSettings>, approvedConsent?: AiProcessingConsent) {
     if (!photo || busy || request.current) return;
     const used = override ? { ...settings, ...override } : settings;
+    const unavailable = generationUnavailable(used);
+    if (unavailable) { setError(unavailable); return; }
     if (isNoChangeDesign(used)) { setError("No change selected. Choose a different shade or design goal; no AI request was sent."); return; }
     if (!accountReadyForGeneration()) return;
     const consentForRequest = testMode ? null : approvedConsent ?? aiConsent;
@@ -846,6 +851,8 @@ export default function Smile() {
   ) {
     if (!photo || busy || request.current) return;
     if (!accountReadyForGeneration()) return;
+    const unavailable = wanted.map(v => generationUnavailable({ ...settings, ...v.patch })).find(Boolean);
+    if (unavailable) { setError(unavailable); return; }
     if (!testMode && exceedsRequestLimit(costs.requested, wanted.length, requestLimit)) { setError("This batch could exceed the case’s generation limit. Check Allowance or create a single preview."); return; }
     if (!testMode && !confirmed) { setBatchPending(wanted); return; }
     const consentForRequest = testMode ? null : approvedConsent ?? aiConsent;

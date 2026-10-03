@@ -163,3 +163,17 @@ test("expired session requests sign-in recovery without declaring cloud images m
  assert.equal(status.label,"Sign in to download images");assert.equal(status.needsSignIn,true);assert.equal(status.available,false);assert.equal(status.retry,false);
  b.connect(api);await b.refreshSync();assert.deepEqual(await b.readPresentationMedia(f.version),f.media);b.disconnect();
 });
+
+// V1 hides new single-tooth generation without rewriting previous consultations.
+test("legacy single-tooth case survives sync and reopen with its original result and settings", async()=>{
+ const {generationUnavailable}=await import("../src/lib/generation/availability");
+ const a=repo(),f=fixture();
+ const settings={...defaultSettings,selectedTeeth:[11],toothPlans:[{tooth:11,condition:"Natural" as const,intent:"Reshape" as const,length:1 as const}]};
+ f.draft.settings=settings;f.media.preferences={settings};
+ await a.persistCase(f.draft);await a.recordVisualisation(f.entry,f.media);await a.refreshSync();a.disconnect();
+ const b=repo();await b.resume();const reopened=await b.reopenCase(f.id);
+ assert.deepEqual(reopened.settings,settings);assert.equal(reopened.result?.image,png);
+ assert.deepEqual(await b.readPresentationMedia(f.version),f.media);
+ assert.equal(generationUnavailable(reopened.settings),"Single-tooth design is not available in this version.");
+ b.disconnect();
+});
