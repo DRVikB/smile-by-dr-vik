@@ -82,7 +82,6 @@ export function ProPlans({ onPurchased }: { onPurchased?: () => void }) {
           <span className="plan-price">{SUBSCRIPTION_PRODUCTS[key].displayPrice}<small> / {SUBSCRIPTION_PRODUCTS[key].period}</small></span>
           <span className="plan-note plan-allowance">{planCopy(key).allowance}</span>
           <span className="plan-note">{planCopy(key).detail}</span>
-          <span className="plan-note plan-trial">3-day free trial · {trialCopy}</span>
         </div>
       ))}
     </div>
@@ -99,8 +98,7 @@ export function ProPlans({ onPurchased }: { onPurchased?: () => void }) {
       ) : !user ? (
         <div className="account-stack">
           {staticPlans}
-          <p className="control-hint">{trialNote}</p>
-          <button className="primary-button" onClick={() => openAuth("signUp")}>Start your free trial</button>
+          <button className="primary-button" onClick={() => openAuth("signUp")}>Create account</button>
           <p className="control-hint">Your subscription belongs to your SmileCompose account, so you’ll create one first. UK prices shown; your App Store price appears before you subscribe.</p>
           <p className="paywall-offer">Already have an account? <button type="button" className="text-button" onClick={() => openAuth("signIn")}>Sign in</button></p>
         </div>
