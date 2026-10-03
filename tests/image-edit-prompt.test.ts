@@ -43,5 +43,5 @@ test('alignment remains a scoped exception without gum motion or extra crown len
 });
 test('full-arch reconstruction stays conditional and keeps the original visible envelope',()=>{
  const p=buildImageEditPrompt({...defaultSettings,treatmentMode:'full_arch',fullArch:{arch:'upper',restorationType:'zirconia',prostheticGingiva:'exclude'}});
- assert.match(p,/replace compromised/);assert.match(p,/NATURAL SOFT TISSUE IS PROTECTED/);assert.match(p,/the lower arch/);assert.doesNotMatch(p,/exactly the same pixel dimensions/);
+ assert.match(p,/replace compromised/);assert.match(p,/NATURAL SOFT TISSUE IS PROTECTED/);assert.match(p,/Both arches are selected only where visible/);assert.doesNotMatch(p,/exactly the same pixel dimensions/);
 });

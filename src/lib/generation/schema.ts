@@ -1,4 +1,4 @@
-import { normalizeAlignmentScope } from "../fullArch";
+import { normalizeTreatmentScope } from "../fullArch";
 import { z } from "../zod";
 import { upperTeeth, caseFeatures, smileArcs, biteContexts, toothShapes, toothEdges } from "../types";
 import { supportedTeeth } from "../teeth";
@@ -102,5 +102,5 @@ export const generationSchema = z.object({
   framing: framingSchema.optional(),
   sourceBounds: framingSchema.optional(),
   settings: settingsSchema,
-}).transform(input => ({ ...input, settings: normalizeAlignmentScope(input.settings) }));
+}).transform(input => ({ ...input, settings: normalizeTreatmentScope(input.settings) }));
 export type GenerationInput = z.infer<typeof generationSchema>;

@@ -21,11 +21,11 @@ export const NON_RENDER_FIELDS = {
 
 /** A copy of render-relevant state. Never rewrites legacy cases or stored choices. */
 export function normalizeGenerationContract(s: SmileSettings, context: RenderContext = {}) {
-  const fullArch = s.treatmentMode === "full_arch" ? { ...(s.fullArch ?? DEFAULT_FULL_ARCH), prostheticGingiva: s.fullArch?.prostheticGingiva === "include" ? "include" as const : "exclude" as const } : undefined;
+  const fullArch = s.treatmentMode === "full_arch" ? { ...(s.fullArch ?? DEFAULT_FULL_ARCH), arch: "both" as const, restorationType: "zirconia" as const, prostheticGingiva: s.fullArch?.prostheticGingiva === "include" ? "include" as const : "exclude" as const } : undefined;
   const mode: ContractMode = fullArch ? "full_arch" : s.alignment?.only ? "alignment" : s.treatment === "Whitening" ? "whitening" : "restorative";
   const teeth = fullArch || mode === "alignment" ? [] : activeToothPlans(s).map(p => ({ ...p, intent: resolvedToothIntent(s, p), targetShade: p.targetShade ?? s.targetShade }));
   const contour = mode === "full_arch" || (mode === "restorative" && teeth.some(p => p.intent !== "Shade only"));
-  const arcActive = contour && s.shotType === "Full face" && (fullArch ? fullArch.arch !== "lower" : canGuideSmileArc(s));
+  const arcActive = contour && s.shotType === "Full face" && (fullArch ? true : canGuideSmileArc(s));
   return {
     mode, fullArch, teeth, preservedTeeth: fullArch || mode === "alignment" ? [] : (s.toothPlans ?? []).filter(p => p.intent === "Preserve" || p.condition === "Missing").map(p => ({ ...p })),
     alignment: fullArch ? undefined : s.alignment ? { ...s.alignment, arches: "Both" as const } : undefined,
@@ -76,7 +76,7 @@ export function renderGenerationContract(c: GenerationContract): string {
   ];
   // 2. Treatment. Modes are exclusive, except an explicitly supported alignment add-on.
   if (fullArch) {
-    const arch = fullArch.arch === "both" ? "upper and lower" : fullArch.arch;
+    const arch = "upper and lower";
     instructions.push(`TREATMENT: ${arch} full-arch fixed ${fullArch.restorationType} restorative concept. This is a visual restorative concept only. Reconstruct the visible selected arch as a coherent fixed prosthesis; replace compromised, broken-down, discoloured, irregular, spaced or missing visible teeth only within this selected arch.`);
     instructions.push(fullArch.restorationType === "zirconia" ? "Material: zirconia with natural depth, restrained incisal translucency, fine anatomy and realistic polished glaze; no flat opaque denture look. Material does not grant gingival permission." : "Material: provisional (PMMA), slightly more uniform acrylic appearance and lower lustre than final ceramic, still natural and believable.");
   } else if (mode === "alignment") instructions.push(alignmentInstruction(c.alignment!));
@@ -85,8 +85,7 @@ export function renderGenerationContract(c: GenerationContract): string {
   if (c.alignment && mode !== "alignment") instructions.push(alignmentInstruction(c.alignment));
   // 3. Region: no restorative FDI selection leaks into whole-arch or alignment-only modes.
   if (fullArch) {
-    const opposite = fullArch.arch === "upper" ? "lower" : fullArch.arch === "lower" ? "upper" : null;
-    instructions.push(`REGION: visible ${fullArch.arch === "both" ? "upper and lower" : fullArch.arch} arch.${opposite ? ` PROTECTED: the ${opposite} arch (teeth, gums and spaces) stays as photographed.` : " Both arches are selected only where visible; never draw hidden portions."}`);
+    instructions.push("REGION: visible upper and lower arch. Both arches are selected only where visible; never draw hidden portions.");
   } else if (mode === "alignment") instructions.push("REGION: only the selected alignment arches. Other teeth are contextual references, not intentional edit targets.");
   else {
     instructions.push(`REGION: Modify only visible existing selected teeth (FDI: ${c.teeth.map(p => p.tooth).join(", ")}). FDI left/right is the patient's. Never add or remove teeth. Preserve untreated teeth in both arches${c.alignment ? ", except for the separate positioning permission in the selected alignment arches" : ""}. Skip uncertain teeth. Missing or obscured identities must be skipped; do not invent replacements. Neighbouring teeth are contextual references, not intentional edit targets.${c.alignment ? "" : " Preserve the existing dental midline. Preserve tooth positions, axes, rotations and arch form."}`);

@@ -76,7 +76,8 @@ final class SmokeTests: XCTestCase {
         app.buttons["Treatment"].tap()
         tapChoice("Full Arch / All-on-X", in: app)
         app.buttons["Arch"].tap()
-        for arch in ["Upper", "Lower", "Both"] { app.switches[arch].tap(); XCTAssertEqual(app.switches[arch].value as? String, "1") }
+        XCTAssertTrue(app.staticTexts["Both visible arches · Zirconia."].waitForExistence(timeout: 10))
+        for arch in ["Upper", "Lower", "Both"] { XCTAssertFalse(app.switches[arch].exists) }
         let scopeShot = XCTAttachment(screenshot: app.screenshot()); scopeShot.name = "full-arch-scope"; scopeShot.lifetime = .keepAlways; add(scopeShot)
         app.buttons["Treatment"].tap()
         tapChoice("Veneers", in: app)

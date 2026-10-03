@@ -14,7 +14,7 @@ import { defaultSettings, FULL_ARCH_DISCLAIMER, type SmileSettings } from "../sr
 
 const base = (patch: Partial<SmileSettings> = {}): SmileSettings => ({ ...defaultSettings, ...patch });
 const fullArch = (arch: "upper" | "lower" | "both", restorationType: "zirconia" | "provisional" = "zirconia", extra: Partial<SmileSettings> = {}) =>
-  chooseFullArch(base(extra), { arch, restorationType });
+  ({ ...base(extra), treatmentMode: "full_arch" as const, fullArch: { arch, restorationType, prostheticGingiva: "exclude" as const } });
 
 test("existing composite, porcelain and alignment cases are unchanged", () => {
   for (const s of [base({ treatment: "Single-shade composite" }), base({ treatment: "Porcelain" }), base({ alignment: { arches: "Both" } })]) {
@@ -29,21 +29,21 @@ test("existing composite, porcelain and alignment cases are unchanged", () => {
   assert.equal(old.fullArch, undefined);
 });
 
-test("full-arch is exclusive: straightening off, material and tooth plan set aside, arch defaults sensibly", () => {
+test("full-arch is exclusive and new selection always uses both zirconia", () => {
   const aligned = base({ alignment: { arches: "Lower" }, treatment: "Porcelain" });
   const fa = chooseFullArch(aligned);
   assert.equal(fa.treatmentMode, "full_arch");
   assert.equal(fa.alignment, undefined, "Straighten + Full-arch is never a state");
-  assert.equal(fa.fullArch!.arch, "lower", "the arch the case already named");
+  assert.equal(fa.fullArch!.arch, "both", "both arches regardless of previous alignment scope");
   assert.equal(fa.fullArch!.restorationType, "zirconia");
   assert.equal(fa.fullArch!.prostheticGingiva, "exclude");
-  assert.equal(chooseFullArch(base()).fullArch!.arch, "upper", "Upper by default");
+  assert.equal(chooseFullArch(base()).fullArch!.arch, "both");
   // Back to composite: standard mode; the full-arch choices are remembered for next time.
   const back = chooseStandard(fa, { treatment: "Single-shade composite" });
   assert.equal(back.treatmentMode, "standard");
   assert.equal(back.treatment, "Single-shade composite");
   assert.match(buildSmileInstruction(back), /Modify only visible existing selected teeth/);
-  assert.equal(chooseFullArch(back).fullArch!.arch, "lower", "the arch persists");
+  assert.equal(chooseFullArch(back).fullArch!.arch, "both");
 });
 
 test("full-arch generation is built from the structured plan, with the face and smile envelope protected", () => {
@@ -60,10 +60,10 @@ test("full-arch generation is built from the structured plan, with the face and 
   assert.doesNotMatch(prompt, /FDI/);
 
   const upper = buildSmileInstruction(fullArch("upper"));
-  assert.match(upper, /upper full-arch/);
-  assert.match(upper, /PROTECTED: the lower arch/);
-  assert.match(buildSmileInstruction(fullArch("lower")), /PROTECTED: the upper arch/);
-  assert.match(buildSmileInstruction(fullArch("upper", "provisional")), /provisional \(PMMA\)/);
+  assert.match(upper, /upper and lower full-arch fixed zirconia/);
+  assert.doesNotMatch(upper, /PROTECTED: the lower arch/);
+  assert.match(buildSmileInstruction(fullArch("lower")), /upper and lower full-arch fixed zirconia/);
+  assert.doesNotMatch(buildSmileInstruction(fullArch("upper", "provisional")), /provisional \(PMMA\)/);
   assert.match(buildSmileInstruction(chooseFullArch(base(), { prostheticGingiva: "include" })), /selected prosthetic interface with natural-looking pink material/);
   assert.match(buildSmileInstruction(chooseFullArch(base(), { prostheticGingiva: "exclude" })), /Prosthetic gingiva: none/);
 });

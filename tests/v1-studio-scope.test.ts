@@ -108,3 +108,10 @@ test("Alignment shows both arches instead of upper restorative tooth-count choic
   assert.match(html, /Both visible arches/);
   assert.doesNotMatch(html, /aria-label="Upper teeth to design"|aria-label="Upper teeth"/);
 });
+
+test("All-on-X offers both zirconia without an arch or material decision", () => {
+  const html = studio(chooseFullArch(defaultSettings));
+  assert.match(html, /Both visible arches/);
+  assert.match(html, /Zirconia/);
+  assert.doesNotMatch(html, /aria-label="Arch to restore"|aria-label="Arch"|aria-label="Restoration"|>Provisional<|>Upper<|>Lower</);
+});

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, ImagePlus, X } from "lucide-react";
 import type { CurrentShade, FaceShape, FullArchPlan, Photo, ShotType, SmileCharacter, SmileSettings, TargetShade, TeethCount, TextureLevel, Treatment } from "@/lib/types";
 import { upperTeeth, smileArcs, biteContexts, isFullArch } from "@/lib/types";
-import { chooseFullArch as withFullArch, chooseStandard as withStandard, chooseAlignment, normalizeAlignmentScope } from "@/lib/fullArch";
+import { chooseFullArch as withFullArch, chooseStandard as withStandard, chooseAlignment, normalizeTreatmentScope } from "@/lib/fullArch";
 import { DESIGN_INTENTS, isNoChangeDesign, resolveDesignPlan } from "@/lib/generation/designPlan";
 import { canGuideSmileArc } from "@/lib/smilePrinciples";
 import { activeToothPlans, toothSummary } from "@/lib/teeth";
@@ -68,12 +68,6 @@ const TREATMENTS: { value: Treatment; title: string; detail: string }[] = [
   { value: "Porcelain", title: "Porcelain veneers", detail: "Uniform, high-lustre finish" },
 ];
 
-const FULL_ARCH_ARCHES: { value: FullArchPlan["arch"]; label: string }[] = [
-  { value: "upper", label: "Upper" }, { value: "lower", label: "Lower" }, { value: "both", label: "Both" },
-];
-const FULL_ARCH_RESTORATIONS: { value: FullArchPlan["restorationType"]; label: string }[] = [
-  { value: "zirconia", label: "Zirconia" }, { value: "provisional", label: "Provisional" },
-];
 const PROSTHETIC_GINGIVA: { value: FullArchPlan["prostheticGingiva"]; label: string }[] = [
   { value: "exclude", label: "Preserve" }, { value: "include", label: "Include" },
 ];
@@ -200,7 +194,7 @@ export function DesignStudio({
     </section>
   );
 
-  const alignment = normalizeAlignmentScope(settings).alignment;
+  const alignment = normalizeTreatmentScope(settings).alignment;
   const precisionReady = Boolean(toothMap?.photoUrl&&generationProtectionPlan(toothMap.map,toothMap.photoUrl,settings).ok&&toothMap.status!=="refining");
   const suggestBoundaryReview = INTERNAL_SINGLE_TOOTH && !costs.testMode && !fullArch && !alignment && activeToothPlans(settings).length===1 && !precisionReady;
   const alignedLabel = alignment ? `Straightened · ${alignment.arches === "Both" ? "both arches" : `${alignment.arches.toLowerCase()} arch`}` : "";
@@ -237,19 +231,8 @@ export function DesignStudio({
             <header className="studio-card-head"><h3>Alignment</h3><p>Both visible arches. Natural tooth shape and shade are retained.</p></header>
             <p className="control-hint">A visual guide to a straighter smile, not an orthodontic treatment plan.</p>
           </> : fullArch ? <>
-            {/* Full-arch: the arch is the selection. The tooth map stays available internally for geometry. */}
-            <header className="studio-card-head">
-              <h3>Arch</h3>
-              <p>Choose the arch to restore.</p>
-            </header>
-            <div className="segmented studio-count" role="group" aria-label="Arch to restore">
-              {FULL_ARCH_ARCHES.map(a => (
-                <button key={a.value} type="button" aria-pressed={fullArch.arch === a.value} className={fullArch.arch === a.value ? "selected" : ""}
-                  onClick={() => setFullArch({ arch: a.value })}>{a.label}</button>
-              ))}
-            </div>
-            <p className="studio-summary"><strong>{archLabel(fullArch.arch)}</strong><span>Full-arch restoration · {restorationLabel(fullArch.restorationType)}</span></p>
-            <p className="control-hint">{fullArch.arch === "both" ? "Preview both arches as a matching pair." : `Preview the ${fullArch.arch} arch; the AI is instructed to preserve the opposite arch.`} A visual restorative concept for discussion, with the existing lip and face protection.</p>
+            <header className="studio-card-head"><h3>Full Arch / All-on-X</h3><p>Both visible arches · Zirconia.</p></header>
+            <p className="control-hint">Preview both arches as a matching pair. A visual restorative concept for discussion, with the existing lip and face protection.</p>
           </> : <>
             <header className="studio-card-head">
               <h3>Teeth</h3>
@@ -391,18 +374,7 @@ export function DesignStudio({
             <TreatmentOptions settings={settings} onChange={onChange} />
               {INTERNAL_FULL_ARCH && fullArch && (
                 <div className="studio-full-arch">
-                  <div className="control-group">
-                    <div className="control-label">Arch</div>
-                    <div className="segmented" role="group" aria-label="Arch">
-                      {FULL_ARCH_ARCHES.map(a => <button key={a.value} type="button" aria-pressed={fullArch.arch === a.value} className={fullArch.arch === a.value ? "selected" : ""} onClick={() => setFullArch({ arch: a.value })}>{a.label}</button>)}
-                    </div>
-                  </div>
-                  <div className="control-group">
-                    <div className="control-label">Restoration</div>
-                    <div className="segmented" role="group" aria-label="Restoration">
-                      {FULL_ARCH_RESTORATIONS.map(r => <button key={r.value} type="button" aria-pressed={fullArch.restorationType === r.value} className={fullArch.restorationType === r.value ? "selected" : ""} onClick={() => setFullArch({ restorationType: r.value })}>{r.label}</button>)}
-                    </div>
-                  </div>
+                  <p className="studio-summary"><strong>Both visible arches</strong><span>Zirconia restoration</span></p>
                   <details className="studio-more studio-full-arch-advanced">
                     <summary>Advanced<ChevronRight size={16} aria-hidden="true" /></summary>
                     <div className="studio-more-body">
