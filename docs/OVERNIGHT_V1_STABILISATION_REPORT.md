@@ -1,3 +1,56 @@
+## LATEST — GEMINI STAGING ACTIVATION / STRICT ONE-CALL GATE, 3 October 2026
+
+### WHAT WAS ACTUALLY COMPLETED
+
+**PASS — staging-only deployment and matched iPhone install.** Worker source/application configuration matches `f91b56d`; current checkout differed only in this report plus preserved local Xcode signing/scheme work. Zero diff in deployed source/build/config inputs was recorded before packaging. Existing production-style web/native and signed Release from the preceding685-test checkpoint were reused; Worker packaging reran, but no web/native rebuild was necessary.
+
+Staging version **`4ddd4d40-e432-4204-8558-6d3ea6373051`**,100% deployment, version tag `f91b56d`. `--env staging --keep-vars` preserved existing remote vars/secrets; configured Gemini/model/mask values were applied. No production deployment, TestFlight/App Store upload, schema/commercial changes or app deletion. Source prompts, masks, thresholds, retries and hardening remained unchanged. Signed matching app installed over the existing physical iPhone app; no case deletion/reset performed. Post-install physical case inspection was NOT TESTED.
+
+### WHAT WAS TESTED / EVIDENCE
+
+Private evidence: `output/gemini-staging-comparison-2026-10-03/`.
+
+- Version API confirms tag `f91b56d`, `SMILE_PROVIDER=gemini`, `GEMINI_IMAGE_MODEL=gemini-3.1-flash-image`, `SMILE_MASK_GUIDANCE=off`; OpenAI configuration retained but not selected. Existing code has no cross-provider fallback.
+- Remote `GET /api/generation-cost`: HTTP200 and Gemini model. `GET /api/generate-smile`: expected HTTP405, no provider invocation. Authenticated disposable-account status: HTTP200. These read-only checks do not prove a live generation.
+- Google credential and terms-assertion secret names exist; values were not disclosed or changed.
+- Production deployment identity and100% version are identical before/after: deployment `d7e5c7bc-3710-41aa-b219-3692a8554044` unchanged. The production version is `1a315d08-0994-4e39-b17a-49664799dacd`. No production writes.
+- Native HTML/config matches the verified signed app. Physical installation PASS (`iphone-install.json`/`.log`); version1.0/build1, `uk.co.drvik.smilecompose`. No automatic app launch/generation.
+- Existing regression `one empty Gemini response is retried once under the same diagnostic lineage` rerun locally:1/1 PASS with mocked network; it explicitly observes2 adapter invocations after NO_IMAGE (`retry-contract-test.log`). No live provider requests.
+
+### EXACT BLOCKER / FIRST STOP STAGE
+
+**BLOCKED BEFORE LIVE INVOCATION.** The instruction simultaneously requires exact source `f91b56d` and strictly ONE provider generation with NO retries. That source's `generateSmile` loop permits2 attempts and automatically retries a Gemini `provider_no_image` with `empty_response`/`text_only` diagnostic category (`src/lib/generation/provider.ts:238`, `:256`). There is no existing per-request no-retry setting in this path. One HTTP request therefore cannot guarantee one provider invocation. Calling it and hoping for a valid first response would risk spending beyond the authorized limit.
+
+No workaround through direct provider calls, alternate billing paths, aborted responses or changed adapter metadata was attempted. No retry code/configuration was modified, because deployment of this exact source was required. **ZERO live calls, ZERO live retries, no generation request ID, no reservation, no commit/release/refund.** Disposable allowance stayed7 →7 (used23 of30). Normal owner account/commercial allowances unchanged.
+
+### REQUIRED 17-FIELD HANDOVER
+
+| Field | Result |
+| --- | --- |
+| 1. Deployed staging commit/version | `f91b56d` / `4ddd4d40-e432-4204-8558-6d3ea6373051`. |
+| 2. Production unchanged | **PASS**, before/after deployment and version equality, no production write. |
+| 3. Active provider | Gemini. |
+| 4. Active model | `gemini-3.1-flash-image`. |
+| 5. Standard multi-tooth mask guidance | OFF, verified deployed binding; canonical source/prompt path preserved. |
+| 6. Generation request ID | N/A — not attempted. |
+| 7. Provider call count | ZERO live calls. |
+| 8. Provider latency | N/A. |
+| 9. Input/raw/final dimensions | No new provider input/raw/final. Planned approved IMG_3291 source1320×1741; retained preparation1320×1760. |
+| 10. Source/generated landmarks | No new processing run; generated count N/A. |
+| 11. Alignment/compositing | **NOT TESTED live**; unchanged local regression coverage remains685/685 from preceding checkpoint. |
+| 12. Display/save/reopen | **NOT TESTED** for Gemini; matching iPhone Release installed. |
+| 13. Allowance |7 →7; no reservation created or ledger change. |
+| 14. Comparison location | Retained Original/Sunburst raw/final: `output/sunburst-test-folder-2026-10-03/IMG_3291/` and its existing `visual-review.html`. No Gemini evidence or new five-column pack exists; no blank/fabricated result presented. |
+| 15. Technical verdict | Staging activation/install **PASS**; controlled generation **BLOCKED / NOT TESTED**. |
+| 16. Cosmetic verdict | **HUMAN REVIEW REQUIRED**, no new Gemini cosmetic evidence. |
+| 17. Remaining blocker | Exact committed endpoint's automatic retry conflicts with the strictly one-provider-call authorization. |
+
+### EXACT NEXT ACTION
+
+Authorize a narrowly tested one-call/no-retry QA path and the resulting updated staging checkpoint, or explicitly revise the invocation limit. Until then do not Generate for this controlled comparison. The authorized single paid call remains unused. No additional optimization, legal/release work or requests performed. STOP.
+
+---
+
 ## LATEST — SELECTIVE GEMINI PROVIDER ROLLBACK, 3 October 2026
 
 ### 1. WHAT WAS ACTUALLY FIXED
