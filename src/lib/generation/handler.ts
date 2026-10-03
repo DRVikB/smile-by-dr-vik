@@ -114,8 +114,8 @@ export async function handleGenerationRequest(
     const serverEnv = env ?? readServerEnvironment();
     const unavailable = generationUnavailable(parsed.data.settings, {
       singleTooth: serverEnv.SMILE_INTERNAL_SINGLE_TOOTH === "1",
-      alignment: serverEnv.SMILE_INTERNAL_ALIGNMENT === "1",
-      fullArch: serverEnv.SMILE_INTERNAL_FULL_ARCH === "1",
+      alignment: serverEnv.SMILE_INTERNAL_ALIGNMENT !== "0",
+      fullArch: serverEnv.SMILE_INTERNAL_FULL_ARCH !== "0",
     });
     if (unavailable) return Response.json({ error: unavailable, code: "mode_unavailable" }, { status: 403, headers });
     const provider = getSmileProvider(env);

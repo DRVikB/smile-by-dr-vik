@@ -70,3 +70,15 @@ test("the report and treatment notes record the alignment and ask for orthodonti
   assert.ok(combined.items.some(item => item.title === "Orthodontic alignment of both arches"));
   assert.ok(combined.items.some(item => /bonding|Porcelain/.test(item.title)));
 });
+
+test("new Alignment selection is positions-only and retains saved restorative choices", async () => {
+  const module = await import("../src/lib/fullArch");
+  const choose = (module as unknown as { chooseAlignment: (s: typeof defaultSettings) => typeof defaultSettings }).chooseAlignment;
+  assert.equal(typeof choose, "function");
+  const s = { ...defaultSettings, treatment: "Porcelain" as const, targetShade: "BL1" as const };
+  const result = choose(s);
+  assert.deepEqual(result.alignment, { arches: "Upper", only: true });
+  assert.equal(result.treatment, s.treatment); assert.equal(result.targetShade, s.targetShade);
+  assert.equal(result.treatmentMode, "standard");
+  assert.match(buildSmileInstruction(result), /ALIGNMENT ONLY/);
+});

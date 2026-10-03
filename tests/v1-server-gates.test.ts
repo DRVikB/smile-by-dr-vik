@@ -14,7 +14,7 @@ for (const name of ["Single tooth", "Alignment", "Full Arch preserve gingiva", "
     const response = await handleGenerationRequest(new Request("https://staging.test/api/generate-smile", {
       method: "POST", headers: { "Content-Type": "application/json", "X-Smile-Request-Id": crypto.randomUUID() },
       body: JSON.stringify({ originalImage: image, settings: contractExamples[name], resolution: "1K", internal: true }),
-    }), { SMILE_PROVIDER: "mock" }, async () => { claims++; return true; });
+    }), { SMILE_PROVIDER: "mock", SMILE_INTERNAL_ALIGNMENT: "0", SMILE_INTERNAL_FULL_ARCH: "0" }, async () => { claims++; return true; });
     assert.equal(response.status, 403);
     assert.equal((await response.json()).code, "mode_unavailable");
     assert.equal(claims, 0);
@@ -41,3 +41,14 @@ test("internal server flag permits the mode but does not bypass real-provider au
   assert.equal(response.status, 401);
   assert.equal((await response.json()).code, "auth_required");
 });
+
+for (const name of ["Alignment", "Full Arch preserve gingiva", "Full Arch include prosthetic gingiva"]) {
+  test(`restored ${name} uses the shared generation route without internal flags`, async () => {
+    const response = await handleGenerationRequest(new Request("https://staging.test/api/generate-smile", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ originalImage: image, settings: contractExamples[name], resolution: "1K" }),
+    }), { SMILE_PROVIDER: "mock" });
+    assert.equal(response.status, 200);
+    assert.ok((await response.json()).image);
+  });
+}

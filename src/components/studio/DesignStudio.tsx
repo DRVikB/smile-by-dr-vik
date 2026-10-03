@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, ImagePlus, X } from "lucide-react";
 import type { AlignmentArches, CurrentShade, FaceShape, FullArchPlan, Photo, ShotType, SmileCharacter, SmileSettings, TargetShade, TeethCount, TextureLevel, Treatment } from "@/lib/types";
 import { upperTeeth, smileArcs, biteContexts, isFullArch } from "@/lib/types";
-import { chooseFullArch as withFullArch, chooseStandard as withStandard } from "@/lib/fullArch";
+import { chooseFullArch as withFullArch, chooseStandard as withStandard, chooseAlignment } from "@/lib/fullArch";
 import { DESIGN_INTENTS, isNoChangeDesign, resolveDesignPlan } from "@/lib/generation/designPlan";
 import { canGuideSmileArc } from "@/lib/smilePrinciples";
 import { activeToothPlans, toothSummary } from "@/lib/teeth";
@@ -276,7 +276,7 @@ export function DesignStudio({
             )}
           </>)}
 
-          {page("shape", <>
+          {page("shape", alignment?.only && !fullArch ? <><header className="studio-card-head"><h3>Shape</h3><p>Alignment retains natural tooth shape, edges and texture. Shape choices are kept for restorative concepts.</p></header></> : <>
             <header className="studio-card-head">
               <h3>Shape</h3>
               {settings.treatment === "Whitening" && !fullArch && <p>Whitening keeps tooth shape, edges and texture. These choices are retained for restorative treatments.</p>}
@@ -350,9 +350,9 @@ export function DesignStudio({
             </header>
             {INTERNAL_ALIGNMENT && <div className="studio-align">
               <label className="studio-switch-row">
-                <span className="studio-treatment-text"><strong>Straighten teeth</strong><small>Show the teeth aligned, as after orthodontics</small></span>
+                <span className="studio-treatment-text"><strong>Straighten teeth</strong><small>Visual alignment concept · not orthodontic planning</small></span>
                 <input type="checkbox" role="switch" className="studio-switch" checked={Boolean(alignment) && !fullArch}
-                  onChange={e => chooseStandard({ alignment: e.target.checked ? { arches: "Both" } : undefined })} />
+                  onChange={e => onChange(e.target.checked ? chooseAlignment(settings) : withStandard(settings, { alignment: undefined }))} />
               </label>
               {alignment && !fullArch && <>
                 <div className="segmented" role="group" aria-label="Arches to straighten">

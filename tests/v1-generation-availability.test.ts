@@ -18,3 +18,12 @@ for (const tooth of [11, 21, 12, 22, 13, 23]) {
     assert.deepEqual(settings, before, "legacy design data is never rewritten by the release gate");
   });
 }
+
+test("Alignment and full arch are public shared-path modes; a stale single-tooth count does not gate alignment", async () => {
+  const { generationUnavailable } = await import("../src/lib/generation/availability");
+  const { chooseFullArch } = await import("../src/lib/fullArch");
+  assert.equal(generationUnavailable({ ...defaultSettings, alignment: { arches: "Upper", only: true } }), null);
+  assert.equal(generationUnavailable(chooseFullArch(defaultSettings)), null);
+  const single = updateToothPlan({ ...defaultSettings, selectedTeeth: [], toothPlans: [] }, { tooth: 11, condition: "Natural", intent: "Auto" });
+  assert.equal(generationUnavailable({ ...single, alignment: { arches: "Both", only: true } }), null);
+});

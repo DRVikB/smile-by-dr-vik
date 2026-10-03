@@ -16,3 +16,9 @@ export function chooseFullArch(s: SmileSettings, patch: Partial<FullArchPlan> = 
 export function chooseStandard(s: SmileSettings, patch: Partial<SmileSettings> = {}): SmileSettings {
   return { ...s, ...patch, treatmentMode: "standard" };
 }
+
+/** Selecting Alignment starts a visual position-only concept, never silently
+ * applies the remembered restorative material or shade. */
+export function chooseAlignment(s: SmileSettings): SmileSettings {
+  return chooseStandard(s, { alignment: { arches: s.alignment?.arches ?? "Upper", only: true } });
+}

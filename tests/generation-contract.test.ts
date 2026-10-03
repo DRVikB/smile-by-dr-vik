@@ -126,3 +126,10 @@ test("reference and mask/context instructions are subordinate and appended once"
   assert.equal(p.split("EDIT MASK:").length - 1, 1);
   assert.doesNotMatch(p, /SHADE ONLY|Material:|Keep all identity, gum architecture and tooth positions/);
 });
+
+test("Full Arch design targets the reconstructed arch instead of nonexistent per-tooth goals", () => {
+  const p = buildImageEditPrompt(chooseFullArch(defaultSettings));
+  assert.match(p, /DESIGN SCOPE: the selected visible prosthetic arch/);
+  assert.doesNotMatch(p, /Apply only to teeth whose goals permit contour changes/);
+  assert.doesNotMatch(p, /Retain photographed central-to-lateral proportions/);
+});
