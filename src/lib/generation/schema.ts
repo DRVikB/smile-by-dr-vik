@@ -89,7 +89,7 @@ export const styleImageSchema = imageSchema.refine(
   (value) => value.length <= 2_200_000,
   "Style reference is too large.",
 );
-/** Tooth Map guidance: a black-and-white PNG aligned to the request canvas; white = the only area that may change. */
+/** Request-canvas PNG guidance: Gemini uses white=editable; OpenAI uses transparent=editable. */
 export const editMaskSchema = imageSchema.refine(v => v.startsWith("data:image/png") && v.length <= 1_500_000, "Edit mask must be a small PNG.");
 export const generationSchema = z.object({
   originalImage: imageSchema,

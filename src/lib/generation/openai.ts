@@ -4,16 +4,17 @@ import type { SmileImageProvider } from "./provider";
 import type { GenerationInput } from "./schema";
 import type { GenerationResult } from "../types";
 import { imageSchema } from "./schema";
-import { buildSmileInstruction } from "./prompt";
+import { buildSunburstPrompt } from "./contract";
 import { GenerationError } from "./errors";
 
-export const DEFAULT_IMAGE_MODEL = "gpt-image-2";
+export const DEFAULT_IMAGE_MODEL = "gpt-image-2.5-sunburst";
 export const OPENAI_IMAGE_TIMEOUT_MS = 240_000;
 const EDIT_ENDPOINT = "https://api.openai.com/v1/images/edits";
 
 type OpenAIOptions = {
   apiKey: string;
   model?: string;
+  quality?: string;
   fetcher?: typeof fetch;
   timeoutMs?: number;
 };
@@ -113,6 +114,11 @@ export class OpenAISmileProvider implements SmileImageProvider {
     const mime = prefix.includes("image/png") ? "image/png" : "image/jpeg";
     const bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
     const dimensions = imageDimensions(bytes, mime);
+    if (!input.editMask)
+      throw new GenerationError("This app version could not prepare the protected edit area. Update SmileCompose before generating.", 400, "invalid_image");
+    const quality = this.options.quality || "high";
+    if (!["low", "medium", "high", "xhigh", "max", "auto"].includes(quality))
+      throw new GenerationError("Image generation is not configured correctly. Please contact support.", 503, "provider_not_configured");
     const form = new FormData();
     form.set("model", this.options.model || DEFAULT_IMAGE_MODEL);
     form.set(
@@ -120,6 +126,13 @@ export class OpenAISmileProvider implements SmileImageProvider {
       new Blob([bytes], { type: mime }),
       mime === "image/png" ? "smile.png" : "smile.jpg",
     );
+    if (input.editMask) {
+      const maskBytes = Uint8Array.from(atob(input.editMask.split(",")[1]), c => c.charCodeAt(0));
+      const maskDimensions = imageDimensions(maskBytes, "image/png");
+      if (mime !== "image/png" || maskDimensions.width !== dimensions.width || maskDimensions.height !== dimensions.height || ![4, 6].includes(maskBytes[25]))
+        throw new GenerationError("The edit area does not match this photo. Prepare the photo again before generating.", 400, "invalid_image");
+      form.set("mask", new Blob([maskBytes], { type: "image/png" }), "edit-mask.png");
+    }
     const styleReferences = (input.styleReferences ?? []).slice(0, MAX_STYLE_REFERENCE_LIMIT);
     const references = [...(input.referenceImage ? [input.referenceImage] : []), ...styleReferences];
     for (const [index, reference] of references.entries()) {
@@ -129,15 +142,17 @@ export class OpenAISmileProvider implements SmileImageProvider {
       imageDimensions(referenceBytes, referenceMime);
       form.append("image[]", new Blob([referenceBytes], { type: referenceMime }), `reference-${index + 1}.${referenceMime === "image/png" ? "png" : "jpg"}`);
     }
-    form.set("prompt", buildSmileInstruction(input.settings, Boolean(input.referenceImage), input.framing, styleReferences.length, input.sourceBounds));
+    const prompt = buildSunburstPrompt(input.settings, { hasReference: Boolean(input.referenceImage), framing: input.framing, styleReferenceCount: styleReferences.length, sourceBounds: input.sourceBounds });
+    form.set("prompt", prompt);
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(prompt));
+    trace?.update({ promptHash: Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join(""), maskSent: Boolean(input.editMask), referenceCount: references.length, imagePartOrder: ["source", ...(input.referenceImage ? ["direct_reference"] : []), ...styleReferences.map(() => "style_reference"), ...(input.editMask ? ["edit_mask"] : []), "prompt"].join(",") });
     form.set("n", "1");
     form.set("size", outputSize(dimensions.width, dimensions.height));
-    form.set("quality", "high");
-    form.set("output_format", "jpeg");
-    form.set("output_compression", "95");
+    form.set("quality", quality);
+    form.set("output_format", "png");
     const [requestedWidth, requestedHeight] = outputSize(dimensions.width, dimensions.height).split("x").map(Number);
     trace?.update({ requestedWidth, requestedHeight });
-    // gpt-image-2 uses high input fidelity automatically and disallows this override.
+    // Sunburst uses high input fidelity by default; no unsupported override.
     const timeout = AbortSignal.timeout(
       this.options.timeoutMs ?? OPENAI_IMAGE_TIMEOUT_MS,
     );
@@ -209,11 +224,12 @@ export class OpenAISmileProvider implements SmileImageProvider {
     let body;
     try { body = await response.json(); }
     catch { trace?.update({ category: "malformed_response" }); throw new GenerationError("The image response couldn’t be read.", 502, "invalid_provider_image"); }
-    trace?.update({ category: Array.isArray(body?.data) && body.data.length === 0 ? "empty_response" : "malformed_image", partCount: Array.isArray(body?.data) ? body.data.length : 0, imagePartExisted: typeof body?.data?.[0]?.b64_json === "string", mimeTypes: "image/jpeg" });
     const encodedResult = body?.data?.[0]?.b64_json;
+    const resultMime = typeof encodedResult === "string" && encodedResult.startsWith("iVBORw0KGgo") ? "image/png" : "image/jpeg";
+    trace?.update({ category: Array.isArray(body?.data) && body.data.length === 0 ? "empty_response" : "malformed_image", partCount: Array.isArray(body?.data) ? body.data.length : 0, imagePartExisted: typeof encodedResult === "string", mimeTypes: resultMime });
     const image =
       typeof encodedResult === "string"
-        ? `data:image/jpeg;base64,${encodedResult}`
+        ? `data:${resultMime};base64,${encodedResult}`
         : "";
     if (!imageSchema.safeParse(image).success)
       throw new GenerationError(
@@ -221,6 +237,8 @@ export class OpenAISmileProvider implements SmileImageProvider {
         502,
         "invalid_provider_image",
       );
+    const output = imageDimensions(Uint8Array.from(atob(encodedResult), c => c.charCodeAt(0)), resultMime);
+    trace?.update({ outputWidth: output.width, outputHeight: output.height });
     return { image, mode: "live", variationId: crypto.randomUUID() };
   }
 }

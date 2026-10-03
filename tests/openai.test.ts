@@ -13,11 +13,12 @@ import { handleGenerationRequest } from "../src/lib/generation/handler";
 import { defaultSettings } from "../src/lib/types";
 const bytes = readFileSync("public/sample-smile.jpg");
 const encoded = bytes.toString("base64");
+const pngBytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
 const input = {
-  originalImage: `data:image/jpeg;base64,${encoded}`,
+  originalImage: `data:image/png;base64,${pngBytes.toString("base64")}`,
+  editMask: `data:image/png;base64,${pngBytes.toString("base64")}`,
   settings: defaultSettings,
 };
-const pngBytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
 
 test("OpenAI adapter sends a single authenticated image edit with all dental choices", async () => {
   let calls = 0;
@@ -36,12 +37,13 @@ test("OpenAI adapter sends a single authenticated image edit with all dental cho
       const form = init?.body as FormData;
       assert.equal(form.get("model"), DEFAULT_IMAGE_MODEL);
       assert.equal(form.get("n"), "1");
-      assert.equal(form.get("output_format"), "jpeg");
+      assert.equal(form.get("output_format"), "png");
+      assert.equal(form.has("output_compression"), false);
       assert.equal(form.get("quality"), "high");
       assert.equal(form.has("input_fidelity"), false);
       const file = form.get("image[]") as File;
-      assert.equal(file.type, "image/jpeg");
-      assert.deepEqual(Buffer.from(await file.arrayBuffer()), bytes);
+      assert.equal(file.type, "image/png");
+      assert.deepEqual(Buffer.from(await file.arrayBuffer()), pngBytes);
       const prompt = String(form.get("prompt"));
       for (const token of [
         defaultSettings.treatment,
@@ -57,8 +59,39 @@ test("OpenAI adapter sends a single authenticated image edit with all dental cho
   });
   const result = await provider.generate(input);
   assert.equal(result.mode, "live");
-  assert.equal(result.image, input.originalImage);
+  assert.equal(result.image, `data:image/jpeg;base64,${encoded}`);
   assert.equal(calls, 1);
+});
+
+test("Sunburst sends a matching alpha PNG mask, decodes PNG output and reads server quality", async () => {
+  const png = `data:image/png;base64,${pngBytes.toString("base64")}`;
+  let calls = 0;
+  const provider = getSmileProvider({ SMILE_PROVIDER: "openai", OPENAI_API_KEY: "test", OPENAI_IMAGE_QUALITY: "medium", GEMINI_API_KEY: "disabled" });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_url, init) => {
+    calls++;
+    const form = init?.body as FormData;
+    assert.equal(form.get("model"), "gpt-image-2.5-sunburst");
+    assert.equal(form.get("quality"), "medium");
+    assert.equal(form.get("output_format"), "png");
+    const mask = form.get("mask") as File;
+    assert.equal(mask.type, "image/png");
+    assert.deepEqual(Buffer.from(await mask.arrayBuffer()), pngBytes);
+    return Response.json({ data: [{ b64_json: pngBytes.toString("base64") }] });
+  };
+  try { assert.equal((await provider.generate({ ...input, originalImage: png, editMask: png })).image, png); }
+  finally { globalThis.fetch = originalFetch; }
+  assert.equal(calls, 1);
+});
+
+test("incompatible mask dimensions or source format fail before any paid edit", async () => {
+  let calls = 0;
+  const provider = new OpenAISmileProvider({ apiKey: "test", fetcher: async () => { calls++; return Response.json({ data: [{ b64_json: encoded }] }); } });
+  const png = `data:image/png;base64,${pngBytes.toString("base64")}`;
+  const wrong = Buffer.from(pngBytes); wrong.writeUInt32BE(2, 16);
+  for (const candidate of [{ ...input, originalImage: `data:image/jpeg;base64,${encoded}`, editMask: png }, { ...input, originalImage: png, editMask: `data:image/png;base64,${wrong.toString("base64")}` }])
+    await assert.rejects(provider.generate(candidate), (e: unknown) => e instanceof GenerationError && e.code === "invalid_image");
+  assert.equal(calls, 0);
 });
 
 test("output resolution meets image API limits and retains portrait, square and landscape framing", () => {
@@ -116,9 +149,9 @@ test("OpenAI includes patient reference and bounded own-case images in the state
     const form = init?.body as FormData;
     const images = form.getAll("image[]") as File[];
     assert.equal(images.length, 7); // patient, patient reference, 5 own cases (the maximum)
-    assert.deepEqual(Buffer.from(await images[0].arrayBuffer()), bytes);
+    assert.deepEqual(Buffer.from(await images[0].arrayBuffer()), pngBytes);
     assert.deepEqual(Buffer.from(await images[1].arrayBuffer()), pngBytes);
-    for (const image of images.slice(2)) assert.deepEqual(Buffer.from(await image.arrayBuffer()), bytes);
+    for (const image of images.slice(2)) assert.deepEqual(Buffer.from(await image.arrayBuffer()), pngBytes);
     const prompt = String(form.get("prompt"));
     assert.match(prompt, /first image is the SOURCE PATIENT to edit/);
     assert.match(prompt, /next image is a smile the patient likes/);
@@ -131,6 +164,14 @@ test("OpenAI includes patient reference and bounded own-case images in the state
   } });
   await provider.generate({ ...input, referenceImage, styleReferences: Array(6).fill(input.originalImage), sourceBounds: { x: 0.1, y: 0, width: 0.8, height: 1 } });
   assert.equal(calls, 1);
+});
+
+test("missing mask or invalid server quality never reaches a paid Sunburst request", async () => {
+  let calls = 0;
+  const fetcher: typeof fetch = async () => { calls++; return Response.json({ data: [{ b64_json: encoded }] }); };
+  await assert.rejects(new OpenAISmileProvider({ apiKey: "test", fetcher }).generate({ ...input, editMask: undefined }), (e: unknown) => e instanceof GenerationError && e.code === "invalid_image");
+  await assert.rejects(new OpenAISmileProvider({ apiKey: "test", quality: "invalid", fetcher }).generate(input), (e: unknown) => e instanceof GenerationError && e.code === "provider_not_configured");
+  assert.equal(calls, 0);
 });
 
 test("missing API key has an explicit setup error and never makes a request", async () => {

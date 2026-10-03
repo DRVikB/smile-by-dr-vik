@@ -65,7 +65,7 @@ export function alignmentInstruction(alignment: NonNullable<SmileSettings["align
 }
 
 /** One renderer for every image adapter, in the documented priority order. */
-export function renderGenerationContract(c: GenerationContract): string {
+export function renderGenerationContract(c: GenerationContract, format: "canonical" | "sunburst" = "canonical"): string {
   const { context, fullArch, mode } = c;
   const includeGingiva = fullArch?.prostheticGingiva === "include";
   const instructions = [
@@ -140,7 +140,34 @@ export function renderGenerationContract(c: GenerationContract): string {
   // 7. Output. Photographic scale/aspect, without impossible exact provider pixel-size demands.
   if (mode === "restorative") instructions.push("Before returning, compare with the original and undo any extra length not expressly allowed by its tooth-specific edge permission.");
   instructions.push("OUTPUT: Return ONE complete edited source photograph at the requested output resolution with the original aspect ratio, framing, scale, rotation and crop. Never return an enlarged mouth, isolated teeth, a close-up crop, collage, mask or reference image. Do not zoom, pan, mirror or move the face. Match natural light, white balance, the shadow the upper lip casts, grain and sharpness with no visible seam. Keep naturally asymmetric detail where the goal permits. Avoid duplicate crowns, notches, floating enamel, sharp mask-like cut-offs, merged contacts or dark slivers. Preserve features already balanced; very little visible change may be appropriate. This is an AI visual concept for clinician discussion, not a diagnosis, predicted or guaranteed clinical result.");
-  return instructions.join("\n\n");
+  if (format === "canonical") return instructions.join("\n\n");
+  // Reuse the same normalised permissions and tooth goals; only provider prose
+  // and presentation differ. Gemini rollback retains its existing contract.
+  const preserve = [
+    "Preserve exactly patient identity, facial anatomy and expression, outer lips and lip position, mouth width and mouth opening, head position, skin, hair, facial hair, eyes, nose, lighting, pose, background and original camera framing. Retain retractors and the photographed smile envelope and tooth exposure; never reveal hidden teeth. Do not beautify or retouch unrelated areas.",
+    instructions[1], instructions[2],
+  ];
+  const change: string[] = [], style: string[] = [], region: string[] = [];
+  for (const instruction of instructions.slice(3)) {
+    if (instruction.startsWith("OUTPUT:")) {
+      region.push("Return one complete edited source photograph at the requested resolution and original aspect ratio, framing, scale, rotation and crop. No mouth close-up, isolated teeth, collage, mask or reference image. Retain natural light, grain, sharpness and asymmetric detail; avoid seams, merged or duplicated crowns, floating enamel and sharp cut-offs. This is a clinician-discussion AI concept, not a diagnosis or guaranteed outcome.");
+    } else if (/^(REGION:|SOURCE CANVAS:|The on-screen guide|EXPLICIT EXCEPTION)/.test(instruction)) region.push(instruction);
+    else if (/^(Material:|DESIGN|CONTOUR AND TEXTURE|Smile arc preference:|Optional facial style|Close-up\/retracted|Use photographed)/.test(instruction)) style.push(instruction);
+    else if (/^FDI \d+: .*preserve unchanged/.test(instruction)) preserve.push(instruction);
+    else change.push(instruction);
+  }
+  region.unshift("Modify only the intended dental appearance within the supplied editable region. The separate PNG alpha mask uses transparent pixels for editable areas and opaque pixels for protected areas; it is guidance, not permission to exceed this treatment contract.");
+  return ["TASK", "Edit the supplied patient photograph as a believable dental visualisation.", "", "CHANGE", ...change, "", "PRESERVE", ...preserve, "", "STYLE", ...(style.length ? style : ["Retain the patient's natural dental character and photographic surface appearance."]), "", "EDIT REGION", ...region].join("\n");
+}
+
+export const SUNBURST_PIPELINE_VERSION = "SC-SUNBURST-V1";
+export const SUNBURST_PROMPT_VERSION = "2026-10-03-sunburst-v1";
+export function sunburstTreatmentVersion(s: SmileSettings): string {
+  const mode = normalizeGenerationContract(s).mode;
+  return ({ whitening: "WHITENING-V1", restorative: "VENEERS-V1", alignment: "ALIGNMENT-V1", full_arch: "FULLARCH-V1" })[mode];
+}
+export function buildSunburstPrompt(s: SmileSettings, context: RenderContext = {}): string {
+  return renderGenerationContract(normalizeGenerationContract(s, context), "sunburst");
 }
 
 export function buildCanonicalPrompt(s: SmileSettings, hasReference = false, framing?: Framing, styleReferenceCount = 0, sourceBounds?: Framing, hasEditMask = false): string {

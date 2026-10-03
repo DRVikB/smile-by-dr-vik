@@ -200,6 +200,8 @@ export interface GenerationMetadata {
   provider: string;
   model: string;
   promptVersion: string;
+  pipelineVersion?: string;
+  treatmentPromptVersion?: string;
   generatedAt: string;
   mode?: import("./generation/modes").GenerationMode;
 }

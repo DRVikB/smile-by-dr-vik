@@ -637,10 +637,12 @@ export default function Smile() {
     try {
       // Check existing protection before spending a generation. A reviewed
       // selected-tooth mask or clinician-painted area can also protect the face.
+      let sourcePoints: import("@/lib/face/geometry").Point[] | null = null;
       if (!photoIn.editMask && !toothPlan.ok) {
         const { detectFace } = await import("@/lib/face/landmarks");
         repository.scope.assert();
         const points = await detectFace(photoIn.dataUrl, controller.signal);
+        sourcePoints = points;
         if (controller.signal.aborted) throw controller.signal.reason;
         if (!points) throw new Error("Face protection could not find the mouth in this photo. Use a clearer full-face photo or Protect edit area. No generation request was sent.");
       }
@@ -666,11 +668,14 @@ export default function Smile() {
       const editMask = toothPlan.ok && photoIn.toothMap
         ? (await import("@/lib/toothMap/protect")).guidanceMask(photoIn.toothMap, photoIn.dataUrl, settingsIn, requestCanvas.photo, requestCanvas.sourceBounds)
         : undefined;
+      const providerInput = pricing?.model.startsWith("gpt-image-")
+        ? await (await import("@/lib/generation/openaiEditInput")).prepareOpenAIEditInput(photoIn, requestCanvas, editMask, sourcePoints)
+        : { originalImage: requestCanvas.photo.dataUrl, editMask };
+      if (controller.signal.aborted) throw controller.signal.reason;
       reportStage("request");
       let next = await generateSmileImage({
         caseId,
-        originalImage: requestCanvas.photo.dataUrl,
-        editMask,
+        ...providerInput,
         sourceBounds: requestCanvas.sourceBounds,
         framing: requestCanvas.photo.framing,
         resolution: effectiveResolution,

@@ -9,10 +9,11 @@ import type { GenerationResult } from "../types";
 import { generationSchema, imageSchema, type GenerationInput } from "./schema";
 import { isNoChangeDesign } from "./designPlan";
 import { buildSmileInstruction, SMILE_PROMPT_VERSION } from "./prompt";
+import { SUNBURST_PIPELINE_VERSION, SUNBURST_PROMPT_VERSION, sunburstTreatmentVersion } from "./contract";
 /**
  * Server-side AI provider contract. The app never calls a provider directly:
  * UI → SmileImageService (client) → /api/generate-smile → getSmileProvider().
- * GeminiSmileProvider is the production implementation.
+ * Provider selection is server configuration; there is no cross-provider fallback.
  */
 export interface SmileImageProvider {
   readonly name: string;
@@ -97,6 +98,7 @@ export interface ProviderEnvironment {
   SMILE_MASK_GUIDANCE?: string;
   OPENAI_API_KEY?: string;
   OPENAI_IMAGE_MODEL?: string;
+  OPENAI_IMAGE_QUALITY?: string;
   SMILE_PROVIDER?: string;
   SMILE_PROVIDER_URL?: string;
   SMILE_PROVIDER_API_KEY?: string;
@@ -110,7 +112,7 @@ export interface ProviderEnvironment {
    * Live Google generation is refused until this is set deliberately.
    */
   SMILE_GEMINI_DATA_TERMS?: string;
-  /** OpenAI adapter: "api" confirms OpenAI API business terms and DPA are in place. Not a V1 processor. */
+  /** "api" is the owner's confirmation of OpenAI API business terms and DPA. */
   SMILE_OPENAI_DATA_TERMS?: string;
   /** Custom HTTP backend: "confirmed" once its processing terms are documented. Not a V1 processor. */
   SMILE_PROVIDER_DATA_TERMS?: string;
@@ -143,6 +145,7 @@ export function readProviderEnvironment(): ProviderEnvironment {
     SMILE_MASK_GUIDANCE: read("SMILE_MASK_GUIDANCE"),
     OPENAI_API_KEY: read("OPENAI_API_KEY"),
     OPENAI_IMAGE_MODEL: read("OPENAI_IMAGE_MODEL"),
+    OPENAI_IMAGE_QUALITY: read("OPENAI_IMAGE_QUALITY"),
     SMILE_PROVIDER: read("SMILE_PROVIDER"),
     SMILE_PROVIDER_URL: read("SMILE_PROVIDER_URL"),
     SMILE_PROVIDER_API_KEY: read("SMILE_PROVIDER_API_KEY"),
@@ -183,6 +186,7 @@ export function getSmileProvider(
     return new OpenAISmileProvider({
       apiKey: env.OPENAI_API_KEY || "",
       model: env.OPENAI_IMAGE_MODEL,
+      quality: env.OPENAI_IMAGE_QUALITY,
     });
   if (mode === "mock") return new MockSmileProvider();
   if (mode === "http" && env.SMILE_PROVIDER_URL && env.SMILE_PROVIDER_API_KEY)
@@ -211,7 +215,7 @@ export async function generateSmile(
   const selectedCount = activeToothPlans(settings).length;
   let diagnostic: ProviderDiagnostic = {
     requestId: diagnostics?.requestId ?? crypto.randomUUID(), provider: provider.vendor ?? provider.name,
-    model: provider.model ?? provider.name, promptVersion: SMILE_PROMPT_VERSION,
+    model: provider.model ?? provider.name, promptVersion: provider.vendor === "openai" ? SUNBURST_PROMPT_VERSION : SMILE_PROMPT_VERSION,
     category: "started", httpStatus: null, latencyMs: null, retryCount: 0,
     treatmentMode: settings.treatmentMode === "full_arch" ? "full_arch" : settings.alignment?.only ? "alignment" : settings.treatment === "Whitening" ? "whitening" : selectedCount === 1 ? "single_tooth" : "standard",
     selectedToothCount: settings.treatmentMode === "full_arch" || settings.alignment?.only ? null : selectedCount,
@@ -260,7 +264,8 @@ export async function generateSmile(
     generation: {
       provider: provider.vendor ?? provider.name,
       model: provider.model ?? provider.name,
-      promptVersion: SMILE_PROMPT_VERSION,
+      promptVersion: provider.vendor === "openai" ? SUNBURST_PROMPT_VERSION : SMILE_PROMPT_VERSION,
+      ...(provider.vendor === "openai" ? { pipelineVersion: SUNBURST_PIPELINE_VERSION, treatmentPromptVersion: sunburstTreatmentVersion(parsed.settings) } : {}),
       generatedAt: new Date().toISOString(),
       mode: parsed.generationMode,
     },
