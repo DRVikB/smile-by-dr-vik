@@ -1,5 +1,6 @@
 "use client";
 import type { MouthAlignmentDiagnostic } from "@/lib/face/alignmentDiagnostic";
+import { normalizeAlignmentScope } from "@/lib/fullArch";
 import { generationUnavailable } from "@/lib/generation/availability";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -262,6 +263,7 @@ export default function Smile() {
   const HISTORY_BURST_MS = 600;
   const syncHistory = () => setHistoryState({ canUndo: history.current.past.length > 0, canRedo: history.current.future.length > 0 });
   function changeSettings(next: SmileSettings) {
+    next = normalizeAlignmentScope(next);
     const h = history.current;
     const now = Date.now();
     if (now - h.last > HISTORY_BURST_MS) h.past = [...h.past.slice(-49), settings];
@@ -370,7 +372,7 @@ export default function Smile() {
           setPatientName(c.patientName ?? "");
           setAiConsent(c.aiConsent ?? null);
           // Specific target shades (A1, B1, BL3–BL1) are chosen in the Studio's Shade step, so they are kept as saved.
-          setSettings(c.settings);
+          setSettings(normalizeAlignmentScope(c.settings));
           setResult(c.result);
           setScreen(c.screen);
   }
@@ -601,6 +603,7 @@ export default function Smile() {
     consentVersion?: string,
     onStage: (stage: GenerationStage) => void = () => {},
   ): Promise<GenerationResult> {
+    settingsIn = normalizeAlignmentScope(settingsIn);
     const unavailable = generationUnavailable(settingsIn);
     if (unavailable) throw new SmileGenerationError(unavailable, "mode_unavailable");
     onStage("preflight");
@@ -808,7 +811,7 @@ export default function Smile() {
 
   async function generate(override?: Partial<SmileSettings>, approvedConsent?: AiProcessingConsent) {
     if (!photo || busy || request.current) return;
-    const used = override ? { ...settings, ...override } : settings;
+    const used = normalizeAlignmentScope(override ? { ...settings, ...override } : settings);
     const unavailable = generationUnavailable(used);
     if (unavailable) { setError(unavailable); return; }
     if (isNoChangeDesign(used)) { setError("No change selected. Choose a different shade or design goal; no AI request was sent."); return; }
@@ -823,7 +826,7 @@ export default function Smile() {
         return;
       }
     }
-    if (override) setSettings(used);
+    if (override || used !== settings) setSettings(used);
     if (consentForRequest && !testMode && !await persistConsentBeforeGeneration(consentForRequest, photo, used)) return;
     const controller = new AbortController();
     request.current = controller;
@@ -1004,7 +1007,7 @@ export default function Smile() {
   };
 
   function selectOption(v: Variant) {
-    setSettings(v.settings);
+    setSettings(normalizeAlignmentScope(v.settings));
     setResult(v.result);
     setOptions(null);
     setScreen("preview");

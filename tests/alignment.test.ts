@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { defaultSettings, type SmileSettings } from "../src/lib/types";
 import { isNoChangeDesign } from "../src/lib/generation/designPlan";
 import { buildSmileInstruction } from "../src/lib/generation/prompt";
-import { settingsSchema } from "../src/lib/generation/schema";
+import { settingsSchema, generationSchema } from "../src/lib/generation/schema";
 import { treatmentImplications } from "../src/lib/implications";
 import { preferenceRows } from "../src/lib/report";
 
@@ -36,9 +36,15 @@ test("straightening both arches permits whole-tooth movement, including the lowe
   assert.ok(prompt.indexOf("PRESERVATION") < prompt.indexOf("ORTHODONTIC ALIGNMENT CONCEPT"));
 });
 
-test("straightening one arch leaves the other exactly as photographed", () => {
-  assert.match(buildSmileInstruction(aligned({ arches: "Upper" })), /Keep the lower teeth exactly as photographed/);
-  assert.match(buildSmileInstruction(aligned({ arches: "Lower" })), /Keep the upper teeth in their photographed positions/);
+test("legacy alignment requests now generate both arches without rewriting saved choices", () => {
+  for (const arches of ["Upper", "Lower", "Both"] as const) {
+    const saved = aligned({ arches, only: true });
+    const parsed = generationSchema.parse({ originalImage: "data:image/jpeg;base64,/9j/", settings: saved }).settings;
+    assert.equal(parsed.alignment?.arches, "Both");
+    assert.match(buildSmileInstruction(saved), /ORTHODONTIC ALIGNMENT CONCEPT \(upper and lower arches/);
+    assert.doesNotMatch(buildSmileInstruction(saved), /Keep the lower teeth exactly|Keep the upper teeth in their photographed positions/);
+    assert.equal(saved.alignment?.arches, arches, "existing case history stays intact");
+  }
 });
 
 test("alignment only keeps every tooth's own shape and shade", () => {
@@ -77,7 +83,8 @@ test("new Alignment selection is positions-only and retains saved restorative ch
   assert.equal(typeof choose, "function");
   const s = { ...defaultSettings, treatment: "Porcelain" as const, targetShade: "BL1" as const };
   const result = choose(s);
-  assert.deepEqual(result.alignment, { arches: "Upper", only: true });
+  assert.deepEqual(result.alignment, { arches: "Both", only: true });
+  assert.equal(choose({ ...s, alignment: { arches: "Lower" } }).alignment?.arches, "Both");
   assert.equal(result.treatment, s.treatment); assert.equal(result.targetShade, s.targetShade);
   assert.equal(result.treatmentMode, "standard");
   assert.match(buildSmileInstruction(result), /ALIGNMENT ONLY/);

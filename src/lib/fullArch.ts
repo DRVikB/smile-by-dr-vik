@@ -20,5 +20,13 @@ export function chooseStandard(s: SmileSettings, patch: Partial<SmileSettings> =
 /** Selecting Alignment starts a visual position-only concept, never silently
  * applies the remembered restorative material or shade. */
 export function chooseAlignment(s: SmileSettings): SmileSettings {
-  return chooseStandard(s, { alignment: { arches: s.alignment?.arches ?? "Upper", only: true } });
+  return chooseStandard(s, { alignment: { arches: "Both", only: true } });
+}
+
+/** New alignment concepts always cover both visible arches. Historical case
+ * records stay intact; normalise only editable/new generation state. */
+export function normalizeAlignmentScope(s: SmileSettings): SmileSettings {
+  return s.alignment && s.alignment.arches !== "Both"
+    ? { ...s, alignment: { ...s.alignment, arches: "Both" } }
+    : s;
 }

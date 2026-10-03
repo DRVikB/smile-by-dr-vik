@@ -28,7 +28,7 @@ export function normalizeGenerationContract(s: SmileSettings, context: RenderCon
   const arcActive = contour && s.shotType === "Full face" && (fullArch ? fullArch.arch !== "lower" : canGuideSmileArc(s));
   return {
     mode, fullArch, teeth, preservedTeeth: fullArch || mode === "alignment" ? [] : (s.toothPlans ?? []).filter(p => p.intent === "Preserve" || p.condition === "Missing").map(p => ({ ...p })),
-    alignment: fullArch ? undefined : s.alignment ? { ...s.alignment } : undefined,
+    alignment: fullArch ? undefined : s.alignment ? { ...s.alignment, arches: "Both" as const } : undefined,
     treatment: mode === "restorative" ? s.treatment : undefined,
     targetShade: mode === "alignment" ? "The same" as const : s.targetShade,
     currentShade: s.currentShade && s.currentShadeSource ? { value: s.currentShade, source: s.currentShadeSource } : undefined,

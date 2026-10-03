@@ -2,9 +2,9 @@
 import { generationUnavailable, INTERNAL_SINGLE_TOOTH, INTERNAL_ALIGNMENT, INTERNAL_FULL_ARCH } from "@/lib/generation/availability";
 import { useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, ImagePlus, X } from "lucide-react";
-import type { AlignmentArches, CurrentShade, FaceShape, FullArchPlan, Photo, ShotType, SmileCharacter, SmileSettings, TargetShade, TeethCount, TextureLevel, Treatment } from "@/lib/types";
+import type { CurrentShade, FaceShape, FullArchPlan, Photo, ShotType, SmileCharacter, SmileSettings, TargetShade, TeethCount, TextureLevel, Treatment } from "@/lib/types";
 import { upperTeeth, smileArcs, biteContexts, isFullArch } from "@/lib/types";
-import { chooseFullArch as withFullArch, chooseStandard as withStandard, chooseAlignment } from "@/lib/fullArch";
+import { chooseFullArch as withFullArch, chooseStandard as withStandard, chooseAlignment, normalizeAlignmentScope } from "@/lib/fullArch";
 import { DESIGN_INTENTS, isNoChangeDesign, resolveDesignPlan } from "@/lib/generation/designPlan";
 import { canGuideSmileArc } from "@/lib/smilePrinciples";
 import { activeToothPlans, toothSummary } from "@/lib/teeth";
@@ -59,11 +59,7 @@ const QUICK_SHADES: { value: TargetShade; label: string; description: string }[]
   { value: "Bleach", label: "Bleach", description: "The brightest result that still looks natural." },
 ];
 const CURRENT_SHADES: CurrentShade[] = ["A3", "A2", "A1", "B1"];
-const ALIGNMENT_ARCHES: { value: AlignmentArches; label: string }[] = [
-  { value: "Upper", label: "Upper" },
-  { value: "Lower", label: "Lower" },
-  { value: "Both", label: "Both" },
-];
+
 
 const TREATMENTS: { value: Treatment; title: string; detail: string }[] = [
   { value: "Whitening", title: "Whitening", detail: "Colour only · keeps tooth shape and position" },
@@ -165,7 +161,7 @@ export function DesignStudio({
     </section>
   );
 
-  const alignment = settings.alignment;
+  const alignment = normalizeAlignmentScope(settings).alignment;
   const precisionReady = Boolean(toothMap?.photoUrl&&generationProtectionPlan(toothMap.map,toothMap.photoUrl,settings).ok&&toothMap.status!=="refining");
   const suggestBoundaryReview = INTERNAL_SINGLE_TOOTH && !costs.testMode && !fullArch && !alignment && activeToothPlans(settings).length===1 && !precisionReady;
   const alignedLabel = alignment ? `Straightened · ${alignment.arches === "Both" ? "both arches" : `${alignment.arches.toLowerCase()} arch`}` : "";
@@ -355,12 +351,7 @@ export function DesignStudio({
                   onChange={e => onChange(e.target.checked ? chooseAlignment(settings) : withStandard(settings, { alignment: undefined }))} />
               </label>
               {alignment && !fullArch && <>
-                <div className="segmented" role="group" aria-label="Arches to straighten">
-                  {ALIGNMENT_ARCHES.map(a => (
-                    <button key={a.value} type="button" aria-pressed={alignment.arches === a.value} className={alignment.arches === a.value ? "selected" : ""}
-                      onClick={() => change("alignment", { ...alignment, arches: a.value })}>{a.label}</button>
-                  ))}
-                </div>
+                <p className="control-hint">Both visible arches · retains natural tooth shape and shade in Alignment only.</p>
                 <label className="studio-switch-row">
                   <span className="studio-treatment-text"><strong>Alignment only</strong><small>No bonding or veneers: shape and shade stay as they are</small></span>
                   <input type="checkbox" role="switch" className="studio-switch" checked={Boolean(alignment.only)}
