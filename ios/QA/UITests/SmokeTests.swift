@@ -122,6 +122,52 @@ final class SmokeTests: XCTestCase {
     }
 }
 
+// No recipients are selected: native exports are opened, inspected and cancelled.
+final class ShareExportTests: XCTestCase {
+    func testSavedPreviewAndReportOpenNativeShare() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication(bundleIdentifier: "uk.co.drvik.smilecompose")
+        app.launch()
+        XCTAssertTrue(app.buttons["Share"].waitForExistence(timeout: 30), app.debugDescription)
+        app.buttons["Share"].tap()
+        let preview = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Smile Preview'")).firstMatch
+        XCTAssertTrue(preview.waitForExistence(timeout: 15)); preview.tap()
+        XCTAssertTrue(app.images["Smile Preview: before and concept"].waitForExistence(timeout: 30), app.debugDescription)
+        print("QA_PREVIEW_READY\n" + app.debugDescription)
+        // The background comparison also has Share; use the foreground sheet's
+        // last Share button rather than trying to tap the obscured control.
+        let share = app.buttons.matching(identifier: "Share").allElementsBoundByIndex.last!
+        for _ in 0..<6 { if share.isHittable { break }; app.swipeUp() }
+        share.tap()
+        let nativeShare = app.otherElements["ActivityListView"]
+        XCTAssertTrue(nativeShare.waitForExistence(timeout: 30), app.debugDescription)
+        print("QA_PREVIEW_NATIVE_SHARE\n" + app.debugDescription)
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "native-preview-share"; shot.lifetime = .keepAlways; add(shot)
+        app.otherElements["PopoverDismissRegion"].tap()
+        XCTAssertFalse(nativeShare.exists, "Native share must be dismissed before returning to report controls")
+        XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 15)); app.buttons.matching(identifier: "Back").allElementsBoundByIndex.last!.tap()
+        let report = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Consultation Report'")).firstMatch
+        XCTAssertTrue(report.waitForExistence(timeout: 15)); report.tap()
+        let create = app.buttons["Create report"]
+        XCTAssertTrue(create.waitForExistence(timeout: 45), app.debugDescription)
+        for _ in 0..<8 {
+            if create.isHittable { break }
+            app.swipeUp()
+        }
+        create.tap()
+        XCTAssertTrue(app.images["Consultation report, page 1"].waitForExistence(timeout: 45), app.debugDescription)
+        let reportShot = XCTAttachment(screenshot: app.screenshot()); reportShot.name = "consultation-report-ready"; reportShot.lifetime = .keepAlways; add(reportShot)
+        let reportShare = app.buttons.matching(identifier: "Share").allElementsBoundByIndex.last!
+        for _ in 0..<6 { if reportShare.isHittable { break }; app.swipeUp() }
+        reportShare.tap()
+        XCTAssertTrue(nativeShare.waitForExistence(timeout: 30), app.debugDescription)
+        print("QA_REPORT_NATIVE_SHARE\n" + app.debugDescription)
+        let pdfShot = XCTAttachment(screenshot: app.screenshot()); pdfShot.name = "native-report-share"; pdfShot.lifetime = .keepAlways; add(pdfShot)
+        app.otherElements["PopoverDismissRegion"].tap()
+        XCTAssertFalse(nativeShare.exists, "Native share must be dismissed before returning to report controls")
+    }
+}
+
 // Reuses disposable synthetic cases from the deterministic simulator fixture.
 final class CaseReopenTests: XCTestCase {
     func testHomeDraftOpensEditor() throws {
