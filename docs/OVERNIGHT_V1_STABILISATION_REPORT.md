@@ -1,5 +1,92 @@
 # SmileCompose V1 — focused stabilisation handover
 
+## 3 October — final staging backend gate / internal candidate
+
+**Latest checkpoint; supersedes the deployment/readiness state below.** Scope was narrowed to the owner-led internal candidate. Demo portrait replacements, further UI changes, optional generation modes and billing-lifecycle redesign are deferred. No production deployment, push, TestFlight upload or Apple submission occurred.
+
+### 1. WHAT WAS ACTUALLY FIXED
+
+- **PASS:** Single Tooth, Alignment and Full Arch are hidden in the normal V1 client. A one-tooth selection cannot generate; it explains why. Custom multi-tooth remains available. Existing single-tooth cases retain their historical media/settings and can reopen, but unsupported regeneration is blocked.
+- **PASS:** the backend rejects those modes with `403 / mode_unavailable` before request claim, reservation or provider use. Client-supplied `internal: true` cannot bypass this. Explicit server-only internal flags retain the implementation; staging has all three off. An enabled internal flag still requires normal authentication for a real provider.
+- Preserved face/mouth protection, prompt contract, data, commercial configuration and schema. No generation/compositing redesign or weakened protection was used to obtain a pass.
+- Fix commits: **`7107c59`** (client gates and compatibility regressions; rollback parent `5988312`), **`427c645e74f2f2995486eebbf0d895314df34b5c`** (server gates; rollback parent `7107c59`). Revert client/server gates together when intentionally restoring modes; do not leave them mismatched.
+
+### 2. WHAT WAS TESTED — environment, commit and evidence
+
+**PASS — staging backend gate.** Source candidate `427c645`, branch `release/v1-device-test`; Worker **`0b517052-e4b3-4e53-a2eb-0cfc052dd062`**, tagged with the full source commit. URL: `https://smile-by-dr-vik-staging.drvik.workers.dev`. Previous Worker rollback: `fefc6124-3ba4-4fae-82bb-9949e4fd0d5b`. Supabase **`smilecompose-staging` / `wukcqlpuzkzwxmdkotfg`**: all eight local migrations match the remote list, latest `20261002154000_identity_deletion_audit`. No migration was applied.
+
+Private, Git-ignored evidence: **`output/final-rc-2026-10-03/`**. Logs and receipts contain synthetic fixtures/structural diagnostics; temporary auth keys are not part of the report or Git.
+
+| Gate | Evidence and result |
+|---|---|
+| Full regression | **PASS: 613/613**, zero skipped (`full-tests-final.log`) |
+| Focused mode/contract checks | **PASS: 22/22** (`gates-final.log`); prior red tests failed before gates were implemented |
+| TypeScript / ESLint / diff whitespace | **PASS** (`typecheck-final.log`, `lint-final.log`) |
+| Production web / Cloudflare packaging | **PASS** (`production-build.log`) |
+| Client/backend match | **PASS:** 14 deployed entry JS assets match local bytes; 142 native files match the signed app (`matched-artifacts.json`) |
+| Patient case API / private media | **PASS:** normal authenticated user create, queued save/upload, acknowledged revision/assets, fetch and actual binary recovery |
+| Case reopen | **PASS:** restart with queued local work; second independent IndexedDB repository downloads cloud-only media; source/result hashes match; restored settings deep-equal; offline cache restart works |
+| Account isolation | **PASS:** account B list/read/download denied, direct table/storage ownership enforced, anonymous/private-public access denied. This does not certify the MFA boundary noted below. |
+| Delete/tombstone | **PASS:** disposable fixture deletion, idempotent retry, reconnect tombstone and `410` media response |
+| Deployed feature gates | **PASS:** four stale-state fixtures (Single Tooth, Alignment, Full Arch Exclude/Include) rejected; allowance unchanged |
+| Allowance | **PASS:** final successful generation consumes exactly one; provider-failure reservation release and duplicate/refund accounting regressions pass |
+| RevenueCat webhook backend | **PASS:** missing authorization `401`; authenticated unknown-user event `ignored_unknown_user`; same event ID again `duplicate`; monthly/annual/trial mapping and SQL idempotency regressions pass |
+| Signed iOS Release | **PASS:** build and strict signature verification; bundle `uk.co.drvik.smilecompose`, **1.0 (1)**, Team `7TPF7LT884` |
+
+The live backend harness recorded **43 passing checks**. It imported the actual client generation service and case repository with separate IndexedDB factories, using the disposable users' normal bearer tokens. Admin access was used only for the authorised disposable isolation-user fixture and its cleanup, not to bypass generation or case/media access. This is a **Node/API repository test**, not physical-device or simulator execution.
+
+#### One final live generation — PASS for backend delivery
+
+- Approved synthetic demo only: `output/stage3-evidence/generation-source.jpg`; no identifiable patient/test-folder photographs uploaded.
+- Composite, 6 upper teeth `[13,12,11,21,22,23]`, request **`05be0c24-4550-420e-ba3b-a351cf20f4d5`**.
+- Google `gemini-3.1-flash-image`, prompt **`2026-10-03-treatment-contract-v6`**, HTTP app/provider **200/200**, finish **STOP**, **one inline JPEG**, zero text/thought parts, **zero retries**. Provider latency **8.900 s**, service round trip **10.009 s**.
+- Prepared input **1092×1456**; returned JPEG **896×1200**. Decodes and visually contains a complete face/smile, not grey/blank corruption. Fine anatomical/cosmetic acceptance remains **HUMAN REVIEW REQUIRED**.
+- Allowance **5 included / 3 used / 2 remaining → 5 / 4 / 1**. Normal-user diagnostics show **4 provider starts and 4 finishes total across the five-request budget**, zero provider retries. No further generation calls were made. Four server-gate probes did not reach the provider; the historical malformed fixture also did not.
+- Saved case **`4ff2bc36-64be-4c24-a89b-b594e7fef613`** reopens with the identical delivered image on a second repository and its offline restart. Receipt: `final-generation-receipt.json`; owner-readable events: `final-provider-audit.json`; final total: `final-budget.json`.
+- This final smoke saves the **backend-delivered image** to verify delivery/persistence. It does **not** exercise or substitute for on-device alignment/compositing. The previous browser Original/Raw/Final pack remains `output/matched-staging-2026-10-03/review.html`; no new protected-final result or physical validation is claimed.
+
+#### Failures, investigation and reruns
+
+1. First `npm test` could not create the test runner's IPC pipe under sandbox restrictions (`EPERM`); it did not run tests. Running with normal local permissions passed **608/608**, then **613/613** after adding five gate checks. No tests weakened.
+2. New internal-flag auth test initially got `503` because its fixture used `GEMINI_DATA_TERMS` instead of the existing `SMILE_GEMINI_DATA_TERMS`. Corrected the test fixture; now verifies `401 / auth_required`. No provider call or application change resulted.
+3. Earlier contract test edit used unsupported top-level await in the CommonJS test harness; moved its import inside the test. Exact prompt snapshot assertions remain intact.
+4. First live case recovery check failed on `JSON.stringify` equality after PostgreSQL JSONB changed key order. Read-only investigation confirmed **deepEqual=true, stringEqual=false, no differing values** (`settings-comparison-investigation.json`). Switched only the private QA assertion to deep value equality; all 43 checks passed. Preserved `backend-first-failure.json/.log`. Both disposable recovery fixtures were tombstoned; the successful generation and prior evidence cases remain.
+5. The historical intermittent conflict-test race remains documented in “Intermittent conflict failure and all reruns” below: explicit stale/offline preconditions fixed the fixture race. Today's full suite includes those stronger checks and passed; this does not erase the original failure.
+
+### 3. WHAT STILL FAILS / MUST REMAIN LIMITED
+
+- **Single Tooth: HIDDEN FOR V1.** Raw provider targeting of the opposite central incisor remains a genuine prior failure. Request `a0f32a3f…` selected patient-right FDI 11 (viewer-left for the unmirrored synthetic image); input/raw/final have no EXIF orientation. The prompt specified patient-side FDI but had no spatial target or reviewed boundary. No evidence establishes a deterministic small orientation fix for that request. Git history showed conditional protection, not a reliably validated historical single-tooth path. Front-camera mirroring is a separate unresolved provenance issue. No live single-tooth retest was spent.
+- **Alignment / Full Arch: HIDDEN FOR V1**, with internal flags retained. No live validation claim.
+- **Durable charged-result recovery: DEFERRED.** A server-success/device-processing failure may still consume allowance without delivering a usable on-device concept. Existing copy does not promise a confirmed refund. Required before external/paying beta; no insecure client-triggered refund added.
+- **Security: REVIEW for owner-controlled synthetic testing; unresolved before patient/external beta.** Codex Security scan `939cbc5e-79a6-49cc-8f8a-8d5e5d078b22` found a high-severity MFA boundary gap: direct Supabase owner RLS does not require AAL2 for MFA-enrolled owners, while the app API does. Cross-account ownership passed, but a first-factor session can bypass the additional factor through direct access. A complete RLS/local-cache boundary fix and enrolled-AAL1/AAL2 tests are still needed. No partial schema/security change was improvised.
+- The originally reported real saved case cannot be declared repaired: no identified case reference/time was inspected. Disposable recovery tests are evidence for the mechanism, not that specific patient's case.
+
+### 4. WHAT WAS NOT TESTED / BLOCKED
+
+- **NOT TESTED:** physical iPhone/iPad workflow, Apple sign-in/cancel/linking, camera mirroring/orientation matrix, real Apple sandbox purchase and real RevenueCat delivery.
+- Browser/simulator interaction and new before/after screenshots were not completed: automatic approval review rejected browser access due to its usage limit. No alternate UI automation was used to bypass that rejection. The unexecuted orientation harness is retained privately as deferred work.
+- iOS signed entitlements confirm Apple sign-in and Complete Data Protection; camera/photo-export purpose strings and privacy manifest exist. PHPicker is used for selection. Native bundle uses staging API/Supabase and the App Store `appl_` SDK key, no Test Store key, no remote Capacitor server. Private-key scan passes. An explicit In-App Purchase `SystemCapabilities` marker was **not found** in the Xcode project; StoreKit/RevenueCat is linked, but check the capability and sandbox purchase on device rather than asserting it passed.
+- Version **1.0 (1)** is preserved. Whether App Store Connect has already received Build 1 was not available through the connected tools. Confirm before archiving/uploading; increment if already used.
+- Public release guard remains intact: `npm run ios:release` still rejects **23 privacy + 17 terms unresolved markers**. The owner-authorised internal candidate was packaged with the production web build plus native sync and development-signed Release compilation; this is not legal/public-release sign-off. Exact marker text is in `legal-pending.json`; owner actions remain in `docs/PROFESSIONAL_REVIEW_REQUIRED.md`. No legal details invented.
+- RevenueCat live inspection: App Store app `appb4a1d5eb2d`, both Apple keys configured, `pro` includes monthly/annual App Store products; current `default` offering contains `$rc_monthly` and `$rc_annual`. Apple durations **ONE_MONTH / ONE_YEAR**. Both live store states are **MISSING_METADATA**: `common.localizations={}`, `common.availability.territories={}`, `store_state.privacy_policy_url=null`, `store_state.review_information=null`. These are observed fields, not proof each null independently blocks Apple. Pricing/products/allowances unchanged. Purchasing remains **DEVICE TEST REQUIRED / metadata action required**.
+
+### 5. WHAT NEEDS VISUAL REVIEW
+
+**HUMAN REVIEW REQUIRED:** existing Composite/Whitening protected finals plus the new raw Composite response. Check treatment scope, lip/expression/mouth opening, gingiva, unselected teeth, tooth proportions, seams and shade. Technical byte preservation and prompt instructions do not guarantee anatomical or cosmetic accuracy. Porcelain has contract regression coverage but was **NOT LIVE TESTED** in this request budget.
+
+### 6. EXACT NEXT ACTION
+
+**Backend ready for owner-led internal testing: YES. Overall app verdict: READY FOR PHYSICAL DEVICE ACCEPTANCE.** No upload performed or authorised here.
+
+1. Open `ios/App/App.xcodeproj`, App scheme, your team, **Run configuration Release**, connected unlocked iPhone; **Product → Run**. The matched signed artifact is `/tmp/smile-final-rc-20261003/Build/Products/Release-iphoneos/App.app`.
+2. On iPhone: email login → Apple sign-in/cancel → approved synthetic photo → Analyse → 6-tooth Composite → inspect image/Slide/Overlay → Save → force-close → reopen → export preview/report → sign out/in. Stop at the first failure and collect private QA request ID/status/stage.
+3. On iPad: same account → same case → images download → compare/export; make one safe metadata change and check it appears on the other device. Switch A→B→A, then open a cached case offline and reconnect.
+4. After acceptance, confirm Build 1 is unused and the Xcode purchase capability, then manually **Product → Archive → Distribute App → App Store Connect → Upload**. In App Store Connect, wait for processing and add the owner/internal group. This is a future manual step, not a completed upload. Complete product metadata and perform one Apple sandbox purchase to prove subscription delivery.
+
+**Visible Build 1 scope:** photo capture/import, Smile Analysis, 4/6/8/10 teeth and Custom multi-tooth, Whitening/Composite/Porcelain, comparison/presentation, preferred design, cases/sync, preview/report export. Cosmetic results require clinician review. **Restricted:** Single Tooth, Alignment and Full Arch are internal-only; no real-patient, external-dentist or paying-user readiness claim. Resolve durable delivery recovery, the MFA boundary, physical acceptance, subscription metadata/delivery and legal/privacy review before widening that scope.
+
+---
+
 ## 3 October — matched staging deployment and controlled live validation
 
 **Latest handover.** This section supersedes the earlier “implemented locally / not deployed” statements below. Earlier results and failures remain as history.
