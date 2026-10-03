@@ -36,8 +36,9 @@ test("provider diagnostics distinguish structural causes and never retain respon
     assert.equal(d.requestId, requestId);
     assert.equal(d.model, "gemini-3.1-flash-image");
     assert.equal(d.inputWidth, 1);
-    assert.equal(d.retryCount, 0);
-    assert.equal(calls, 1);
+    const attempts = category === "empty_response" || category === "text_only" ? 2 : 1;
+    assert.equal(d.retryCount, attempts - 1);
+    assert.equal(calls, attempts);
     assert.ok(d.latencyMs! >= 0);
     assert.doesNotMatch(JSON.stringify(records), /PRIVATE_|iVBOR|base64|originalImage/);
   }
@@ -99,4 +100,36 @@ test("diagnostic storage that never settles cannot hold a delivered image indefi
     ]);
     assert.ok(result?.image, "diagnostic writes must have a bounded wait");
   } finally { clearTimeout(timer!); unblock(); }
+});
+
+test("QA request evidence records exact prompt digest and image roles without retaining content", async () => {
+  let record: ProviderDiagnostic | undefined;
+  const provider = new GeminiSmileProvider({ apiKey: "test", maskGuidance: true, fetcher: async () => Response.json(candidate([blob()])) });
+  await generateSmile({ ...input, referenceImage: input.originalImage, styleReferences: [input.originalImage], editMask: input.originalImage }, undefined, provider,
+    { requestId, onDiagnostic: d => { record = d; } });
+  const value = record as unknown as Record<string, unknown>;
+  assert.match(String(value.promptHash), /^[a-f0-9]{64}$/);
+  assert.equal(value.imagePartOrder, "source,direct_reference,style_reference,edit_mask,prompt");
+  assert.equal(value.referenceCount, 2);
+  assert.equal(value.maskSent, true);
+  assert.equal(value.outputWidth, 1);
+  assert.equal(value.outputHeight, 1);
+  const safe = safeProviderDiagnostic({ ...value, imagePartOrder: "PRIVATE_ROLE", promptHash: "PRIVATE_NOTE", referenceCount: 200, outputWidth: NaN });
+  assert.doesNotMatch(JSON.stringify(safe), /PRIVATE_|NaN/);
+});
+
+test("one empty Gemini response is retried once under the same diagnostic lineage", async () => {
+  const records: ProviderDiagnostic[] = []; let calls=0;
+  const provider = new GeminiSmileProvider({ apiKey: "test", fetcher: async () => Response.json(++calls===1?candidate([],"NO_IMAGE"):candidate([blob()])) });
+  const result=await generateSmile(input,undefined,provider,{requestId,onDiagnostic:d=>{records.push(d);}});
+  assert.ok(result.image);assert.equal(calls,2);
+  assert.deepEqual(records.map(d=>[d.requestId,d.retryCount,d.category]),[[requestId,0,"started"],[requestId,0,"empty_response"],[requestId,1,"started"],[requestId,1,"success"]]);
+});
+test("empty-response retry is bounded and cancellation before a second attempt stops spending", async () => {
+  for(const cancel of [false,true]){
+    let calls=0;const controller=new AbortController();
+    const provider=new GeminiSmileProvider({apiKey:"test",fetcher:async()=>{calls++;return Response.json(candidate([],"NO_IMAGE"));}});
+    await assert.rejects(generateSmile(input,controller.signal,provider,{requestId,onDiagnostic:d=>{if(cancel&&d.category==="empty_response")controller.abort();}}));
+    assert.equal(calls,cancel?1:2);
+  }
 });

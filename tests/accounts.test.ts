@@ -151,10 +151,10 @@ test("provider evidence is retained for the authenticated owner and returned on 
   assert.equal(body.providerDiagnostic.httpStatus, 200, "backend 502 is different from Google's 200");
   assert.equal(body.providerDiagnostic.finishReasons, "NO_IMAGE");
   assert.equal(body.providerDiagnostic.category, "text_only");
-  assert.deepEqual(events.map(e => [e.owner, e.event]), [[user.id, "generation_provider_started"], [user.id, "generation_provider_finished"]]);
+  assert.deepEqual(events.map(e => [e.owner, e.event]), [[user.id, "generation_provider_started"], [user.id, "generation_provider_finished"], [user.id, "generation_provider_started"], [user.id, "generation_provider_finished"]]);
   assert.equal(calls.filter(c => c.startsWith(`release:${id}:`)).length, 1);
   assert.equal(calls.some(c => c.startsWith("commit:")), false);
-  assert.equal(callsToGoogle, 1);
+  assert.equal(callsToGoogle, 2);
   assert.doesNotMatch(JSON.stringify(events), /PRIVATE_|data:image|base64|case-7/);
 });
 
@@ -535,4 +535,17 @@ test("the free trial grants only the trial allowance; the first paid period gran
     `event:INITIAL_PURCHASE:${user.id}:${TRIAL_GENERATIONS}`,
     `event:RENEWAL:${user.id}:${SUBSCRIPTION_PRODUCTS.annual.generationsPerPeriod}`,
   ]);
+});
+
+test("a successful bounded Gemini retry uses one reservation and one commit; duplicate lineage spends nothing", async () => {
+  let attempts=0;
+  globalThis.fetch=async()=>Response.json({candidates:[{finishReason:++attempts===1?"NO_IMAGE":"STOP",content:{parts:attempts===1?[]:[{inlineData:{mimeType:"image/png",data:png.split(",")[1]}}]}}]});
+  const {store,calls}=fakeStore(); const id=crypto.randomUUID();let claimed=false;
+  const claim=async()=>{if(claimed)return false;claimed=true;return true;};
+  const env={SMILE_PROVIDER:"gemini",SMILE_GEMINI_API_KEY:"test",SMILE_GEMINI_DATA_TERMS:"paid"};
+  const response=await handleGenerationRequest(generationRequest("good-token",id),env,claim,services(store));
+  assert.equal(response.status,200);assert.equal(attempts,2);assert.equal((await response.json()).providerDiagnostic.retryCount,1);
+  assert.equal(calls.filter(c=>c===`reserve:${id}`).length,1);assert.equal(calls.filter(c=>c===`commit:${id}`).length,1);assert.equal(calls.filter(c=>c.startsWith("release:")).length,0);
+  assert.equal((await handleGenerationRequest(generationRequest("good-token",id),env,claim,services(store))).status,409);
+  assert.equal(attempts,2);assert.equal(calls.filter(c=>c===`reserve:${id}`).length,1);
 });

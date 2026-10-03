@@ -14,6 +14,8 @@ export interface ProviderDiagnostic {
   inputWidth: number; inputHeight: number;
   requestedWidth: number | null; requestedHeight: number | null;
   requestedAspectRatio?: string; requestedResolution?: string;
+  promptHash?: string; imagePartOrder?: string; referenceCount?: number; maskSent?: boolean;
+  outputWidth?: number; outputHeight?: number;
   candidates?: number; partCount?: number; textParts?: number; inlineParts?: number;
   thoughtParts?: number; otherParts?: number; imagePartExisted?: boolean;
   finishReasons?: string; mimeTypes?: string; blockReason?: string; providerCode?: string;
@@ -52,6 +54,14 @@ export function safeProviderDiagnostic(value: unknown): ProviderDiagnostic | nul
   if (v.mimeTypes !== undefined) result.mimeTypes = enumList(v.mimeTypes, mimeTypes);
   if (v.blockReason !== undefined) result.blockReason = enumValue(v.blockReason, blockReasons);
   if (v.providerCode !== undefined) result.providerCode = enumValue(v.providerCode, providerCodes);
+  if (typeof v.promptHash === "string" && /^[a-f0-9]{64}$/.test(v.promptHash)) result.promptHash = v.promptHash;
+  if (typeof v.imagePartOrder === "string") {
+    const roles = v.imagePartOrder.split(",");
+    if (roles.length <= 9 && roles.every(role => ["source", "direct_reference", "style_reference", "edit_mask", "prompt"].includes(role))) result.imagePartOrder = v.imagePartOrder;
+  }
+  if (integer(v.referenceCount, 6)) result.referenceCount = v.referenceCount;
+  if (typeof v.maskSent === "boolean") result.maskSent = v.maskSent;
+  for (const key of ["outputWidth", "outputHeight"] as const) if (integer(v[key], 40000) && v[key] > 0) result[key] = v[key];
   return result;
 }
 

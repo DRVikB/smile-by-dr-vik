@@ -4,6 +4,7 @@ import { lockFaceOutsideLips } from "../src/lib/face/mouthLock";
 import { clearFaceAnalysisCache, primeFaceAnalysis } from "../src/lib/face/landmarks";
 import { INNER_LIP, type Point } from "../src/lib/face/geometry";
 import { safeGenerationDiagnostic } from "../src/services/ai/generationDiagnostics";
+import type { MouthAlignmentDiagnostic } from "../src/lib/face/alignmentDiagnostic";
 
 // Exercise the real lock and diagnostic allowlist. Only browser decode/canvas
 // boundaries are substituted so their failures can be reproduced in Node.
@@ -26,9 +27,11 @@ test("mouth protection preserves the specific failure without leaking image/erro
   for (const scenario of [
     { mode: "decode", want: "mouth_image_decode_failed" },
     { mode: "alignment", want: "mouth_alignment_rejected" },
+    { mode: "geometry", want: "mouth_alignment_rejected" },
     { mode: "canvas", want: "mouth_canvas_unavailable" },
     { mode: "pixels", want: "mouth_composite_failed" },
     { mode: "encode", want: "mouth_encoding_failed" },
+    { mode: "blank", want: "mouth_blank_output" },
   ]) {
     clearFaceAnalysisCache();
     primeFaceAnalysis("original-private-image", points);
@@ -37,7 +40,8 @@ test("mouth protection preserves the specific failure without leaking image/erro
       naturalWidth = 100; naturalHeight = 100;
       onload: (() => void) | null = null;
       onerror: (() => void) | null = null;
-      set src(_value: string) {
+      set src(value: string) {
+        if (scenario.mode === "geometry" && value === "generated-private-image") this.naturalWidth = 200;
         queueMicrotask(() => scenario.mode === "decode" ? this.onerror?.() : this.onload?.());
       }
     }
@@ -48,13 +52,19 @@ test("mouth protection preserves the specific failure without leaking image/erro
           drawImage() {}, setTransform() {}, putImageData() {},
           getImageData() {
             if (scenario.mode === "pixels") throw new Error("private browser error");
-            return { data: new Uint8ClampedArray(100 * 100 * 4) };
+            return { data: scenario.mode === "blank" ? new Uint8ClampedArray(100 * 100 * 4) : Uint8ClampedArray.from({ length: 100 * 100 * 4 }, (_, i) => i % 256) };
           },
         },
         toDataURL() { throw new Error("private encoder error"); },
       }),
     } });
-    const result = await lockFaceOutsideLips("original-private-image", "generated-private-image");
+    let alignment: MouthAlignmentDiagnostic | undefined;
+    const result = await lockFaceOutsideLips("original-private-image", "generated-private-image", d => alignment = d);
+    if (scenario.mode === "alignment" || scenario.mode === "geometry") {
+      assert.equal(alignment?.rejection, scenario.mode === "alignment" ? "generated_landmarks_invalid" : "canvas_geometry_invalid");
+      assert.equal(alignment?.sourceWidth, 100);
+      assert.equal(alignment?.generatedWidth, scenario.mode === "geometry" ? 200 : 100);
+    }
     assert.equal(result.locked, false, scenario.mode);
     assert.equal(result.image, "generated-private-image", "diagnostics must not alter or substitute output");
     const reason = (result as typeof result & { failureReason?: string }).failureReason;

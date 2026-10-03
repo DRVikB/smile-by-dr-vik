@@ -72,11 +72,13 @@ export class GeminiSmileProvider implements SmileImageProvider {
     if (resolution === "512" && model !== PRICED_GEMINI_MODEL)
       throw new GenerationError("Draft resolution is not available for this model. Choose Standard.", 400, "generation_failed");
 
+    const partOrder = ["source"];
     const requestParts: Array<{
       inlineData?: { mimeType: string; data: string };
       text?: string;
     }> = [{ inlineData: { mimeType: mime, data: encoded } }];
     if (input.referenceImage) {
+      partOrder.push("direct_reference");
       const [refPrefix, refData] = input.referenceImage.split(",");
       imageDimensions(Uint8Array.from(atob(refData), c => c.charCodeAt(0)), refPrefix.includes("image/png") ? "image/png" : "image/jpeg");
       requestParts.push({
@@ -89,6 +91,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
     // The clinician's own finished cases, so the preview matches their work.
     const styleReferences = (input.styleReferences ?? []).slice(0, MAX_STYLE_REFERENCE_LIMIT);
     for (const reference of styleReferences) {
+      partOrder.push("style_reference");
       const [stylePrefix, styleData] = reference.split(",");
       imageDimensions(Uint8Array.from(atob(styleData), c => c.charCodeAt(0)), stylePrefix.includes("image/png") ? "image/png" : "image/jpeg");
       requestParts.push({
@@ -101,17 +104,21 @@ export class GeminiSmileProvider implements SmileImageProvider {
       });
     }
     const withMask = Boolean(this.options.maskGuidance && input.editMask);
+    if (withMask) partOrder.push("edit_mask");
     if (withMask) requestParts.push({ inlineData: { mimeType: "image/png", data: input.editMask!.split(",")[1] } });
-    requestParts.push({
-      text: buildImageEditPrompt(
+    const prompt = buildImageEditPrompt(
         input.settings,
         Boolean(input.referenceImage),
         input.framing,
         styleReferences.length,
         input.sourceBounds,
         withMask,
-      ),
-    });
+      );
+    partOrder.push("prompt");
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(prompt));
+    trace?.update({ promptHash: Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join(""),
+      imagePartOrder: partOrder.join(","), referenceCount: styleReferences.length + Number(Boolean(input.referenceImage)), maskSent: withMask });
+    requestParts.push({ text: prompt });
     const requestBody = {
       contents: [{ role: "user", parts: requestParts }],
       generationConfig: {
@@ -260,7 +267,10 @@ export class GeminiSmileProvider implements SmileImageProvider {
         "invalid_provider_image",
       );
     }
-    try { imageDimensions(Uint8Array.from(atob(data), c => c.charCodeAt(0)), outMime); }
+    try {
+      const output = imageDimensions(Uint8Array.from(atob(data), c => c.charCodeAt(0)), outMime);
+      trace?.update({ outputWidth: output.width, outputHeight: output.height });
+    }
     catch {
       trace?.update({ category: "malformed_image" });
       throw new GenerationError("Gemini returned a preview that couldn’t be opened. Please try again.", 502, "invalid_provider_image");

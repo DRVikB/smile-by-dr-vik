@@ -1,3 +1,4 @@
+import { safeAlignmentDiagnostic, safeRawOutputDiagnostic, safeOutputGeometry, type OutputGeometryDiagnostic, type MouthAlignmentDiagnostic, type RawOutputDiagnostic } from "@/lib/face/alignmentDiagnostic";
 import { safeProviderDiagnostic, type ProviderDiagnostic } from "@/lib/generation/providerDiagnostics";
 import { isNativeApp } from "@/native/platform";
 import { MOUTH_LOCK_FAILURE_CODES } from "@/lib/face/lock";
@@ -6,6 +7,10 @@ const stages = ["preflight", "prepare_image", "prepare_mask", "request", "respon
 export type GenerationStage = typeof stages[number];
 export interface GenerationDiagnostic {
   providerDiagnostic?: ProviderDiagnostic;
+  alignment?: MouthAlignmentDiagnostic;
+  geometry?: OutputGeometryDiagnostic;
+  rawOutput?: RawOutputDiagnostic;
+  rawQaCapture?: "disabled" | "ineligible" | "saved" | "failed";
   requestId: string;
   timestamp: number;
   generationPath: "standard" | "single_tooth" | "custom" | "alignment" | "full_arch";
@@ -34,6 +39,10 @@ export function safeGenerationDiagnostic(value: GenerationDiagnostic): Generatio
   const providerDiagnostic = safeProviderDiagnostic(value.providerDiagnostic);
   return {
     ...(providerDiagnostic?.requestId === value.requestId ? { providerDiagnostic } : {}),
+    ...(safeAlignmentDiagnostic(value.alignment) ? { alignment: safeAlignmentDiagnostic(value.alignment) } : {}),
+    ...(safeOutputGeometry(value.geometry) ? { geometry: safeOutputGeometry(value.geometry) } : {}),
+    ...(safeRawOutputDiagnostic(value.rawOutput) ? { rawOutput: safeRawOutputDiagnostic(value.rawOutput) } : {}),
+    ...(["disabled", "ineligible", "saved", "failed"].includes(value.rawQaCapture ?? "") ? { rawQaCapture: value.rawQaCapture } : {}),
     requestId: value.requestId, timestamp: value.timestamp,
     generationPath: value.generationPath, selectedToothCount: value.selectedToothCount,
     sourceWidth: value.sourceWidth, sourceHeight: value.sourceHeight,
@@ -74,6 +83,10 @@ export function startGenerationDiagnostic(initial: Omit<GenerationDiagnostic, "t
   const update = (patch: Partial<GenerationDiagnostic>) => { value = { ...value, ...patch, timestamp: Date.now() }; persist(value); };
   persist(value);
   return {
+    alignment: (alignment: MouthAlignmentDiagnostic) => update({ alignment }),
+    geometry: (geometry: OutputGeometryDiagnostic) => update({ geometry }),
+    rawOutput: (rawOutput: RawOutputDiagnostic) => update({ rawOutput }),
+    rawQaCapture: (rawQaCapture: GenerationDiagnostic["rawQaCapture"]) => update({ rawQaCapture }),
     stage: (stage: GenerationStage) => update({ stage }),
     dimensions: (requestWidth: number, requestHeight: number) => update({ requestWidth, requestHeight }),
     provider: (providerDiagnostic: ProviderDiagnostic) => update({ providerDiagnostic }),

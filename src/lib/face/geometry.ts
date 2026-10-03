@@ -205,3 +205,33 @@ export function compositeMasked(
   }
   return out;
 }
+
+/** Lightweight lossless validation. Only pixels where the edit alpha is zero
+ * are protected; feather pixels inside the mouth are intentional transitions. */
+export function measureProtectedRegionChange(original: Uint8ClampedArray, final: Uint8ClampedArray, imageWidth: number, mask: Mask) {
+  if (!Number.isInteger(imageWidth) || imageWidth <= 0 || original.length !== final.length || original.length % (imageWidth * 4) !== 0)
+    throw new Error("Invalid protected-region canvas geometry");
+  let protectedPixels = 0, changedPixels = 0, sum = 0, maxDifference = 0;
+  for (let p = 0; p < original.length; p += 4) {
+    const i = p / 4, x = i % imageWidth - mask.x0, y = Math.floor(i / imageWidth) - mask.y0;
+    if (x >= 0 && y >= 0 && x < mask.width && y < mask.height && mask.alpha[y * mask.width + x] > 0) continue;
+    protectedPixels++; let changed = false;
+    for (let c = 0; c < 4; c++) {
+      const d = Math.abs(original[p + c] - final[p + c]); sum += d; maxDifference = Math.max(maxDifference, d); changed ||= d !== 0;
+    }
+    if (changed) changedPixels++;
+  }
+  return { protectedPixels, changedPixels, maxDifference, meanDifference: protectedPixels ? sum / (protectedPixels * 4 * 255) : 0 };
+}
+
+/** Gross uniform-fill check only, never an aesthetic score. Exclude feather
+ * transitions so unchanged skin at the boundary cannot hide a blank mouth. */
+export function editableRegionRange(pixels: Uint8ClampedArray, imageWidth: number, mask: Mask): number | null {
+  const low = [255, 255, 255], high = [0, 0, 0]; let samples = 0;
+  for (let y = 0; y < mask.height; y++) for (let x = 0; x < mask.width; x++) {
+    if (mask.alpha[y * mask.width + x] < 0.95) continue;
+    const p = ((y + mask.y0) * imageWidth + x + mask.x0) * 4; samples++;
+    for (let c = 0; c < 3; c++) { low[c] = Math.min(low[c], pixels[p + c]); high[c] = Math.max(high[c], pixels[p + c]); }
+  }
+  return samples ? Math.max(...high.map((n, c) => n - low[c])) : null;
+}

@@ -1,4 +1,5 @@
 "use client";
+import type { MouthAlignmentDiagnostic } from "@/lib/face/alignmentDiagnostic";
 import { generationUnavailable } from "@/lib/generation/availability";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -119,18 +120,19 @@ async function lockFace(
   settings: SmileSettings,
   scope: WorkspaceLease,
   stage: (value: GenerationStage) => void = () => {},
+  alignment?: (diagnostic: MouthAlignmentDiagnostic) => void,
 ): Promise<Pick<GenerationResult, "image" | "faceLocked" | "lipsMoved" | "editAreaProtected" | "toothProtection">> {
   scope.assert();
   const { lockFaceOutsideLips } = await import("@/lib/face/mouthLock");
   scope.assert();
   stage("mouth_composite");
-  const r = await lockFaceOutsideLips(photo.dataUrl, image);
+  const r = await lockFaceOutsideLips(photo.dataUrl, image, alignment);
   scope.assert();
   if (r.invalidAlignment)
     throw new SmileGenerationError("The image service returned a preview that does not match your original photo's framing. It has not been shown or saved. Please generate again; your photo and selections are unchanged.", r.failureReason ?? "mouth_alignment_rejected");
   const { generationProtectionPlan, protectWithToothMap } = await import("@/lib/toothMap/protect");
   const preciseTooth = photo.toothMap && generationProtectionPlan(photo.toothMap, photo.dataUrl, settings).ok;
-  if (!r.locked && settings.shotType === "Full face" && !photo.editMask && !preciseTooth)
+  if (!r.locked && !photo.editMask && !preciseTooth)
     throw new SmileGenerationError("This preview could not be aligned and protected against your original face. It has not been presented. Your photo is safe; use Protect edit area or a clearer photo before trying again.", r.failureReason ?? "stage_failed");
   if (photo.editMask) stage("edit_area_composite");
   let imageOut = photo.editMask ? await (await import("@/lib/editMask")).protectOutsideEditMask(photo.dataUrl, r.image, photo.editMask) : r.image;
@@ -632,7 +634,7 @@ export default function Smile() {
     try {
       // Check existing protection before spending a generation. A reviewed
       // selected-tooth mask or clinician-painted area can also protect the face.
-      if (settingsIn.shotType === "Full face" && !photoIn.editMask && !toothPlan.ok) {
+      if (!photoIn.editMask && !toothPlan.ok) {
         const { detectFace } = await import("@/lib/face/landmarks");
         repository.scope.assert();
         const points = await detectFace(photoIn.dataUrl, controller.signal);
@@ -687,12 +689,16 @@ export default function Smile() {
         setCosts((c) => completeCost(c, receipt));
       }
       const { alignPreview } = await import("@/lib/photos");
+      if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1") {
+        const { captureSyntheticQaRaw } = await import("@/services/ai/syntheticQaCapture");
+        diagnostic.rawQaCapture(await captureSyntheticQaRaw(requestId, photoIn.dataUrl, next.image));
+      }
       reportStage("align");
-      const alignedImage = await alignPreview(next.image, photoIn, requestCanvas);
+      const alignedImage = await alignPreview(next.image, photoIn, requestCanvas, diagnostic.rawOutput, diagnostic.geometry);
       repository.scope.assert();
       next = { ...next, image: alignedImage };
       if (next.mode === "live") {
-        next = { ...next, ...(await lockFace(photoIn, alignedImage, settingsIn, repository.scope, reportStage)) };
+        next = { ...next, ...(await lockFace(photoIn, alignedImage, settingsIn, repository.scope, reportStage, diagnostic.alignment)) };
         reportStage("quality_check");
         // Advisory only, and only when there's a trustworthy anchor to check
         // against — an uploaded photo has no capture guide to measure from.
@@ -706,6 +712,10 @@ export default function Smile() {
         }
       }
       repository.scope.assert();
+      if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1") {
+        const { captureSyntheticQaFinal } = await import("@/services/ai/syntheticQaCapture");
+        await captureSyntheticQaFinal(requestId, photoIn.dataUrl, next.image);
+      }
       if (settingsIn.libraryStyle) {
         const used = next.styleReferencesUsed?.count ?? 0;
         preferences.styleReferenceCount = used;

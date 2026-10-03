@@ -1,3 +1,4 @@
+import type { MouthAlignmentDiagnostic, AlignmentRejection } from "./alignmentDiagnostic";
 import {
   COMMISSURES,
   INNER_LIP,
@@ -44,29 +45,38 @@ const MAX_SCALE = 1.18;
 const MAX_ANGLE = (8 * Math.PI) / 180;
 
 /** Invalidate reusable results made with the older, lip-inclusive mask. */
-export const MOUTH_LOCK_VERSION = "2026-10-02-validated-mouth-boundary-v5";
+export const MOUTH_LOCK_VERSION = "2026-10-03-validated-encoded-mouth-v6";
 
 /** Categorical device QA only; never capture image content or browser errors. */
 export const MOUTH_LOCK_FAILURE_CODES = [
   "mouth_image_decode_failed", "mouth_source_landmarks_unavailable",
   "mouth_alignment_rejected", "mouth_canvas_unavailable",
-  "mouth_composite_failed", "mouth_encoding_failed",
+  "mouth_composite_failed", "mouth_encoding_failed", "mouth_protected_region_changed", "mouth_blank_output",
 ] as const;
 export type MouthLockFailure = typeof MOUTH_LOCK_FAILURE_CODES[number];
 
 export function planMouthLock(
   original: Point[] | null,
   generated: Point[] | null,
+  report?: (diagnostic: MouthAlignmentDiagnostic) => void,
 ): LockPlan | null {
+  const diagnostic: MouthAlignmentDiagnostic = { sourceLandmarkCount: original?.length ?? 0, generatedLandmarkCount: generated?.length ?? 0 };
+  const emit = () => { try { report?.({ ...diagnostic }); } catch { /* QA must never change protection. */ } };
+  const reject = (rejection: AlignmentRejection) => { diagnostic.rejection = rejection; emit(); return null; };
   // A mask is not evidence that the returned image is a full-face edit. In
   // particular, never paste a provider's mouth close-up into a face using an
   // identity transform simply because no face could be found in that output.
-  if (![original, generated].every(points => points && points.length >= 468 &&
-    points.every(p => p.length === 2 && p.every(Number.isFinite)))) return null;
-  if (!original || !generated) return null;
+  const valid = (points: Point[]) => points.length >= 468 && points.every(p => p.length === 2 && p.every(Number.isFinite));
+  if (!original) return reject("source_landmarks_missing");
+  if (!valid(original)) return reject("source_landmarks_invalid");
+  if (!generated) return reject("generated_landmarks_missing");
+  if (!valid(generated)) return reject("generated_landmarks_invalid");
   const [left, right] = pick(original, COMMISSURES);
   const mouthWidth = distance(left, right);
-  if (!(mouthWidth >= 20)) return null;
+  diagnostic.sourceMouthWidth = mouthWidth;
+  diagnostic.generatedMouthWidth = distance(...pick(generated, COMMISSURES) as [Point, Point]);
+  if (!(mouthWidth >= 20)) return reject("mouth_width_insufficient");
+  diagnostic.fittedScale = 1; diagnostic.fittedRotationDegrees = 0;
 
   let transform = IDENTITY_SIMILARITY;
   let warp = false;
@@ -80,20 +90,22 @@ export function planMouthLock(
     if (residual > ALIGN_TOLERANCE * mouthWidth) {
       const fitted = fitSimilarity(from, to);
       const scale = similarityScale(fitted);
-      if (
-        scale < MIN_SCALE ||
-        scale > MAX_SCALE ||
-        Math.abs(similarityAngle(fitted)) > MAX_ANGLE
-      )
-        return null;
+      diagnostic.fittedScale = scale;
+      diagnostic.fittedRotationDegrees = similarityAngle(fitted) * 180 / Math.PI;
+      if (scale < MIN_SCALE || scale > MAX_SCALE) return reject("similarity_scale_out_of_range");
+      if (Math.abs(similarityAngle(fitted)) > MAX_ANGLE) return reject("similarity_rotation_out_of_range");
       transform = fitted;
       warp = true;
     }
     // A least-squares fit can still return a plausible scale for unrelated or
     // distorted faces. Check the aligned anchors, not just the transform.
     const alignedResiduals = from.map((p, i) => distance(applySimilarity(transform, p), to[i]));
-    if (median(alignedResiduals) > Math.max(3, 0.04 * mouthWidth) ||
-      alignedResiduals.filter(d => d > Math.max(6, 0.1 * mouthWidth)).length > 1) return null;
+    diagnostic.medianResidual = median(alignedResiduals);
+    diagnostic.allowedResidual = Math.max(3, 0.04 * mouthWidth);
+    diagnostic.anchorOutlierCount = alignedResiduals.filter(d => d > Math.max(6, 0.1 * mouthWidth)).length;
+    diagnostic.allowedOutlierCount = 1;
+    if (diagnostic.medianResidual > diagnostic.allowedResidual) return reject("anchor_residual_excessive");
+    if (diagnostic.anchorOutlierCount > diagnostic.allowedOutlierCount) return reject("anchor_outliers_excessive");
     const genLips = pick(generated, OUTER_LIP).map((p) => applySimilarity(transform, p));
     const origLips = pick(original, OUTER_LIP);
     lipsMoved =
@@ -102,6 +114,7 @@ export function planMouthLock(
       median(pick(generated, INNER_LIP).map((p, i) => distance(applySimilarity(transform, p), original[INNER_LIP[i]]))) > LIP_TOLERANCE * mouthWidth;
   }
 
+  emit();
   return {
     transform,
     warp,

@@ -1,6 +1,8 @@
 import type { Framing, Photo } from "./types";
 import { assessPhotoQuality } from "./photoQuality";
 import { frameWithinCanvas, generationCanvas } from "./generationCanvas";
+import type { RawOutputDiagnostic, OutputGeometryDiagnostic } from "./face/alignmentDiagnostic";
+import { dataUrlOrientation } from "./face/rawOutputMetadata";
 export async function preparePhoto(file: File): Promise<Photo> {
   if (file.size > 25 * 1024 * 1024)
     throw new Error("Choose a photo smaller than 25 MB.");
@@ -56,8 +58,13 @@ export async function preparePhoto(file: File): Promise<Photo> {
         })()
       : undefined;
 
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.93);
+    if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1") {
+      const { registerSyntheticQaPhoto } = await import("@/services/ai/syntheticQaCapture");
+      await registerSyntheticQaPhoto(file, dataUrl);
+    }
     return {
-      dataUrl: canvas.toDataURL("image/jpeg", 0.93),
+      dataUrl,
       name: file.name,
       width: canvas.width,
       height: canvas.height,
@@ -99,10 +106,18 @@ export async function alignPreview(
   dataUrl: string,
   original: Photo,
   requestCanvas?: { photo: Photo; sourceBounds: Framing },
+  reportRaw?: (metadata: RawOutputDiagnostic) => void,
+  reportGeometry?: (metadata: OutputGeometryDiagnostic) => void,
 ): Promise<string> {
   const image = new Image();
   image.src = dataUrl;
   await image.decode();
+  if (reportRaw) {
+    const mime = dataUrl.startsWith("data:image/jpeg;base64,") ? "image/jpeg"
+      : dataUrl.startsWith("data:image/png;base64,") ? "image/png" : null;
+    if (mime) try { reportRaw({ width: image.naturalWidth, height: image.naturalHeight, mime, exifOrientation: dataUrlOrientation(dataUrl) }); }
+    catch { /* Optional QA must never alter validation or delivery. */ }
+  }
   const difference = Math.abs(
     image.naturalWidth /
       image.naturalHeight /
@@ -122,5 +137,8 @@ export async function alignPreview(
   ctx.drawImage(image, source.x * image.naturalWidth, source.y * image.naturalHeight,
     source.width * image.naturalWidth, source.height * image.naturalHeight,
     0, 0, canvas.width, canvas.height);
+  try { reportGeometry?.({ cropX: source.x * image.naturalWidth, cropY: source.y * image.naturalHeight,
+    cropWidth: source.width * image.naturalWidth, cropHeight: source.height * image.naturalHeight,
+    finalWidth: canvas.width, finalHeight: canvas.height, scaleX: canvas.width / (source.width * image.naturalWidth), scaleY: canvas.height / (source.height * image.naturalHeight) }); } catch { /* Diagnostics cannot alter delivery. */ }
   return canvas.toDataURL("image/jpeg", 0.95);
 }

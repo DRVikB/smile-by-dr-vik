@@ -1,4 +1,5 @@
-import { compositeMasked, polygonMask } from "./geometry";
+import type { MouthAlignmentDiagnostic } from "./alignmentDiagnostic";
+import { compositeMasked, polygonMask, measureProtectedRegionChange, editableRegionRange } from "./geometry";
 import { detectFace } from "./landmarks";
 import { planMouthLock, type MouthLockFailure } from "./lock";
 
@@ -30,6 +31,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 export async function lockFaceOutsideLips(
   original: string,
   generated: string,
+  report?: (diagnostic: MouthAlignmentDiagnostic) => void,
 ): Promise<MouthLockResult> {
   const untouched = { image: generated, locked: false, lipsMoved: false };
   let failureReason: MouthLockFailure = "mouth_image_decode_failed";
@@ -45,7 +47,10 @@ export async function lockFaceOutsideLips(
     const sameAspect = Math.abs((g.naturalWidth / g.naturalHeight) / (width / height) - 1) <= 0.03;
     const scaledPoints = genPoints?.map(([x, y]): [number, number] =>
       [x * width / g.naturalWidth, y * height / g.naturalHeight]) ?? null;
-    const plan = sameAspect ? planMouthLock(origPoints, scaledPoints) : null;
+    let lastDiagnostic: MouthAlignmentDiagnostic = {};
+    const emit = (d: MouthAlignmentDiagnostic) => { lastDiagnostic = d; try { report?.({ ...d, sourceWidth: width, sourceHeight: height, generatedWidth: g.naturalWidth, generatedHeight: g.naturalHeight }); } catch { /* QA must never affect delivery. */ } };
+    if (!sameAspect) emit({ rejection: "canvas_geometry_invalid", sourceLandmarkCount: origPoints?.length ?? 0, generatedLandmarkCount: genPoints?.length ?? 0 });
+    const plan = sameAspect ? planMouthLock(origPoints, scaledPoints, emit) : null;
     if (!plan) return { ...untouched, invalidAlignment: Boolean(origPoints),
       failureReason: origPoints ? "mouth_alignment_rejected" : "mouth_source_landmarks_unavailable" };
     failureReason = "mouth_canvas_unavailable";
@@ -67,13 +72,24 @@ export async function lockFaceOutsideLips(
     const editedPixels = ctx.getImageData(0, 0, width, height);
 
     const mask = polygonMask(plan.polygon, width, height, plan.grow, plan.feather, true);
+    const editableRange = editableRegionRange(editedPixels.data, width, mask);
+    emit({ ...lastDiagnostic, ...(editableRange !== null ? { editableRange } : {}) });
+    if (editableRange === null || editableRange <= 2) return { ...untouched, failureReason: "mouth_blank_output" };
     const merged = compositeMasked(originalPixels.data, editedPixels.data, width, mask);
     editedPixels.data.set(merged);
     ctx.putImageData(editedPixels, 0, 0);
     failureReason = "mouth_encoding_failed";
+    const image = canvas.toDataURL("image/png");
+    // Verify the actual encoded result; validation concerns the protected
+    // exterior, not the cosmetic or anatomical accuracy of the dental ROI.
+    const saved = await loadImage(image);
+    ctx.clearRect(0, 0, width, height); ctx.drawImage(saved, 0, 0, width, height);
+    const change = measureProtectedRegionChange(originalPixels.data, ctx.getImageData(0, 0, width, height).data, width, mask);
+    emit({ ...lastDiagnostic, protectedMeanDifference: change.meanDifference, protectedChangedPixels: change.changedPixels });
+    if (change.changedPixels !== 0) return { ...untouched, failureReason: "mouth_protected_region_changed" };
     return {
       // JPEG re-encoding would change protected face pixels after restoration.
-      image: canvas.toDataURL("image/png"),
+      image,
       locked: true,
       lipsMoved: plan.lipsMoved,
     };
