@@ -1,3 +1,31 @@
+## PHYSICAL ALL-ON-X FAILURE — 3 October 2026, 19:37 London
+
+### WHAT WAS ACTUALLY FIXED
+
+No speculative generation fix. **PASS — owner subsequently confirmed saved drafts now open and work on the physical iPhone.** This confirms the preceding draft-navigation fix's device acceptance, without proving every cloud-recovery scenario.
+
+### WHAT WAS TESTED / EXACT FIRST BROKEN STAGE
+
+Source checkpoint `4a95d55` (production fix `abb3e4b`), branch `release/v1-device-test`. Read-only staging audits and the connected iPhone's bounded private diagnostic cache now correlate the exact request **`5535c2e1-b5ae-4ec2-afd0-b0a3b443331c`** at **19:37:19–19:37:28 BST**. User screenshot `IMG_3506.PNG` shows Full Arch Upper+Lower; ledger records **Full-arch both / zirconia**. Contract v8, Google `gemini-3.1-flash-image`, zero retries, source+prompt, no provider mask/reference.
+
+**PASS — provider and canvas normalization:** HTTP200 / STOP / one valid inline JPEG, no text/thought/other parts; 8,133ms provider latency. Source1320×1737; prepared/provider input1320×1760; raw896×1200, EXIF orientation absent. Prepared ratio0.75; raw0.746666667; drift**0.444444%**, below3%. Source/final ratio0.759930915. Known-padding removal: crop x0/y7.5/w896/h1184.3181818181818; output1320×1737; scaleX1.4732142857142858/scaleY1.4666666666666668. `alignPreview` completed; no aspect rejection. This establishes coordinate normalization, **not raw visual framing accuracy**.
+
+**FAIL — returned-image face detection before mouth compositing:** device record stage=`mouth_composite`, error=`mouth_alignment_rejected`, exact rejection=`generated_landmarks_missing`. Source478 landmarks, generated0, both normalized canvases1320×1737. `planMouthLock` rejects before scale/rotation/residual fitting, editable-mask blending, protected-region verification, quality review or saving the new result. The generic UI framing message does not establish an actual crop defect.
+
+**Comparison evidence:** immediately preceding owner requests `509fa01b-7917-47de-8907-46f199a059e0` (19:36:01 completion) and `85d54593-b337-4ba0-9e6f-fb95e80c8e40` (19:36:41 completion) are standard-path **succeeded**, with source/generated478 landmarks and protected exterior0 changed pixels on the same physical app. This is stronger than simulator-only evidence, but their precise treatment/cosmetic acceptability is not inferred. Existing successful result remains visible in the Studio; rejected All-on-X result does not overwrite it.
+
+Private evidence: `output/iphone-generation-failure-2026-10-03-1937/device-diagnostics.json`. Only the diagnostic file was copied; no app auth database/container or patient photographs. **PASS — existing targeted regressions17/17**, zero failures/skips (`diagnostic-tests.log`), including missing generated landmarks, categorical reporting and privacy filtering. No new source fix/reproduction or full-suite/build rerun claimed for this failure.
+
+### WHAT STILL FAILS / NOT TESTED
+
+**FAIL — All-on-X physical acceptance.** Exact first rejection is proven; the underlying reason the generated image has no usable detection is **NOT ESTABLISHED**. `faceWorker` can return null for no face, or a categorical worker error for model/decode/inference failure; `detectFace` converts either to null. Current record cannot distinguish those causes. No raw output was retained for this request (raw capture disabled); therefore visual crop/face integrity and local replay of this exact response are **NOT TESTED**. Do not infer malformed output or iOS worker failure from zero landmarks alone.
+
+**FAIL — charged delivery:** reservation−1, committed0; allowance**65→64**. No release/refund entry for this request in the current ledger. No manual ledger write/local refund. Recoverable charged-result lifecycle remains deferred. This is an owner-initiated request, not an additional agent QA call; agent provider calls in this investigation**0**, previous QA total15 unchanged.
+
+### NEXT ACTION / RELEASE GATE
+
+**Do not retry this paid request.** Further root-cause proof requires distinguishing detector empty-result from decode/model/worker failures and inspecting/replaying the exact returned image where authorised and retained. Current cache proves the rejection stage but cannot supply that image; no unsupported protection bypass, prompt change or guard relaxation is justified. No production/staging deployment, TestFlight upload or generation architecture change performed. **All-on-X ready for TestFlight: NO.** Saved-draft reopening remains **PASS — owner device confirmation**.
+
 ## SAVED DRAFT REOPEN FIX — 3 October 2026, evening
 
 ### 1. WHAT WAS ACTUALLY FIXED
