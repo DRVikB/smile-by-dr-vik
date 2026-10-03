@@ -11,6 +11,7 @@ import { getSmileProvider } from "../src/lib/generation/provider";
 import { GenerationError } from "../src/lib/generation/errors";
 import { handleGenerationRequest } from "../src/lib/generation/handler";
 import { defaultSettings } from "../src/lib/types";
+import { friendlyGenerationError, GENERATION_MESSAGES } from "../src/services/ai/smileImageService";
 const bytes = readFileSync("public/sample-smile.jpg");
 const encoded = bytes.toString("base64");
 const pngBytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
@@ -172,6 +173,15 @@ test("missing mask or invalid server quality never reaches a paid Sunburst reque
   await assert.rejects(new OpenAISmileProvider({ apiKey: "test", fetcher }).generate({ ...input, editMask: undefined }), (e: unknown) => e instanceof GenerationError && e.code === "invalid_image");
   await assert.rejects(new OpenAISmileProvider({ apiKey: "test", quality: "invalid", fetcher }).generate(input), (e: unknown) => e instanceof GenerationError && e.code === "provider_not_configured");
   assert.equal(calls, 0);
+});
+
+test("provider API credit failure is service unavailability, never a clinician subscription failure", async () => {
+  const provider = new OpenAISmileProvider({ apiKey: "test", fetcher: async () => Response.json({ error: { code: "insufficient_quota" } }, { status: 429 }) });
+  await assert.rejects(provider.generate(input), (error: unknown) => {
+    assert.ok(error instanceof GenerationError);
+    assert.equal(friendlyGenerationError(error.status, error.code).message, GENERATION_MESSAGES.unavailable);
+    return true;
+  });
 });
 
 test("missing API key has an explicit setup error and never makes a request", async () => {

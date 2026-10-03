@@ -190,7 +190,7 @@ export class OpenAISmileProvider implements SmileImageProvider {
       )
         throw new GenerationError(
           "OpenAI API credits are unavailable. Check the connected account’s API billing before trying again.",
-          402,
+          503,
           "api_credits_required",
         );
       if (code === "moderation_blocked" || code === "content_policy_violation")
