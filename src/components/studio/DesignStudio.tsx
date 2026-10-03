@@ -98,16 +98,16 @@ function More({ children, label = "More options" }: { children: React.ReactNode;
 /** V1 treatment choices reuse the existing settings and material controls. */
 export function TreatmentOptions({ settings, onChange }: { settings: SmileSettings; onChange: (settings: SmileSettings) => void }) {
   const fullArch = isFullArch(settings);
-  const alignment = Boolean(settings.alignment) && !fullArch;
+  const alignment = Boolean(settings.alignment?.only) && !fullArch;
   const veneers = !fullArch && !alignment && settings.treatment !== "Whitening";
   const materials = settings.treatment === "Composite"
     ? [{ value: "Composite" as Treatment, title: "Composite", detail: "Earlier general composite setting" }, ...TREATMENTS.filter(t => t.value !== "Whitening")]
     : TREATMENTS.filter(t => t.value !== "Whitening");
-  const standard = (treatment: Treatment) => onChange(withStandard(settings, { treatment, alignment: undefined }));
+  const standard = (treatment: Treatment) => onChange(withStandard(settings, { treatment, alignment: settings.alignment?.only ? undefined : settings.alignment }));
   return <>
     <div className="studio-treatments" role="radiogroup" aria-label="Treatment">
       <button type="button" role="radio" aria-checked={!fullArch && !alignment && settings.treatment === "Whitening"} className="studio-treatment" onClick={() => standard("Whitening")}>
-        <span className="studio-treatment-text"><strong>Whitening</strong><small>Colour only · keeps tooth shape and position</small></span>
+        <span className="studio-treatment-text"><strong>Whitening</strong><small>Colour only · keeps natural tooth form</small></span>
         <span className="studio-check" aria-hidden="true">{!fullArch && !alignment && settings.treatment === "Whitening" && <Check size={14} strokeWidth={2.6} />}</span>
       </button>
       <button type="button" role="radio" aria-checked={veneers} className="studio-treatment" onClick={() => standard(settings.treatment === "Whitening" ? "Layered composite" : settings.treatment)}>
@@ -119,7 +119,7 @@ export function TreatmentOptions({ settings, onChange }: { settings: SmileSettin
         <span className="studio-check" aria-hidden="true">{alignment && <Check size={14} strokeWidth={2.6} />}</span>
       </button>}
       {INTERNAL_FULL_ARCH && <button type="button" role="radio" aria-checked={fullArch} className="studio-treatment" onClick={() => onChange(withFullArch(settings))}>
-        <span className="studio-treatment-text"><strong>Full Arch / All-on-X</strong><small>Fixed restorative concept · upper, lower or both arches</small></span>
+        <span className="studio-treatment-text"><strong>Full Arch / All-on-X</strong><small>Both visible arches · zirconia restorative concept</small></span>
         <span className="studio-check" aria-hidden="true">{fullArch && <Check size={14} strokeWidth={2.6} />}</span>
       </button>}
     </div>
@@ -131,6 +131,14 @@ export function TreatmentOptions({ settings, onChange }: { settings: SmileSettin
           <span className="studio-check" aria-hidden="true">{settings.treatment === t.value && <Check size={14} strokeWidth={2.6} />}</span>
         </button>)}
       </div>
+    </div>}
+    {INTERNAL_ALIGNMENT && !fullArch && !alignment && <div className="control-group">
+      <button type="button" role="switch" aria-checked={Boolean(settings.alignment)} className="studio-treatment"
+        onClick={() => onChange(withStandard(settings, { alignment: settings.alignment ? undefined : { arches: "Both" } }))}>
+        <span className="studio-treatment-text"><strong>Include alignment</strong><small>A straighter smile alongside your selected treatment</small></span>
+        <span className="studio-check" aria-hidden="true">{settings.alignment && <Check size={14} strokeWidth={2.6} />}</span>
+      </button>
+      {settings.alignment && <p className="control-hint">Both visible arches. Your selected teeth, material, shape and shade still apply. A visual concept, not orthodontic planning.</p>}
     </div>}
     {alignment && <p className="control-hint">A straighter-smile visualisation, not orthodontic planning. Root movement, bite, attachments and treatment staging are not simulated. Clinical assessment is required.</p>}
   </>;

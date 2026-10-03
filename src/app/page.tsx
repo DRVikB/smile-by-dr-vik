@@ -77,6 +77,7 @@ import { apiUrl } from "@/services/api/client";
 import { generateSmileImage } from "@/services/ai/smileImageService";
 import { startGenerationDiagnostic, type GenerationStage } from "@/services/ai/generationDiagnostics";
 import { earliestGenerationStage } from "@/lib/generation/progress";
+import { EditAreaRequiredError, sourceProtectionPoints } from "@/lib/generation/sourceProtection";
 import { onWorkspaceDetach, type WorkspaceLease } from "@/lib/workspace";
 import { createLibraryStore } from "@/lib/caseLibrary";
 import { getCaseRepository } from "@/services/cases/caseRepository";
@@ -219,6 +220,7 @@ export default function Smile() {
   const [previewMode, setPreviewMode] = useState<CompareMode>("slide");
   const [reviewOpen, setReviewOpen] = useState(false);
   const [editAreaOpen, setEditAreaOpen] = useState(false);
+  const [editAreaRequired, setEditAreaRequired] = useState(false);
   const [camera, setCamera] = useState(false);
   const [error, setError] = useState("");
   const [storageError, setStorageError] = useState(false);
@@ -340,6 +342,7 @@ export default function Smile() {
   /** Route account-related refusals to the right sheet; other errors show as text. */
   function showGenerationError(e: unknown, fallback: string) {
     if (repository.scope.signal.aborted) return;
+    if (e instanceof EditAreaRequiredError) { setError(""); setEditAreaRequired(true); setEditAreaOpen(true); return; }
     if (e instanceof SmileGenerationError && e.code === "auth_required") { account.openAuth("signIn", "generate"); return; }
     if (e instanceof SmileGenerationError && e.code === "mfa_required") { account.openMfa("challenge"); return; }
     if (e instanceof SmileGenerationError && (e.code === "subscription_required" || e.code === "no_active_allowance")) { void account.refresh(); account.openPaywall(); return; }
@@ -641,10 +644,7 @@ export default function Smile() {
       if (!photoIn.editMask && !toothPlan.ok) {
         const { detectFace } = await import("@/lib/face/landmarks");
         repository.scope.assert();
-        const points = await detectFace(photoIn.dataUrl, controller.signal);
-        sourcePoints = points;
-        if (controller.signal.aborted) throw controller.signal.reason;
-        if (!points) throw new Error("Face protection could not find the mouth in this photo. Use a clearer full-face photo or Protect edit area. No generation request was sent.");
+        sourcePoints = await sourceProtectionPoints(photoIn, toothPlan.ok, detectFace, controller.signal);
       }
       // Case Library style references are attached by the server, from the
       // signed-in account's own private library; the app never sends them. The
@@ -741,7 +741,7 @@ export default function Smile() {
       onStage("complete");
       return { ...next, preferences, requestFingerprint: fingerprint, elapsedSeconds: (performance.now() - started) / 1000 };
     } catch (error) {
-      diagnostic.fail(controller.signal.aborted ? "cancelled" : error instanceof SmileGenerationError ? error.code : "stage_failed");
+      diagnostic.fail(controller.signal.aborted ? "cancelled" : error instanceof SmileGenerationError || error instanceof EditAreaRequiredError ? error.code : "stage_failed");
       throw error;
     }
   }
@@ -924,8 +924,10 @@ export default function Smile() {
       const ok = settled
         .filter((x) => x.status === "fulfilled")
         .map((x) => (x as PromiseFulfilledResult<Variant>).value);
-      if (ok.length === 0)
-        throw new Error("These options couldn’t be created. Please try again.");
+      if (ok.length === 0) {
+        const areaReview = settled.find(x => x.status === "rejected" && x.reason instanceof EditAreaRequiredError);
+        throw areaReview?.status === "rejected" ? areaReview.reason : new Error("These options couldn’t be created. Please try again.");
+      }
       await minimumDisplay;
       if (controller.signal.aborted) return;
       setVariants(ok);
@@ -1347,7 +1349,7 @@ export default function Smile() {
                   <p id="patient-name-hint" className="control-hint">{testMode ? "Test mode. " : "Saved cases sync privately to your account. "}Use initials or a practice reference — not full names, dates of birth, NHS numbers or contact details.</p>
                 </>}
                 costs={{ pricing, resolution: effectiveResolution, onResolution: setResolution, costs, testMode, busy, open: costsOpen, onOpen: toggleCosts, requestLimit, onRequestLimit: setRequestLimit }}
-                onEditArea={() => setEditAreaOpen(true)}
+                onEditArea={() => { setEditAreaRequired(false); setEditAreaOpen(true); }}
                 hasEditArea={Boolean(photo.editMask)}
                 settings={settings}
                 onChange={changeSettings}
@@ -1514,7 +1516,9 @@ export default function Smile() {
         </>
       )}
 
-      {editAreaOpen && photo && <EditArea photo={photo} onClose={() => setEditAreaOpen(false)} onSave={(mask) => { setPhoto({ ...photo, editMask: mask }); setEditAreaOpen(false); }} />}
+      {editAreaOpen && photo && <EditArea photo={photo} requiredBeforeGeneration={editAreaRequired} shotType={settings.shotType}
+        onShotTypeChange={shotType => setSettings(s => ({ ...s, shotType }))}
+        onClose={() => setEditAreaOpen(false)} onSave={(mask) => { setPhoto({ ...photo, editMask: mask }); setEditAreaOpen(false); }} />}
       {camera && (
         <CameraSheet onCapture={selectPhoto} onClose={() => setCamera(false)} />
       )}

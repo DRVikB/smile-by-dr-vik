@@ -115,3 +115,45 @@ test("All-on-X offers both zirconia without an arch or material decision", () =>
   assert.match(html, /Zirconia/);
   assert.doesNotMatch(html, /aria-label="Arch to restore"|aria-label="Arch"|aria-label="Restoration"|>Provisional<|>Upper<|>Lower</);
 });
+
+function toggleAlignment(settings: SmileSettings) {
+  let changed: SmileSettings | undefined;
+  const tree = TreatmentOptions({ settings, onChange: value => { changed = value; } });
+  function visit(node: ReactNode): void {
+    Children.forEach(node, child => {
+      if (!isValidElement<{ children?: ReactNode; onClick?: () => void; role?: string }>(child)) return;
+      if (child.type === "button" && child.props.role === "switch" && renderToStaticMarkup(child).includes("Include alignment")) child.props.onClick?.();
+      else visit(child.props.children);
+    });
+  }
+  visit(tree); assert.ok(changed, "Restorative alignment must have a working toggle"); return changed;
+}
+
+test("bonding plus Alignment keeps the selected dental design and remains restorative", () => {
+  const original = { ...defaultSettings, treatment: "Single-shade composite" as const, targetShade: "B1" as const, shape: "Square" as const, texture: "Textured" as const };
+  const combined = toggleAlignment(original);
+  assert.deepEqual(combined.alignment, { arches: "Both" });
+  assert.equal(combined.treatment, original.treatment);
+  assert.deepEqual(combined.selectedTeeth, original.selectedTeeth);
+  assert.equal(combined.targetShade, original.targetShade);
+  assert.equal(combined.shape, original.shape);
+  const contract = normalizeGenerationContract(combined);
+  assert.equal(contract.mode, "restorative"); assert.equal(contract.alignment?.only, undefined);
+  const html = renderToStaticMarkup(createElement(TreatmentOptions, { settings: combined, onChange() {} }));
+  assert.match(html, /aria-label="Veneer material"/);
+  assert.equal((html.split('aria-label="Veneer material"')[0].split('</div>')[0].match(/aria-checked="true"/g) ?? []).length, 1);
+  assert.equal(toggleAlignment(combined).alignment, undefined);
+});
+
+test("changing composite to porcelain retains the separately selected alignment add-on", () => {
+  const combined = toggleAlignment({ ...defaultSettings, treatment: "Single-shade composite" });
+  const porcelain = clickTreatment(combined, "Porcelain veneers");
+  assert.deepEqual(porcelain.alignment, { arches: "Both" });
+  assert.equal(porcelain.treatment, "Porcelain");
+  assert.equal(normalizeGenerationContract(porcelain).mode, "restorative");
+  assert.equal(clickTreatment(porcelain, "Full Arch / All-on-X").alignment, undefined);
+  for (const s of [chooseAlignment(defaultSettings), chooseFullArch(defaultSettings)]) {
+    const html = renderToStaticMarkup(createElement(TreatmentOptions, { settings: s, onChange() {} }));
+    assert.doesNotMatch(html, /Include alignment/);
+  }
+});
