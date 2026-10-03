@@ -1,3 +1,113 @@
+## LATEST — AUTHORISED REAL TEST-FOLDER SUNBURST CHECK, 3 October 2026
+
+### 1. WHAT WAS ACTUALLY FIXED
+
+The narrow diagnostic/capture implementation is documented below: `06b8b41`, `a5fee46`. **No generation-quality behavior was changed.** The owner additionally authorized at most TWO staging Sunburst calls using previously authorized test-folder photographs. Both calls are now complete, zero provider retries. No model, quality, prompt, mask, thresholds, treatment scope or billing lifecycle changed. No production deployment, merge/push or Apple upload.
+
+Disposable-fixture setup failure was resolved before a provider call: its existing temporary Pro override expired at18:09:21UTC/19:09London; its allowance period was still active. Initial request `ead9832d-60d6-4c94-a2ff-e3d517345aba` received HTTP402 `subscription_required` BEFORE reservation/provider invocation. Supabase read-only evidence showed no reservation, no current subscription and the expired override. Balance remained9. My initial commentary incorrectly called the allowance period expired; corrected after checking actual time and access records. Only this explicitly disposable `smile-…@example.invalid` fixture's override expiration was extended one hour, to21:56:56UTC, with existing audit trigger. Monthly allowance30, used21, commercial products/prices and all owner accounts remained unchanged. Normal authenticated API then reported Pro access active. This setup attempt is1 blocked staging API request,0 paid provider requests; it is not a Sunburst failure or retry. Existing cases were not deleted.
+
+### 2. WHAT WAS TESTED — ENVIRONMENT, COMMIT, EVIDENCE
+
+Current code `a5fee46`, branch `release/v1-device-test`; current staging adapter/contract unchanged (`1b18bb7`, `2026-10-03-sunburst-v1`, `SC-SUNBURST-V1`). **Environment: actual staging provider + browser execution of current shared preparation/normalization/mouth-compositor/repository code. NOT physical iPhone generation.** The same diagnostic Release is installed on the iPhone; no generation was triggered there by the agent.
+
+Exact live settings: Veneers→Porcelain;6 upper `[13,12,11,21,22,23]`; Rounded/Balanced; Natural; Whiten; intensity35; Preserve existing smile arc; no reference; OpenAI `gpt-image-2.5-sunburst`, Images Edit, high, one image each. Approved owner-authorized `test images/IMG_3291.jpg` and `IMG_3241.jpg`. Private Git-ignored evidence `output/sunburst-test-folder-2026-10-03/`: Original, provider input, actual alpha mask, mask overlay, raw PNG, normalized PNG, final PNG, bounded processing/provider receipts and `visual-review.html`. No generic analytics, design services or additional image provider received photographs. Application synthetic-only native QA capture allowlist remains unchanged.
+
+| Evidence | IMG_3291.jpg | IMG_3241.jpg |
+| --- | --- | --- |
+| Request ID | `68c0fdd0-d074-4721-979f-91e5a1376d36` | `b4ffdae4-8f5b-45b2-8fd6-5b8ae2eb5398` |
+| Source / prepared / mask |1320×1741 /1320×1760 /1320×1760|1320×1737 /1320×1760 /1320×1760|
+| Raw |992×1328 PNG, HTTP200|992×1328 PNG, HTTP200|
+| Provider duration |31,240ms|30,049ms|
+| Source/generated face landmarks |478/478|478/478|
+| Fitted scale / rotation |1 /0°|1 /0°|
+| Median / allowed residual |3.079px /14.166px|2.597px /13.649px|
+| Outliers / allowed |0/1|0/1|
+| Protected exterior pixels changed |0|0|
+| Final dimensions |1320×1741|1320×1737|
+| Allowance |9→8, used21→22|8→7, used22→23|
+| Local saved-result reopening |**PASS**|**PASS**|
+| Case/media sync |**PASS — SYNCED**|**PASS — SYNCED**|
+| Independent repository cloud fetch |**PASS — exact result hash**|**PASS — exact result hash**|
+| Upper-only visual scope |**FAIL — lower teeth disappear in raw**|**FAIL — lower teeth redrawn in raw**|
+
+Independent local origin3107 creates a fresh browser repository, fetches metadata and required private assets through the normal authenticated patient API, and verifies SHA256 of the complete saved data URL (`independent-reopen.json`). This proves both exact images become usable from cloud media in a separate repository. It is not an iPhone force-close or a physical second-device test. Automated679/679, TypeScript, ESLint, web/native/signed Release and iPhone/iPad mocked simulators remain PASS from the preceding checkpoint; no app code changed during these live tests.
+
+### 3. WHAT STILL FAILS — FIRST BROKEN STAGE
+
+**FAIL — provider dental-scope compliance / cosmetic acceptance.** Both technically delivered outputs alter untreated lower teeth. In IMG_3291 the original visible lower teeth disappear, leaving tongue/dark oral space. In IMG_3241 the irregular lower teeth are replaced by a different uniform lower row. Each change is already visible in the actual raw PNG, BEFORE `alignPreview` or mouth compositing. Normalized and final comparisons retain it. Scale1/rotation0 and protected-exterior difference0 show that these specific defects were not first introduced by a geometric warp or external-face composite.
+
+Root-cause boundary established: **raw Sunburst dental output fails the requested upper-only preservation contract, and the existing whole-mouth permission/compositor passes these interior changes through.** The exact reason Sunburst fails the prompt is not established. This is not source decode, aspect drift, no-image extraction or a framing rejection. The current V1 mask does not isolate untreated lower teeth/gingiva anatomically. Correctly enforcing that mask alone cannot establish that selected-tooth claims are honored.
+
+| Requested cosmetic investigation | This retained evidence |
+| --- | --- |
+| Larger visible intraoral opening | IMG_3291 exposes much more empty oral space already in raw; broader numerical opening assessment still HUMAN REVIEW REQUIRED. |
+| Reduced lower-tooth display | **A — raw provider output**, demonstrated by disappearance in IMG_3291. |
+| Overly uniform crowns | Uniformity is present in raw, retained in final; degree of acceptability HUMAN REVIEW REQUIRED. |
+| Short-looking crowns | Source/raw/final retained for clinical review; no automated ideal-length or cosmetic truth asserted. |
+
+These two new requests do not reconstruct the older20:53/20:55 raw images or prove their exact first rejection subtype. The new face/mouth diagnostics distinguish future failures; no new mouth-alignment rejection occurred in these two samples.
+
+### 4. WHAT WAS NOT TESTED / BLOCKED
+
+Physical iPhone Sunburst acceptance and save/force-close/reopen: **NOT TESTED** this pass. Physical iPad generation, Whitening/Alignment/All-on-X live Sunburst acceptance, purchase delivery, exact protected anatomical lower-tooth/gingival segmentation and a quality correction: **NOT TESTED**. TWO paid provider calls used,0 retries; one separate pre-provider access rejection,0 consumption. Stop: no further requests remain authorized for this run. No speculative prompt or threshold patch. Durable charged-result recovery and legal/distribution items remain separate unchanged workstreams.
+
+### 5. WHAT NEEDS OWNER VISUAL REVIEW
+
+Open `output/sunburst-test-folder-2026-10-03/visual-review.html`: inspect both Original / Raw / Normalized / Final, identical mouth crops, mask and overlay. Full photographs are preserved in the pack; mouth crops are explanatory review views, not delivered output. Focus on lower teeth, oral space, lips, gingiva, crown individuality/length and seams. Cosmetic quality is **FAIL for untreated-tooth preservation**, irrespective of whether crown appearance is aesthetically preferred.
+
+### 6. EXACT NEXT ACTION
+
+Review the two retained comparisons. The next correction must address the demonstrated upper-only untreated-tooth scope failure, using these existing raw outputs for local tests. Do not remove the framing guard or broaden the mask to make these results look accepted. A further paid/physical test needs separate explicit authorization after an evidence-backed correction. The diagnostic Release is installed and usable for that later test, but generation is **NOT cosmetically ready for TestFlight acceptance**. Stop release/quality claims here.
+
+---
+
+## SUNBURST ROOT-CAUSE EVIDENCE CHECKPOINT — 3 October 2026
+
+### WHAT WAS ACTUALLY FIXED
+
+**PASS — diagnostics and restricted QA capture, not generation acceptance.** Generated-face failures now retain six bounded reasons instead of collapsing into an indistinguishable null. Existing mouth-lock first rejection and calculated metrics remain intact. Synthetic capture now includes preparation and normalization and enforces a durable one-run claim. No prompt, provider/model, quality, threshold, mask geometry, treatment or retry behavior changed.
+
+Branch `release/v1-device-test`. Separate rollback points: diagnostic fix `06b8b41`; capture restriction `a5fee46`; preceding checkpoint `91d5d6a`. Existing Xcode project/shared-scheme changes were preserved and excluded from these commits. Staging adapter remains `1b18bb7` / Worker version `13ba1d60-4494-4140-9706-73da9f9c9b43`; server request contract remains `2026-10-03-sunburst-v1`. No deployment was necessary or performed.
+
+### WHAT WAS TESTED
+
+Private, ignored evidence: `output/sunburst-root-cause-2026-10-03/`. **PASS:** 679/679 automated tests, zero failures/skips (`full-tests-final.log`), TypeScript, ESLint, production-style web export, Capacitor sync/bundle verification, signed physical Release compilation, and strict signature verification. Bundle `uk.co.drvik.smilecompose`, version1.0/build1. iPhone and iPad native simulator fixture tests both **PASS** (`simulator.log` and referenced xcresults); these are mocked fixtures, not Sunburst acceptance. Local browser used real MediaPipe inference and existing preparation/compositing code with the approved synthetic source.
+
+TDD record: initial categorical detection/capture assertions failed before implementation (`red.log`). The first combined run then exposed an old capture-write-failure expectation; failed capture now clears the active lineage while preserving the spent claim. TypeScript required an explicit test result type. The release raw-capture distribution guard was RED before the guard and GREEN afterward (`red-distribution.log`, `green-distribution.log`). Geometry characterization tests passed existing preparation behavior; they are not evidence of a new geometry repair. Subsequent final suite passed once; these results do not erase the earlier separately documented intermittent sync-conflict failure.
+
+### WHAT STILL FAILS / WAS NOT TESTED
+
+The owner's 20:53 cosmetic failure and 20:55 mouth-alignment rejection remain **FAIL**. Exact historical first rejection subtype and Original/Raw/Final comparison are unavailable because those images/diagnostics were not retained. Attribution of each larger opening, reduced lower-tooth display, overly uniform crown and short-looking crown to raw generation, geometric fitting or compositing remains **NOT TESTED**, separately. No speculative behavior fix was made. Provider-success/client-rejection can still consume allowance; durable recovery remains explicitly deferred.
+
+**HUMAN REVIEW REQUIRED:** crown individuality/length, lips, mouth opening/width, lower-tooth display, gingiva, untreated teeth and seam quality. Technical exterior preservation does not prove anatomical mask accuracy or cosmetic acceptability. No new physical Sunburst request or cosmetic acceptance was performed in this checkpoint.
+
+### REQUESTED NARROW REPORT
+
+1. **Request contract — PASS.** Current adapter's actual multipart edit contract was inspected using the actual locally prepared image/mask bytes and a mocked fetcher: `POST https://api.openai.com/v1/images/edits`; OpenAI `gpt-image-2.5-sunburst`; quality `high`; `n=1`; PNG; requested `992x1328` for synthetic preparation `1092x1456`; one complete source photograph and one matching PNG mask, no reference image for this controlled sample. Existing prompt requests the complete source photograph and prohibits mouth close-up/isolated teeth/reframing. Mock invocation1; paid invocation0 (`request-contract.json`). No text was added.
+2. **Mask semantics — PASS.** Actual mask alpha0 means editable; alpha255 means protected; partially transparent feather pixels represent a transition. Existing compositor permissions are inverted once for OpenAI alpha. Synthetic dental-center alpha0; padding/corners255. Face exterior protected. Outer-lip transition follows current design; sampled contour alpha ranges57–255. Inner lips/mouth ROI remain editable: this is not exact lip/gingival/selected-tooth isolation.
+3. **Inversion/misalignment — none found in local evidence.** `mask-review.png`, `mask.png`, `mask-view.png`, actual browser preparation receipt and regression tests establish correct alpha, dimensions and source mapping. This does not establish that Sunburst honors every anatomical request.
+4. **Synthetic geometry.** Source1092×1440; prepared1092×1456; mask1092×1456. Source bounds x0, y8/1456, width1, height1440/1456; top/bottom8px, left/right0; scale1. 478 source landmarks; source replay successfully aligned/composited; provider calls0 (`local-mask-receipt.json`).
+5. **Generated-face categories.** `generated_face_not_found`, `generated_image_decode_failed`, `generated_face_worker_failed`, `generated_face_model_failed`, `generated_landmarks_invalid`, `generated_landmarks_missing`. Model load/inference, worker transport, worker image decoding and landmark validity are separately bounded. Generic HTML/raw image decoding can fail earlier in the existing pipeline; do not infer every decode failure reaches face-worker diagnostics. No raw errors, image contents, provider text or landmarks are added to metadata logs.
+6. **Mouth-lock first rejection categories.** `source_landmarks_missing`, `source_landmarks_invalid`, `generated_landmarks_missing`, `generated_landmarks_invalid`, `mouth_width_insufficient`, `similarity_scale_out_of_range`, `similarity_rotation_out_of_range`, `anchor_residual_excessive`, `anchor_outliers_excessive`, `canvas_geometry_invalid`. Existing decode/canvas/composite/encoding/blank/protected-pixel failure categories remain. Only calculated width/scale/rotation/residual/outlier metrics are included.
+7. **Actual pre-provider defect.** Observability was insufficient: detector failures were indistinguishable, and synthetic capture lacked preparation/normalization plus a durable one-run claim. These are corrected. No evidenced prompt, alpha-inversion or coordinate defect was found; no generation-behavior defect is claimed fixed.
+8. **Changed files.** `src/lib/face/detectionResult.ts`, `faceWorker.ts`, `landmarks.ts`, `alignmentDiagnostic.ts`, `mouthLock.ts`; `src/services/ai/syntheticQaCapture.ts`; `src/app/page.tsx`; `scripts/build-native.mjs`; diagnostic, synthetic-capture, OpenAI-preparation geometry and QA-distribution tests; this existing report. Private harnesses/evidence remain untracked under ignored output.
+9. **Automated result — PASS 679/679.** Face categories, missing-landmark rejection, mask semantics/dimensions, padding, existing normalization/fitting rejections and successful normal geometry, capture gating/restart/write-failure containment and distribution prohibition covered. No thresholds weakened.
+10. **Build result — PASS.** Web/native/signed physical Release and iPhone/iPad simulator fixtures pass; full logs linked above. The new diagnostic Release was successfully installed over the physical iPhone app (`iphone-install.log`), preserving existing cases. Installation is not a physical generation acceptance result.
+11. **Provider requests — zero paid calls in this checkpoint, zero retries.** Earlier owner Sunburst2 and agent Gemini17 remain separate historical counts; no extra budget inferred. Production unchanged.
+12. **One physical acceptance test — code/build READY; outcome NOT TESTED.** Staging/native exact-SHA synthetic capture is prepared. Capture defaults off, production forbidden, one persistent run claim and one source/request lineage. Images stay in the app's local Cache; the durable claim directory is in Data. Capture failure cannot affect generation. Test-run ID `8bdc2e2b-5322-42a7-8c1b-4b3d4e69c75a`. QA-only Release must not be submitted to TestFlight.
+13. **Exact physical test settings, only after explicit authorization.** Normal mode (not Demo); original `output/stage3-evidence/generation-source.jpg`, SHA256 `1f54f12c302287ce3dcef8701614ebd42130e9a078ec22e062214d09a23b1ee6`; Veneers→Porcelain;6 upper teeth `[13,12,11,21,22,23]`; Rounded/Balanced; Natural texture; existing targetWhiten; intensity35; Preserve existing smile arc; no reference. Generate ONCE. Success: inspect, save, force-close, reopen exact result. Failure: STOP, retain permitted QA cache/metadata, no retry. Re-encoded/screenshot imports fail the exact source capture allowlist.
+14. **Remaining risks.** No new real Sunburst or physical acceptance; raw historic evidence cannot be reconstructed. Cosmetic behavior inside mouth ROI is not anatomically guaranteed. A provider success followed by client rejection can consume allowance. Physical capture mechanism is regression/simulator verified, but six real Sunburst stage captures await one authorized run. Legal/distribution and purchase acceptance remain separate unchanged blockers.
+
+### OWNER ADDENDUM — REAL TEST-FOLDER SUNBURST QUALITY
+
+The owner requested use of existing authorized test-folder photographs rather than only synthetic content. Local preparation **PASS** for `IMG_3291.jpg` (1320×1741→1320×1760) and `IMG_3241.jpg` (1320×1737→1320×1760). Both have478 landmarks; matching provider masks1320×1760 (`output/sunburst-test-folder-2026-10-03/*/preflight.json`). This is local preparation, not generated-image quality. The narrow physical-build capture allowlist remains synthetic-only and has NOT been widened to patient/test-folder photographs.
+
+A separate approval asks for at most TWO additional staging Sunburst calls with these previously authorized photos, using a disposable QA account and private review evidence, no retry. The owner subsequently explicitly authorized TWO additional staging Sunburst calls. The local-preflight checkpoint itself used0 paid calls; the later two-request results are recorded above. No additional budget remains for this run. Real-photo quality must be checked from Original / Raw / Normalized / Final, with technical and cosmetic verdicts separated. No generic analytics or design service receives these photographs.
+
+**EXACT NEXT ACTION:** review the retained real-photo evidence above. Physical synthetic acceptance remains a separate single authorized-device run. Neither local preparation nor simulator fixtures establishes TestFlight generation readiness.
+
+---
+
 ## SUNBURST DEVICE ACCEPTANCE FAILURE — 3 October 2026, 20:53–20:55 London
 
 ### 1. WHAT WAS ACTUALLY FIXED
