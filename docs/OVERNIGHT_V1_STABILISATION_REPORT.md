@@ -1,3 +1,48 @@
+## BOTH-ARCH ALL-ON-X + ALIGNMENT CHECKPOINT — 3 October 2026, evening
+
+### 1. WHAT WAS ACTUALLY FIXED
+
+**PASS — V1 scope simplification**, implementation commit `9ebb832`, rollback point `8b2ec66`, branch `release/v1-device-test`. All-on-X now always selects **both visible arches / zirconia**, removing Upper/Lower and provisional-material controls. Choosing, restoring editable state, generating, request parsing and the prompt contract enforce that same scope. Historical saved records/report settings remain readable and are not migrated or overwritten. Existing explicit prosthetic-gingiva permission remains separate; zirconia alone does not grant gingival changes. Alignment was already both-arch, position-only; its natural shape/shade behaviour is retained. Single Tooth/Tooth Map/Precision remain hidden. No schema, pricing, subscription, segmentation, geometry, model/provider, mask threshold or protection change.
+
+**Not a proven fix for the 19:37 intermittent physical failure:** its first rejection was missing generated landmarks, not the 3% aspect guard. Exact raw result was not retained, so its underlying detector/provider cause remains unknown. No speculative bypass was added. Two new authorised samples now establish successful delivery on that same source photo, with retained raw outputs for further local diagnosis.
+
+### 2. WHAT WAS TESTED — ENVIRONMENT, COMMIT AND EVIDENCE
+
+Tests/builds used the source subsequently committed as `9ebb832`; production source did not change afterward. Private, git-ignored evidence is under `output/all-on-x-alignment-2026-10-03/` and `output/simulator-reliability-2026-10-03/live/<request-id>/`. Test-folder `IMG_3241.jpg` was explicitly authorised by the owner for these two staging requests. The ordinary authenticated disposable staging account was used, with its existing expired QA override temporarily restored then returned to its original expiry; no owner account/ledger or commercial allowance changed. Request harness capped each mode at1, with no retry.
+
+| Check | Verdict / evidence |
+| --- | --- |
+| All-on-X both / zirconia | **PASS — live provider + native iPhone simulator Safari processing**, request `c374d380-144f-4e76-9416-f9a17bd81ee8`, Google Gemini3.1 Flash Image, contractv8, HTTP200/STOP, one JPEG image, retry0. Source1320×1737, prepared1320×1760, raw896×1200, final1320×1737; 478 source/generated landmarks; protected exterior0 changed pixels. Delivered, saved, SYNCED, exact media reopened after Safari terminate/relaunch. Provider9,391ms; complete harness20,846ms. Disposable allowance11→10, exactly one reserved−1/committed0 pair. |
+| Alignment both | **PASS — same environment**, request `f80ff6da-421a-429c-879f-6f0f7d320e50`, HTTP200/STOP one JPEG, retry0, same dimensions; 478/478 landmarks; protected exterior0 changed pixels. Delivered, saved, SYNCED, exact media reopened after relaunch. Provider8,783ms; harness16,091ms. Allowance10→9, one reserved−1/committed0 pair. |
+| Native Capacitor UI — iPhone | **PASS**, deterministic mocked provider, actual treatment selection and both-only All-on-X UI assertions; `iphone-fixture-1791054319693.xcresult`. |
+| Native Capacitor UI — iPad | **PASS**, same workflow and assertions; `ipad-fixture-1791054400106.xcresult`. |
+| New scope regression | **PASS — RED then GREEN**, default/legacy state normalization, ordinary generation parsing, preserved historical settings, actual Studio rendering with no Arch/Restoration selector. `scope-red.log`, `scope-green.log`; final focused32/32. |
+| Full suite | **PASS — 664/664**, no failed/skipped; `full-tests-final.log`. Initial full run661/664: three old Upper-only assertions/snapshots expected the superseded scope. Updated only scope expectations, preserving anatomy/protection assertions; no weakening of those checks. |
+| TypeScript / ESLint | **PASS**. Initial TypeScript detected three unreachable upper/lower branches after the literal both normalization; removed those obsolete branches. Final type/lint logs pass. |
+| Web production build / Capacitor / native bundle verifier | **PASS**, `ios-sync.log`. Staging configuration retained; private metadata QA enabled; raw-image capture disabled; no localhost/native fixture injection in physical bundle. |
+| Signed physical-device Release compile | **PASS**, `physical-release.log`; strict deep signature check exit0 (`signature.log`). App `/tmp/smilecompose-physical-release/Build/Products/Release-iphoneos/App.app`, bundle `uk.co.drvik.smilecompose`, version1.0/build1. **NOT INSTALLED** this pass. |
+| Cloudflare packaging / matched staging deployment | **PASS**, `cloudflare-package.log`; staged Worker from `9ebb832`, version `e7562979-6dc4-48a4-b800-cbad8379b92f`, tag `9ebb832`, existing contractv8 retained. Staging only; `staging-deploy.log`. The two live requests preceded deployment but used the same unchanged both-arch v8 prompt/provider contract; no extra paid request afterward. Post-deploy account/status and generation-cost HTTP200 (`post-deploy-status.json`). |
+
+**Live provider budget:** exactly **2 additional requests used / 2 authorised**, zero retries; earlier15-request agent budget remains exhausted (cumulative authorised agent QA total17). Historical ledger used19 before this pair is not asserted to equal that agent-budget count: it also includes earlier fixture activity. No further provider requests permitted without separate authorisation.
+
+### 3. WHAT STILL FAILS
+
+**Unresolved — intermittent physical-iPhone returned-image face detection.** Fresh simulator delivery is not proof that request `5535c2e1-b5ae-4ec2-afd0-b0a3b443331c` is repaired. Charged-result delivery/recovery limitation remains: prior failed owner result consumed65→64 and was not refunded; no unsupported refund performed. No durable charged-result recovery added.
+
+### 4. WHAT WAS NOT TESTED / BLOCKED
+
+**NOT TESTED — updated physical iPhone/iPad generation, Apple purchase/sign-in, complete four-treatment cosmetic acceptance.** Whitening/Veneer automated prompt/provider regressions pass unchanged, but no extra live requests for those modes. UI simulator provider is mocked; live processing tests use simulator Safari shared production modules, not the physical Capacitor app. No TestFlight/production upload, push or merge.
+
+### 5. WHAT NEEDS MY VISUAL REVIEW
+
+**HUMAN REVIEW REQUIRED:** private `output/all-on-x-alignment-2026-10-03/visual-review.html` displays Original | Raw provider result | Final protected result for both requests. Both final images visibly contain a complete smile without the prior blank/grey output; their clinical/cosmetic acceptability, untreated anatomy and intended treatment character remain human decisions. Protected-exterior equality is a technical result, not a guarantee of gingival/anatomical accuracy. Native scope screenshot attachments are in each xcresult. Earlier local replay of two retained outputs also passed (`local-replay-receipt.json`) but used an older Upper Full Arch output, so it is not a both-arch acceptance sample.
+
+### 6. EXACT NEXT ACTION FOR ME
+
+In Xcode open `ios/App/App.xcodeproj`, choose **App** and your connected iPhone. Confirm your team under Signing & Capabilities and **Edit Scheme → Run → Build Configuration: Release**, then Run (⌘R) **over the existing app; do not delete the app**. Using the approved original test photo in normal mode (not Demo), test All-on-X once: both arches/zirconia automatically, Generate → compare → Save → force-close → reopen. Separately test Alignment once with both arches automatic. Inspect complete smile, framing, lip/expression/mouth opening, natural tooth character for Alignment and coherent distinct crowns for zirconia. If either fails, stop without retry and record time/request diagnostics.
+
+**Ready for physical-device testing: YES. Release/TestFlight generation acceptance: NOT YET — physical retest required.**
+
 ## PHYSICAL ALL-ON-X FAILURE — 3 October 2026, 19:37 London
 
 ### WHAT WAS ACTUALLY FIXED
