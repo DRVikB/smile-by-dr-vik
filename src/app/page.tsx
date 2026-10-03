@@ -671,6 +671,10 @@ export default function Smile() {
       const providerInput = pricing?.model.startsWith("gpt-image-")
         ? await (await import("@/lib/generation/openaiEditInput")).prepareOpenAIEditInput(photoIn, requestCanvas, editMask, sourcePoints)
         : { originalImage: requestCanvas.photo.dataUrl, editMask };
+      if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1" && providerInput.editMask) {
+        const { captureSyntheticQaPrepared } = await import("@/services/ai/syntheticQaCapture");
+        await captureSyntheticQaPrepared(requestId, photoIn.dataUrl, providerInput.originalImage, providerInput.editMask);
+      }
       if (controller.signal.aborted) throw controller.signal.reason;
       reportStage("request");
       let next = await generateSmileImage({
@@ -703,6 +707,10 @@ export default function Smile() {
       }
       reportStage("align");
       const alignedImage = await alignPreview(next.image, photoIn, requestCanvas, diagnostic.rawOutput, diagnostic.geometry);
+      if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1") {
+        const { captureSyntheticQaNormalized } = await import("@/services/ai/syntheticQaCapture");
+        await captureSyntheticQaNormalized(requestId, photoIn.dataUrl, alignedImage);
+      }
       repository.scope.assert();
       next = { ...next, image: alignedImage };
       if (next.mode === "live") {

@@ -7,9 +7,28 @@ const synthetic=new Blob(["explicitly approved synthetic fixture"]);
 const digest=createHash("sha256").update("explicitly approved synthetic fixture").digest("hex");
 const source="data:image/jpeg;base64,c291cmNl",raw="data:image/jpeg;base64,cmF3",final="data:image/png;base64,ZmluYWw=";
 test("raw capture requires explicit opt-in, native app, staging and an approved fingerprint",()=>{
- const args={flag:"1",native:true,origin:"https://smile-by-dr-vik-staging.drvik.workers.dev",fingerprint:digest};
+ const args={flag:"1",native:true,origin:"https://smile-by-dr-vik-staging.drvik.workers.dev",fingerprint:digest,runId:uuid};
  assert.equal(syntheticQaCaptureAllowed(args),true);
- for(const patch of [{flag:undefined},{flag:"0"},{native:false},{origin:"https://smilecompose.app"},{origin:"http://localhost:3006"},{fingerprint:""}]) assert.equal(syntheticQaCaptureAllowed({...args,...patch}),false);
+ for(const patch of [{flag:undefined},{flag:"0"},{native:false},{origin:"https://smilecompose.app"},{origin:"http://localhost:3006"},{fingerprint:""},{runId:undefined},{runId:"../patient"}]) assert.equal(syntheticQaCaptureAllowed({...args,...patch}),false);
+});
+test("one synthetic request retains prepared input, mask, raw, normalized and final without accepting another source",async()=>{
+ const writes:string[]=[];const c=new SyntheticQaCapture(true,digest,async path=>{writes.push(path);});
+ await c.register(synthetic,source);
+ const prepared="data:image/png;base64,aW5wdXQ=",mask="data:image/png;base64,bWFzaw==";
+ assert.equal(await c.capturePrepared(uuid,source,prepared,mask),"saved");
+ assert.equal(await c.captureRaw(uuid,source,raw),"saved");
+ await c.captureNormalized(uuid,source,final);await c.captureFinal(uuid,source,final);
+ await c.captureNormalized(uuid,source+"patient",final);
+ assert.equal(await c.capturePrepared("ad8c7c2d-4c7e-4a01-83cc-f5ac139aef19",source,prepared,mask),"ineligible");
+ assert.deepEqual(writes.map(p=>p.split('/').at(-1)),["original.jpg","provider-input.png","provider-mask.png","raw.jpg","normalized.png","final.png"]);
+});
+test("a persisted capture reservation prevents another request after runtime recreation",async()=>{
+ let spent=false;const writes:string[]=[];const claim=async()=>{if(spent)return false;spent=true;return true;};
+ for(const [id,want] of [[uuid,"saved"],["ad8c7c2d-4c7e-4a01-83cc-f5ac139aef19","ineligible"]] as const){
+  const c=new SyntheticQaCapture(true,digest,async p=>{writes.push(p);},claim);await c.register(synthetic,source);
+  assert.equal(await c.capturePrepared(id,source,final,final),want);
+ }
+ assert.equal(writes.length,3);
 });
 test("capture never saves unregistered or patient content, even in an enabled QA build",async()=>{
  const writes:string[]=[];const c=new SyntheticQaCapture(true,digest,async path=>{writes.push(path);});

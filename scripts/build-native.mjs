@@ -29,6 +29,7 @@ const release = process.env.SMILE_RELEASE_BUILD === "1";
 // Release builds must carry production purchase/account configuration.
 if (release) {
   const problems = [];
+  if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1") problems.push("Synthetic raw-image capture is QA-only and must be disabled for distribution.");
   const rcKey = process.env.NEXT_PUBLIC_REVENUECAT_IOS_API_KEY ?? "";
   if (!rcKey) problems.push("NEXT_PUBLIC_REVENUECAT_IOS_API_KEY is not set.");
   else if (rcKey.startsWith("test_")) problems.push("NEXT_PUBLIC_REVENUECAT_IOS_API_KEY is a RevenueCat Test Store key; use the App Store (appl_) key.");
