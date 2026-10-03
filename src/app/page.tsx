@@ -1,7 +1,7 @@
 "use client";
 import type { MouthAlignmentDiagnostic } from "@/lib/face/alignmentDiagnostic";
 import { normalizeAlignmentScope } from "@/lib/fullArch";
-import { generationUnavailable } from "@/lib/generation/availability";
+import { generationUnavailable, INTERNAL_SINGLE_TOOTH } from "@/lib/generation/availability";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
@@ -273,7 +273,7 @@ export default function Smile() {
     syncHistory();
   }
   // Detailed tooth mapping runs only when requested; presets can generate immediately.
-  const toothMap = useToothMap({ photo, setPhoto, settings, onChange: changeSettings, active: screen === "design" && Boolean(photo) });
+  const toothMap = useToothMap({ photo, setPhoto, settings, onChange: changeSettings, active: INTERNAL_SINGLE_TOOTH && screen === "design" && Boolean(photo) });
   function undoSettings() {
     const h = history.current;
     const previous = h.past.pop();
@@ -1277,7 +1277,7 @@ export default function Smile() {
               </h1>
               <DesignStudio
                 toothMap={toothMap}
-                stage={(teethStep) => result && !(teethStep && settings.treatmentMode !== "full_arch" && (toothMap.picking || toothMap.editing || toothMap.adding || toothMap.mode !== "hidden")) ? (
+                stage={(teethStep) => result && !(INTERNAL_SINGLE_TOOTH && teethStep && settings.treatmentMode !== "full_arch" && (toothMap.picking || toothMap.editing || toothMap.adding || toothMap.mode !== "hidden")) ? (
                   <div className="preview-stage">
                     <BeforeAfterSlider
                       original={photo.dataUrl}
@@ -1288,7 +1288,7 @@ export default function Smile() {
                     />
                   </div>
                 ) : (
-                  <PatientPhoto photo={photo} focus={teethStep && toothMap.mode !== "hidden" ? toothFocus(photo.toothMap) : null} overlay={teethStep && settings.treatmentMode !== "full_arch" ? (zoom) => (
+                  <PatientPhoto photo={photo} focus={INTERNAL_SINGLE_TOOTH && teethStep && toothMap.mode !== "hidden" ? toothFocus(photo.toothMap) : null} overlay={INTERNAL_SINGLE_TOOTH && teethStep && settings.treatmentMode !== "full_arch" ? (zoom) => (
                     <ToothMapOverlay controller={toothMap} settings={settings} width={photo.width} height={photo.height} scale={zoom} />
                   ) : undefined} />
                 )}

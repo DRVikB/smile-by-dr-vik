@@ -1,6 +1,27 @@
 import XCTest
 
 final class SmokeTests: XCTestCase {
+    private func tapChoice(_ title: String, in app: XCUIApplication) {
+        let choice = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
+        XCTAssertTrue(choice.waitForExistence(timeout: 10))
+        let footer = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Next:'")).firstMatch
+        let bottom = footer.exists ? footer.frame.minY - 8 : app.frame.maxY - 110
+        // WebKit exposes radio choices as Other; XCTest does not scroll these
+        // before tapping. Move them clear of the pinned Next action first.
+        let top = app.buttons["Treatment"].frame.maxY + 12
+        for _ in 0..<8 {
+            if choice.frame.midY < bottom - 12 && choice.frame.midY > top + 12 { break }
+            let middle = (top + bottom) / 2
+            let end = middle + (choice.frame.midY < top + 12 ? 65 : -65)
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: middle / app.frame.height)).press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: end / app.frame.height)), withVelocity: .slow, thenHoldForDuration: 0.3)
+        }
+        XCTAssertGreaterThan(choice.frame.midY, top)
+        XCTAssertLessThan(choice.frame.midY, bottom)
+        print("QA_TREATMENT_TAP " + title + " " + choice.debugDescription)
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "before-" + title; shot.lifetime = .keepAlways; add(shot)
+        choice.tap()
+        if title == "Alignment" { print("QA_ALIGNMENT_SELECTED\n" + app.debugDescription) }
+    }
     func testLaunchAndAccessibility() throws {
         continueAfterFailure = false
         let app = XCUIApplication(bundleIdentifier: "uk.co.drvik.smilecompose")
@@ -37,10 +58,30 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(app.buttons["Continue"].waitForExistence(timeout: 45))
         app.buttons["Continue"].tap()
         XCTAssertTrue(app.buttons["Review"].waitForExistence(timeout: 30))
+        XCTAssertFalse(app.buttons["Custom"].exists)
+        XCTAssertFalse(app.staticTexts["Tooth map · optional"].exists)
         for count in ["4", "6", "8", "10", "6"] { app.switches[count].tap(); XCTAssertEqual(app.switches[count].value as? String, "1") }
         app.buttons["Treatment"].tap()
+        for title in ["Whitening", "Veneers", "Alignment", "Full Arch / All-on-X"] {
+            XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch.waitForExistence(timeout: 5), "Missing V1 treatment: " + title)
+        }
+        tapChoice("Alignment", in: app)
+        app.buttons["Teeth"].tap()
+        XCTAssertTrue(app.staticTexts["Both visible arches. Natural tooth shape and shade are retained."].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.switches["6"].exists)
+        app.buttons["Shape"].tap()
+        XCTAssertFalse(app.buttons["Square"].exists)
+        app.buttons["Shade"].tap()
+        XCTAssertFalse(app.switches["BL1"].exists)
+        app.buttons["Treatment"].tap()
+        tapChoice("Full Arch / All-on-X", in: app)
+        app.buttons["Arch"].tap()
+        for arch in ["Upper", "Lower", "Both"] { app.switches[arch].tap(); XCTAssertEqual(app.switches[arch].value as? String, "1") }
+        let scopeShot = XCTAttachment(screenshot: app.screenshot()); scopeShot.name = "full-arch-scope"; scopeShot.lifetime = .keepAlways; add(scopeShot)
+        app.buttons["Treatment"].tap()
+        tapChoice("Veneers", in: app)
         let composite = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Composite bonding'")).firstMatch
-        XCTAssertTrue(composite.waitForExistence(timeout: 15), app.debugDescription); composite.tap()
+        XCTAssertTrue(composite.waitForExistence(timeout: 15), app.debugDescription); tapChoice("Composite bonding", in: app)
         app.buttons["Review"].tap()
         XCTAssertTrue(app.buttons["Generate Smile"].waitForExistence(timeout: 15))
         app.buttons["Generate Smile"].tap()

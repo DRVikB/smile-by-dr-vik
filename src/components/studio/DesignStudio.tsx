@@ -101,6 +101,47 @@ function More({ children, label = "More options" }: { children: React.ReactNode;
   </details>;
 }
 
+/** V1 treatment choices reuse the existing settings and material controls. */
+export function TreatmentOptions({ settings, onChange }: { settings: SmileSettings; onChange: (settings: SmileSettings) => void }) {
+  const fullArch = isFullArch(settings);
+  const alignment = Boolean(settings.alignment) && !fullArch;
+  const veneers = !fullArch && !alignment && settings.treatment !== "Whitening";
+  const materials = settings.treatment === "Composite"
+    ? [{ value: "Composite" as Treatment, title: "Composite", detail: "Earlier general composite setting" }, ...TREATMENTS.filter(t => t.value !== "Whitening")]
+    : TREATMENTS.filter(t => t.value !== "Whitening");
+  const standard = (treatment: Treatment) => onChange(withStandard(settings, { treatment, alignment: undefined }));
+  return <>
+    <div className="studio-treatments" role="radiogroup" aria-label="Treatment">
+      <button type="button" role="radio" aria-checked={!fullArch && !alignment && settings.treatment === "Whitening"} className="studio-treatment" onClick={() => standard("Whitening")}>
+        <span className="studio-treatment-text"><strong>Whitening</strong><small>Colour only · keeps tooth shape and position</small></span>
+        <span className="studio-check" aria-hidden="true">{!fullArch && !alignment && settings.treatment === "Whitening" && <Check size={14} strokeWidth={2.6} />}</span>
+      </button>
+      <button type="button" role="radio" aria-checked={veneers} className="studio-treatment" onClick={() => standard(settings.treatment === "Whitening" ? "Layered composite" : settings.treatment)}>
+        <span className="studio-treatment-text"><strong>Veneers</strong><small>Composite or porcelain · shape, shade and surface character</small></span>
+        <span className="studio-check" aria-hidden="true">{veneers && <Check size={14} strokeWidth={2.6} />}</span>
+      </button>
+      {INTERNAL_ALIGNMENT && <button type="button" role="radio" aria-checked={alignment} className="studio-treatment" onClick={() => onChange(chooseAlignment(settings))}>
+        <span className="studio-treatment-text"><strong>Alignment</strong><small>Both arches · natural tooth shape and shade</small></span>
+        <span className="studio-check" aria-hidden="true">{alignment && <Check size={14} strokeWidth={2.6} />}</span>
+      </button>}
+      {INTERNAL_FULL_ARCH && <button type="button" role="radio" aria-checked={fullArch} className="studio-treatment" onClick={() => onChange(withFullArch(settings))}>
+        <span className="studio-treatment-text"><strong>Full Arch / All-on-X</strong><small>Fixed restorative concept · upper, lower or both arches</small></span>
+        <span className="studio-check" aria-hidden="true">{fullArch && <Check size={14} strokeWidth={2.6} />}</span>
+      </button>}
+    </div>
+    {veneers && <div className="control-group">
+      <div className="control-label">Veneer material</div>
+      <div className="studio-treatments" role="radiogroup" aria-label="Veneer material">
+        {materials.map(t => <button key={t.value} type="button" role="radio" aria-checked={settings.treatment === t.value} className="studio-treatment" onClick={() => standard(t.value)}>
+          <span className="studio-treatment-text"><strong>{t.title}</strong><small>{t.detail}</small></span>
+          <span className="studio-check" aria-hidden="true">{settings.treatment === t.value && <Check size={14} strokeWidth={2.6} />}</span>
+        </button>)}
+      </div>
+    </div>}
+    {alignment && <p className="control-hint">A straighter-smile visualisation, not orthodontic planning. Root movement, bite, attachments and treatment staging are not simulated. Clinical assessment is required.</p>}
+  </>;
+}
+
 export function DesignStudio({
   stage, caseBar, costs, onEditArea, hasEditArea, settings, onChange, onGenerate, onCompare, onCompareMaterials, onHarmonise,
   busy, reference, onAddReference, onClearReference, toothMap,
@@ -127,15 +168,13 @@ export function DesignStudio({
 }) {
   const [tab, setTab] = useState<StudioTab>("teeth");
   const [direction, setDirection] = useState<"forward" | "back">("forward");
-  const [individual, setIndividual] = useState(Boolean(settings.toothPlans));
+  const [individual, setIndividual] = useState(INTERNAL_SINGLE_TOOTH && Boolean(settings.toothPlans));
   const change = <K extends keyof SmileSettings>(key: K, value: SmileSettings[K]) => onChange({ ...settings, [key]: value });
   const setTeeth = (teeth: TeethCount) => onChange({ ...settings, teeth, toothPlans: undefined, selectedTeeth: upperTeeth[teeth] });
   const noChange = isNoChangeDesign(settings);
   const unavailable = generationUnavailable(settings);
   const fullArch = isFullArch(settings) ? settings.fullArch : null;
   const setFullArch = (patch: Partial<FullArchPlan>) => onChange(withFullArch(settings, patch));
-  const chooseFullArch = () => { toothMap?.setPicking(false); onChange(withFullArch(settings)); };
-  const chooseStandard = (patch: Partial<SmileSettings>) => onChange(withStandard(settings, patch));
   const mappedSelection = toothMap?.map ? settings.selectedTeeth.filter(t => mappedTeeth(toothMap.map).includes(t)) : [];
   const singleTooth = settings.selectedTeeth.length === 1 && mappedSelection.length === 1 ? mappedSelection[0] : null;
   const shape = SHAPES.find(s => s.shape === settings.shape);
@@ -194,7 +233,10 @@ export function DesignStudio({
         </div>
 
         <fieldset disabled={busy} className="studio-cards" aria-label="Smile design controls">
-          {page("teeth", fullArch ? <>
+          {page("teeth", alignment?.only && !fullArch ? <>
+            <header className="studio-card-head"><h3>Alignment</h3><p>Both visible arches. Natural tooth shape and shade are retained.</p></header>
+            <p className="control-hint">A visual guide to a straighter smile, not an orthodontic treatment plan.</p>
+          </> : fullArch ? <>
             {/* Full-arch: the arch is the selection. The tooth map stays available internally for geometry. */}
             <header className="studio-card-head">
               <h3>Arch</h3>
@@ -211,7 +253,7 @@ export function DesignStudio({
           </> : <>
             <header className="studio-card-head">
               <h3>Teeth</h3>
-              <p>Choose how many upper teeth to design, or choose Custom for two or more teeth.</p>
+              <p>{INTERNAL_SINGLE_TOOTH ? "Choose how many upper teeth to design, or choose Custom for individual teeth." : "Choose how many upper teeth to design."}</p>
             </header>
             {!individual && <div className="studio-arch" role="group" aria-label="Upper teeth to design">
               {ARCH.map(({ tooth, w, h }) => {
@@ -229,23 +271,23 @@ export function DesignStudio({
                   className={!individual && !settings.toothPlans && settings.teeth === n ? "selected" : ""}
                   onClick={() => { setIndividual(false); toothMap?.setPicking(false); setTeeth(n); }}>{n}</button>
               ))}
-              <button type="button" aria-pressed={individual || Boolean(settings.toothPlans)} className={individual || settings.toothPlans ? "selected" : ""}
-                onClick={() => { setIndividual(true); toothMap?.setPicking(true); }}>Custom</button>
+              {INTERNAL_SINGLE_TOOTH && <button type="button" aria-pressed={individual || Boolean(settings.toothPlans)} className={individual || settings.toothPlans ? "selected" : ""}
+                onClick={() => { setIndividual(true); toothMap?.setPicking(true); }}>Custom</button>}
             </div>
-            <SelectedTeethSummary settings={settings} notFound={toothMap?.map ? settings.selectedTeeth.filter(t => !mappedTeeth(toothMap.map).includes(t)) : []} />
-            {toothMap?.map && <ToothPicking controller={toothMap} />}
+            <SelectedTeethSummary settings={settings} notFound={INTERNAL_SINGLE_TOOTH && toothMap?.map ? settings.selectedTeeth.filter(t => !mappedTeeth(toothMap.map).includes(t)) : []} />
+            {INTERNAL_SINGLE_TOOTH && toothMap?.map && <ToothPicking controller={toothMap} />}
             {INTERNAL_SINGLE_TOOTH && toothMap?.map && toothMap.mode === "single" && singleTooth !== null && <SingleToothEdit controller={toothMap} fdi={singleTooth} />}
-            {toothMap?.map && <p className="control-hint">{!INTERNAL_SINGLE_TOOTH ? "Choose two or more teeth. The AI is instructed to preserve unselected teeth; check the concept before sharing." :
+            {INTERNAL_SINGLE_TOOTH && toothMap?.map && <p className="control-hint">{
               toothMap.mode === "select" ? `${toothMap.picking && toothMap.display === "auto" ? "" : "Tap a tooth on the photo to add or remove it. "}Press and hold a tooth for its own settings. Boundary protection is optional for single-tooth edits; multi-tooth concepts use automatic face protection.`
                 : toothMap.mode === "single" ? `Tooth ${singleTooth ?? ""} is outlined on the photo. Tap it, or Design tooth ${singleTooth ?? ""}, for its own shape, length, width, edge and shade. ${precisionReady ? "Pixels outside the confirmed boundaries stay original. Check that the outlines match the tooth." : "Confirm its boundary for precise tooth protection; quick concepts use automatic face protection."}`
                   : toothMap.mode === "design" ? "Visual planning guides: tooth form, smile arc and midline. These guides do not constrain the generated smile."
                     : "Generate a quick concept now. Optional boundary protection is available for single-tooth edits; choose Custom to plan individual teeth."
             }</p>}
-            {toothMap?.map && teethToReview(toothMap.map).some(t => t.fdi !== null && settings.selectedTeeth.includes(t.fdi)) && (
+            {INTERNAL_SINGLE_TOOTH && toothMap?.map && teethToReview(toothMap.map).some(t => t.fdi !== null && settings.selectedTeeth.includes(t.fdi)) && (
               <p className="scale-notice" role="status"><span>Check the tooth map</span>Some selected teeth have uncertain numbers. Review the tooth map below so the right teeth change.</p>
             )}
             {/* Then how the map is shown on the photo. */}
-            {individual && <ToothChart settings={settings} onChange={onChange} defaultOpen />}
+            {INTERNAL_SINGLE_TOOTH && individual && <ToothChart settings={settings} onChange={onChange} defaultOpen />}
             {INTERNAL_SINGLE_TOOTH && toothMap?.controlsFor != null && <ToothControls fdi={toothMap.controlsFor} settings={settings} onChange={onChange} onClose={() => toothMap.openControls(null)} />}
             <More>
               <div className="control-group">
@@ -260,7 +302,7 @@ export function DesignStudio({
               <SegmentedControl<ShotType> label="Photo type" options={["Full face", "Close-up"]} value={settings.shotType} onChange={v => change("shotType", v)} />
             </More>
             {/* The detected map: status, teeth to check, corrections. Open while reviewing. */}
-            {toothMap && (
+            {INTERNAL_SINGLE_TOOTH && toothMap && (
               <details className="studio-more" open={toothMap.editing || toothMap.adding || toothMap.status === "none" || undefined}>
                 <summary>{toothMapSummary(toothMap)}<ChevronDown size={16} aria-hidden="true" /></summary>
                 <div className="studio-more-body">
@@ -302,7 +344,9 @@ export function DesignStudio({
             </More>
           </>)}
 
-          {page("shade", <>
+          {page("shade", alignment?.only && !fullArch ? <>
+            <header className="studio-card-head"><h3>Shade</h3><p>Alignment keeps the photographed tooth shade. Shade choices are retained for whitening and restorative concepts.</p></header>
+          </> : <>
             <header className="studio-card-head">
               <h3>Shade</h3>
               <p>Keep the current shade, brighten it, or aim for a specific shade.</p>
@@ -344,34 +388,7 @@ export function DesignStudio({
               <h3>Treatment</h3>
               <p>Choose how you’d like to transform the smile.</p>
             </header>
-            {INTERNAL_ALIGNMENT && <div className="studio-align">
-              <label className="studio-switch-row">
-                <span className="studio-treatment-text"><strong>Straighten teeth</strong><small>Visual alignment concept · not orthodontic planning</small></span>
-                <input type="checkbox" role="switch" className="studio-switch" checked={Boolean(alignment) && !fullArch}
-                  onChange={e => onChange(e.target.checked ? chooseAlignment(settings) : withStandard(settings, { alignment: undefined }))} />
-              </label>
-              {alignment && !fullArch && <>
-                <p className="control-hint">Both visible arches · retains natural tooth shape and shade in Alignment only.</p>
-                <label className="studio-switch-row">
-                  <span className="studio-treatment-text"><strong>Alignment only</strong><small>No bonding or veneers: shape and shade stay as they are</small></span>
-                  <input type="checkbox" role="switch" className="studio-switch" checked={Boolean(alignment.only)}
-                    onChange={e => change("alignment", { ...alignment, only: e.target.checked || undefined })} />
-                </label>
-                <p className="control-hint">A concept for discussion. Orthodontic suitability, timing and retention need assessment.</p>
-              </>}
-            </div>}
-            <div className="studio-treatments" role="radiogroup" aria-label="Restoration">
-              {treatments.map(t => (
-                <button key={t.value} type="button" role="radio" aria-checked={!fullArch && settings.treatment === t.value} className={`studio-treatment${alignment?.only && !fullArch ? " is-muted" : ""}`}
-                  disabled={INTERNAL_ALIGNMENT && Boolean(alignment?.only) && !fullArch} onClick={() => chooseStandard({ treatment: t.value, ...(!INTERNAL_ALIGNMENT ? { alignment: undefined } : {}) })}>
-                  <span className="studio-treatment-text"><strong>{t.title}</strong><small>{t.detail}</small></span>
-                  <span className="studio-check" aria-hidden="true">{!fullArch && settings.treatment === t.value && <Check size={14} strokeWidth={2.6} />}</span>
-                </button>
-              ))}
-              {INTERNAL_FULL_ARCH && <button type="button" role="radio" aria-checked={Boolean(fullArch)} className="studio-treatment" onClick={chooseFullArch}>
-                <span className="studio-treatment-text"><strong>Full-arch restoration</strong><small>Upper, lower or dual-arch visualisation</small></span>
-                <span className="studio-check" aria-hidden="true">{fullArch && <Check size={14} strokeWidth={2.6} />}</span>
-              </button>}
+            <TreatmentOptions settings={settings} onChange={onChange} />
               {INTERNAL_FULL_ARCH && fullArch && (
                 <div className="studio-full-arch">
                   <div className="control-group">
@@ -401,7 +418,6 @@ export function DesignStudio({
                   <p className="control-hint">A visual restorative concept. Implant position and number, surgical suitability and the final prosthesis need clinical and radiographic assessment.</p>
                 </div>
               )}
-            </div>
             <More label="Notes, references and clinical detail">
               <div className="control-group">
                 <div className="control-label"><label htmlFor="notes">Notes</label><span className="muted">Optional</span></div>
