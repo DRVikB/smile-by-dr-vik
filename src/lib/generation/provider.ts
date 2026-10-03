@@ -233,32 +233,21 @@ export async function generateSmile(
     } catch { /* Logging never changes delivery or allowance. */ }
     finally { clearTimeout(timer); }
   };
-  const initial = diagnostic;
-  let result: GenerationResult | undefined;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    // A retry remains inside the same authenticated reservation/claim in the handler.
-    // Reset response evidence so an attempt cannot inherit the earlier result.
-    diagnostic = { ...initial, retryCount: attempt };
+  // One user action invokes the image provider at most once. An explicit later
+  // Generate action gets a new guarded request and reservation in the handler.
+  await emit();
+  const started = Date.now();
+  let result: GenerationResult;
+  try {
+    result = await provider.generate(parsed, signal, { update: patch => { diagnostic = { ...diagnostic, ...patch }; } });
+    diagnostic.category = "success";
+  } catch (error) {
+    if (diagnostic.category === "started") diagnostic.category = signal?.aborted ? "cancelled" : "unknown_response";
+    throw error;
+  } finally {
+    diagnostic.latencyMs = Date.now() - started;
     await emit();
-    const started = Date.now();
-    let failure: unknown;
-    try {
-      result = await provider.generate(parsed, signal, { update: patch => { diagnostic = { ...diagnostic, ...patch }; } });
-      diagnostic.category = "success";
-    } catch (error) {
-      failure = error;
-      if (diagnostic.category === "started") diagnostic.category = signal?.aborted ? "cancelled" : "unknown_response";
-    } finally {
-      diagnostic.latencyMs = Date.now() - started;
-      await emit();
-    }
-    if (result) break;
-    const retryable = attempt === 0 && provider.name === "gemini" && !signal?.aborted &&
-      failure instanceof GenerationError && failure.code === "provider_no_image" &&
-      (diagnostic.category === "empty_response" || diagnostic.category === "text_only");
-    if (!retryable) throw failure;
   }
-  if (!result) throw new GenerationError("No finished preview was returned.", 502, "provider_no_image");
   return {
     ...result,
     generation: {
