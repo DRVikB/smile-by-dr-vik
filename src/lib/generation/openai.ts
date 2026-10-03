@@ -1,3 +1,4 @@
+import type { ProviderTrace } from "./providerDiagnostics";
 import { MAX_STYLE_REFERENCE_LIMIT } from "@/lib/styleMatching";
 import type { SmileImageProvider } from "./provider";
 import type { GenerationInput } from "./schema";
@@ -99,6 +100,7 @@ export class OpenAISmileProvider implements SmileImageProvider {
   async generate(
     input: GenerationInput,
     signal?: AbortSignal,
+    trace?: ProviderTrace,
   ): Promise<GenerationResult> {
     if (!this.options.apiKey.trim())
       throw new GenerationError(
@@ -133,6 +135,8 @@ export class OpenAISmileProvider implements SmileImageProvider {
     form.set("quality", "high");
     form.set("output_format", "jpeg");
     form.set("output_compression", "95");
+    const [requestedWidth, requestedHeight] = outputSize(dimensions.width, dimensions.height).split("x").map(Number);
+    trace?.update({ requestedWidth, requestedHeight });
     // gpt-image-2 uses high input fidelity automatically and disallows this override.
     const timeout = AbortSignal.timeout(
       this.options.timeoutMs ?? OPENAI_IMAGE_TIMEOUT_MS,
@@ -146,6 +150,7 @@ export class OpenAISmileProvider implements SmileImageProvider {
         signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       });
     } catch {
+      trace?.update({ category: timeout.aborted ? "timeout" : signal?.aborted ? "cancelled" : "transport_error" });
       if (signal?.aborted) throw signal.reason;
       if (timeout.aborted)
         throw new GenerationError(
@@ -159,8 +164,10 @@ export class OpenAISmileProvider implements SmileImageProvider {
         "provider_unavailable",
       );
     }
+    trace?.update({ httpStatus: response.status });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
+      trace?.update({ category: "http_error" });
       const code = typeof body?.error?.code === "string" ? body.error.code : "";
       if (
         code === "insufficient_quota" ||
@@ -199,7 +206,10 @@ export class OpenAISmileProvider implements SmileImageProvider {
         "OpenAI couldn’t create this preview. Your original photo is unchanged — please try again.",
       );
     }
-    const body = await response.json().catch(() => null);
+    let body;
+    try { body = await response.json(); }
+    catch { trace?.update({ category: "malformed_response" }); throw new GenerationError("The image response couldn’t be read.", 502, "invalid_provider_image"); }
+    trace?.update({ category: Array.isArray(body?.data) && body.data.length === 0 ? "empty_response" : "malformed_image", partCount: Array.isArray(body?.data) ? body.data.length : 0, imagePartExisted: typeof body?.data?.[0]?.b64_json === "string", mimeTypes: "image/jpeg" });
     const encodedResult = body?.data?.[0]?.b64_json;
     const image =
       typeof encodedResult === "string"

@@ -33,9 +33,9 @@ test("lip guidance remains subordinate to per-tooth length permissions", () => {
   assert.match(prompt, /flatter lip supports a flatter arc/);
   assert.match(prompt, /if matching the arc requires an unapproved edge change, preserve that edge/);
   assert.match(prompt, /Never lengthen premolars merely to fill dark space/);
-  assert.match(prompt, /Keep incisal edge positions unchanged unless clinician notes explicitly request/);
-  assert.match(prompt, /BITE CONTEXT \(clinician supplied\): Deep bite/);
-  assert.match(prompt, /not permission for bite correction/);
+  assert.match(prompt, /retain original edge length unless notes explicitly request/);
+  assert.doesNotMatch(prompt, /Deep bite/, "bite label remains clinician/report-only");
+  assert.match(prompt, /do not invent intrusion, extrusion, jaw opening or correction of overbite\/overjet/);
 });
 
 test("bite context reaches patient reports even in shade-only mode", () => {

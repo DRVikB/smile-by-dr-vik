@@ -36,7 +36,7 @@ test("full-arch is exclusive: straightening off, material and tooth plan set asi
   assert.equal(fa.alignment, undefined, "Straighten + Full-arch is never a state");
   assert.equal(fa.fullArch!.arch, "lower", "the arch the case already named");
   assert.equal(fa.fullArch!.restorationType, "zirconia");
-  assert.equal(fa.fullArch!.prostheticGingiva, "auto");
+  assert.equal(fa.fullArch!.prostheticGingiva, "exclude");
   assert.equal(chooseFullArch(base()).fullArch!.arch, "upper", "Upper by default");
   // Back to composite: standard mode; the full-arch choices are remembered for next time.
   const back = chooseStandard(fa, { treatment: "Single-shade composite" });
@@ -50,9 +50,9 @@ test("full-arch generation is built from the structured plan, with the face and 
   const both = fullArch("both", "zirconia", { shape: "Square", targetShade: "B1" });
   const prompt = buildSmileInstruction(both);
   assert.match(prompt, /upper and lower full-arch fixed zirconia restorative concept/);
-  assert.match(prompt, /square forms/);
+  assert.match(prompt, /shape Square/);
   assert.match(prompt, /B1 shade/);
-  assert.match(prompt, /CHANGE THE TEETH, NOT THE PERSON/);
+  assert.match(prompt, /Preserve facial identity/);
   assert.match(prompt, /Do not widen the mouth\. Do not open the lips further\./);
   assert.match(prompt, /beard and facial hair/);
   assert.match(prompt, /visual restorative concept only/);
@@ -64,14 +64,14 @@ test("full-arch generation is built from the structured plan, with the face and 
   assert.match(upper, /PROTECTED: the lower arch/);
   assert.match(buildSmileInstruction(fullArch("lower")), /PROTECTED: the upper arch/);
   assert.match(buildSmileInstruction(fullArch("upper", "provisional")), /provisional \(PMMA\)/);
-  assert.match(buildSmileInstruction(chooseFullArch(base(), { prostheticGingiva: "include" })), /include a natural pink prosthetic gingival flange/);
+  assert.match(buildSmileInstruction(chooseFullArch(base(), { prostheticGingiva: "include" })), /selected prosthetic interface with natural-looking pink material/);
   assert.match(buildSmileInstruction(chooseFullArch(base(), { prostheticGingiva: "exclude" })), /Prosthetic gingiva: none/);
 });
 
 test("the request carries full-arch settings and rejects anything else", () => {
   const ok = settingsSchema.safeParse(fullArch("both", "provisional"));
   assert.ok(ok.success);
-  assert.deepEqual(ok.data!.fullArch, { arch: "both", restorationType: "provisional", prostheticGingiva: "auto" });
+  assert.deepEqual(ok.data!.fullArch, { arch: "both", restorationType: "provisional", prostheticGingiva: "exclude" });
   assert.equal(settingsSchema.safeParse({ ...fullArch("both"), fullArch: { arch: "middle", restorationType: "zirconia", prostheticGingiva: "auto" } }).success, false);
   assert.equal(settingsSchema.safeParse({ ...fullArch("both"), treatmentMode: "all_on_x" }).success, false);
 });

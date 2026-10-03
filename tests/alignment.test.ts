@@ -13,8 +13,8 @@ test("alignment off leaves the protected-position instructions exactly as before
   const prompt = buildSmileInstruction(defaultSettings);
   assert.ok(!prompt.includes("ORTHODONTIC ALIGNMENT"));
   assert.match(prompt, /Preserve tooth positions, axes, rotations and arch form\./);
-  assert.match(prompt, /never permits gum editing or tooth movement\./);
-  assert.match(prompt, /they do not permit moving whole teeth or altering protected anatomy\.$/);
+  assert.match(prompt, /Intensity:.*never a new type of edit/);
+  assert.match(prompt, /Do not edit the gingiva/);
 });
 
 test("straightening both arches permits whole-tooth movement, including the lower teeth, and nothing more", () => {
@@ -22,18 +22,18 @@ test("straightening both arches permits whole-tooth movement, including the lowe
   assert.equal(settingsSchema.safeParse(settings).success, true);
   const prompt = buildSmileInstruction(settings);
   assert.match(prompt, /ORTHODONTIC ALIGNMENT CONCEPT \(upper and lower arches/);
-  assert.match(prompt, /Align the lower incisors evenly/);
-  assert.match(prompt, /do not reshape, resize, lengthen, recolour or resurface them for the alignment/);
-  assert.match(prompt, /never close a missing-tooth space by drifting neighbours/);
-  assert.match(prompt, /within the original lips and mouth opening/);
-  assert.match(prompt, /Outside the ORTHODONTIC ALIGNMENT permission, preserve tooth positions/);
-  assert.match(prompt, /may reposition \(never reshape or recolour\) the visible teeth of the upper and lower arches/);
+  assert.match(prompt, /Both visible arches may be repositioned within the photographed bite relationship/);
+  assert.match(prompt, /Each tooth keeps its crown shape, size, incisal edge, wear, texture and shade/);
+  assert.match(prompt, /close a missing-tooth space by drifting neighbours/);
+  assert.match(prompt, /original smile envelope/);
+  assert.match(prompt, /separate alignment permission governs whole-tooth positioning/);
+  assert.match(prompt, /Reposition whole visible teeth within the selected scope/);
   // Gums still never edited, midline still kept, the concept framing still first.
   assert.match(prompt, /Do not edit the gingiva/);
-  assert.match(prompt, /Natural gum tissue and visible margins stay exactly as photographed/);
-  assert.match(prompt, /Do not move, recontour, level, recentre or add natural gum tissue/);
+  assert.match(prompt, /Retain natural gingival margins/);
+  assert.match(prompt, /Do not recentre, level or symmetrise the gums/);
   assert.match(prompt, /Keep the upper dental midline close to its original position/);
-  assert.ok(prompt.indexOf("concept visualisation") < prompt.indexOf("ORTHODONTIC ALIGNMENT CONCEPT"));
+  assert.ok(prompt.indexOf("PRESERVATION") < prompt.indexOf("ORTHODONTIC ALIGNMENT CONCEPT"));
 });
 
 test("straightening one arch leaves the other exactly as photographed", () => {
@@ -44,8 +44,8 @@ test("straightening one arch leaves the other exactly as photographed", () => {
 test("alignment only keeps every tooth's own shape and shade", () => {
   const prompt = buildSmileInstruction(aligned({ arches: "Both", only: true }, { targetShade: "Bleach", designIntent: "Reshape" }));
   assert.match(prompt, /ALIGNMENT ONLY: no restorative change is planned/);
-  assert.match(prompt, /Preserve the original tooth colour and shade exactly as photographed/);
-  assert.match(prompt, /SHADE ONLY: Change only the colour/);
+  assert.match(prompt, /No intentional shade change from the source appearance/);
+  assert.doesNotMatch(prompt, /SHADE ONLY:|TREATMENT:.*[Cc]omposite|Material:/, "alignment-only must not inherit restorative/fixed-position rules");
   assert.ok(!prompt.includes("noticeably brighter bleached-white"));
   assert.ok(!prompt.includes("Tooth morphology preference:"));
 });

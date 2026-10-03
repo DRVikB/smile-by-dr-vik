@@ -9,6 +9,7 @@ import { accountsMode, readServerEnvironment, type ServerEnvironment } from "@/s
 import { accountServicesFromEnv, authenticate, evaluateAccess, type AccountServices } from "@/server/access";
 import { AccountError } from "@/server/accountStore";
 import { selectStyleReferences } from "@/server/caseLibraryHandlers";
+import { type ProviderDiagnostic } from "./providerDiagnostics";
 import { safeLog } from "@/server/redact";
 
 const ACCOUNT_ERRORS: Record<AccountError["code"], { status: number; error: string }> = {
@@ -107,6 +108,7 @@ export async function handleGenerationRequest(
       { error: "Check the photo and design selections, then try again." },
       { status: 400, headers },
     );
+  let providerDiagnostic: ProviderDiagnostic | undefined;
   try {
     const provider = getSmileProvider(env);
     if (provider.configured === false)
@@ -178,7 +180,16 @@ export async function handleGenerationRequest(
     const providerInput = styleReferences.length ? { ...rest, styleReferences } : rest;
     let result;
     try {
-      result = await generateSmile(providerInput, request.signal, provider);
+      result = await generateSmile(providerInput, request.signal, provider, id ? { requestId: id, onDiagnostic: async record => {
+        providerDiagnostic = record;
+        // Owner comes exclusively from authentication. No client-supplied log fields.
+        const event = record.category === "started" ? "generation_provider_started" : "generation_provider_finished";
+        const metadata = Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined)) as Record<string, string | number | boolean | null>;
+        if (reservation && accountUserId) {
+          await reservation.services.store.recordSecurityEvent(accountUserId, "system", event, metadata)
+            .catch(() => safeLog("warn", "generation_diagnostic_write_failed", { requestId: record.requestId }));
+        }
+      } } : undefined);
     } catch (error) {
       // Failed before completion: return the reserved generation.
       await reservation?.services.store.release(reservation.id, error instanceof GenerationError ? error.code : "generation_failed").catch(() => {});
@@ -198,15 +209,16 @@ export async function handleGenerationRequest(
         .catch(() => safeLog("error", "generation_commit_failed", {}));
     }
     const styleReferencesUsed = { count: styleReferences.length, caseIds: referenceCaseIds };
-    return Response.json({ ...result, styleReferencesUsed, ...(usage ? { usage } : {}) }, { headers });
+    return Response.json({ ...result, ...(providerDiagnostic ? { providerDiagnostic } : {}), styleReferencesUsed, ...(usage ? { usage } : {}) }, { headers });
   } catch (error) {
     if (error instanceof GenerationError)
       return Response.json(
-        { error: error.message, code: error.code },
+        { error: error.message, code: error.code, ...(providerDiagnostic ? { providerDiagnostic } : {}) },
         { status: error.status, headers },
       );
     return Response.json(
       {
+        ...(providerDiagnostic ? { providerDiagnostic } : {}),
         error:
           "We couldn’t create your preview. Your photo and selections are safe — please try again.",
       },

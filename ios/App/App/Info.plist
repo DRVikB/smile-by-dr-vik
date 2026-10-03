@@ -37,39 +37,6 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>UIApplicationShortcutItems</key>
-	<array>
-		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>uk.co.drvik.smilecompose.shortcut.new</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>New Smile Design</string>
-			<key>UIApplicationShortcutItemSubtitle</key>
-			<string>Start with a patient photo</string>
-			<key>UIApplicationShortcutItemIconSymbolName</key>
-			<string>plus.circle</string>
-		</dict>
-		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>uk.co.drvik.smilecompose.shortcut.cases</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>Cases</string>
-			<key>UIApplicationShortcutItemSubtitle</key>
-			<string>Your saved smile designs</string>
-			<key>UIApplicationShortcutItemIconSymbolName</key>
-			<string>folder</string>
-		</dict>
-		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>uk.co.drvik.smilecompose.shortcut.sample</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>Try a Sample Case</string>
-			<key>UIApplicationShortcutItemSubtitle</key>
-			<string>No patient photo needed</string>
-			<key>UIApplicationShortcutItemIconSymbolName</key>
-			<string>play.circle</string>
-		</dict>
-	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>SmileCompose uses the camera to take the patient smile photograph you design with.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
@@ -93,6 +60,39 @@
 			</array>
 		</dict>
 	</dict>
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>plus.circle</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Start with a patient photo</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>New Smile Design</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>uk.co.drvik.smilecompose.shortcut.new</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>folder</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>Your saved smile designs</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Cases</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>uk.co.drvik.smilecompose.shortcut.cases</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>play.circle</string>
+			<key>UIApplicationShortcutItemSubtitle</key>
+			<string>No patient photo needed</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Try a Sample Case</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>uk.co.drvik.smilecompose.shortcut.sample</string>
+		</dict>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

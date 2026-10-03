@@ -159,7 +159,7 @@ test("instruction adapts to whitening, texture and close-up choices", () => {
   assert.ok(textured.includes("incisal"));
   const closeup = buildSmileInstruction({ ...defaultSettings, shotType: "Close-up" });
   assert.ok(closeup.includes("close-up"));
-  assert.ok(!closeup.includes("facial identity"));
+  assert.ok(closeup.includes("facial identity"), "close-up still preserves any visible identity");
 });
 
 test("instruction includes clinician notes and reference guidance", () => {
@@ -168,7 +168,7 @@ test("instruction includes clinician notes and reference guidance", () => {
     notes: "close the black triangles",
   });
   assert.ok(noted.includes("close the black triangles"));
-  assert.ok(noted.includes("clinician instruction"));
+  assert.ok(noted.includes("Clinician design notes"));
   const ref = buildSmileInstruction(defaultSettings, true);
   assert.ok(ref.includes("smile the patient likes"));
   assert.ok(ref.includes("do not copy the reference person's identity"));
@@ -179,10 +179,10 @@ test("instruction includes clinician notes and reference guidance", () => {
 
 test("simple shade choices give distinct generation instructions", () => {
   const same = buildSmileInstruction({ ...defaultSettings, targetShade: "The same", intensity: 100 });
-  assert.match(same, /Preserve the original tooth colour and shade exactly/);
+  assert.match(same, /No intentional shade change from the source appearance/);
   assert.match(same, /Do not whiten or brighten/);
   assert.match(buildSmileInstruction({ ...defaultSettings, targetShade: "Whiten" }), /Gently whiten/);
-  assert.match(buildSmileInstruction({ ...defaultSettings, targetShade: "Bleach" }), /noticeably brighter bleached-white/);
+  assert.match(buildSmileInstruction({ ...defaultSettings, targetShade: "Bleach" }), /brighter bleached-white/);
   for (const targetShade of ["The same", "Whiten", "Bleach"]) {
     assert.equal(settingsSchema.safeParse({ ...defaultSettings, targetShade }).success, true);
   }
@@ -190,7 +190,7 @@ test("simple shade choices give distinct generation instructions", () => {
 
 test("the instruction always demands a like-for-like frame, and names the guide region when one was captured", () => {
   const plain = buildSmileInstruction(defaultSettings);
-  assert.ok(plain.includes("same pixel dimensions"));
+  assert.ok(plain.includes("original aspect ratio, framing, scale, rotation and crop"));
   assert.ok(plain.includes("Do not zoom"));
   assert.ok(!plain.includes("on-screen guide"));
   const framed = buildSmileInstruction(defaultSettings, false, {
@@ -265,15 +265,15 @@ test("the clinician's own cases are described as a style source, not as the pati
   assert.match(three, /Edit only the first image/);
   // Style only: contour, texture, layering — never the other patients' arrangement.
   for (const rule of [
-    "emergence profile",
-    "surface texture",
-    "incisal character",
-    "optical finish",
-    "do not average their arrangements together",
-    "the arrangement must come from the first image",
+    "proportions",
+    "texture",
+    "shape character",
+    "explicit shade",
+    "never copy identity, gums or tooth arrangements",
+    "selected region",
   ])
     assert.ok(three.includes(rule), `missing: ${rule}`);
-  assert.match(three, /do not copy any of these patients' tooth positions/i);
+  assert.match(three, /never copy identity, gums or tooth arrangements/);
 
   // Singular reads as singular.
   const one = buildSmileInstruction(defaultSettings, false, undefined, 1);

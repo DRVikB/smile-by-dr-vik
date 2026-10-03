@@ -21,8 +21,8 @@ test("space restrictions outrank shape and length requests without authorising b
   const prompt = buildSmileInstruction({ ...defaultSettings, designIntent: "Reshape", notes: "Lengthen 11 and 21", clinicalData: { restorativeSpace: "Limited / uncertain", constraints: "No posterior additions", patientPriorities: "Bigger smile" } });
   assert.match(prompt, /\(1\).*clinician-supplied restrictions/);
   assert.match(prompt, /SPACE RESTRICTION: Do not add incisal length or posterior height/);
-  assert.match(prompt, /Clinical constraints: "No posterior additions"/);
-  assert.match(prompt, /Patient priorities \(subordinate to clinical constraints\): "Bigger smile"/);
+  assert.match(prompt, /Explicit clinician visual restrictions: "No posterior additions"/);
+  assert.doesNotMatch(prompt, /Bigger smile/, "broad patient priorities remain report-only");
   assert.match(prompt, /do not invent intrusion, extrusion, jaw opening/);
 });
 

@@ -40,9 +40,9 @@ test('invalid, duplicate and contradictory tooth plans fail validation', () => {
 });
 test('individual instructions replace global shade and preserve untreated arches', () => {
   const prompt = buildSmileInstruction(mixed);
-  assert.match(prompt,/FDI 31: Natural; shade The same/);
+  assert.match(prompt,/FDI 31: Natural; keep edge positions and length unchanged; shade The same/);
   assert.match(prompt,/individual tooth goals\/shades/);
-  assert.match(prompt,/BOTH arches exactly/);
+  assert.match(prompt,/Preserve untreated teeth in both arches/);
   assert.doesNotMatch(prompt,/Do not whiten the lower/);
   assert.ok(preferenceRows(mixed).some(([k,v]) => k === 'Tooth 31' && v.includes('Shade only') && v.includes('The same')));
 });

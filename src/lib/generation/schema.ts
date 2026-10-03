@@ -39,7 +39,7 @@ export const settingsSchema = z
       width: z.union([z.literal(-1), z.literal(0), z.literal(1)]).optional(),
       edge: z.enum(toothEdges).optional(),
     })).max(28).optional(),
-    treatment: z.enum(["Composite", "Single-shade composite", "Layered composite", "Porcelain"]),
+    treatment: z.enum(["Whitening", "Composite", "Single-shade composite", "Layered composite", "Porcelain"]),
     alignment: z.object({ arches: z.enum(["Upper", "Lower", "Both"]), only: z.boolean().optional() }).optional(),
     treatmentMode: z.enum(["standard", "full_arch"]).optional(),
     fullArch: z.object({
@@ -50,7 +50,8 @@ export const settingsSchema = z
     designIntent: z.enum(["Auto", "Shade only", "Repair edges", "Close gaps", "Reshape"]).optional(),
     smileArc: z.enum(smileArcs).optional(),
     biteContext: z.enum(biteContexts).optional(),
-    currentShade: z.enum(["A3", "A2", "A1", "B1"]),
+    currentShade: z.enum(["A3", "A2", "A1", "B1"]).optional(),
+    currentShadeSource: z.enum(["clinician", "estimated"]).optional(),
     targetShade: z.enum(["The same", "Whiten", "Bleach", "A1", "B1", "BL3", "BL2", "BL1"]),
     shape: z.enum(["Square", "Rounded", "Triangular"]),
     texture: z.enum(["Smooth", "Natural", "Textured"]),

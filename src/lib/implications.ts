@@ -28,7 +28,7 @@ export function impliesWhitening(settings: Pick<SmileSettings, "currentShade" | 
   const { currentShade, targetShade } = settings;
   if (targetShade === "The same") return false;
   if (targetShade === "Whiten" || targetShade === "Bleach") return true;
-  return SHADE_ORDER.indexOf(targetShade) > SHADE_ORDER.indexOf(currentShade);
+  return currentShade !== undefined && SHADE_ORDER.indexOf(targetShade) > SHADE_ORDER.indexOf(currentShade);
 }
 
 export const CONFIRM_AT_ASSESSMENT = [

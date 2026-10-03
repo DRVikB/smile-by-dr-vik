@@ -19,5 +19,6 @@ export function toothSummary(s: Pick<SmileSettings, "selectedTeeth"> & Partial<P
   return [upper && `${upper} upper`, lower && `${lower} lower`].filter(Boolean).join(" + ") + " teeth";
 }
 export function resolvedToothIntent(s: SmileSettings, p: ToothPlan) {
+  if (s.treatment === "Whitening" && p.intent !== "Preserve") return "Shade only";
   return p.intent === "Auto" ? s.designIntent ?? "Auto" : p.intent;
 }

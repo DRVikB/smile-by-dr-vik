@@ -166,7 +166,7 @@ export function ToothControls({ fdi, settings, onChange, onClose }: {
             </div>
           </div>
           <div className="control-group">
-            <div className="control-label"><span>Shade</span><span className="muted">From {settings.currentShade}</span></div>
+            <div className="control-label"><span>Shade</span><span className="muted">From {settings.currentShadeSource ? settings.currentShade : "Not confirmed"}</span></div>
             <div className="segmented tooth-shades" role="group" aria-label="Shade">
               {SHADES.map(s => {
                 const on = (plan.targetShade ?? "follow") === s.value;

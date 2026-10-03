@@ -6,11 +6,11 @@ import {defaultSettings} from '../src/lib/types';
 
 test('photographic request keeps the essential envelope and drops impossible exact-size demands',()=>{
  const p=buildImageEditPrompt(defaultSettings);
- assert.ok(p.length<buildSmileInstruction(defaultSettings).length*.6);
- assert.match(p,/face, expression, lips, mouth opening, gums/);
+ assert.equal(p, buildSmileInstruction(defaultSettings), "one contract across providers");
+ assert.match(p,/facial identity, facial expression, head position, lip position, mouth width, mouth opening/);
  assert.match(p,/same visible upper\/lower tooth exposure/);
  assert.match(p,/intact central incisor must not become longer/);
- assert.match(p,/preserve untreated teeth in both arches/);
+ assert.match(p,/Preserve untreated teeth in both arches/);
  assert.match(p,/ONE complete edited source photograph/);
  assert.match(p,/Never return an enlarged mouth, isolated teeth, a close-up crop/);
  assert.doesNotMatch(p,/exactly the same pixel dimensions/);
@@ -25,21 +25,21 @@ test('individual Preserve and Missing teeth remain excluded from editable select
 });
 test('repair, gap and shade goals stay scoped and carry the established permissions',()=>{
  const p=buildImageEditPrompt({...defaultSettings,toothPlans:[{tooth:11,intent:'Repair edges',condition:'Natural'},{tooth:21,intent:'Close gaps',condition:'Natural'},{tooth:23,intent:'Shade only',condition:'Natural'}]});
- assert.match(p,/Only FDI 11: REPAIR EDGES/);assert.match(p,/Only FDI 21: CLOSE GAPS/);assert.match(p,/Only FDI 23: SHADE ONLY/);
+ assert.match(p,/GOAL SCOPE FDI 11:.*REPAIR EDGES/);assert.match(p,/GOAL SCOPE FDI 21:.*CLOSE GAPS/);assert.match(p,/GOAL SCOPE FDI 23:.*SHADE ONLY/);
  assert.match(p,/do not lower its entire edge/);assert.match(p,/keep incisal edge length unchanged/);
 });
 test('single shade, layering and porcelain retain distinct optics without automatic extra length',()=>{
- for(const [treatment,word] of [['Single-shade composite','no separate enamel/dentine layers'],['Layered composite','slight incisal translucency'],['Porcelain','realistic glaze']] as const){
+ for(const [treatment,word] of [['Single-shade composite','Do not add an elaborate separate dentine/enamel layering pattern'],['Layered composite','incisal translucency appropriate to the chosen texture'],['Porcelain','plausible surface finish, light transmission']] as const){
   const p=buildImageEditPrompt({...defaultSettings,treatment});assert.ok(p.includes(word));assert.match(p,/material change/);
  }
 });
 test('clinical restrictions and explicit per-tooth length remain represented',()=>{
  const p=buildImageEditPrompt({...defaultSettings,toothPlans:[{tooth:11,intent:'Reshape',condition:'Natural',length:1}],clinicalData:{restorativeSpace:'Limited / uncertain',overbiteMm:5},notes:'Do not close gaps'});
- assert.match(p,/FDI 11: Natural; clinician requests slightly longer/);assert.match(p,/SPACE RESTRICTION/);assert.match(p,/Measured overbite: 5 mm/);assert.match(p,/Honour negations/);
+ assert.match(p,/FDI 11: Natural; clinician requests slightly longer/);assert.match(p,/SPACE RESTRICTION/);assert.doesNotMatch(p,/Measured overbite: 5 mm/, "millimetres remain report-only");assert.match(p,/Honour negations/);
 });
 test('alignment remains a scoped exception without gum motion or extra crown length',()=>{
  const p=buildImageEditPrompt({...defaultSettings,alignment:{arches:'Both',only:true}});
- assert.match(p,/separately permits repositioning/);assert.match(p,/Natural gum tissue and visible margins stay exactly as photographed/);assert.match(p,/ALIGNMENT ONLY/);
+ assert.match(p,/Reposition whole visible teeth/);assert.match(p,/Retain natural gingival margins/);assert.match(p,/ALIGNMENT ONLY/);
 });
 test('full-arch reconstruction stays conditional and keeps the original visible envelope',()=>{
  const p=buildImageEditPrompt({...defaultSettings,treatmentMode:'full_arch',fullArch:{arch:'upper',restorationType:'zirconia',prostheticGingiva:'exclude'}});

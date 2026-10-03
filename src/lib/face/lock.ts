@@ -46,6 +46,14 @@ const MAX_ANGLE = (8 * Math.PI) / 180;
 /** Invalidate reusable results made with the older, lip-inclusive mask. */
 export const MOUTH_LOCK_VERSION = "2026-10-02-validated-mouth-boundary-v5";
 
+/** Categorical device QA only; never capture image content or browser errors. */
+export const MOUTH_LOCK_FAILURE_CODES = [
+  "mouth_image_decode_failed", "mouth_source_landmarks_unavailable",
+  "mouth_alignment_rejected", "mouth_canvas_unavailable",
+  "mouth_composite_failed", "mouth_encoding_failed",
+] as const;
+export type MouthLockFailure = typeof MOUTH_LOCK_FAILURE_CODES[number];
+
 export function planMouthLock(
   original: Point[] | null,
   generated: Point[] | null,

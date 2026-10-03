@@ -37,7 +37,7 @@ export const DEFAULT_MASK_OPTIONS: MaskOptions = { protectGingiva: true };
 
 /** What a tooth's plan and the treatment allow its region to become. */
 export function toothEditRule(settings: SmileSettings, plan: ToothPlan | undefined, options: MaskOptions = DEFAULT_MASK_OPTIONS): ToothEditRule {
-  const intent = plan ? resolvedToothIntent(settings, plan) : settings.designIntent ?? "Auto";
+  const intent = settings.treatment === "Whitening" ? "Shade only" : plan ? resolvedToothIntent(settings, plan) : settings.designIntent ?? "Auto";
   if (intent === "Shade only" || settings.alignment?.only) return { exactOnly: true, lateral: 0, incisal: 0, cervical: 0 };
   const porcelain = settings.treatment === "Porcelain";
   let lateral = porcelain ? 0.1 : 0.06;

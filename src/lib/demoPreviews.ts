@@ -21,6 +21,7 @@ export function demoPreviewAsset(settings: SmileSettings): { src: string; label:
     if (settings.alignment.arches === "Lower") throw new Error("The demo photo does not show the lower teeth. Choose Upper or Both for the alignment example.");
     return { src: "/demo-results/alignment-v1.webp", label: "Alignment only · original tooth shade and form" };
   }
+  if (settings.treatment === "Whitening") throw new Error("A colour-only whitening example is not included in the prepared demo. Choose a material example, or use your own authorised photo for a whitening concept.");
   return { src: `/demo-results/${FORM[settings.shape]}-${MATERIAL[settings.treatment]}-v1.webp`, label: `${settings.shape} · ${settings.treatment === "Composite" ? "Single-shade composite" : settings.treatment}` };
 }
 

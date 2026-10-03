@@ -2,7 +2,7 @@ import type { PhotoQuality } from "./photoQuality";
 
 export type Screen = "start" | "photo" | "design" | "compare" | "preview";
 export type TeethCount = 4 | 6 | 8 | 10;
-export type Treatment = "Composite" | "Single-shade composite" | "Layered composite" | "Porcelain";
+export type Treatment = "Whitening" | "Composite" | "Single-shade composite" | "Layered composite" | "Porcelain";
 export type DesignIntent = "Auto" | "Shade only" | "Repair edges" | "Close gaps" | "Reshape";
 export const smileArcs = ["Preserve existing", "Follow lower lip", "Flatter", "More curved"] as const;
 export type SmileArc = typeof smileArcs[number];
@@ -57,7 +57,7 @@ export interface FullArchPlan {
   restorationType: typeof fullArchRestorations[number];
   prostheticGingiva: typeof prostheticGingivaOptions[number];
 }
-export const DEFAULT_FULL_ARCH: FullArchPlan = { arch: "upper", restorationType: "zirconia", prostheticGingiva: "auto" };
+export const DEFAULT_FULL_ARCH: FullArchPlan = { arch: "upper", restorationType: "zirconia", prostheticGingiva: "exclude" };
 export const FULL_ARCH_DISCLAIMER = "Visual restorative concept only. Final implant position, implant number, surgical suitability and definitive prosthetic design require clinical and radiographic assessment.";
 
 /** "Full-arch restoration · Zirconia · Upper + Lower": the treatment in words, for summaries and reports. */
@@ -144,7 +144,9 @@ export interface SmileSettings {
   smileArc?: SmileArc;
   /** Clinician-entered context, never inferred from a smile photograph. */
   biteContext?: BiteContext;
-  currentShade: CurrentShade;
+  currentShade?: CurrentShade;
+  /** Absent on legacy cases: never interpret the old A2 default as confirmed. */
+  currentShadeSource?: "clinician" | "estimated";
   targetShade: TargetShade;
   shape: ToothShape;
   texture: TextureLevel;
@@ -324,7 +326,6 @@ export const defaultSettings: SmileSettings = {
   designIntent: "Auto",
   smileArc: "Preserve existing",
   biteContext: "Not assessed",
-  currentShade: "A2",
   targetShade: "Whiten",
   shape: "Rounded",
   texture: "Natural",

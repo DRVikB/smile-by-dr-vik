@@ -24,7 +24,7 @@ for (const treatment of ["Composite", "Single-shade composite", "Layered composi
       assert.match(prompt, /RULE PRIORITY/);
       assert.match(prompt, /Do not edit the gingiva/);
       assert.match(prompt, /Preserve the existing dental midline/);
-      assert.match(prompt, /Preserve ALL unselected teeth in BOTH arches exactly/);
+      assert.match(prompt, /Preserve untreated teeth in both arches/);
       assert.match(prompt, /Skip uncertain teeth/);
       assert.ok(!prompt.includes("70-80%") && !prompt.includes("65-75%"));
       assert.ok(!prompt.includes("Keep the dental midline coincident"));
@@ -106,9 +106,9 @@ test("individual goals keep repair permission off the neighbouring central incis
     { tooth: 21, intent: "Shade only", condition: "Natural" },
     { tooth: 31, intent: "Auto", condition: "Natural" },
   ], notes: "Make the smile perfect" });
-  assert.match(prompt, /EDGE PERMISSION FDI 11: Only fill a visibly supported/);
-  assert.match(prompt, /EDGE PERMISSION FDI 21: Keep incisal edge positions and tooth length unchanged/);
-  assert.match(prompt, /EDGE PERMISSION FDI 31: Keep incisal edge positions unchanged unless clinician notes explicitly request/);
+  assert.match(prompt, /FDI 11: Natural; repair only a visible local chipped\/worn defect/);
+  assert.match(prompt, /FDI 21: Natural; keep edge positions and length unchanged/);
+  assert.match(prompt, /FDI 31: Natural; retain original edge length unless notes explicitly request/);
 });
 
 test("all material presets preserve front-tooth length even at maximum intensity", () => {

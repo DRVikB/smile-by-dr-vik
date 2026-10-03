@@ -3,7 +3,9 @@ import type { SmileSettings } from "./types";
 
 /** Arc preferences cannot expand the permissions of an individual tooth goal. */
 export function canGuideSmileArc(settings: SmileSettings): boolean {
-  return settings.shotType === "Full face" && activeToothPlans(settings).some(p => {
+  if (settings.alignment?.only || settings.shotType !== "Full face") return false;
+  if (settings.treatmentMode === "full_arch" && settings.fullArch) return settings.fullArch.arch !== "lower";
+  return activeToothPlans(settings).some(p => {
     const goal = resolvedToothIntent(settings, p);
     return p.tooth < 30 && (goal === "Auto" || goal === "Reshape");
   });

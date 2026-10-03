@@ -1,6 +1,6 @@
 import { compositeMasked, polygonMask } from "./geometry";
 import { detectFace } from "./landmarks";
-import { planMouthLock } from "./lock";
+import { planMouthLock, type MouthLockFailure } from "./lock";
 
 export interface MouthLockResult {
   image: string;
@@ -9,6 +9,7 @@ export interface MouthLockResult {
   lipsMoved: boolean;
   /** The source has a face but the returned image cannot be aligned to it. */
   invalidAlignment?: boolean;
+  failureReason?: MouthLockFailure;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -31,6 +32,7 @@ export async function lockFaceOutsideLips(
   generated: string,
 ): Promise<MouthLockResult> {
   const untouched = { image: generated, locked: false, lipsMoved: false };
+  let failureReason: MouthLockFailure = "mouth_image_decode_failed";
   try {
     const [origPoints, genPoints, o, g] = await Promise.all([
       detectFace(original),
@@ -44,13 +46,16 @@ export async function lockFaceOutsideLips(
     const scaledPoints = genPoints?.map(([x, y]): [number, number] =>
       [x * width / g.naturalWidth, y * height / g.naturalHeight]) ?? null;
     const plan = sameAspect ? planMouthLock(origPoints, scaledPoints) : null;
-    if (!plan) return { ...untouched, invalidAlignment: Boolean(origPoints) };
+    if (!plan) return { ...untouched, invalidAlignment: Boolean(origPoints),
+      failureReason: origPoints ? "mouth_alignment_rejected" : "mouth_source_landmarks_unavailable" };
+    failureReason = "mouth_canvas_unavailable";
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return untouched;
+    if (!ctx) return { ...untouched, failureReason };
 
+    failureReason = "mouth_composite_failed";
     ctx.drawImage(o, 0, 0, width, height);
     const originalPixels = ctx.getImageData(0, 0, width, height);
 
@@ -65,6 +70,7 @@ export async function lockFaceOutsideLips(
     const merged = compositeMasked(originalPixels.data, editedPixels.data, width, mask);
     editedPixels.data.set(merged);
     ctx.putImageData(editedPixels, 0, 0);
+    failureReason = "mouth_encoding_failed";
     return {
       // JPEG re-encoding would change protected face pixels after restoration.
       image: canvas.toDataURL("image/png"),
@@ -72,6 +78,6 @@ export async function lockFaceOutsideLips(
       lipsMoved: plan.lipsMoved,
     };
   } catch {
-    return untouched;
+    return { ...untouched, failureReason };
   }
 }

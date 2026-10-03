@@ -73,7 +73,9 @@ test("shade is an estimate unless confirmed, offered rather than included, and c
   assert.equal(shadeObservation("A3", true)!.source, "clinician");
   assert.equal(shadeObservation(null, false), null, "missing shade: nothing said");
   const draft = initialReportDraft({ settings: composite6, analysis: null });
-  assert.deepEqual(draft.shade, { value: "A2", confirmed: false, include: false });
+  assert.deepEqual(draft.shade, { value: null, confirmed: false, include: false }, "no fabricated default shade");
+  assert.deepEqual(initialReportDraft({ settings: { ...composite6, currentShade: "A2", currentShadeSource: "estimated" }, analysis: null }).shade, { value: "A2", confirmed: false, include: false });
+  assert.deepEqual(initialReportDraft({ settings: { ...composite6, currentShade: "A3", currentShadeSource: "clinician" }, analysis: null }).shade, { value: "A3", confirmed: true, include: false });
   const content = reportContent({ ...draft, shade: { value: "A3", confirmed: false, include: true } }, { settings: composite6, analysis: null });
   assert.equal(content.glance.at(-1)!.title, "Shade");
   assert.equal(content.comparison!.find(r => r.feature === "Shade")!.today, "Around A3 (estimated)");
@@ -103,7 +105,8 @@ test("today vs proposed and the treatment overview follow the actual treatment",
   assert.equal(veneers[0].title, "Porcelain veneers on 10 upper teeth");
   const bonding = treatmentOverview(composite6);
   assert.equal(bonding[0].text, "Composite is usually added to the tooth surface and can often require little or no enamel removal. It may require polishing, repair or replacement over time.");
-  assert.ok(bonding.some(i => i.title === "Discuss whitening and shade matching"));
+  assert.equal(bonding.some(i => i.title === "Discuss whitening and shade matching"), false, "no current shade: do not infer lightening to B1");
+  assert.ok(treatmentOverview({ ...composite6, currentShade: "A2", currentShadeSource: "clinician" }).some(i => i.title === "Discuss whitening and shade matching"));
   const last = bonding.at(-1)!;
   assert.equal(last.title, "Clinical assessment still required");
   assert.ok(last.bullets!.includes("Treatment suitability"));

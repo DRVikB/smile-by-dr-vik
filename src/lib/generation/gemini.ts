@@ -9,6 +9,7 @@ import { imageDimensions } from "./openai";
 import { geminiCostReceipt, PRICED_GEMINI_MODEL } from "./cost";
 import { nearestAspectRatio } from "../generationCanvas";
 import { developerTransport, type GoogleTransport } from "./googleTransport";
+import { inspectGeminiResponse, type ProviderTrace } from "./providerDiagnostics";
 import { safeLog } from "@/server/redact";
 export { nearestAspectRatio } from "../generationCanvas";
 
@@ -52,6 +53,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
   async generate(
     input: GenerationInput,
     signal?: AbortSignal,
+    trace?: ProviderTrace,
   ): Promise<GenerationResult> {
     if (!this.transport.configured)
       throw new GenerationError(
@@ -125,6 +127,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
       },
     };
 
+    trace?.update({ requestedAspectRatio: nearestAspectRatio(dimensions.width, dimensions.height), requestedResolution: model === PRICED_GEMINI_MODEL ? resolution : undefined });
     const timeout = AbortSignal.timeout(
       this.options.timeoutMs ?? GEMINI_IMAGE_TIMEOUT_MS,
     );
@@ -145,6 +148,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
         },
       );
     } catch (error) {
+      trace?.update({ category: timeout.aborted ? "timeout" : signal?.aborted ? "cancelled" : "transport_error" });
       // Record only a category, never request bodies, photos or credentials.
       const reason = error instanceof Error ? error.message : "";
       safeLog("error", "gemini_transport_failure", {
@@ -166,8 +170,10 @@ export class GeminiSmileProvider implements SmileImageProvider {
       );
     }
 
+    trace?.update({ httpStatus: response.status });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
+      trace?.update({ ...inspectGeminiResponse(body), category: "http_error" });
       const reason = body?.error?.details?.find((detail: { reason?: string }) => typeof detail?.reason === "string")?.reason;
       safeLog("error", "gemini_provider_rejected", {
         status: response.status,
@@ -212,7 +218,14 @@ export class GeminiSmileProvider implements SmileImageProvider {
       );
     }
 
-    const body = await response.json().catch(() => null);
+    let body;
+    try { body = await response.json(); }
+    catch {
+      trace?.update({ category: timeout.aborted ? "timeout" : signal?.aborted ? "cancelled" : "malformed_response" });
+      throw new GenerationError("Google returned a response that couldn’t be read. Please try again.", 502, "provider_no_image");
+    }
+    const observation = inspectGeminiResponse(body);
+    trace?.update(observation);
     const candidates = Array.isArray(body?.candidates) ? body.candidates : [];
     const completed = candidates.filter((candidate: { finishReason?: string }) =>
       candidate && (!candidate.finishReason || candidate.finishReason === "STOP"));
@@ -230,29 +243,8 @@ export class GeminiSmileProvider implements SmileImageProvider {
         : "image/png";
     const image = data ? `data:${outMime};base64,${data}` : "";
 
-    if (!image) {
-      // Empty/text-only output is not proof that the photo was unsuitable.
-      // Keep raw provider text, images and signatures out of diagnostics.
-      const reasons = candidates.map((candidate: { finishReason?: string }) => candidate?.finishReason);
-      const blocked = Boolean(body?.promptFeedback?.blockReason) || reasons.some((reason: string) =>
-        ["SAFETY", "IMAGE_SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "RECITATION", "IMAGE_RECITATION"].includes(reason));
-      safeLog("warn", "gemini_no_final_image", {
-        category: blocked ? "blocked" : reasons.includes("MAX_TOKENS") ? "incomplete" : "no_final_image",
-        candidates: candidates.length,
-        thoughtImages: parts.filter(p => p?.thought === true && Boolean(p.inlineData?.data)).length,
-        // Only documented enum values and structural counts, never provider
-        // text or patient content. These distinguish refusal from parsing loss.
-        finish: reasons.map((reason: unknown) => typeof reason === "string" &&
-          ["STOP", "MAX_TOKENS", "SAFETY", "RECITATION", "OTHER", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "MALFORMED_FUNCTION_CALL", "IMAGE_SAFETY", "IMAGE_PROHIBITED_CONTENT", "IMAGE_RECITATION", "IMAGE_OTHER", "NO_IMAGE"].includes(reason) ? reason : "unknown").join(","),
-        textParts: parts.filter(p => typeof p?.text === "string").length,
-        imageParts: parts.filter(p => Boolean(p?.inlineData?.data)).length,
-        aspect: nearestAspectRatio(dimensions.width, dimensions.height),
-        resolution,
-        explanation: classifyNoImageExplanation(parts),
-        referenceImages: styleReferences.length + (input.referenceImage ? 1 : 0),
-        maskGuidance: withMask,
-        hasNotes: Boolean(input.settings.notes.trim()),
-      });
+    if (!image || (body?.promptFeedback?.blockReason && body.promptFeedback.blockReason !== "BLOCK_REASON_UNSPECIFIED")) {
+      const blocked = observation.category === "blocked";
       throw new GenerationError(
         blocked ? "Google declined this image request. Your original photograph is unchanged."
           : "Google returned no finished preview. Your photo and selections are safe — please try again.",
@@ -260,24 +252,21 @@ export class GeminiSmileProvider implements SmileImageProvider {
         blocked ? "image_not_processed" : "provider_no_image",
       );
     }
-    if (!imageSchema.safeParse(image).success)
+    if (!imageSchema.safeParse(image).success) {
+      trace?.update({ category: "malformed_image" });
       throw new GenerationError(
         "Gemini returned a preview that couldn’t be opened. Please try again.",
         502,
         "invalid_provider_image",
       );
+    }
+    try { imageDimensions(Uint8Array.from(atob(data), c => c.charCodeAt(0)), outMime); }
+    catch {
+      trace?.update({ category: "malformed_image" });
+      throw new GenerationError("Gemini returned a preview that couldn’t be opened. Please try again.", 502, "invalid_provider_image");
+    }
+    trace?.update({ category: "success" });
     return { image, mode: "live", variationId: crypto.randomUUID(),
       cost: geminiCostReceipt(model, resolution, body?.usageMetadata) };
   }
-}
-
-/** Bounded categories only: provider text may contain clinical/patient details. */
-function classifyNoImageExplanation(parts: GeminiPart[]): string {
-  const text = parts.filter(p => p?.thought !== true && typeof p?.text === "string").map(p => p.text).join(" ");
-  if (!text) return "none";
-  if (/safety|policy|prohibited|not allowed|public figure|celebrity/i.test(text)) return "policy";
-  if (/exact.*(pixel|dimension)|pixel.*exact|resolution|aspect ratio/i.test(text)) return "dimensions";
-  if (/medical advice|diagnos|treatment plan/i.test(text)) return "medical_context";
-  if (/cannot|can't|unable|sorry|not able/i.test(text)) return "declined";
-  return "other";
 }

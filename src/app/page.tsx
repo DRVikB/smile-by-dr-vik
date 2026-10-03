@@ -72,6 +72,8 @@ import { toothSummary } from "@/lib/teeth";
 import { AI_CONSENT_VERSION, fingerprintPhotoForConsent, type AiProcessingConsent } from "@/lib/aiConsent";
 import { apiUrl } from "@/services/api/client";
 import { generateSmileImage } from "@/services/ai/smileImageService";
+import { startGenerationDiagnostic, type GenerationStage } from "@/services/ai/generationDiagnostics";
+import { earliestGenerationStage } from "@/lib/generation/progress";
 import { onWorkspaceDetach, type WorkspaceLease } from "@/lib/workspace";
 import { createLibraryStore } from "@/lib/caseLibrary";
 import { getCaseRepository } from "@/services/cases/caseRepository";
@@ -115,27 +117,32 @@ async function lockFace(
   image: string,
   settings: SmileSettings,
   scope: WorkspaceLease,
+  stage: (value: GenerationStage) => void = () => {},
 ): Promise<Pick<GenerationResult, "image" | "faceLocked" | "lipsMoved" | "editAreaProtected" | "toothProtection">> {
   scope.assert();
   const { lockFaceOutsideLips } = await import("@/lib/face/mouthLock");
   scope.assert();
+  stage("mouth_composite");
   const r = await lockFaceOutsideLips(photo.dataUrl, image);
   scope.assert();
   if (r.invalidAlignment)
-    throw new Error("The image service returned a preview that does not match your original photo's framing. It has not been shown or saved. Please generate again; your photo and selections are unchanged.");
+    throw new SmileGenerationError("The image service returned a preview that does not match your original photo's framing. It has not been shown or saved. Please generate again; your photo and selections are unchanged.", r.failureReason ?? "mouth_alignment_rejected");
   const { generationProtectionPlan, protectWithToothMap } = await import("@/lib/toothMap/protect");
   const preciseTooth = photo.toothMap && generationProtectionPlan(photo.toothMap, photo.dataUrl, settings).ok;
   if (!r.locked && settings.shotType === "Full face" && !photo.editMask && !preciseTooth)
-    throw new Error("This preview could not be aligned and protected against your original face. It has not been presented. Your photo is safe; use Protect edit area or a clearer photo before trying again.");
+    throw new SmileGenerationError("This preview could not be aligned and protected against your original face. It has not been presented. Your photo is safe; use Protect edit area or a clearer photo before trying again.", r.failureReason ?? "stage_failed");
+  if (photo.editMask) stage("edit_area_composite");
   let imageOut = photo.editMask ? await (await import("@/lib/editMask")).protectOutsideEditMask(photo.dataUrl, r.image, photo.editMask) : r.image;
   let toothProtection: GenerationResult["toothProtection"];
   const archOnly = settings.treatmentMode === "full_arch" && settings.fullArch && settings.fullArch.arch !== "both" ? settings.fullArch.arch : null;
   const arch = archOnly ? await import("@/lib/toothMap/arch") : null;
   if (arch?.FULL_ARCH_ARCH_COMPOSITE && archOnly && photo.toothMap?.mouthOpening && photo.toothMap.photoId === (await import("@/lib/toothMap/types")).photoFingerprint(photo.dataUrl)) {
     // Full-arch, one arch (only when enabled): everything outside that arch — the opposite arch included — is the original photo.
+    stage("arch_composite");
     const outcome = await arch.protectArch(photo.dataUrl, imageOut, photo.toothMap, archOnly);
     if (outcome) { imageOut = outcome.image; toothProtection = outcome.protection; }
   } else if (photo.toothMap && preciseTooth) {
+    stage("tooth_composite");
     const { TOOTH_MAP_DEBUG, rememberToothDebug } = await import("@/lib/toothMap/debug");
     const outcome = await protectWithToothMap(photo.dataUrl, imageOut, photo.toothMap, settings, { debug: TOOTH_MAP_DEBUG });
     imageOut = outcome.image;
@@ -170,6 +177,7 @@ export default function Smile() {
   const [uploadAuthority, setUploadAuthority] = useState<UploadAuthority | null>(null);
   const [settings, setSettings] = useState(defaultSettings);
   const [result, setResult] = useState<GenerationResult | null>(null);
+  const [generationStage, setGenerationStage] = useState<GenerationStage>("preflight");
   const [requestLimit, setRequestLimit] = useState(0);
   const [batchPending, setBatchPending] = useState<{ label: string; note: string; patch: Partial<SmileSettings> }[] | null>(null);
   const [aiConsent, setAiConsent] = useState<AiProcessingConsent | null>(null);
@@ -588,7 +596,9 @@ export default function Smile() {
     settingsIn: SmileSettings,
     controller: AbortController,
     consentVersion?: string,
+    onStage: (stage: GenerationStage) => void = () => {},
   ): Promise<GenerationResult> {
+    onStage("preflight");
     const started = performance.now();
     const session = costSession.current;
     // Use a reviewed map when available, but never wait for tooth detection or
@@ -596,11 +606,14 @@ export default function Smile() {
     const toothPlan = (await import("@/lib/toothMap/protect")).generationProtectionPlan(photoIn.toothMap, photoIn.dataUrl, settingsIn);
     const preferences: PreviewPreferences = { styleReferenceStatus: "off", styleReferenceCount: 0, settings: structuredClone(settingsIn), referenceUsed: Boolean(reference), testMode };
     if (testMode) {
+      onStage("request");
       const demoImage = await loadDemoPreview(settingsIn, controller.signal);
       await new Promise((resolve) => setTimeout(resolve, 900));
       if (controller.signal.aborted) throw controller.signal.reason;
       const { alignPreview } = await import("@/lib/photos");
-      const locked = await lockFace(photoIn, await alignPreview(demoImage, photoIn), settingsIn, repository.scope);
+      onStage("align");
+      const locked = await lockFace(photoIn, await alignPreview(demoImage, photoIn), settingsIn, repository.scope, onStage);
+      onStage("complete");
       return {
         ...locked,
         mode: "live",
@@ -608,80 +621,100 @@ export default function Smile() {
         preferences,
       };
     }
-    // Check existing protection before spending a generation. A reviewed
-    // selected-tooth mask or clinician-painted area can also protect the face.
-    if (settingsIn.shotType === "Full face" && !photoIn.editMask && !toothPlan.ok) {
-      const { detectFace } = await import("@/lib/face/landmarks");
-      repository.scope.assert();
-      const points = await detectFace(photoIn.dataUrl, controller.signal);
-      if (controller.signal.aborted) throw controller.signal.reason;
-      if (!points) throw new Error("Face protection could not find the mouth in this photo. Use a clearer full-face photo or Protect edit area. No generation request was sent.");
-    }
-    // Case Library style references are attached by the server, from the
-    // signed-in account's own private library; the app never sends them. The
-    // matching IDs only make the reuse fingerprint change when the library does.
-    const styleReferences = settingsIn.libraryStyle
-      ? findMatchingStyleReferences(caseLibrary.candidates, settingsIn, DEFAULT_STYLE_REFERENCE_LIMIT).map(m => m.id)
-      : [];
-    if (controller.signal.aborted) throw controller.signal.reason;
-    const toothMapKey = toothPlan.ok && photoIn.toothMap ? { precisionVersion: 2, photoId: photoIn.toothMap.photoId, teeth: photoIn.toothMap.teeth.map(t => [t.fdi, t.visible, t.outline]) } : null;
-    const protectionVersion = (await import("@/lib/face/lock")).MOUTH_LOCK_VERSION;
-    const fingerprint = await previewFingerprint({ image: photoIn.dataUrl, editMask: photoIn.editMask, toothMap: toothMapKey, settings: settingsIn, resolution: effectiveResolution, provider: pricing?.model, reference: reference?.dataUrl, styleReferences, protectionVersion });
-    const reusable = [result, ...variants.map(v => v.result)].find(r => r?.requestFingerprint === fingerprint);
-    if (reusable) return reusable;
-    if (exceedsRequestLimit(costs.requested, 1, requestLimit)) throw new Error("This case has reached its generation limit. Change the case limit under Allowance to create more.");
-    const { prepareGenerationPhoto } = await import("@/lib/photos");
-    const requestCanvas = await prepareGenerationPhoto(photoIn);
-    if (controller.signal.aborted) throw controller.signal.reason;
-    const editMask = toothPlan.ok && photoIn.toothMap
-      ? (await import("@/lib/toothMap/protect")).guidanceMask(photoIn.toothMap, photoIn.dataUrl, settingsIn, requestCanvas.photo, requestCanvas.sourceBounds)
-      : undefined;
-    let next = await generateSmileImage({
-      caseId,
-      originalImage: requestCanvas.photo.dataUrl,
-      editMask,
-      sourceBounds: requestCanvas.sourceBounds,
-      framing: requestCanvas.photo.framing,
-      resolution: effectiveResolution,
-      referenceImage: reference?.dataUrl,
-      settings: settingsIn,
-      consentVersion,
-    }, {
-      signal: controller.signal,
-      accessToken: await account.getAccessToken(),
-      onSubmitted: () => setCosts((c) => ({ ...c, requested: c.requested + 1 })),
-    });
-    repository.scope.assert();
-    if (costSession.current === session) {
-      const receipt = next.mode === "mock"
-        ? { usd: 0, basis: "usage" as const, model: "mock", resolution: effectiveResolution }
-        : next.cost;
-      setCosts((c) => completeCost(c, receipt));
-    }
-    const { alignPreview } = await import("@/lib/photos");
-    const alignedImage = await alignPreview(next.image, photoIn, requestCanvas);
-    repository.scope.assert();
-    next = { ...next, image: alignedImage };
-    if (next.mode === "live") {
-      next = { ...next, ...(await lockFace(photoIn, alignedImage, settingsIn, repository.scope)) };
-      // Advisory only, and only when there's a trustworthy anchor to check
-      // against — an uploaded photo has no capture guide to measure from.
-      if (photoIn.framing) {
-        const assessment = await assessResultScaleFromDataUrls(
-          photoIn.dataUrl,
-          next.image,
-          photoIn.framing,
-        ).catch(() => null);
-        if (assessment) next = { ...next, scaleFlag: assessment.flag };
+    const requestId = crypto.randomUUID();
+    const diagnostic = startGenerationDiagnostic({ requestId,
+      generationPath: settingsIn.treatmentMode === "full_arch" ? "full_arch" : settingsIn.alignment ? "alignment" : settingsIn.selectedTeeth.length === 1 ? "single_tooth" : settingsIn.toothPlans?.length ? "custom" : "standard",
+      selectedToothCount: settingsIn.selectedTeeth.length, sourceWidth: photoIn.width, sourceHeight: photoIn.height });
+    const reportStage = (stage: GenerationStage) => { diagnostic.stage(stage); onStage(stage); };
+    try {
+      // Check existing protection before spending a generation. A reviewed
+      // selected-tooth mask or clinician-painted area can also protect the face.
+      if (settingsIn.shotType === "Full face" && !photoIn.editMask && !toothPlan.ok) {
+        const { detectFace } = await import("@/lib/face/landmarks");
+        repository.scope.assert();
+        const points = await detectFace(photoIn.dataUrl, controller.signal);
+        if (controller.signal.aborted) throw controller.signal.reason;
+        if (!points) throw new Error("Face protection could not find the mouth in this photo. Use a clearer full-face photo or Protect edit area. No generation request was sent.");
       }
+      // Case Library style references are attached by the server, from the
+      // signed-in account's own private library; the app never sends them. The
+      // matching IDs only make the reuse fingerprint change when the library does.
+      const styleReferences = settingsIn.libraryStyle
+        ? findMatchingStyleReferences(caseLibrary.candidates, settingsIn, DEFAULT_STYLE_REFERENCE_LIMIT).map(m => m.id)
+        : [];
+      if (controller.signal.aborted) throw controller.signal.reason;
+      const toothMapKey = toothPlan.ok && photoIn.toothMap ? { precisionVersion: 2, photoId: photoIn.toothMap.photoId, teeth: photoIn.toothMap.teeth.map(t => [t.fdi, t.visible, t.outline]) } : null;
+      const protectionVersion = (await import("@/lib/face/lock")).MOUTH_LOCK_VERSION;
+      const fingerprint = await previewFingerprint({ image: photoIn.dataUrl, editMask: photoIn.editMask, toothMap: toothMapKey, settings: settingsIn, resolution: effectiveResolution, provider: pricing?.model, reference: reference?.dataUrl, styleReferences, protectionVersion });
+      const reusable = [result, ...variants.map(v => v.result)].find(r => r?.requestFingerprint === fingerprint);
+      if (reusable) { diagnostic.finish("reused"); onStage("complete"); return reusable; }
+      if (exceedsRequestLimit(costs.requested, 1, requestLimit)) throw new Error("This case has reached its generation limit. Change the case limit under Allowance to create more.");
+      const { prepareGenerationPhoto } = await import("@/lib/photos");
+      reportStage("prepare_image");
+      const requestCanvas = await prepareGenerationPhoto(photoIn);
+      diagnostic.dimensions(requestCanvas.photo.width, requestCanvas.photo.height);
+      if (controller.signal.aborted) throw controller.signal.reason;
+      reportStage("prepare_mask");
+      const editMask = toothPlan.ok && photoIn.toothMap
+        ? (await import("@/lib/toothMap/protect")).guidanceMask(photoIn.toothMap, photoIn.dataUrl, settingsIn, requestCanvas.photo, requestCanvas.sourceBounds)
+        : undefined;
+      reportStage("request");
+      let next = await generateSmileImage({
+        caseId,
+        originalImage: requestCanvas.photo.dataUrl,
+        editMask,
+        sourceBounds: requestCanvas.sourceBounds,
+        framing: requestCanvas.photo.framing,
+        resolution: effectiveResolution,
+        referenceImage: reference?.dataUrl,
+        settings: settingsIn,
+        consentVersion,
+      }, {
+        requestId,
+        onResponse: diagnostic.response, onProviderDiagnostic: diagnostic.provider,
+        signal: controller.signal,
+        accessToken: await account.getAccessToken(),
+        onSubmitted: () => setCosts((c) => ({ ...c, requested: c.requested + 1 })),
+      });
+      repository.scope.assert();
+      if (costSession.current === session) {
+        const receipt = next.mode === "mock"
+          ? { usd: 0, basis: "usage" as const, model: "mock", resolution: effectiveResolution }
+          : next.cost;
+        setCosts((c) => completeCost(c, receipt));
+      }
+      const { alignPreview } = await import("@/lib/photos");
+      reportStage("align");
+      const alignedImage = await alignPreview(next.image, photoIn, requestCanvas);
+      repository.scope.assert();
+      next = { ...next, image: alignedImage };
+      if (next.mode === "live") {
+        next = { ...next, ...(await lockFace(photoIn, alignedImage, settingsIn, repository.scope, reportStage)) };
+        reportStage("quality_check");
+        // Advisory only, and only when there's a trustworthy anchor to check
+        // against — an uploaded photo has no capture guide to measure from.
+        if (photoIn.framing) {
+          const assessment = await assessResultScaleFromDataUrls(
+            photoIn.dataUrl,
+            next.image,
+            photoIn.framing,
+          ).catch(() => null);
+          if (assessment) next = { ...next, scaleFlag: assessment.flag };
+        }
+      }
+      repository.scope.assert();
+      if (settingsIn.libraryStyle) {
+        const used = next.styleReferencesUsed?.count ?? 0;
+        preferences.styleReferenceCount = used;
+        preferences.styleReferenceStatus = used ? "used" : "no-match";
+      }
+      diagnostic.finish("succeeded");
+      onStage("complete");
+      return { ...next, preferences, requestFingerprint: fingerprint, elapsedSeconds: (performance.now() - started) / 1000 };
+    } catch (error) {
+      diagnostic.fail(controller.signal.aborted ? "cancelled" : error instanceof SmileGenerationError ? error.code : "stage_failed");
+      throw error;
     }
-    repository.scope.assert();
-    if (settingsIn.libraryStyle) {
-      const used = next.styleReferencesUsed?.count ?? 0;
-      preferences.styleReferenceCount = used;
-      preferences.styleReferenceStatus = used ? "used" : "no-match";
-    }
-    return { ...next, preferences, requestFingerprint: fingerprint, elapsedSeconds: (performance.now() - started) / 1000 };
   }
 
   /** Every generated preview is logged locally so it can be found again later. */
@@ -779,13 +812,16 @@ export default function Smile() {
     if (consentForRequest && !testMode && !await persistConsentBeforeGeneration(consentForRequest, photo, used)) return;
     const controller = new AbortController();
     request.current = controller;
+    setGenerationStage("preflight");
     setBusy(true);
     setError("");
     try {
       await waitForGenerationScreen();
       if (controller.signal.aborted) return;
       const [next] = await Promise.all([
-        requestPreview(photo, used, controller, consentForRequest?.version),
+        requestPreview(photo, used, controller, consentForRequest?.version, stage => {
+          if (request.current === controller && !controller.signal.aborted) setGenerationStage(stage);
+        }),
         new Promise((resolve) => setTimeout(resolve, 2300)),
       ]);
       if (controller.signal.aborted) return;
@@ -825,6 +861,7 @@ export default function Smile() {
     if (consentForRequest && !testMode && !await persistConsentBeforeGeneration(consentForRequest, photo, settings)) return;
     const controller = new AbortController();
     request.current = controller;
+    setGenerationStage("preflight");
     setBusy(true);
     setError("");
     const originalPhoto = photo;
@@ -832,8 +869,9 @@ export default function Smile() {
       await waitForGenerationScreen();
       if (controller.signal.aborted) return;
       const minimumDisplay = new Promise((resolve) => window.setTimeout(resolve, 1700));
+      const stages: GenerationStage[] = wanted.map(() => "preflight");
       const settled = await Promise.allSettled(
-        wanted.map(async (v) => ({
+        wanted.map(async (v, index) => ({
           ...v,
           settings: { ...settings, ...v.patch },
           result: await requestPreview(
@@ -841,6 +879,11 @@ export default function Smile() {
             { ...settings, ...v.patch },
             controller,
             consentForRequest?.version,
+            stage => {
+              stages[index] = stage;
+              if (request.current === controller && !controller.signal.aborted)
+                setGenerationStage(earliestGenerationStage(stages));
+            },
           ),
         })),
       );
@@ -1578,7 +1621,7 @@ export default function Smile() {
       )}
 
       {busy && photo && (
-        <GenerationState onCancel={cancelGeneration} testMode={testMode} photo={photo.dataUrl} />
+        <GenerationState onCancel={cancelGeneration} testMode={testMode} photo={photo.dataUrl} stage={generationStage} />
       )}
 
       {error && (

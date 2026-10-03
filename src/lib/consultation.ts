@@ -23,6 +23,7 @@ import { FULL_ARCH_DISCLAIMER, fullArchLabel, isFullArch } from "./types";
 const SHAPE_NAMES: Record<ToothShape, string> = { Square: "Square", Rounded: "Round", Triangular: "Triangle" };
 
 const TREATMENT_NAMES: Record<Treatment, string> = {
+  Whitening: "Whitening",
   Composite: "Composite bonding",
   "Single-shade composite": "Composite bonding",
   "Layered composite": "Layered composite bonding",
@@ -360,7 +361,7 @@ export function initialReportDraft(input: {
     observations,
     priorities: settings ? designPriorities(settings).map(p => ({ ...p, include: true })) : [],
     // An estimate from the design settings is medium confidence: offered, not included.
-    shade: { value: settings && !settings.alignment?.only ? settings.currentShade : null, confirmed: false, include: false },
+    shade: { value: settings?.currentShadeSource && !settings.alignment?.only ? settings.currentShade ?? null : null, confirmed: settings?.currentShadeSource === "clinician", include: false },
     note: "",
     patientLabel: input.patientLabel?.trim() ?? "",
     date: (input.now ?? new Date()).toISOString(),

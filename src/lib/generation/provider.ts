@@ -1,3 +1,6 @@
+import { imageDimensions } from "./openai";
+import { safeProviderDiagnostic, type ProviderDiagnostic, type ProviderTrace, type DiagnosticContext } from "./providerDiagnostics";
+import { activeToothPlans } from "../teeth";
 import { OpenAISmileProvider } from "./openai";
 import { GeminiSmileProvider } from "./gemini";
 import { GenerationError } from "./errors";
@@ -21,6 +24,7 @@ export interface SmileImageProvider {
   generate(
     input: GenerationInput,
     signal?: AbortSignal,
+    trace?: ProviderTrace,
   ): Promise<GenerationResult>;
 }
 /** Honest no-op simulation: never invent an anatomical edit to a patient photo. */
@@ -46,29 +50,42 @@ export class HttpSmileProvider implements SmileImageProvider {
   async generate(
     input: GenerationInput,
     signal?: AbortSignal,
+    trace?: ProviderTrace,
   ): Promise<GenerationResult> {
     if (new URL(this.endpoint).protocol !== "https:")
       throw new Error("Provider endpoint requires HTTPS.");
-    const response = await fetch(this.endpoint, {
+    const { settings, ...imageInput } = input;
+    const timeout = AbortSignal.timeout(90000);
+    let response: Response;
+    try { response = await fetch(this.endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify({
-        ...input,
-        instruction: buildSmileInstruction(input.settings, Boolean(input.referenceImage), input.framing, input.styleReferences?.length ?? 0, input.sourceBounds),
+        ...imageInput,
+        instruction: buildSmileInstruction(settings, Boolean(input.referenceImage), input.framing, input.styleReferences?.length ?? 0, input.sourceBounds),
         variationId: crypto.randomUUID(),
       }),
       signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(90000)])
-        : AbortSignal.timeout(90000),
+        ? AbortSignal.any([signal, timeout])
+        : timeout,
       cache: "no-store",
     });
-    if (!response.ok)
+    } catch (error) {
+      trace?.update({ category: timeout.aborted ? "timeout" : signal?.aborted ? "cancelled" : "transport_error" });
+      throw error;
+    }
+    trace?.update({ httpStatus: response.status });
+    if (!response.ok) {
+      trace?.update({ category: "http_error" });
       throw new Error("Image provider could not complete the request.");
-    const result = await response.json();
-    const image = imageSchema.parse(result.image);
+    }
+    let result;
+    try { result = await response.json(); } catch (error) { trace?.update({ category: "malformed_response" }); throw error; }
+    trace?.update({ category: "malformed_image", imagePartExisted: typeof result?.image === "string", partCount: result?.image ? 1 : 0 });
+    const image = imageSchema.parse(result?.image);
     return { image, mode: "live", variationId: crypto.randomUUID() };
   }
 }
@@ -184,10 +201,47 @@ export async function generateSmile(
   input: unknown,
   signal?: AbortSignal,
   provider = getSmileProvider(),
+  diagnostics?: DiagnosticContext,
 ): Promise<GenerationResult> {
   const parsed = generationSchema.parse(input);
   if (isNoChangeDesign(parsed.settings)) throw new GenerationError("This selection makes no change. Select teeth to edit and choose a different shade or design goal.", 400, "generation_failed");
-  const result = await provider.generate(parsed, signal);
+  const [prefix, encoded] = parsed.originalImage.split(",");
+  const dimensions = imageDimensions(Uint8Array.from(atob(encoded), c => c.charCodeAt(0)), prefix.includes("image/png") ? "image/png" : "image/jpeg");
+  const settings = parsed.settings;
+  const selectedCount = activeToothPlans(settings).length;
+  let diagnostic: ProviderDiagnostic = {
+    requestId: diagnostics?.requestId ?? crypto.randomUUID(), provider: provider.vendor ?? provider.name,
+    model: provider.model ?? provider.name, promptVersion: SMILE_PROMPT_VERSION,
+    category: "started", httpStatus: null, latencyMs: null, retryCount: 0,
+    treatmentMode: settings.treatmentMode === "full_arch" ? "full_arch" : settings.alignment?.only ? "alignment" : settings.treatment === "Whitening" ? "whitening" : selectedCount === 1 ? "single_tooth" : "standard",
+    selectedToothCount: settings.treatmentMode === "full_arch" || settings.alignment?.only ? null : selectedCount,
+    inputWidth: dimensions.width, inputHeight: dimensions.height, requestedWidth: null, requestedHeight: null,
+  };
+  const emit = async () => {
+    const safe = safeProviderDiagnostic(diagnostic);
+    if (!safe || !diagnostics) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.resolve().then(() => diagnostics.onDiagnostic(safe)),
+        new Promise<void>(resolve => { timer = setTimeout(resolve, 1000); }),
+      ]);
+    } catch { /* Logging never changes delivery or allowance. */ }
+    finally { clearTimeout(timer); }
+  };
+  await emit();
+  const started = Date.now();
+  let result: GenerationResult;
+  try {
+    result = await provider.generate(parsed, signal, { update: patch => { diagnostic = { ...diagnostic, ...patch }; } });
+    diagnostic.category = "success";
+  } catch (error) {
+    if (diagnostic.category === "started") diagnostic.category = signal?.aborted ? "cancelled" : "unknown_response";
+    throw error;
+  } finally {
+    diagnostic.latencyMs = Date.now() - started;
+    await emit();
+  }
   return {
     ...result,
     generation: {

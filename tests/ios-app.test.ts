@@ -65,7 +65,7 @@ test("results carry provider, model and prompt-version metadata", async () => {
 
 test("the prompt frames a concept, protects anatomy and never adds or removes teeth", () => {
   const prompt = buildSmileGenerationPrompt(defaultSettings);
-  for (const phrase of ["concept visualisation", "Never add or remove teeth", "eyes, nose, skin, hair", "background, camera perspective", "natural incisal embrasures", "artificial veneer look"])
+  for (const phrase of ["AI visual concept", "Never add or remove teeth", "eyes, nose, skin, hair", "background, camera perspective", "natural incisal embrasures", "never identical copied teeth"])
     assert.ok(prompt.includes(phrase), phrase);
 });
 

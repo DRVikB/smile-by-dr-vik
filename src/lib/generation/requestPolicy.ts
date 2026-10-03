@@ -3,7 +3,8 @@ export function exceedsRequestLimit(requested: number, next: number, limit?: num
   return Boolean(limit && requested + next > limit);
 }
 /** Local hash used to reuse an exact result; never sent to the provider. */
-export const GENERATION_RULES_VERSION = "2026-10-02-complete-photograph-v5";
+export { SMILE_PROMPT_VERSION as GENERATION_RULES_VERSION } from "./version";
+import { SMILE_PROMPT_VERSION as GENERATION_RULES_VERSION } from "./version";
 export async function previewFingerprint(value: unknown): Promise<string> {
   const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify({ rules: GENERATION_RULES_VERSION, input: value })));
   return Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2,"0")).join("");

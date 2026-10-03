@@ -65,6 +65,7 @@ const ALIGNMENT_ARCHES: { value: AlignmentArches; label: string }[] = [
 ];
 
 const TREATMENTS: { value: Treatment; title: string; detail: string }[] = [
+  { value: "Whitening", title: "Whitening", detail: "Colour only · keeps tooth shape and position" },
   { value: "Single-shade composite", title: "Composite bonding", detail: "Single shade · additive, conservative" },
   { value: "Layered composite", title: "Layered composite", detail: "Natural translucency and depth" },
   { value: "Porcelain", title: "Porcelain veneers", detail: "Uniform, high-lustre finish" },
@@ -77,7 +78,7 @@ const FULL_ARCH_RESTORATIONS: { value: FullArchPlan["restorationType"]; label: s
   { value: "zirconia", label: "Zirconia" }, { value: "provisional", label: "Provisional" },
 ];
 const PROSTHETIC_GINGIVA: { value: FullArchPlan["prostheticGingiva"]; label: string }[] = [
-  { value: "auto", label: "Auto" }, { value: "include", label: "Include" }, { value: "exclude", label: "Exclude" },
+  { value: "exclude", label: "Preserve" }, { value: "include", label: "Include" },
 ];
 export const archLabel = (arch: FullArchPlan["arch"]) => (arch === "both" ? "Upper + Lower" : arch === "upper" ? "Upper" : "Lower");
 export const restorationLabel = (r: FullArchPlan["restorationType"]) => (r === "zirconia" ? "Zirconia" : "Provisional");
@@ -173,8 +174,8 @@ export function DesignStudio({
     { id: "shade", value: QUICK_SHADES.find(q => q.value === settings.targetShade)?.label ?? settings.targetShade },
     { id: "treatment", value: `Full-arch restoration · ${restorationLabel(fullArch.restorationType)}${fullArch.prostheticGingiva === "auto" ? "" : ` · ${fullArch.prostheticGingiva === "include" ? "with" : "no"} prosthetic gingiva`}` },
   ] : [
-    { id: "teeth", value: alignment?.only ? `${alignment.arches === "Both" ? "Both arches" : `${alignment.arches} arch`} · positions only` : `${toothSummary(settings)}${settings.designIntent && settings.designIntent !== "Auto" ? ` · ${settings.designIntent}` : ""}` },
-    { id: "shape", value: alignment?.only ? "Unchanged (alignment only)" : `${shape?.name ?? settings.shape} · ${settings.character}` },
+    { id: "teeth", value: alignment?.only ? `${alignment.arches === "Both" ? "Both arches" : `${alignment.arches} arch`} · positions only` : `${toothSummary(settings)}${settings.treatment === "Whitening" ? " · Colour only" : settings.designIntent && settings.designIntent !== "Auto" ? ` · ${settings.designIntent}` : ""}` },
+    { id: "shape", value: alignment?.only ? "Unchanged (alignment only)" : settings.treatment === "Whitening" ? "Unchanged (whitening)" : `${shape?.name ?? settings.shape} · ${settings.character}` },
     { id: "shade", value: alignment?.only ? "Kept (alignment only)" : QUICK_SHADES.find(q => q.value === settings.targetShade)?.label ?? settings.targetShade },
     { id: "treatment", value: alignment ? (alignment.only ? alignedLabel : `${alignedLabel} + ${restoration.toLowerCase()}`) : restoration },
   ];
@@ -276,6 +277,7 @@ export function DesignStudio({
           {page("shape", <>
             <header className="studio-card-head">
               <h3>Shape</h3>
+              {settings.treatment === "Whitening" && !fullArch && <p>Whitening keeps tooth shape, edges and texture. These choices are retained for restorative treatments.</p>}
               <p>Choose a tooth form that suits the patient’s features.</p>
             </header>
             <div className="studio-shapes" role="group" aria-label="Tooth shape">
@@ -323,11 +325,11 @@ export function DesignStudio({
             <p className="studio-summary"><strong>{QUICK_SHADES.find(s => s.value === settings.targetShade)?.label ?? settings.targetShade}</strong><span>{shadeDescription(settings.targetShade)}</span></p>
             <More>
               <div className="control-group">
-                <div className="control-label"><span>Current shade</span><span className="muted">Clinician assessed</span></div>
+                <div className="control-label"><span>Current shade</span><span className="muted">{settings.currentShadeSource === "clinician" ? "Clinician confirmed" : settings.currentShadeSource === "estimated" ? "Visual estimate" : "Not confirmed"}</span></div>
                 <div className="segmented" role="group" aria-label="Current shade">
-                  {CURRENT_SHADES.map(s => <button key={s} type="button" aria-pressed={settings.currentShade === s} className={settings.currentShade === s ? "selected" : ""} onClick={() => change("currentShade", s)}>{s}</button>)}
+                  {CURRENT_SHADES.map(s => <button key={s} type="button" aria-pressed={settings.currentShadeSource === "clinician" && settings.currentShade === s} className={settings.currentShadeSource === "clinician" && settings.currentShade === s ? "selected" : ""} onClick={() => onChange({ ...settings, currentShade: s, currentShadeSource: "clinician" })}>{s}</button>)}
                 </div>
-                <p className="control-hint">Used with a specific target shade. A photograph can’t diagnose shade; swatches are indicative.</p>
+                <p className="control-hint">Choose only after clinical assessment. An unconfirmed or estimated shade does not override the photograph; swatches are indicative.</p>
               </div>
               <div className="control-group">
                 <div className="control-label"><label htmlFor="intensity">Result intensity</label></div>
@@ -397,9 +399,9 @@ export function DesignStudio({
                       <div className="control-group">
                         <div className="control-label">Prosthetic gingiva</div>
                         <div className="segmented" role="group" aria-label="Prosthetic gingiva">
-                          {PROSTHETIC_GINGIVA.map(g => <button key={g.value} type="button" aria-pressed={fullArch.prostheticGingiva === g.value} className={fullArch.prostheticGingiva === g.value ? "selected" : ""} onClick={() => setFullArch({ prostheticGingiva: g.value })}>{g.label}</button>)}
+                          {PROSTHETIC_GINGIVA.map(g => <button key={g.value} type="button" aria-pressed={(fullArch.prostheticGingiva === "include" ? "include" : "exclude") === g.value} className={(fullArch.prostheticGingiva === "include" ? "include" : "exclude") === g.value ? "selected" : ""} onClick={() => setFullArch({ prostheticGingiva: g.value })}>{g.label}</button>)}
                         </div>
-                        <p className="control-hint">Auto adds pink prosthetic gum only where the visible ridge would need it.</p>
+                        <p className="control-hint">Preserve keeps natural visible gums. Include permits changes to the selected prosthetic gum interface only.</p>
                       </div>
                     </div>
                   </details>
@@ -465,7 +467,7 @@ export function DesignStudio({
             </div>
             <div className="studio-case">{caseBar}</div>
             <div className="studio-variations" role="group" aria-label="Or compare three options">
-              <button type="button" className="studio-variation" disabled={busy || settings.designIntent === "Shade only"} onClick={onHarmonise}>
+              <button type="button" className="studio-variation" disabled={busy || settings.designIntent === "Shade only" || (!fullArch && settings.treatment === "Whitening")} onClick={onHarmonise}>
                 <VisualiseSymbol size={20} /><span>3 harmonised</span>
                 {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
               </button>
@@ -473,11 +475,12 @@ export function DesignStudio({
                 <CompareSymbol size={20} /><span>3 materials</span>
                 {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
               </button>
-              <button type="button" className="studio-variation" disabled={busy || settings.designIntent === "Shade only"} onClick={onCompare}>
+              <button type="button" className="studio-variation" disabled={busy || settings.designIntent === "Shade only" || (!fullArch && settings.treatment === "Whitening")} onClick={onCompare}>
                 <ComposeSymbol size={20} /><span>3 shapes</span>
                 {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
               </button>
             </div>
+            {!fullArch && settings.treatment === "Whitening" && <p className="control-hint">Whitening changes colour only. Shape and harmonised-design comparisons are unavailable for this treatment.</p>}
             <GenerationCosts {...costs} />
           </>)}
         </fieldset>

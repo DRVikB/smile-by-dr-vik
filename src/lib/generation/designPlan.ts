@@ -34,6 +34,7 @@ const GOALS: Record<DesignIntent, { summary: string; instruction: string }> = {
 };
 
 const MATERIAL: Record<Treatment, string> = {
+  Whitening: "Whitening changes dental colour only; preserve morphology, edges, texture and positions.",
   Composite: "Composite technique is unspecified in this legacy case. Use restrained composite surface realism without assuming single-shade or a layered recipe. Keep the design additive; do not simulate tooth movement or hidden tooth reduction.",
   "Single-shade composite": "Single-shade composite means a clinician-selected single-shade bonding technique, not necessarily a universal one-shade product. Use one body shade with plausible blending and light-dependent depth. Do not add an elaborate separate dentine/enamel layering pattern, exaggerated incisal halo or fabricated mamelons. It must not look artificially flat or opaque. Keep the design additive; if the requested contour would require reduction or movement, preserve that feature. Unknown substrate, thickness and product prevent an exact optical prediction.",
   "Layered composite": "Layered composite: allow restrained dentine/body/enamel depth, cervical-to-incisal transitions and incisal translucency appropriate to the chosen texture and supplied comparable cases. Do not automatically make this option whiter, longer or better shaped. Keep the design additive; do not simulate hidden reduction or orthodontic movement. Do not invent a particular resin recipe or thickness.",
@@ -41,7 +42,7 @@ const MATERIAL: Record<Treatment, string> = {
 };
 
 export function resolveDesignPlan(settings: SmileSettings) {
-  const intent = settings.designIntent ?? "Auto";
+  const intent = settings.treatment === "Whitening" ? "Shade only" : settings.designIntent ?? "Auto";
   return { intent, ...GOALS[intent], material: MATERIAL[settings.treatment],
     colourOnly: intent === "Shade only", useFacialGuides: settings.shotType === "Full face" && intent !== "Shade only" };
 }

@@ -259,9 +259,9 @@ test("each tooth's own design reaches the prompt for that tooth only; length is 
   assert.match(toothDesignInstruction({ tooth: 11, intent: "Auto", condition: "Natural", shape: "Soft square", edge: "Level", width: 1 }), /soft square.*slightly wider.*level/);
   const s = updateToothPlan(settings({ teeth: 6, selectedTeeth: upperTeeth[6] }), { tooth: 11, intent: "Auto", condition: "Natural", length: 1 });
   const prompt = buildSmileInstruction(s);
-  assert.match(prompt, /EDGE PERMISSION FDI 11: The clinician explicitly requests this tooth slightly longer/);
-  assert.doesNotMatch(prompt, /EDGE PERMISSION FDI [0-9, ]*\b11\b[0-9, ]*: Keep incisal edge/, "11's default policy is replaced");
-  assert.match(buildSmileInstruction(s, false, undefined, 0, undefined, true), /EDIT MASK: The final image is a black-and-white mask/);
+  assert.match(prompt, /FDI 11: Natural; clinician requests slightly longer/);
+  assert.doesNotMatch(prompt, /FDI [0-9, ]*\b11\b[0-9, ]*: Natural; keep edge positions/, "11's default policy is replaced");
+  assert.match(buildSmileInstruction(s, false, undefined, 0, undefined, true), /EDIT MASK: the final image is an aligned black-and-white guidance mask/);
   assert.doesNotMatch(prompt, /EDIT MASK/);
 });
 

@@ -121,7 +121,7 @@ test("a Pro user's generation is reserved, generated and committed", async () =>
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.equal(body.usage.remaining, 4);
-  assert.deepEqual(calls, [`period:subscription:${SUBSCRIPTION_PRODUCTS.monthly.generationsPerPeriod}`, `reserve:${id}`, `consent:ai_processing:smilecompose-ai-v2:case-7`, `commit:${id}`]);
+  assert.deepEqual(calls, [`period:subscription:${SUBSCRIPTION_PRODUCTS.monthly.generationsPerPeriod}`, `reserve:${id}`, `consent:ai_processing:smilecompose-ai-v2:case-7`, "audit:generation_provider_started", "audit:generation_provider_finished", `commit:${id}`]);
   assert.equal(providerCalls, 1);
 });
 
@@ -134,6 +134,38 @@ test("a failed provider call refunds the reservation", async () => {
   assert.ok(calls.includes(`reserve:${id}`));
   assert.ok(calls.some(c => c.startsWith(`release:${id}`)));
   assert.equal(calls.some(c => c.startsWith("commit")), false);
+});
+
+test("provider evidence is retained for the authenticated owner and returned on failure without raw content", async () => {
+  const events: { owner: string | null; event: string; metadata: unknown }[] = [];
+  let callsToGoogle = 0;
+  globalThis.fetch = async () => { callsToGoogle++; return Response.json({ candidates: [{ finishReason: "NO_IMAGE", content: { parts: [{ text: "PRIVATE_PROVIDER_EXPLANATION" }] } }] }); };
+  const { store, calls } = fakeStore({ recordSecurityEvent: async (owner, _actor, event, metadata) => { events.push({ owner, event, metadata }); } });
+  const id = crypto.randomUUID();
+  const request = generationRequest("good-token", id);
+  const response = await handleGenerationRequest(request, { SMILE_PROVIDER: "gemini", SMILE_GEMINI_API_KEY: "PRIVATE_API_KEY", SMILE_GEMINI_DATA_TERMS: "paid" }, async () => true, services(store));
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.equal(body.code, "provider_no_image");
+  assert.equal(body.providerDiagnostic.requestId, id);
+  assert.equal(body.providerDiagnostic.httpStatus, 200, "backend 502 is different from Google's 200");
+  assert.equal(body.providerDiagnostic.finishReasons, "NO_IMAGE");
+  assert.equal(body.providerDiagnostic.category, "text_only");
+  assert.deepEqual(events.map(e => [e.owner, e.event]), [[user.id, "generation_provider_started"], [user.id, "generation_provider_finished"]]);
+  assert.equal(calls.filter(c => c.startsWith(`release:${id}:`)).length, 1);
+  assert.equal(calls.some(c => c.startsWith("commit:")), false);
+  assert.equal(callsToGoogle, 1);
+  assert.doesNotMatch(JSON.stringify(events), /PRIVATE_|data:image|base64|case-7/);
+});
+
+test("failed diagnostic persistence cannot prevent the existing provider-failure allowance release", async () => {
+  stubProvider(false);
+  const { store, calls } = fakeStore({ recordSecurityEvent: async () => { throw new Error("PRIVATE_DATABASE_ERROR"); } });
+  const id = crypto.randomUUID();
+  const response = await handleGenerationRequest(generationRequest("good-token", id), liveEnv, async () => true, services(store));
+  assert.equal(response.status, 502);
+  assert.equal(calls.filter(c => c.startsWith(`release:${id}:`)).length, 1);
+  assert.equal(providerCalls, 1);
 });
 
 test("an exhausted allowance is refused before the provider is called", async () => {

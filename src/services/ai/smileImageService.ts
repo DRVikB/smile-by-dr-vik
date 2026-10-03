@@ -1,3 +1,4 @@
+import { safeProviderDiagnostic, type ProviderDiagnostic } from "@/lib/generation/providerDiagnostics";
 import type { Framing, GenerationResult, SmileSettings } from "@/lib/types";
 import type { ImageResolution } from "@/lib/generation/cost";
 import { modeForResolution } from "@/lib/generation/modes";
@@ -104,6 +105,10 @@ export function friendlyGenerationError(status: number, code?: string): SmileGen
 }
 
 export interface GenerateOptions {
+  /** Local QA correlation only; the same UUID is sent to the server ledger. */
+  requestId?: string;
+  onResponse?: (status: number) => void;
+  onProviderDiagnostic?: (record: ProviderDiagnostic) => void;
   signal?: AbortSignal;
   fetcher?: typeof fetch;
   online?: () => boolean;
@@ -125,7 +130,7 @@ export async function generateSmileImage(
   if (!canGenerate(await entitlements.current())) throw new SmileGenerationError(GENERATION_MESSAGES.allowance, "allowance_exhausted");
   if (signal?.aborted) throw signal.reason;
 
-  const requestId = crypto.randomUUID();
+  const requestId = options.requestId ?? crypto.randomUUID();
   const base = { requestId, caseId: request.caseId, mode } as const;
   emitGenerationEvent({ ...base, type: "started", timestamp: Date.now() });
   const fail = (error: SmileGenerationError) => {
@@ -168,12 +173,19 @@ export async function generateSmileImage(
       : new SmileGenerationError(GENERATION_MESSAGES.network, "network"));
   }
 
-  const body = await response.json().catch(() => null) as (Partial<GenerationResult> & { code?: string }) | null;
+  options.onResponse?.(response.status);
+  const body = await response.json().catch(() => null) as (Partial<GenerationResult> & { code?: string; providerDiagnostic?: unknown }) | null;
+  const diagnostic = safeProviderDiagnostic(body?.providerDiagnostic);
+  if (diagnostic?.requestId === requestId) {
+    try { options.onProviderDiagnostic?.(diagnostic); } catch { /* Private QA must not affect delivery. */ }
+  }
   if (!response.ok || !body) throw fail(friendlyGenerationError(response.status, body?.code));
   if (!imageSchema.safeParse(body.image).success || !["mock", "live"].includes(String(body.mode)))
     throw fail(new SmileGenerationError(GENERATION_MESSAGES.failed, "invalid_result"));
 
-  const result = { ...(body as GenerationResult), requestId };
+  const { providerDiagnostic: rawDiagnostic, ...delivered } = body;
+  void rawDiagnostic; // Only the sanitized QA callback retains provider metadata.
+  const result = { ...(delivered as GenerationResult), requestId };
   emitGenerationEvent({
     ...base,
     type: "succeeded",

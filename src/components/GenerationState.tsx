@@ -4,25 +4,38 @@ import { useEffect, useRef, useState } from "react";
 import { SmileMark } from "./Brand";
 import { CenteredBrandHeader } from "./ui/Surface";
 import { SMILECOMPOSE } from "@/lib/brand";
-import { X } from "lucide-react";
+import { Check, X } from "lucide-react";
+import { DEMO_STEP_DELAYS, GENERATION_STEP_DELAYS, visibleGenerationStep } from "@/lib/generation/progress";
+import type { GenerationStage } from "@/services/ai/generationDiagnostics";
+
+const LIVE_STEPS = ["Preparing your photograph…", "Creating your concept…", "Aligning and protecting…", "Checking your preview…"];
+const DEMO_STEPS = ["Opening the demo…", "Preparing smile examples…", "Aligning comparisons…", "Finalising preview…"];
 
 export function GenerationState({
   onCancel,
   testMode,
   photo,
+  stage = "preflight",
 }: {
   onCancel: () => void;
   testMode: boolean;
   photo: string;
+  stage?: GenerationStage;
 }) {
   const [takingLonger, setTakingLonger] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const cancelButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     cancelButton.current?.focus();
     const timer = window.setTimeout(() => setTakingLonger(true), 20000);
-    return () => window.clearTimeout(timer);
-  }, []);
+    const delays = testMode ? DEMO_STEP_DELAYS : GENERATION_STEP_DELAYS;
+    const timers = delays.map(delay => window.setTimeout(() => setElapsed(delay), delay));
+    return () => { window.clearTimeout(timer); timers.forEach(window.clearTimeout); };
+  }, [testMode]);
+
+  const current = visibleGenerationStep(elapsed, stage, testMode);
+  const steps = testMode ? DEMO_STEPS : LIVE_STEPS;
 
   return (
     <section
@@ -63,9 +76,25 @@ export function GenerationState({
               : "Creating your visualisation from your photograph and design choices."}
           </p>
 
-          <p role="status" aria-live="polite">{takingLonger
-            ? "Still preparing your concept. Keep SmileCompose open, or cancel to return to your design."
-            : testMode ? "Preparing the sample preview…" : "Preparing your concept… Keep SmileCompose open."}</p>
+          <ol className="generation-splash-steps" aria-label="Concept preparation">
+            {steps.map((label, index) => (
+              <li key={label} className={index < current ? "is-done" : index === current ? "is-current" : ""}
+                aria-current={index === current ? "step" : undefined}>
+                <span className="generation-splash-step-mark" aria-hidden="true">
+                  {index < current ? <Check size={16} strokeWidth={1.8} /> : null}
+                </span>
+                <span>{label}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="generation-splash-progress">
+            <span className="generation-splash-progress-track" aria-hidden="true">
+              <span style={{ width: `${(current + 1) * 25}%` }} />
+            </span>
+            <span className="generation-splash-progress-count" role="status" aria-live="polite"
+              aria-label={`Stage ${current + 1} of 4: ${steps[current]}`}>{current + 1} / 4</span>
+          </div>
+          {takingLonger && <p role="status">Still working. Keep SmileCompose open, or cancel to return to your design.</p>}
         </div>
       </div>
 
