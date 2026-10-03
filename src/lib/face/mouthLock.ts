@@ -1,11 +1,11 @@
 import type { MouthAlignmentDiagnostic } from "./alignmentDiagnostic";
-import { compositeMasked, polygonMask, measureProtectedRegionChange, editableRegionRange } from "./geometry";
+import { compositeMasked, measureProtectedRegionChange, editableRegionRange } from "./geometry";
 import { detectFace } from "./landmarks";
-import { planMouthLock, type MouthLockFailure } from "./lock";
+import { planMouthLock, mouthTransitionMask, type MouthLockFailure } from "./lock";
 
 export interface MouthLockResult {
   image: string;
-  /** True when everything outside the original mouth opening is restored. */
+  /** True when the source outer-lip contour and surrounding face are restored. */
   locked: boolean;
   lipsMoved: boolean;
   /** The source has a face but the returned image cannot be aligned to it. */
@@ -24,8 +24,9 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 
 /**
  * Put the AI edit back onto the original photograph so that nothing outside
- * the original mouth opening can change: lips, skin, eyes, nose, hair and background are the
- * patient's own pixels. If the face can't be found, the edit is returned
+ * the source outer lip contour can change. Stable inner lip texture can blend
+ * with the dental edit; surrounding skin, eyes, nose, hair and background are
+ * the patient's own pixels. Moved lips use the stricter source opening. If the face can't be found, the edit is returned
  * untouched rather than guessed at.
  */
 export async function lockFaceOutsideLips(
@@ -71,7 +72,7 @@ export async function lockFaceOutsideLips(
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const editedPixels = ctx.getImageData(0, 0, width, height);
 
-    const mask = polygonMask(plan.polygon, width, height, plan.grow, plan.feather, true);
+    const mask = mouthTransitionMask(plan, width, height);
     const editableRange = editableRegionRange(editedPixels.data, width, mask);
     emit({ ...lastDiagnostic, ...(editableRange !== null ? { editableRange } : {}) });
     if (editableRange === null || editableRange <= 2) return { ...untouched, failureReason: "mouth_blank_output" };

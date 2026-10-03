@@ -156,3 +156,27 @@ test("inward feather blends only inside the original opening", () => {
   assert.ok(at(20, 40) > 0 && at(20, 40) < 1);
   assert.equal(at(40, 40), 1);
 });
+
+// Clinician-authorised smoothing: an unchanged lip contour can include the
+// inner lip in the blend, without allowing the mask onto the surrounding face.
+test("a stable lip transition does not cut teeth at the inferred inner opening", async () => {
+  const { mouthTransitionMask } = await import("../src/lib/face/lock");
+  const plan = planMouthLock(face(), face())!;
+  plan.polygon = [[30, 30], [70, 30], [70, 50], [30, 50]];
+  Object.assign(plan, { outerBoundary: [[20, 20], [80, 20], [80, 60], [20, 60]], feather: 2 });
+  const mask = mouthTransitionMask(plan, 100, 100);
+  const at = (x: number, y: number) => x < mask.x0 || y < mask.y0 || x >= mask.x0 + mask.width || y >= mask.y0 + mask.height ? 0 : mask.alpha[(y-mask.y0)*mask.width+x-mask.x0];
+  assert.equal(at(50, 29), 1, "no original-image slice at the approximate inner lip line");
+  assert.equal(at(50, 19), 0, "outer lip contour and surrounding face remain protected");
+  assert.ok(at(50, 20) > 0 && at(50, 20) < 1, "transition feathers inside the original outer contour");
+});
+
+test("provider lip movement retains the strict original opening", async () => {
+  const { mouthTransitionMask } = await import("../src/lib/face/lock");
+  const original = face(), generated = original.map(p => [...p] as Point);
+  for (const i of OUTER_LIP) generated[i][1] += 25;
+  const plan = planMouthLock(original, generated)!;
+  assert.equal(plan.lipsMoved, true);
+  const mask = mouthTransitionMask(plan, 800, 900);
+  assert.deepEqual(mask, polygonMask(plan.polygon, 800, 900, 0, plan.feather, true));
+});

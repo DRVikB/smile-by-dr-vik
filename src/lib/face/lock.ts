@@ -1,5 +1,7 @@
 import type { MouthAlignmentDiagnostic, AlignmentRejection } from "./alignmentDiagnostic";
 import {
+  polygonMask,
+  type Mask,
   COMMISSURES,
   INNER_LIP,
   OUTER_LIP,
@@ -27,8 +29,10 @@ export interface LockPlan {
   warp: boolean;
   /** The edit moved the lips themselves, not just the teeth. */
   lipsMoved: boolean;
-  /** The original mouth opening; the lips themselves are never editable. */
+  /** The original mouth opening, used when provider lip movement is detected. */
   polygon: Point[];
+  /** The original outer contour bounds any stable inner-lip blending. */
+  outerBoundary: Point[];
   grow: number;
   feather: number;
 }
@@ -45,7 +49,7 @@ const MAX_SCALE = 1.18;
 const MAX_ANGLE = (8 * Math.PI) / 180;
 
 /** Invalidate reusable results made with the older, lip-inclusive mask. */
-export const MOUTH_LOCK_VERSION = "2026-10-03-validated-encoded-mouth-v6";
+export const MOUTH_LOCK_VERSION = "2026-10-03-bounded-lip-transition-v7";
 
 /** Categorical device QA only; never capture image content or browser errors. */
 export const MOUTH_LOCK_FAILURE_CODES = [
@@ -120,7 +124,16 @@ export function planMouthLock(
     warp,
     lipsMoved,
     polygon: pick(original, INNER_LIP),
+    outerBoundary: pick(original, OUTER_LIP),
     grow: 0,
     feather: Math.max(1, 0.005 * mouthWidth),
   };
+}
+
+/** Avoid slicing crowns at the approximate inner-lip landmarks. Where the
+ * provider lip geometry remains stable, blend within the source outer lip
+ * contour. Never expand beyond it. Moved lips retain the strict opening. */
+export function mouthTransitionMask(plan: LockPlan, width: number, height: number): Mask {
+  return polygonMask(plan.lipsMoved ? plan.polygon : plan.outerBoundary,
+    width, height, 0, plan.feather, true);
 }
