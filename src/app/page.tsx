@@ -829,24 +829,28 @@ export default function Smile() {
     if (unavailable) { setError(unavailable); return; }
     if (isNoChangeDesign(used)) { setError("No change selected. Choose a different shade or design goal; no AI request was sent."); return; }
     if (!accountReadyForGeneration()) return;
-    const consentForRequest = testMode ? null : approvedConsent ?? aiConsent;
-    if (!testMode) {
-      let photoFingerprint: string;
-      try { photoFingerprint = await fingerprintPhotoForConsent(photo.dataUrl, reference?.dataUrl); }
-      catch { setError("This device couldn’t verify the permission record. No AI request was sent. Please reload the app and try again."); return; }
-      if (consentForRequest?.version !== AI_CONSENT_VERSION || consentForRequest.photoFingerprint !== photoFingerprint) {
-        setPendingAiConsent({ photoFingerprint, action: { kind: "single", override } });
-        return;
-      }
-    }
-    if (override || used !== settings) setSettings(used);
-    if (consentForRequest && !testMode && !await persistConsentBeforeGeneration(consentForRequest, photo, used)) return;
+    // Claim synchronously, before consent fingerprinting/persistence can yield.
+    // React's busy state alone cannot reject a second tap in this interval.
     const controller = new AbortController();
     request.current = controller;
-    setGenerationStage("preflight");
-    setBusy(true);
-    setError("");
     try {
+      const consentForRequest = testMode ? null : approvedConsent ?? aiConsent;
+      if (!testMode) {
+        let photoFingerprint: string;
+        try { photoFingerprint = await fingerprintPhotoForConsent(photo.dataUrl, reference?.dataUrl); }
+        catch { setError("This device couldn’t verify the permission record. No AI request was sent. Please reload the app and try again."); return; }
+        if (controller.signal.aborted || request.current !== controller) return;
+        if (consentForRequest?.version !== AI_CONSENT_VERSION || consentForRequest.photoFingerprint !== photoFingerprint) {
+          setPendingAiConsent({ photoFingerprint, action: { kind: "single", override } });
+          return;
+        }
+      }
+      if (override || used !== settings) setSettings(used);
+      if (consentForRequest && !testMode && !await persistConsentBeforeGeneration(consentForRequest, photo, used)) return;
+      if (controller.signal.aborted || request.current !== controller) return;
+      setGenerationStage("preflight");
+      setBusy(true);
+      setError("");
       await waitForGenerationScreen();
       if (controller.signal.aborted) return;
       const [next] = await Promise.all([
@@ -881,24 +885,26 @@ export default function Smile() {
     if (unavailable) { setError(unavailable); return; }
     if (!testMode && exceedsRequestLimit(costs.requested, wanted.length, requestLimit)) { setError("This batch could exceed the case’s generation limit. Check Allowance or create a single preview."); return; }
     if (!testMode && !confirmed) { setBatchPending(wanted); return; }
-    const consentForRequest = testMode ? null : approvedConsent ?? aiConsent;
-    if (!testMode) {
-      let photoFingerprint: string;
-      try { photoFingerprint = await fingerprintPhotoForConsent(photo.dataUrl, reference?.dataUrl); }
-      catch { setError("This device couldn’t verify the permission record. No AI request was sent. Please reload the app and try again."); return; }
-      if (consentForRequest?.version !== AI_CONSENT_VERSION || consentForRequest.photoFingerprint !== photoFingerprint) {
-        setPendingAiConsent({ photoFingerprint, action: { kind: "variants", wanted } });
-        return;
-      }
-    }
-    if (consentForRequest && !testMode && !await persistConsentBeforeGeneration(consentForRequest, photo, settings)) return;
     const controller = new AbortController();
     request.current = controller;
-    setGenerationStage("preflight");
-    setBusy(true);
-    setError("");
-    const originalPhoto = photo;
     try {
+      const consentForRequest = testMode ? null : approvedConsent ?? aiConsent;
+      if (!testMode) {
+        let photoFingerprint: string;
+        try { photoFingerprint = await fingerprintPhotoForConsent(photo.dataUrl, reference?.dataUrl); }
+        catch { setError("This device couldn’t verify the permission record. No AI request was sent. Please reload the app and try again."); return; }
+        if (controller.signal.aborted || request.current !== controller) return;
+        if (consentForRequest?.version !== AI_CONSENT_VERSION || consentForRequest.photoFingerprint !== photoFingerprint) {
+          setPendingAiConsent({ photoFingerprint, action: { kind: "variants", wanted } });
+          return;
+        }
+      }
+      if (consentForRequest && !testMode && !await persistConsentBeforeGeneration(consentForRequest, photo, settings)) return;
+      if (controller.signal.aborted || request.current !== controller) return;
+      setGenerationStage("preflight");
+      setBusy(true);
+      setError("");
+      const originalPhoto = photo;
       await waitForGenerationScreen();
       if (controller.signal.aborted) return;
       const minimumDisplay = new Promise((resolve) => window.setTimeout(resolve, 1700));
