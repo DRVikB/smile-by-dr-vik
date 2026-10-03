@@ -1,3 +1,65 @@
+## SAVED DRAFT REOPEN FIX — 3 October 2026, evening
+
+### 1. WHAT WAS ACTUALLY FIXED
+
+**PASS — confirmed navigation defect, not lost media.** The recording shows a Draft opened at approximately 1–2.5 seconds, followed by Home at 3 seconds; the second attempt repeats this. Explicit case reopening restored the draft's saved `screen: "start"`, then closed Cases. The photo/settings were loaded, but the editor was never displayed. `reopenCase` now changes that last-viewed Home state to Design for an unfinished case, or Preview when a result exists. Ordinary app startup still honours its saved screen. Photos, settings, results, asset references and stored cloud cases are not reset or rewritten by this navigation correction.
+
+Recent Cases now labels photo-only work **Draft** instead of **AI concept**. Drafts remain saved and accessible so the clinician can continue designing; completed results retain their existing comparison/export routes. No separate draft section or redesign was added.
+
+Fix commit **`abb3e4b`**, branch `release/v1-device-test`; previous checkpoint **`fc6b61d`** is the rollback reference. User's existing Xcode project/scheme changes are preserved and excluded from the fix. No provider call, backend deployment, schema change, ledger adjustment, case deletion, push or TestFlight upload.
+
+### 2. WHAT WAS TESTED — environment, commit and evidence
+
+Evidence is private and Git-ignored under `output/iphone-case-reopen-2026-10-03/` and `output/simulator-reliability-2026-10-03/`. Code/build checks ran on the working tree subsequently committed as `abb3e4b`; no production-source changes followed the build.
+
+| Check | Verdict / evidence |
+| --- | --- |
+| Original affected cases, staging read-only | **PASS — metadata/reference/object inspection:** eight recent photo-only drafts have saved screen `start`, no generated entry, and 2–3 acknowledged assets with corresponding private cloud objects. Two older completed cases retain generated entries and four acknowledged objects. This supports the navigation cause; it is not a physical normal-user download test of every original case. No original work modified. |
+| Repository regression | **PASS — RED then GREEN:** two assertions reproduced Home restoration; 22/22 repository tests pass after the fix. Second repository fetch verifies actual photo bytes, exact settings/result retention, active working-case persistence and unchanged cached cloud state (`repository-red.log`, `repository-green.log`). |
+| Native iPhone regression | **PASS — 2/2**, dedicated iPhone simulator, production-built Capacitor fixture, approved synthetic photo, mocked provider. Pre-fix run failed specifically at “Draft reopening must leave Home.” Final run opens the editor with its photo and Generate action, and opens the prior saved comparison with its image (`iphone-case-reopen-final-1791052357147.xcresult`). |
+| Native iPad regression | **PASS — 2/2**, dedicated iPad simulator, same independent draft and saved-comparison checks (`ipad-case-reopen-final-1791052417649.xcresult`). These are simulator results, not physical-device validation. |
+| Main iPhone workflow | **PASS**, existing native deterministic SmokeTests after rebuilding the current fixture (`iphone-fixture-1791051866723.xcresult`). No live generation. |
+| Full automated suite | **PASS — 661/661**, zero failures/skips (`full-tests.log`). |
+| TypeScript / ESLint / diff whitespace | **PASS** (`typecheck.log`, `lint.log`, `git diff --check`). |
+| Production web build / Capacitor sync / bundle verifier | **PASS** (`native-build.log`), staging backend and existing native configuration retained. Private metadata QA recorder enabled for this staging bundle; raw-image capture is not enabled. |
+| Signed physical iPhone Release compile | **PASS** (`physical-release.log`); signature verification exit 0 (`signature.log`). Bundle `uk.co.drvik.smilecompose`, version1.0/build1. App prepared at `/tmp/smilecompose-physical-release/Build/Products/Release-iphoneos/App.app`. **NOT INSTALLED** on the physical phone during this fix. |
+
+**Test failure history:** first native draft attempt expected the photo-picker action after returning to an already prepared photo; corrected to Continue, then reproduced the actual pre-fix Home defect. First post-fix run opened the editor successfully but expected Generate while the Teeth tab was active; corrected the test to select Review. Its failed Xcode result writer stalled after tests completed and was interrupted before the final serial runs. Final iPhone/iPad runs completed normally. These harness corrections do not weaken the original draft/photograph/navigation assertions. Full-suite passing reruns do not resolve the earlier separately documented intermittent sync-conflict cause.
+
+### 3. WHAT STILL FAILS
+
+**FAIL — physical generation framing/mouth-registration acceptance remains unresolved**, as documented immediately below. This draft fix does not claim to fix generation. No additional live provider requests were used (0 this fix; previous agent QA budget remains exhausted at15). Durable charged-result recovery remains deferred.
+
+### 4. WHAT WAS NOT TESTED / BLOCKED
+
+**NOT TESTED — updated physical iPhone/iPad draft reopening, original-case image download, real Apple purchase or physical Apple sign-in.** Do not infer these from simulator fixtures. Staging backend remains unchanged because this navigation/caption fix requires no API/schema update.
+
+### 5. WHAT NEEDS VISUAL REVIEW
+
+Before reference: owner's local recording `ScreenRecording_10-03-2026 19-04-53_1.MP4`; dense local frames are private. After: approved synthetic `reopened-draft-editor` and `reopened-saved-comparison` screenshots exported to `output/iphone-case-reopen-2026-10-03/native-final-attachments/`; iPad attachments remain in its xcresult. Editor photograph is visibly present after reopening. Cosmetic generation quality is **HUMAN REVIEW REQUIRED**, independent of reopening.
+
+### 6. EXACT NEXT ACTION
+
+Install the current staging Release through Xcode **over the existing app; do not delete the app**. Open a previously affected Recent Case labelled Draft, select its Draft/Reopen design action, and confirm the original photo/settings are available to continue. Force-close/relaunch and reopen it again. Open an older completed case and verify comparison/share remain available. No paid generation is needed to test this fix. Do not upload TestFlight while the physical generation failure remains unresolved.
+
+## PHYSICAL IPHONE FAILURE — 3 October 2026, 19:03 London
+
+**FAIL — physical generation acceptance.** This later owner test supersedes any inferred readiness from the earlier simulator or folder samples. No generation retry, prompt/protection change, deployment, ledger adjustment or release upload was performed during this investigation. Source checkpoint `fc6b61d` (`b058747` scope implementation); installed client revision is not independently established.
+
+### Confirmed evidence
+
+- User reference: `/Users/vik/Downloads/IMG_3504.PNG`, error at approximately 19:03 BST. The selected mode is Full Arch, not the earlier Composite6 scenario. The displayed source includes screenshot chrome; that is an observation, **not an established cause**. No source/raw patient media copied or uploaded.
+- **PASS — staging provider evidence:** read-only Supabase audit identifies two requests: `5b381c7b-2c0b-4adf-acc2-85e90ac64455` (19:02:38–19:02:47 BST) and `782bf644-5f0d-492b-8816-6a49c22a8e3d` (19:02:57–19:03:07 BST). Both use `google / gemini-3.1-flash-image`, contract `2026-10-03-treatment-contract-v8`, `full_arch`, Full-arch both / zirconia, source then prompt, no reference image, no mask sent, retry0.
+- Both provider responses: HTTP200, STOP, one candidate, one inline JPEG image part, zero text/thought/other parts. Input **1152×2048**; raw output **768×1376**; requested 9:16 / 1K. Provider duration 8,570ms and 9,671ms respectively. Prepared aspect 0.5625; raw aspect 0.558139535; absolute relative drift **0.775194%**, below 3%. Source dimensions, EXIF, exact de-padding crop and on-device decoded dimensions are **NOT YET RETRIEVED**.
+- **Failure-stage evidence:** the screenshot's exact text is emitted by `lockFace` in `src/app/page.tsx` only when `lockFaceOutsideLips` returns `invalidAlignment`. This is after `alignPreview` and before compositing/quality/save; the aspect guard in `alignPreview` emits different text. The likely first rejection is therefore **mouth registration / `planMouthLock`**, not provider extraction. The exact sub-rejection (generated landmarks, scale, rotation, residual, outliers or canvas geometry) remains **NOT ESTABLISHED** without the current device record. Raw visual reframing is **NOT TESTED**; dimensions alone cannot establish visual alignment.
+- **FAIL — allowance/delivery:** both reservations are committed; each reserved quantity−1 and committed quantity0. Recorded balance after reservation is 68 then67. No release/refund row in the inspected owner/time window. Do not invent a local refund. Existing durable charged-result recovery remains deferred; these are additional owner-initiated requests outside the preceding 15-call QA sample, not agent retries.
+- **NOT AVAILABLE — latest private device record:** initial copy attempts failed while locked (CoreDevice7000 / remote11001 / POSIX1). A later copy of only `Library/Caches/smile-generation-qa.json` succeeded after unlock; its latest timestamp is `2026-10-03T15:05:19.988Z` (16:05 BST), with neither of the two 19:03 request IDs. Evidence is private at `output/iphone-generation-failure-2026-10-03-1903/device-diagnostics.json`. No full app container, auth database or photographs retrieved. This stale file cannot establish the latest rejection subtype. The newly prepared staging build explicitly includes the privacy-safe diagnostic recorder; no raw-image capture enabled.
+- **PASS — local verification only:** 17/17 existing tests across `mouth-alignment-details`, `generation-geometry-diagnostics`, `mouth-lock-diagnostics`, `generation-diagnostics`; zero failed/skipped. These verify categories, geometry metadata and privacy filtering, **not this physical failure**. No new failing reproduction/fix and no full-suite rerun claimed; production code is unchanged.
+
+### Next action / release gate
+
+**Do not Generate again.** Latest device metadata is unavailable in the stale cache; report missing evidence explicitly rather than blaming masks or weakening registration. Inspect raw output locally only if already retained and its content is authorised. Establish a local failing reproduction before a minimal fix. The saved-draft fix/build above is separate. **Physical generation ready for TestFlight: NO.**
+
 ## V1 SCOPE ADDENDUM — 3 October 2026
 
 Scope fix: **b058747** on `release/v1-device-test`; rollback point **c9ff3d2**. This is a UI scope correction, not another generation-hardening implementation. Existing local Xcode display-name/scheme changes remain outside the fix commit. No push, deployment, TestFlight upload, customer case changes or commercial configuration changes.
