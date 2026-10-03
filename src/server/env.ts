@@ -19,12 +19,17 @@ export interface ServerEnvironment extends ProviderEnvironment {
   APPLE_CLIENT_ID?: string;
   /** Case Library references attached to one generation (1–5, default 3). */
   STYLE_REFERENCE_LIMIT?: string;
+  /** Server-controlled internal testing only; never accepted from a request. Default off. */
+  SMILE_INTERNAL_SINGLE_TOOTH?: string;
+  SMILE_INTERNAL_ALIGNMENT?: string;
+  SMILE_INTERNAL_FULL_ARCH?: string;
 }
 
 const SERVER_KEYS = [
   "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "REVENUECAT_SECRET_API_KEY", "REVENUECAT_WEBHOOK_AUTH",
   "REVENUECAT_ALLOW_SANDBOX", "APPLE_TEAM_ID", "APPLE_KEY_ID", "APPLE_PRIVATE_KEY", "APPLE_CLIENT_ID",
   "STYLE_REFERENCE_LIMIT",
+  "SMILE_INTERNAL_SINGLE_TOOTH", "SMILE_INTERNAL_ALIGNMENT", "SMILE_INTERNAL_FULL_ARCH",
 ] as const;
 
 export function readServerEnvironment(): ServerEnvironment {

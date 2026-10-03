@@ -1,5 +1,6 @@
 import { claimInMemory, validRequestId, type RequestClaim } from "./requestGuard";
 import { isNoChangeDesign } from "./designPlan";
+import { generationUnavailable } from "./availability";
 import { GenerationError } from "./errors";
 import { generationSchema } from "@/lib/generation/schema";
 import { AI_CONSENT_VERSION } from "@/lib/aiConsent";
@@ -110,10 +111,16 @@ export async function handleGenerationRequest(
     );
   let providerDiagnostic: ProviderDiagnostic | undefined;
   try {
+    const serverEnv = env ?? readServerEnvironment();
+    const unavailable = generationUnavailable(parsed.data.settings, {
+      singleTooth: serverEnv.SMILE_INTERNAL_SINGLE_TOOTH === "1",
+      alignment: serverEnv.SMILE_INTERNAL_ALIGNMENT === "1",
+      fullArch: serverEnv.SMILE_INTERNAL_FULL_ARCH === "1",
+    });
+    if (unavailable) return Response.json({ error: unavailable, code: "mode_unavailable" }, { status: 403, headers });
     const provider = getSmileProvider(env);
     if (provider.configured === false)
       throw new GenerationError("AI generation isn’t connected on the server. No provider request was sent.", 503, "provider_not_configured");
-    const serverEnv = env ?? readServerEnvironment();
     // Patient photos reach a provider only under deliberately confirmed terms:
     // Google paid / Vertex (never the unpaid tier), and likewise for any other adapter.
     const terms = providerDataTermsRequirement(provider);
