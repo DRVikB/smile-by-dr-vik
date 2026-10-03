@@ -43,7 +43,12 @@ export function createSyncCoordinator(scope:WorkspaceLease,store:PatientLocalSto
  }
  async function readAsset(caseId:string,id:string):Promise<Blob>{
   scope.assert();const a=await store.asset(id);if(!a||a.meta.caseId!==caseId)throw new Error("Patient media is not available offline yet.");own(a.meta);
-  if(a.blob){await store.putAsset({...a,lastAccess:Date.now()});return a.blob;}
+  if(a.blob){
+   // WebKit can invalidate a retrieved Blob handle when its cache record is
+   // overwritten. Preserve independent bytes before updating access metadata.
+   const blob=new Blob([await a.blob.arrayBuffer()],{type:a.blob.type});scope.assert();
+   await store.putAsset({...a,blob,lastAccess:Date.now()});return blob;
+  }
   if(!api)throw new PatientSyncError(503,"offline");
   const b=await api.download(caseId,id);scope.assert();if(await checksum(b)!==a.meta.checksum)throw new PatientSyncError(503,"media_checksum_mismatch");scope.assert();
   // A tombstone that arrived while downloading must not repopulate deleted media.
