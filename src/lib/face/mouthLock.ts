@@ -1,6 +1,6 @@
 import type { MouthAlignmentDiagnostic } from "./alignmentDiagnostic";
 import { compositeMasked, measureProtectedRegionChange, editableRegionRange } from "./geometry";
-import { detectFace } from "./landmarks";
+import { detectFace, detectFaceDetailed } from "./landmarks";
 import { planMouthLock, mouthTransitionMask, type MouthLockFailure } from "./lock";
 
 export interface MouthLockResult {
@@ -37,11 +37,12 @@ export async function lockFaceOutsideLips(
   const untouched = { image: generated, locked: false, lipsMoved: false };
   let failureReason: MouthLockFailure = "mouth_image_decode_failed";
   try {
-    const [origPoints, genPoints, o, g] = await Promise.all([
+    const [origPoints, generatedDetection, o, g] = await Promise.all([
       detectFace(original),
-      detectFace(generated),
+      detectFaceDetailed(generated),
       loadImage(original), loadImage(generated),
     ]);
+    const genPoints = generatedDetection.points;
     const width = o.naturalWidth, height = o.naturalHeight;
     // drawImage below normalises the output to the source canvas. Landmarks
     // must be in that same coordinate system before fitting the transform.
@@ -49,7 +50,7 @@ export async function lockFaceOutsideLips(
     const scaledPoints = genPoints?.map(([x, y]): [number, number] =>
       [x * width / g.naturalWidth, y * height / g.naturalHeight]) ?? null;
     let lastDiagnostic: MouthAlignmentDiagnostic = {};
-    const emit = (d: MouthAlignmentDiagnostic) => { lastDiagnostic = d; try { report?.({ ...d, sourceWidth: width, sourceHeight: height, generatedWidth: g.naturalWidth, generatedHeight: g.naturalHeight }); } catch { /* QA must never affect delivery. */ } };
+    const emit = (d: MouthAlignmentDiagnostic) => { lastDiagnostic = d; try { report?.({ ...d, ...(generatedDetection.failure ? { generatedFaceFailure: generatedDetection.failure } : {}), sourceWidth: width, sourceHeight: height, generatedWidth: g.naturalWidth, generatedHeight: g.naturalHeight }); } catch { /* QA must never affect delivery. */ } };
     if (!sameAspect) emit({ rejection: "canvas_geometry_invalid", sourceLandmarkCount: origPoints?.length ?? 0, generatedLandmarkCount: genPoints?.length ?? 0 });
     const plan = sameAspect ? planMouthLock(origPoints, scaledPoints, emit) : null;
     if (!plan) return { ...untouched, invalidAlignment: Boolean(origPoints),

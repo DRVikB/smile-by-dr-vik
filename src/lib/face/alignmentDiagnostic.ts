@@ -1,7 +1,9 @@
 /** Private QA metadata only; no points, images, text or patient identifiers. */
+import { FACE_DETECTION_FAILURES, type FaceDetectionFailure } from "./detectionResult";
 export const ALIGNMENT_REJECTIONS = ["source_landmarks_missing", "source_landmarks_invalid", "generated_landmarks_missing", "generated_landmarks_invalid", "mouth_width_insufficient", "similarity_scale_out_of_range", "similarity_rotation_out_of_range", "anchor_residual_excessive", "anchor_outliers_excessive", "canvas_geometry_invalid"] as const;
 export type AlignmentRejection = typeof ALIGNMENT_REJECTIONS[number];
 export interface MouthAlignmentDiagnostic {
+  generatedFaceFailure?: FaceDetectionFailure;
   rejection?: AlignmentRejection;
   sourceLandmarkCount?: number; generatedLandmarkCount?: number;
   sourceMouthWidth?: number; generatedMouthWidth?: number;
@@ -16,6 +18,7 @@ export interface RawOutputDiagnostic { width: number; height: number; mime: "ima
 const object = (v: unknown): Record<string, unknown> => v !== null && typeof v === "object" ? v as Record<string, unknown> : {};
 export function safeAlignmentDiagnostic(value: unknown): MouthAlignmentDiagnostic | undefined {
   const v = object(value), result: MouthAlignmentDiagnostic = {};
+  if (FACE_DETECTION_FAILURES.includes(v.generatedFaceFailure as FaceDetectionFailure)) result.generatedFaceFailure = v.generatedFaceFailure as FaceDetectionFailure;
   if (ALIGNMENT_REJECTIONS.includes(v.rejection as AlignmentRejection)) result.rejection = v.rejection as AlignmentRejection;
   for (const key of ["sourceLandmarkCount", "generatedLandmarkCount", "anchorOutlierCount", "allowedOutlierCount", "sourceWidth", "sourceHeight", "generatedWidth", "generatedHeight", "protectedChangedPixels"] as const) {
     const n = v[key]; if (typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= (key === "protectedChangedPixels" ? 40000 * 40000 : 40000)) result[key] = n;

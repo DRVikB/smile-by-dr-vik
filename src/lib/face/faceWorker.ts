@@ -1,5 +1,6 @@
 // Classic worker: MediaPipe's locally bundled loader uses importScripts.
 import { FaceLandmarker } from "@mediapipe/tasks-vision";
+import { runFaceDetection } from "./detectionResult";
 let model:Promise<FaceLandmarker>|null=null;
 function load(){
   if(!model){model=FaceLandmarker.createFromOptions({
@@ -11,14 +12,19 @@ let serial=Promise.resolve();
 self.onmessage=(event:MessageEvent<{id:number;payload:{src?:string}}>)=>{
   const {id,payload}=event.data;
   serial=serial.catch(()=>{}).then(async()=>{
-    let image:ImageBitmap|undefined;
     try{
-      const landmarker=await load();
-      if(!payload.src){self.postMessage({id,result:true});return;}
-      image=await createImageBitmap(await (await fetch(payload.src)).blob());
-      const points=landmarker.detect(image).faceLandmarks[0];
-      self.postMessage({id,result:points?.length>=468?points.map(p=>[p.x*image!.width,p.y*image!.height]):null});
+      if(!payload.src){await load();self.postMessage({id,result:true});return;}
+      const result=await runFaceDetection(payload.src,{
+        load,
+        decode:async src=>createImageBitmap(await (await fetch(src)).blob()),
+        detect:(landmarker,image)=>{
+          const faces=landmarker.detect(image).faceLandmarks;
+          if(!faces)return undefined;
+          if(!faces.length)return [];
+          return faces[0]?.map(p=>[p.x*image.width,p.y*image.height]);
+        },
+      });
+      self.postMessage({id,result});
     }catch{self.postMessage({id,error:true});}
-    finally{image?.close();}
   });
 };
