@@ -21,7 +21,9 @@
     "lint": "eslint src tests scripts --max-warnings=0",
     "check:production": "npm run lint && npm test && npm run build && node scripts/verify-production.mjs",
     "legal": "node --import tsx scripts/build-legal.ts",
-    "predev": "npm run legal && node scripts/copy-ort.mjs"
+    "predev": "npm run legal && node scripts/copy-ort.mjs",
+    "qa:ios-simulator": "node scripts/qa-ios-simulator.mjs",
+    "qa:ios-live-generation": "node scripts/run-ios-live-qa.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",

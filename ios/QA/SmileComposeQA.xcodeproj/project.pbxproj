@@ -1,0 +1,18 @@
+// !$*UTF8*$!
+{ archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
+000000000000000000000001 = {isa = PBXProject; buildConfigurationList = 000000000000000000000010; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; knownRegions = (en, Base); mainGroup = 000000000000000000000002; productRefGroup = 000000000000000000000003; projectDirPath = ""; projectRoot = ""; targets = (000000000000000000000004);};
+000000000000000000000002 = {isa = PBXGroup; children = (000000000000000000000005, 000000000000000000000003); sourceTree = "<group>";};
+000000000000000000000003 = {isa = PBXGroup; children = (000000000000000000000006); name = Products; sourceTree = "<group>";};
+000000000000000000000004 = {isa = PBXNativeTarget; buildConfigurationList = 000000000000000000000013; buildPhases = (000000000000000000000008, 000000000000000000000009); buildRules = (); dependencies = (); name = SmileComposeQA; productName = SmileComposeQA; productReference = 000000000000000000000006; productType = "com.apple.product-type.bundle.ui-testing";};
+000000000000000000000005 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITests/SmokeTests.swift; sourceTree = "<group>";};
+000000000000000000000006 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = SmileComposeQA.xctest; sourceTree = BUILT_PRODUCTS_DIR;};
+000000000000000000000007 = {isa = PBXBuildFile; fileRef = 000000000000000000000005;};
+000000000000000000000008 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (000000000000000000000007); runOnlyForDeploymentPostprocessing = 0;};
+000000000000000000000009 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+000000000000000000000010 = {isa = XCConfigurationList; buildConfigurations = (000000000000000000000011, 000000000000000000000012); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+000000000000000000000011 = {isa = XCBuildConfiguration; buildSettings = {SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 16.0; SWIFT_VERSION = 5.0;}; name = Debug;};
+000000000000000000000012 = {isa = XCBuildConfiguration; buildSettings = {SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 16.0; SWIFT_VERSION = 5.0;}; name = Release;};
+000000000000000000000013 = {isa = XCConfigurationList; buildConfigurations = (000000000000000000000014, 000000000000000000000015); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+000000000000000000000014 = {isa = XCBuildConfiguration; buildSettings = {PRODUCT_BUNDLE_IDENTIFIER = uk.co.drvik.smilecompose.qa; PRODUCT_NAME = "$(TARGET_NAME)"; GENERATE_INFOPLIST_FILE = YES; TARGETED_DEVICE_FAMILY = "1,2"; SWIFT_VERSION = 5.0; CODE_SIGNING_ALLOWED = NO;}; name = Debug;};
+000000000000000000000015 = {isa = XCBuildConfiguration; buildSettings = {PRODUCT_BUNDLE_IDENTIFIER = uk.co.drvik.smilecompose.qa; PRODUCT_NAME = "$(TARGET_NAME)"; GENERATE_INFOPLIST_FILE = YES; TARGETED_DEVICE_FAMILY = "1,2"; SWIFT_VERSION = 5.0; CODE_SIGNING_ALLOWED = NO;}; name = Release;};
+}; rootObject = 000000000000000000000001; }
