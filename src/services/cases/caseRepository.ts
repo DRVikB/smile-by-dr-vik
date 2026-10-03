@@ -118,7 +118,11 @@ export function createCaseRepository(scope: WorkspaceLease) {
   async purgeRecentlyDeleted(now=Date.now(),days=30){const entries=(await log.listLog(["deleted"])).filter(e=>e.deletedAt!+days*86400000<=now);for(const e of entries)await methods.deleteLogEntry(e.id);return entries.length;},
   async clearLog(){for(const id of new Set((await log.listAllLog()).map(caseIdOf)))await methods.deleteCase(id);},
   async reopenCase(id:string){const c=await local.getCase(id);if(!c||c.deletedAt)throw new Error("This case is no longer available.");if(!c.state.draft)throw new Error("This older case has no saved editable draft; its comparison and exports remain available.");
-    const draft=await hydrate<SmileCase>(c.state.draft,aid=>sync.loadAsset(id,aid),scope);await restoreAnalysisSnapshot(draft.photo.dataUrl,draft.photo.analysisSnapshot);scope.assert();sync.pinCase(id);await drafts.persistCase(draft);return draft;},
+    const draft=await hydrate<SmileCase>(c.state.draft,aid=>sync.loadAsset(id,aid),scope);
+    // Home is a valid last-viewed screen, but explicitly reopening a saved
+    // case must show its work rather than restoring Home and closing Cases.
+    if(draft.screen==="start")draft.screen=draft.result?"preview":"design";
+    await restoreAnalysisSnapshot(draft.photo.dataUrl,draft.photo.analysisSnapshot);scope.assert();sync.pinCase(id);await drafts.persistCase(draft);return draft;},
   async syncStatuses(){return local.cases();},
   async syncConflicts(){return sync.conflicts();},
   async resolveConflict(id:string,choice:"cloud"|"preserve-local"){return write(async()=>{

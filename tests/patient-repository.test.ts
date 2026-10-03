@@ -121,6 +121,25 @@ test("review, name, report history and preferred smile edits survive a third dev
  const a=repo(),f=fixture();await a.recordVisualisation(f.entry,f.media);await a.refreshSync();await a.updateLogReview(f.version,{reviewer:"Dr Vik",reviewedAt:123,notes:"Preserve lip opening"});await a.renameCase(f.id,"CD");await a.recordExport(f.version,{kind:"preview",createdAt:555});await a.setPreferredDesign(f.id,f.version);await a.refreshSync();const b=repo();await b.refreshSync();const entry=(await b.listLog()).find(e=>e.id===f.version);assert.equal(entry?.patientName,"CD");assert.equal(entry?.exports?.[0].createdAt,555);assert.equal((await b.readLogMedia(f.version))?.review?.notes,"Preserve lip opening");assert.equal((await b.cache.getCase(f.id))?.state.preferredDesignId,f.version);a.disconnect();b.disconnect();
 });
 test("a saved photo-only draft is listed and can reopen on another origin",async()=>{const a=repo(),f=fixture();f.draft.result=null;f.draft.screen="design";await a.persistCase(f.draft);await a.refreshSync();const b=repo();await b.refreshSync();const entry=(await b.listLog()).find(e=>e.caseId===f.id);assert.equal(entry?.draftOnly,true);assert.equal((await b.reopenCase(f.id)).photo.dataUrl,png);a.disconnect();b.disconnect();});
+
+for(const hasResult of [false,true])test(`explicit reopening leaves Home for ${hasResult?"the saved concept":"an unfinished design"}`,async()=>{
+ const a=repo(),f=fixture();f.draft.screen="start";if(!hasResult)f.draft.result=null;
+ try{
+  await a.persistCase(f.draft);await a.refreshSync();
+  // A second repository loads the same saved state and real media bytes.
+  const b=repo();try{
+   await b.refreshSync();const reopened=await b.reopenCase(f.id);
+   assert.equal(reopened.screen,hasResult?"preview":"design");
+   assert.equal(reopened.photo.dataUrl,f.draft.photo.dataUrl);
+   assert.deepEqual(reopened.settings,f.draft.settings);
+   assert.deepEqual(reopened.result,f.draft.result);
+   assert.equal((await b.readCase())?.screen,reopened.screen);
+   // Reopening normalizes navigation, not the stored cloud case or its media.
+   const stored=await b.cache.getCase(f.id);
+   assert.equal((stored?.state.draft as Record<string,unknown>).screen,"start");
+  }finally{b.disconnect();}
+ }finally{a.disconnect();}
+});
 test("using the cloud conflict version replaces the active draft before its next autosave",async()=>{
  const a=repo(),f=fixture();await a.persistCase(f.draft);await a.recordVisualisation(f.entry,f.media);await a.refreshSync();
  const b=repo();await b.refreshSync();await b.reopenCase(f.id);

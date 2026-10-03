@@ -121,6 +121,71 @@ final class SmokeTests: XCTestCase {
     }
 }
 
+// Reuses disposable synthetic cases from the deterministic simulator fixture.
+final class CaseReopenTests: XCTestCase {
+    func testHomeDraftOpensEditor() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication(bundleIdentifier: "uk.co.drvik.smilecompose")
+        app.launch()
+        if app.buttons["Close saved comparison"].exists { app.buttons["Close saved comparison"].tap() }
+        if app.buttons["Close version details"].exists { app.buttons["Close version details"].tap() }
+        if app.buttons["Close"].exists { app.buttons["Close"].firstMatch.tap() }
+        for _ in 0..<4 {
+            if app.buttons["New Smile Design"].waitForExistence(timeout: 2) { break }
+            if app.buttons["Back"].exists { app.buttons["Back"].tap() }
+        }
+        XCTAssertTrue(app.buttons["New Smile Design"].exists, app.debugDescription)
+        app.buttons["New Smile Design"].tap()
+        let choose = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Choose from photos'")).firstMatch
+        XCTAssertTrue(choose.waitForExistence(timeout: 15))
+        if !choose.isEnabled { app.switches.firstMatch.tap() }
+        choose.tap()
+        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 15))
+        let photo = app.images.matching(NSPredicate(format: "identifier == 'PXGGridLayout-Info' AND label CONTAINS '02 October'")).firstMatch
+        XCTAssertTrue(photo.waitForExistence(timeout: 15)); photo.tap()
+        XCTAssertTrue(app.buttons["Continue"].waitForExistence(timeout: 30)); app.buttons["Continue"].tap()
+        XCTAssertTrue(app.buttons["Review"].waitForExistence(timeout: 20))
+        // Leaving the editor retains its photo/settings and records Home as
+        // the last screen. Reopening must nevertheless return to the editor.
+        app.buttons["Back"].tap()
+        XCTAssertTrue(app.buttons["Continue"].waitForExistence(timeout: 10))
+        app.buttons["Back"].tap()
+        XCTAssertTrue(app.buttons["New Smile Design"].waitForExistence(timeout: 10))
+        let recent = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Unnamed case'")).firstMatch
+        XCTAssertTrue(recent.waitForExistence(timeout: 15)); recent.tap()
+        XCTAssertTrue(app.buttons["Rename case"].waitForExistence(timeout: 10))
+        let draft = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Draft'")).firstMatch
+        XCTAssertTrue(draft.waitForExistence(timeout: 10)); draft.tap()
+        XCTAssertTrue(app.buttons["Review"].waitForExistence(timeout: 20), "Draft reopening must leave Home: " + app.debugDescription)
+        app.buttons["Review"].tap()
+        XCTAssertTrue(app.buttons["Generate Smile"].waitForExistence(timeout: 10))
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "reopened-draft-editor"; shot.lifetime = .keepAlways; add(shot)
+    }
+    func testHomeRecentCaseOpensSavedComparison() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication(bundleIdentifier: "uk.co.drvik.smilecompose")
+        app.launch()
+        for _ in 0..<4 {
+            if app.buttons["New Smile Design"].waitForExistence(timeout: 3) { break }
+            if app.buttons["Back"].exists { app.buttons["Back"].tap() }
+        }
+        XCTAssertTrue(app.buttons["New Smile Design"].waitForExistence(timeout: 10), app.debugDescription)
+        let recent = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Unnamed case' AND label CONTAINS 'AI concept'")).firstMatch
+        XCTAssertTrue(recent.waitForExistence(timeout: 15), app.debugDescription)
+        recent.tap()
+        XCTAssertTrue(app.buttons["Rename case"].waitForExistence(timeout: 15), "Recent-case tap must open its case: " + app.debugDescription)
+        let version = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Version' OR label BEGINSWITH 'Smile concept'")).firstMatch
+        XCTAssertTrue(version.waitForExistence(timeout: 10), app.debugDescription)
+        version.tap()
+        XCTAssertTrue(app.buttons["Reopen comparison"].waitForExistence(timeout: 20), app.debugDescription)
+        XCTAssertTrue(app.buttons["Reopen comparison"].isEnabled, app.debugDescription)
+        app.buttons["Reopen comparison"].tap()
+        XCTAssertTrue(app.buttons["Close saved comparison"].waitForExistence(timeout: 15), app.debugDescription)
+        XCTAssertTrue(app.images["AI-generated smile concept"].exists)
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "reopened-saved-comparison"; shot.lifetime = .keepAlways; add(shot)
+    }
+}
+
 // Explicitly selected by qa:ios-live-generation; never part of deterministic QA.
 final class PhotoImportTests: XCTestCase {
     func testAuthorizedFolderImportsWithoutProvider() throws {

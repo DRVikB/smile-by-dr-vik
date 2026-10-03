@@ -98,7 +98,7 @@ export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unkn
               <span>
                 <strong>{entry.patientName || "Unnamed case"}</strong>
                 <small>{new Date(entry.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}{entry.versions > 1 ? ` · ${entry.versions}` : ""}</small>
-                <small>{entry.testMode || entry.mode === "mock" ? "Demo concept" : "AI concept"}</small>
+                <small>{entry.draftOnly ? "Draft" : entry.testMode || entry.mode === "mock" ? "Demo concept" : "AI concept"}</small>
                 {syncIndicators[entry.caseId ?? entry.id] && <small>{syncIndicators[entry.caseId ?? entry.id]}</small>}
               </span>
             </button>
