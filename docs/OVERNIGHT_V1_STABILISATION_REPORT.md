@@ -1,3 +1,246 @@
+## CURRENT HANDOVER — 3 October 2026: shared generation hardening, treatment restore and authorised folder coverage
+
+This section supersedes older readiness statements below. Historical failed requests and evidence remain recorded.
+
+### 1. WHAT WAS ACTUALLY FIXED
+
+- **PASS — shared output validation:** retain actual input/raw/final geometry and safe provider part/finish diagnostics; verify decoded lossless final pixels outside the actual editing mask; reject gross uniform/blank editable regions. No provider/model replacement, relaxed aspect guard, changed registration tolerance or new segmentation dependency.
+- **PASS — treatment restoration:** Whitening, Composite/Porcelain, Alignment and Full Arch use the same provider/client protection/save path. Normal client and staging server allow Alignment/Full Arch. Single Tooth/Precision/Tooth Map remain hidden by default. Full Arch prompt no longer depends on nonexistent individual crown permissions.
+- **PASS — confirmed saved-media defect:** WebKit could read an IndexedDB Blob, then invalidate that same handle when the cache-access update overwrote its asset record. Copy bytes into an independent Blob before that update. Normal owner lease, MIME, outbox/path and assets remain unchanged. No customer cases deleted/reset.
+- **PASS — Alignment now Both:** owner clarified that Alignment should always affect both arches. Remove Upper/Lower choices, start Both, normalise editable/regenerated legacy state and incoming generation requests to Both. Historical saved-result preference/report data is not migrated or rewritten. Full Arch keeps its separate arch choices.
+- **PASS — confirmed clipped smile transition:** retained Full Arch raw output has a smooth smile; restoring the original through inferred INNER_LIP lines produces visible original-image slices through crown/gingival transitions. A tiny outward feather still left those seams. Following the owner's explicit permission to relax lip protection, stable lips now blend inside the original OUTER_LIP contour, with an inward feather and no outward growth. Detected provider lip movement uses the strict original opening. Same raw output locally reprocessed, saved/synced/reopened; no cosmetic generation retry. Surrounding face pixels remain original; inner lip texture is now allowed to blend. Exact inner-lip pixels and gingival anatomy are **not guaranteed**.
+
+### 2. WHAT WAS TESTED — environment, commits, evidence
+
+Branch `release/v1-device-test`. Production-source checkpoint **`8c3a9b8`**, generation contract **`2026-10-03-treatment-contract-v8`**, mouth lock **`2026-10-03-bounded-lip-transition-v7`**. QA/report commits after this checkpoint do not change production source. User's Xcode display-name/shared Release scheme changes preserved and excluded from our commits.
+
+Matched staging: `https://smile-by-dr-vik-staging.drvik.workers.dev`; Supabase `wukcqlpuzkzwxmdkotfg`; Worker version **`657b4344-c7a5-43c4-9479-264f4f30ed97`**. No production deployment, push, TestFlight or Apple upload. Native bundle `uk.co.drvik.smilecompose`, version **1.0**, build **1**; Apple team **7TPF7LT884**. Private evidence is Git-ignored under `output/simulator-reliability-2026-10-03/`.
+
+| Check | Verdict / actual evidence |
+| --- | --- |
+| Final full regression | **PASS — 650/650**, no failures/skips (`full-tests-transition-final.log`). Earlier checkpoints 648/648 and 647/647 also passed. |
+| Targeted storage regression | **PASS — RED NotFoundError, GREEN**, plus 69 repository/sync tests (`webkit-media-red.log`, `webkit-media-green.log`). |
+| Both-arch regression | **PASS — two expected RED assertions, 34 GREEN assertions** (`alignment-both-red.log`, `alignment-both-green.log`). General case settings schema remains backward compatible; normalisation is generation-only. |
+| Lip transition regression | **PASS — missing-function RED, 27 GREEN assertions** (`lip-transition-red.log`, `lip-transition-green.log`): inferred inner-boundary pixels stay editable; source outer contour remains protected; moved lips use strict opening. Existing extreme scaling, rotation, residual and outlier rejections retained. |
+| TypeScript / ESLint | **PASS** (`typecheck-transition.log`, `lint-transition.log`). An intermediate attempted settings-schema transform narrowed inferred types and failed typecheck; replaced with generation-only normalisation before final tests/build, preserving historical case parsing. |
+| Web build / Capacitor / native verifier | **PASS** (`native-transition-final.log`, `bundle-transition-final.log`). Production-style web compilation, bundled staging API/CSP/auth/App Store SDK, no localhost/dev generation bypass in real bundle. |
+| Signed iPhone Release / signature | **PASS** (`physical-release-transition-final.log`, `codesign-transition-final.log`). Apple sign-in/Data Protection entitlements, In-App Purchase capability, camera/Photos descriptions and privacy manifest retained. Not an installation or physical generation test. |
+| Cloudflare packaging / matched deploy | **PASS** (`cloudflare-transition-final.log`, `staging-deploy-transition-final.log`), staging only. |
+| Native iPhone/iPad UI | **PASS — iPhone and iPad** on current 8c3a9b8 (`native-ui-transition-final.log`, `iphone-fixture-1791046006274.xcresult`, `ipad-fixture-1791046073449.xcresult`); full Capacitor UI photo selection, Composite6, Slide touch, Overlay+/−, force-close/reopen; iPad portrait/landscape. Earlier both also passed on 8862367. Dedicated simulators only; deterministic provider fixture in a temporary signed test bundle. No Google requests. |
+| Six folder photo imports | **PASS — 6/6**, native iPhone Simulator Safari (`test-folder-imports-command.log`, `test-folder-imports.json`, `iphone-imports-1791044946506.xcresult`), zero provider requests. HEIC decoded/oriented to 1536×2048. Close-up decoded but has zero face landmarks and requires reviewed edit area. |
+| Fresh folder Composite requests | **PASS — 2/2**, delivered/saved/SYNCED/exact bytes reopened after Safari termination/relaunch. `IMG_3291.jpg`: 1320×1741 → prepared1320×1760 → raw896×1200 → final1320×1741, request `a5be9671-9e78-4b09-8c11-856b31c170a7`. Historical failing photo `IMG_3241.jpg`: 1320×1737 →1320×1760 →896×1200 →1320×1737, request `0b13c329-0807-482f-82f6-4de422a799fe`. Both HTTP200/STOP/JPEG, zero retries, allowance once each, source/generated478 landmarks, protected exterior0 changed pixels. |
+| Folder Alignment historical Upper | **TECHNICAL PASS / VISUAL SCOPE FAIL at that checkpoint**: `69082cd1-0666-44a4-841e-8a3531a72819`, IMG_3291, lower teeth visibly changed despite then-Upper setting. Owner subsequently requested Both-only Alignment. Keep original receipt truthful; do not relabel it Both. Natural anatomy/cosmetic quality needs clinician review. |
+| Folder Full Arch | **TECHNICAL PASS / HUMAN REVIEW REQUIRED**: IMG_3297, Upper Zirconia B1, Preserve natural gums, `628e0af2-a36c-4acd-99e8-3d5b6170817d`; 1320×1718 →1320×1760 →896×1200 →1320×1718, HTTP200/STOP/JPEG, 10,540ms provider, zero retries, allowance13→12. Old strict composite had the confirmed seam. Current locally replayed raw result `bb346231-473c-4839-9c8e-2a81bd6245ad` delivered/saved/synced/exact reopened, no provider request/charge; zero protected exterior changes. |
+| Final fresh Both Alignment | **TECHNICAL PASS / HUMAN REVIEW REQUIRED — `9471ddf8-5a2d-42a3-8daa-983580f4f0d8`**, IMG_3291, Both Alignment Only, matched v8; source1320×1741/prepared1320×1760/raw896×1200/final1320×1741, HTTP200/STOP/JPEG,9,022ms provider,17,745ms integrated,zero retries,allowance12→11 once; exterior0 changed pixels, saved/SYNCED/exact reopened after Safari relaunch (`test-folder-both-alignment-final.log`, `iphone-live-1791046320459.xcresult`). Both rows appear straighter on local inspection; clinical/cosmetic approval is not automated. |
+| Six synthetic provider results | Provider/image/alignment/exterior **PASS 6/6**, HTTP200/STOP, zero retries. Whitening saved/reopened initially; other five initially failed WebKit media readback. After the confirmed cache fix, all six retained outputs locally replayed, saved/synced/exact reopened, including force-close/relaunch. **Replay is not six additional live successes or six refunds.** |
+| Physical iPhone/iPad current code | **NOT TESTED**. Earlier physical charged failures below remain true; do not replace them with simulator PASS. |
+| Real Apple sandbox purchase / Apple sign-in on current physical build | **NOT TESTED / DEVICE TEST REQUIRED**. RevenueCat commercial settings were not changed. |
+
+Live native Safari tests exercise current client preparation/alignment/compositing, account-isolated repository and normal authenticated staging case/assets API; they are distinct from full native Capacitor UI tests using a captured provider fixture. No privileged access substitutes for the normal case API. Saved-case receipt verifies usable media bytes, not status text alone. Current tests do not prove every older missing customer case has recovered.
+
+**Failure history kept:** first selector assumptions (Other vs Button, Switch vs Button), hardware-keyboard assumption, skipped live scheme environment and zero-result run were QA harness failures, fixed before valid runs. A concurrent simulator UI/live invocation crashed the test runner before any provider request; stopped and reran serially. Commands must run serially. The sync-conflict test passed all current full runs, but its earlier intermittent failure has no newly established root cause; no claim that a rerun fixed it. Initial desktop QA put full image strings into localStorage and exceeded quota after repository save; harness now stores SHA references only. Normal application storage was not changed to address that harness issue.
+
+### 3. WHAT STILL FAILS / limitations
+
+- **FAIL / release blocker for paying external users — durable charged-result recovery.** Server commits allowance after returning a valid provider image. On-device validation, delivery or save can still fail afterward. General recover/redeliver/refund lifecycle is not implemented. No local refunds, ledger edits or unsupported “generation returned” messages. This pass reprocessed retained disposable QA outputs only.
+- **HUMAN REVIEW REQUIRED — anatomy/cosmetics.** Pixel preservation outside a mask does not prove mask anatomy, correct natural gums, selected/unselected tooth boundaries or a clinically achievable result. Full Arch Upper/Lower opposite-arch preservation remains prompting-only on the ordinary shared path. Do not advertise deterministic arch isolation.
+- **NOT TESTED — original affected customer saved case.** Confirmed WebKit readback failure is fixed. Already-lost local bytes with no cloud backup cannot be promised recovery. No original case deleted/reset/regenerated. Inspect affected case read-only on updated physical build if still unavailable.
+- **NOT TESTED — broad clinical scenario matrix.** Live folder coverage includes crowded dentition, historical failing male portrait and compromised/missing dentition. HEIC/close-up imports tested locally. Rotation/spacing/low-display/4-vs8/10/posterior Full Arch/limited display need manual review. No automated “ideal cosmetic outcome” truth.
+- **Distribution legal guard remains blocked:** 40 owner/legal markers (23 privacy,17 terms). Development-signed owner Release compiled; this does not waive App Store/legal review or permit a distribution claim.
+
+### 4. EXISTING SYSTEM AND EXACT CHANGE BOUNDARIES
+
+**Orchestrator/provider:** authenticated `handler.ts` validates permissions/features, request claim and allowance reservation; shared `generateSmile` calls the existing Gemini Developer API **`gemini-3.1-flash-image`**, then commits allowance and returns image. Client `requestPreview` prepares source canvas, calls shared `SmileImageService`, removes known padding, validates aspect, detects face/aligns, composites and saves through existing case repository.
+
+**Central prompt:** `contract.ts` normalises render-relevant settings, `prompt.ts`/`imageEditPrompt.ts` render the same contract. No duplicate treatment prompt pipeline. Full Arch reconstruction wording changed at v7; v8 normalises Alignment to Both. Standard Composite/Porcelain/Whitening literal contracts are unchanged. Explicit FullArch+prostheticGingiva Include alone permits selected prosthetic interface changes; Zirconia alone does not. Auto means Preserve/Exclude. Alignment Only retains natural shade/shape and uses positioning permission, not veneers or biomechanical predictions.
+
+**Segmentation/ROI:** bundled on-device MediaPipe478 locates face/lips and stable anchors. Existing dental/SlimSAM refinement remains available only when requested behind precision controls; no normal generation wait/dependency. Ordinary standard, Alignment and Full Arch still share a mouth ROI. No new treatment-specific dental masks. Requested tighter whitening/wider Full Arch-specific masks conflict with available unreviewed segmentation; documented instead of a silent architecture rebuild. Gums and dental arch/tooth scope inside that region rely on prompts. Experimental arch map compositor remains OFF.
+
+**Geometry:** browser-decode/EXIF normalisation, max2048 source preparation without cropping; known provider padding via `generationCanvas/sourceBounds`; raw dimensions/MIME/orientation read before alignment. Track cropX/Y/W/H and scaleX/Y to exact source-sized canvas. Existing ≤3% prepared/raw aspect guard remains. Existing similarity scale0.85–1.18, rotation≤8°, median residual≤max(3px,4%mouth), ≤1 outlier beyondmax(6px,10%mouth) remain unchanged. No stretching to rescue genuine reframing. Same-aspect different resolution and expected rounding/padding tested; genuine mouth-only/crop output remains rejected.
+
+**Mask/composite:** stable original outer lip contour defines bounded smile transition after owner's requested relaxation; inward feather max(1px,0.5%mouth width), growth0. When detected lip movement exceeds existing tolerance, use original inner opening with the same inward feather. Face beyond original outer contour remains source pixels; final lossless PNG is decoded and checked outside actual alpha>0 region. Uniform editable range≤2 is a technical rejection only, not an aesthetic classifier. Neither masks nor prompting guarantee exact gums. Reviewed single-tooth/painted masks still narrow the edit in their retained internal path.
+
+**Retry/accounting:** maximum one retry, only first empty/text-only provider response; same owner request ID/reservation. No cosmetic, protection, safety, timeout or malformed-geometry retry. Duplicate claims and atomic allowance commit/release unchanged. Provider-failure release tests pass. All live requests in this pass had retryCount0.
+
+**Storage/schema/report:** no migrations, enums, products, prices, allowances or report redesign. Staging schema inspected read-only: treatment stored as text/JSONB and existing account-owned asset paths support these modes. Existing state schema1 retained. Media fix only snapshots cache Blob bytes before access write; no ownership loosening or data deletion. Existing labels/reports cover restored treatments; historical preferences stay historical.
+
+**Files:** production commits below contain diagnostics/provider/shared protection tests; availability/client/server flags; `fullArch.ts`, canonical contract; `DesignStudio.tsx`, `page.tsx`, generation schema/version; `cases/sync/coordinator.ts`; `face/lock.ts`, `face/mouthLock.ts`. QA scripts/projects/harness are isolated from production imports; fixture JS is injected only into a temporary simulator app. SDK blanking occurs in that disposable simulator bundle only.
+
+### 5. WHAT NEEDS VISUAL REVIEW
+
+Open private `output/simulator-reliability-2026-10-03/visual-review.html`: Original | raw | final for synthetic/replayed and authorised folder tests. Includes actual source inner/outer contour overlay and same-raw before/after transition crops. The source image itself remains full-frame. Review crowns, gingiva, smile envelope, opposite arch, material appearance, missing tooth handling and any seams. UI screenshots are `iphone-fixture.png`, `ipad-fixture.png`; iPad landscape attachment is inside the xcresult. No identifiable imagery uploaded to a design/analytics service or committed to Git.
+
+### 6. EXACT NEXT ACTION — owner device acceptance before another release decision
+
+1. Open `ios/App/App.xcodeproj` in Xcode. Target **App → Signing & Capabilities**, automatic signing, team **7TPF7LT884**. Choose connected unlocked iPhone; **Product → Scheme → Edit Scheme → Run → Release**; **Product → Run**. Do not Archive/Distribute. Enable Developer Mode/trust this Mac if prompted. Install over existing app; do not delete it.
+2. Normal mode, email login; new case with authorised **IMG_3241.jpg**, **Composite6 / Natural or Balanced / Keep or explicit B1**. Generate once. Inspect source frame, crown edges/contacts, lips/expression/mouth opening and exterior face, no grey/blank areas. Save, force-close, reopen and export. If failure, stop, collect request ID/time/path/count/dimensions/HTTP/stage through existing private diagnostics; no repeated retries.
+3. **IMG_3291.jpg — Both Alignment Only**, natural shape/shade. Both visible rows may straighten; no veneers, extra teeth, widened opening or orthodontic accuracy claim. Save preferred/reopen.
+4. Same clear portrait: **Whitening6 / Whiten**, then **Porcelain6 / B1 / Natural** on separate concepts. Whitening must be colour-only; Porcelain may alter permitted appearance. Review untreated teeth and gum transitions manually. Later inspect 4/8 tooth presets, Natural/Refined/Hollywood and brighter targets without silently overwriting previous results.
+5. **IMG_3297.jpg — Upper Full Arch ZirconiaB1 / Preserve gums**; inspect coherent individual crowns, missing-tooth replacement, posterior continuity and lower arch preservation. Then explicit **Include prosthetic gingiva** only if intentionally requested; verify pink interface does not reach lips. Cosmetic acceptability/arch isolation must be reviewed, not inferred from a technical PASS.
+6. **IMG_3166 2.HEIC** native photo picker: orientation/full frame; **IMG_3296.jpg** close-up: reviewed Protect edit area required if face cannot be found; no unprotected generation bypass.
+7. Saved case offline locally available → compare/export; reconnect/sync; another signed-in device → download/reopen; sign out/account switch → no cross-account case/media. Recheck the original previously unavailable case without deleting or regenerating it.
+8. Repeat core Composite save/force-close/reopen and comparison Slide/Overlay gestures on iPad portrait/landscape. Test Apple sign-in/logout separately; one real Apple sandbox subscription/restore is still required to prove RevenueCat event delivery. Never treat configuration as a purchase test.
+
+Repeatable commands: `npm run qa:ios-simulator` builds/syncs and runs deterministic native iPhone/iPad QA with zero Google calls. `npm run qa:ios-live-generation -- --imports-only` checks six authorised folder imports with provider disabled. Explicit paid command is separate; do not run it again after the budget below. Live fixtures require the private disposable staging credentials/evidence; no credentials in Git. Run these commands serially.
+
+### Provider request accounting and rollback
+
+**Final counter: 15 actual provider calls in this pass**: four early synthetic, six treatment synthetic, five authorised folder. Provider budget exhausted; no further calls. All retry0. Six synthetic local replays and one folder replay are zero provider calls. Historical charged 13:07/14:22 failures are retained below, not silently refunded or relabelled.
+
+| Fix / rollback point | Commit |
+| --- | --- |
+| Baseline before this pass | `341a4726f04cc3dfef148a6a1fcab95999e35bd3` |
+| Encoded protection / diagnostics / bounded retry | `04765f7` |
+| Restore treatments / Full Arch contractv7 | `ef193ab` |
+| WebKit media snapshot fix | `8862367` |
+| Both-only Alignment / contractv8 | `f1169dc` |
+| Authorised bounded lip transition | `8c3a9b8` |
+
+Separate commits allow scoped revert review; no automatic rollback/reset of shared dirty checkout. No merge/push performed.
+
+**Small internal TestFlight candidate:** owner-led staging testing after current physical core acceptance and existing distribution guard/manual items. This pass prepares/builds; it does not upload or certify TestFlight readiness. **Remain hidden:** Single Tooth/precision/Tooth Map and experimental arch compositor. **Explicitly limited:** Alignment is visual, both arches; Full Arch is a concept, not implant/lab planning; deterministic opposite-arch/gingival protection is not established. **Before external dentists/paying users:** durable charged-result recovery, physical save/reopen/account/purchase evidence, reviewed clinical imagery, original missing-case investigation if still failing, legal/distribution requirements.
+
+---
+
+## 3 October — mouth-alignment diagnostic Release installed; ONE physical retest FAILED
+
+**CORE 6-TOOTH READY FOR TESTFLIGHT: NO.** This is an evidence-gathering build, not a root-cause fix or a release approval. The single authorised physical generation failed at 14:22 BST. Exactly one new device request was recorded; provider retries were zero. The raw provider response and device diagnostic record were retrieved locally. No prompt, protection threshold, request schema, backend, allowance configuration, existing case or commercial configuration was changed. The test consumed one generation through the existing ledger.
+
+### WHAT WAS ACTUALLY IMPLEMENTED
+
+- **PASS:** the existing planner now emits the first actual rejection branch: missing/invalid source landmarks, missing/invalid generated landmarks, insufficient mouth width, out-of-range scale, out-of-range rotation, excessive median residual, or excessive anchor outliers. The existing mouth-lock canvas aspect branch emits `canvas_geometry_invalid`. No fictitious `invalid_transform` or catch-all planner branch was introduced.
+- **PASS:** safe counts, mouth widths in the normalized source coordinate system, fitted scale/rotation, residual/allowed residual, outlier/allowed count and source/normalized generated dimensions are recorded where available. Early rejection values not calculated are omitted rather than invented. Diagnostic observers cannot change acceptance or throw into delivery.
+- **PASS:** raw decoded dimensions, JPEG/PNG MIME and detectable EXIF orientation are observed immediately after the existing raw decode and **before** aspect validation, padding removal or compositing. No second orientation correction or image decode was added. EXIF is parsed only for the bounded orientation tag; unknown/truncated headers yield `null`. Native EXIF behaviour still needs physical evidence.
+- **PASS:** optional **QA-only local synthetic capture** writes Original/Raw before alignment and Final after successful protection to `Library/Caches/smile-qa-synthetic/<request ID>/`. It is off by default, requires native staging, and authorizes only the exact approved synthetic file SHA-256. Prepared source content is then fingerprinted in memory: filename, patient/demo flags and saved metadata cannot authorize capture. A new non-approved import or workspace detach revokes authorization. One request per app session can capture, including concurrent-call protection; errors cannot fail generation. No capture enters normal diagnostics, the repository, outbox, cloud storage or analytics.
+- **PASS:** metadata remains in the existing opt-in private `smile-generation-qa.json` allowlist. No photograph, landmark array, patient identifier, clinical note, provider text or token was added.
+
+**Unchanged guards:** 3% aspect drift; mouth width ≥20 px; fit trigger 1.2% of source mouth width; scale 0.85–1.18; rotation ≤8°; median residual ≤max(3 px, 4% mouth width); outliers above max(6 px, 10% mouth width), at most one. Mouth polygon/growth/feather, compositing, selected-region protections, prompt and provider are unchanged.
+
+### WHAT WAS TESTED — environment and evidence
+
+Branch **`release/v1-device-test`**, base **`341a4726f04cc3dfef148a6a1fcab95999e35bd3`**, diagnostic changes currently uncommitted. Existing user Xcode display-name and shared Release scheme changes remain intact. Private Git-ignored evidence: **`output/mouth-alignment-diagnostics-2026-10-03/`**; `build-receipt.json` fingerprints each changed source/test file and records configuration without keys.
+
+| Check | Result / evidence |
+| --- | --- |
+| Categorical regression red/green | **PASS:** 12 planner/privacy assertions originally failed with missing diagnostics; targeted final **34/34** passed (`red-planner.log`, `targeted-final.log`). Capture tests initially failed with the missing capture module; subsequent tests cover default-off, non-native/production rejection, wrong file/source, workspace revocation, concurrent calls and contained I/O failures. |
+| Full regression | **PASS: 634/634**, zero skipped/failing (`full-tests-final.log`). Prior intermediate suite **633/633** also passed. No tests weakened. |
+| TypeScript / ESLint | **PASS:** final commands exit 0 (`typecheck-final.log`, `lint-verified.log`). First typecheck found a wrong config export name; corrected to the existing `NATIVE_API_ORIGIN` before build. |
+| Production web/native build | **PASS:** `npm run build:native`, staging + diagnostics + synthetic capture flags (`native-build-normal.log`). The restricted build stalled and was stopped; the identical build passed with normal local permissions. |
+| Capacitor / native safety checks | **PASS:** sync and `SMILE_RELEASE_BUILD=1 node scripts/verify-ios-bundle.mjs` (`cap-sync.log`, `native-verification.log`). Staging CSP/Supabase, App Store SDK presence, bundled workers, no secret/provider credentials or remote dev server verified. |
+| Signed physical Release | **PASS:** `xcodebuild … -configuration Release … build`, deep strict signature verification; signed Apple sign-in and Complete Data Protection; bundle `uk.co.drvik.smilecompose`, version 1.0/build 1 (`xcode-release.log`, signed entitlements). Existing third-party Swift warnings remain. |
+| Installation | **PASS:** in-place update installed on connected physical iPhone 17 Pro Max (`device-install.log`). Signed app web entry matches the synced bundle; no app data reset/deletion. |
+| Matched staging contract | **PASS:** only client observability changed. Deployed v6 generation request/prompt contract and server gates remain unchanged. Read-only staging pricing returns `gemini-3.1-flash-image`. No Worker deployment needed/performed. |
+| Browser, current code, no provider | **PASS:** unchanged padded image, 900×1200 same-aspect output, 896×1200 rounding simulation and the historical output all normalize to 1320×1737, detect 478/478 landmarks and pass mouth locking. Historical fitted scale 0.9236117, rotation −1.7538°, median residual 6.0733 px versus allowed 13.6490, zero outliers (`local-browser-receipt.json`, `local-checks-current.png`). **Desktop in-app browser, not physical validation.** |
+| Distortion / framing rejection | **PASS:** genuine scale/rotation/residual/outlier failures and square/reframed canvas remain rejected. Canvas branch verified through the real mouth-lock function with substituted browser boundaries. |
+| Physical new-generation / save / reopen | **FAIL:** request `6b937aba-2ba3-424a-beb3-51cc0bba0150` rejected with `generated_landmarks_missing`. Raw captured/retrieved. Save/reopen **NOT TESTED**, because no usable concept was delivered. |
+
+**Recorded unsuccessful checks:** initial `tsx` CLI raw-metadata invocation hit a sandbox IPC `EPERM` and did not run assertions; subsequent `node --import tsx --test` ran successfully. The first refreshed local harness lacked a build-time `process.env` replacement and stopped before processing; supplying the QA-capture-off definition made all four local checks pass. Neither was a provider failure. The production build stall and config-export typecheck failure are retained in private logs, not erased by later passes.
+
+### WHAT STILL FAILS / WHAT WAS NOT TESTED
+
+The 13:07 request remains a confirmed charged, undelivered result. Its raw bytes and exact planner condition were not retained; this instrumentation cannot retroactively recover them. The older request’s precise underlying condition remains **NOT DETERMINED**; do not attribute the new request’s raw image to that older incident. No refund performed. Durable charged-result recovery remains deferred. This diagnostic build is development-signed Release for the owner, not App Store/legal readiness: the existing distribution build guard still requires resolution of 40 owner/legal markers. No TestFlight or Apple upload occurred.
+
+### ONE PHYSICAL RETEST — FAIL; STOP
+
+**Request:** `6b937aba-2ba3-424a-beb3-51cc0bba0150`, provider start **13:22:10.985131 UTC / 14:22:10.985 BST**, finish **13:22:21.289379 UTC**. Source is the approved synthetic fixture, and the on-device capture reports `saved`. The first diagnostic copy timed out; after the user reconnected/unlocked the phone, the QA JSON and only this synthetic request’s Original/Raw files were retrieved successfully. No second generation was requested.
+
+| Required diagnostic | Actual evidence |
+| --- | --- |
+| Provider image | **YES:** valid JPEG, HTTP 200, STOP; one candidate/one image part, no text/thought/other parts; 10,224 ms, zero retries |
+| Source / prepared input | **1092×1440 / 1092×1456**; 8 pixels known request padding above/below |
+| Raw dimensions / EXIF | **896×1200 / no orientation tag**; native raw observer and locally inspected file agree |
+| Normalized dimensions | **1092×1440** before mouth-lock planning |
+| Raw aspect drift | **0.4444444444%**, within unchanged 3% guard; normalized canvas drift 0% |
+| Source landmarks / generated landmarks | **478 / 0** |
+| Exact first rejection | **`generated_landmarks_missing`**, stage **`mouth_composite`**, error `mouth_alignment_rejected` |
+| Mouth width / scale / rotation / median residual / outliers | **N/A:** rejection occurs before mouth-width calculation or transform fitting; no numeric threshold rejected this output |
+| Raw visual review | **FAIL:** isolated enlarged/retracted dental close-up within a grey portrait canvas; original full face absent. This is already present in raw bytes, before app padding removal or compositing. |
+| Final / mask / save / reopen | **NOT AVAILABLE / NOT TESTED:** rejected before a plan/composite/final save; no final result or invented mask overlay produced |
+| Allowance | **CONSUMED once, 71 → 70**: reservation −1 at 13:22:10.870608 UTC, committed quantity 0 at 13:22:21.311869 UTC. No refund/release entries, no manual ledger change. |
+| Matched contract | **PASS:** actual receipt confirms standard mode, six selected teeth, Gemini `gemini-3.1-flash-image`, prompt `2026-10-03-treatment-contract-v6`; ledger treatment Single-shade composite / Auto. Zero matched Case Library style references recorded. |
+
+**ROOT CAUSE — confirmed for this retest:** the provider returned mouth-only content instead of a full-face edit. The normalized output therefore has no detectable face landmarks, and the existing safeguard correctly rejects it **before fitting or compositing**. The real raw image rules out a mere aspect-rounding error and provides no basis for loosening scale/rotation/residual thresholds. The initiating reason Gemini chose that content remains unproven; no speculative prompt/provider change was made. This does not prove the same raw content occurred in the older 13:07 request, whose raw result is lost.
+
+**Visual evidence:** private `physical-original.jpg`, `physical-raw.jpg`, `visual-review.html` (Original | Raw | Final unavailable), `physical-request.json`, `physical-summary.json` and `physical-ledger.json`. **HUMAN REVIEW REQUIRED** for raw imagery; no cosmetic acceptance claim. All evidence remains Git-ignored/local and file permissions restricted. Normal QA JSON contains structural metadata only, not either image.
+
+**NEXT ACTION:** keep release paused. Investigate the input/prompt/provider content contract in a separately scoped follow-up using the retained output; do not retry or weaken protection on this evidence-gathering pass. Durable charged-result recovery remains unresolved and must not be described as refunded.
+
+**Provider requests used in this diagnostic pass: 1, zero retries. PHYSICAL RESULT: FAIL. CORE 6-TOOTH READY FOR TESTFLIGHT: NO. STOP.**
+
+---
+
+## 3 October, 13:07 BST — physical iPhone failure: RELEASE STOPPED
+
+**This incident supersedes the readiness verdict below. CORE 6-TOOTH GENERATION READY FOR TESTFLIGHT: NO.** No application fix, prompt change, guard relaxation, generation retry, refund, deployment, installation or upload was performed. Existing Xcode display-name/shared-scheme edits are preserved.
+
+### Exact request — PASS: identified
+
+- **`fc582b9b-564e-4249-9733-99bb71693dc6`**, provider start **12:07:06.710145 UTC / 13:07:06.710 BST**, finish **12:07:19.110703 UTC** on 3 October 2026.
+- Staging `POST /api/generate-smile` → GeminiSmileProvider → Google **`gemini-3.1-flash-image`**; prompt **`2026-10-03-treatment-contract-v6`**, standard path, **6 selected teeth**. Ledger treatment: **Single-shade composite / Auto**. Supplied screenshot confirms six upper teeth. No selected FDI array is retained in diagnostics.
+- **PROVIDER RETURNED IMAGE: YES.** HTTP **200**, finish **STOP**, one candidate, two response parts: one valid non-thought **image/jpeg**, one text part; zero thought/other parts. Structural image validation succeeded. Provider latency **12,310 ms**; retries **0**. Provider text was neither retrieved nor logged.
+- Read-only physical iPhone QA copy confirms **`stage=mouth_composite`, `outcome=failed`, `errorCode=mouth_alignment_rejected`**. Private metadata evidence: `output/iphone-framing-failure-2026-10-03/{device-request.json,provider-audit.json}`. No patient photographs, landmarks, clinical text, credentials or raw provider text in those files.
+- This request's cloud case has confirmed source/prepared-photo and thumbnail assets; no generated-result asset was found. Existing case/media were not changed.
+
+### Allowance — CONSUMED; no refund
+
+Reservation **12:07:06.639375 UTC**, quantity **−1**, `balance_after=71`: **72 → 71**. Committed **12:07:19.129574 UTC**, separate commit quantity **0**, result reference **`8d6e4a59-5305-4acd-a240-7a23f0bab9dd`**. Reservation remains **committed**; no refund/release entry for this request. The existing release RPC only transitions `reserved`, not `committed`, and there is no authoritative client-delivery-failure recovery operation. No ledger edits or local refund made. This is a confirmed incident under **durable charged-result recovery: DEFERRED**.
+
+### First rejected stage — established; underlying cause — NOT DETERMINED
+
+Provider extraction and `alignPreview` completed. `lockFaceOutsideLips` then returned `invalidAlignment=true / mouth_alignment_rejected`; `page.tsx` threw the exact screenshot message. The first rejection is **mouth-composite alignment planning, before pixels are composited and before saving**. The 3% aspect guard inside `alignPreview` **did not reject**: it has different copy, and the last recorded stage would have been `align`.
+
+The mouth-lock code groups missing/invalid generated landmarks, invalid source landmarks, insufficient detected mouth width, disallowed similarity-transform scale/rotation, and excessive stable-anchor residuals into this one error. It also checks aspect, but the prior normalization already exports a source-sized JPEG. Current QA records omit the individual rejection condition, detector outcome, fitted transform and residuals. They cannot establish which underlying condition occurred in this request.
+
+### Geometry / orientation
+
+| Stage | Dimensions / aspect | Evidence |
+| --- | --- | --- |
+| Local prepared source | **1320 × 1737 / 0.7599309154** | iPhone QA + confirmed cloud asset metadata; matching approved test-folder JPEG |
+| Temporary prepared request | **1320 × 1760 / 0.75** | iPhone QA + current canvas calculation |
+| Provider input | **1320 × 1760 / 0.75** | Staging provider diagnostics |
+| Exact raw provider output | **UNKNOWN** | Dimensions/bytes were not retained |
+| Intended source crop | **x=0, y=0.00625, width=1, height=0.9869318182**, normalized | Existing request-padding bounds |
+| Completed alignPreview canvas | **1320 × 1737 / 0.7599309154** | Current source-sized export; subsequent stage recorded on device |
+| Final expected canvas | **1320 × 1737 / 0.7599309154** | Source dimensions |
+
+- Matching local JPEG visually agrees with the supplied screenshot and has **no EXIF orientation tag** (`sips`). Preparation draws decoded pixels into a JPEG canvas, removing source EXIF. This fixture needs no 90° source rotation. Raw provider EXIF and decoded orientation were not retained.
+- Padding: **11 pixels top, 12 bottom**, none horizontally, no source scaling at this size. Removal applies the same normalized bounds to raw decoded dimensions. Final mask/landmark coordinates use the original source canvas.
+- Prepared/source aspect difference: **1.3068181818%**; inverse source/prepared difference: **1.3241220495%**. These are intentional padding differences, not observed provider drift.
+- Actual raw drift: **UNKNOWN, but alignPreview's >3% rejection was not triggered**. Its accepted decoded aspect range is **0.7275–0.7725** against prepared **0.75**. A decoded square result would fail earlier and cannot explain the recorded stage. A content crop within a portrait canvas remains possible.
+- Expected aspect after source-sized normalization: **0.7599309154**, drift **0%** relative to the source. No exact raw/de-padded natural aspect or returned-padding integrity can be measured without the lost output.
+- Google documents differing output-resolution buckets: this model's **3:4 / 1K** size is **896 × 1200**, **0.4444444444%** drift from exact 3:4. This is a documented size, **not a measured dimension for this request**. [Google image-generation dimensions](https://ai.google.dev/gemini-api/docs/generate-content/image-generation#aspect_ratios_and_image_size)
+- Existing normalization handles different resolution and known request padding. It assumes returned content retains the known frame; dimension equality alone does not prove anatomical alignment. No extra crop, stretch, tolerance change or guessed padding recovery added.
+
+### Local no-provider reproduction — PASS, with limits
+
+The user started the prepared loopback-only harness after sandbox listening was denied and automatic approval review could not run the server because of a usage-limit error. No alternative was used to bypass that rejection. Actual browser interaction subsequently ran the current photo preparation, face worker, alignment and mouth lock on approved local content. No provider request, cloud write or patient-photo display in the harness.
+
+| Local scenario | Raw dimensions | Source/generated landmarks | Mouth lock | Aligned median residual |
+| --- | --- | --- | --- | --- |
+| Unchanged padded canvas | 1320 × 1760 | 478 / 478 | PASS | 0.7644 px |
+| Same aspect, smaller resolution | 900 × 1200 | 478 / 478 | PASS | 1.5277 px |
+| Documented rounding simulation | 896 × 1200 | 478 / 478 | PASS | 0.9306 px |
+| Historical output, different request | 896 × 1200 | 478 / 478 | PASS | 6.0733 px |
+
+All normalized to **1320 × 1737**; allowed median was **13.6490 px**, all had zero excessive anchor outliers. Historical fitted scale **0.9236117**, angle **−1.7538°**. Evidence: private `local-browser-receipt.json`, `local-checks.jpg` and local harness source. These are **desktop in-app browser tests, not iPhone Safari/WebView tests**. They show the known geometry and an older output can succeed; they do not recover or explain the exact failed output. The existing genuine-distortion rejection tests still pass.
+
+### Raw image — unavailable; no speculative fix
+
+**RAW IMAGE VISUALLY REFRAMED: NOT DETERMINED.** Raw response bytes are transient server/client memory, while result persistence runs only after protection succeeds. Neither diagnostic schema saves raw bytes/dimensions, and this cloud case has no generated asset. Original-versus-raw inspection for this exact request is blocked. Historical raw images and documentation must not be substituted as evidence for it.
+
+**ROOT CAUSE:** confirmed client mouth-alignment rejection following a valid provider response; its precise detector/transform cause is not determinable from retained evidence. An exact geometry-mismatch or actual Gemini reframe diagnosis would be invented. **FIX / exact failing regression: NOT IMPLEMENTED** because that cause remains unknown. No passing characterization was labelled a failing regression.
+
+### Verification / stop
+
+- **PASS:** **26/26** targeted tests; **613/613** full tests, no failures; TypeScript and ESLint exit **0**. Logs are private in the incident directory. Source checkpoint **`341a4726f04cc3dfef148a6a1fcab95999e35bd3`**, branch **`release/v1-device-test`**, application source unchanged; earlier app release source **`427c645e74f2f2995486eebbf0d895314df34b5c`**.
+- **NOT TESTED:** actual failed raw-image review, real EXIF-rotated iPhone reproduction, production rebuild/matched deployment and physical retry. No release rebuild while the underlying bug is unexplained.
+- **New provider calls this investigation: 0.** No retries. No fake refund. No production or staging deployment.
+- **Exact next development action:** narrowly instrument categorical landmark outcomes, output geometry and the specific transform-rejection condition; retain raw output locally only under explicit approved-QA capture. No images/landmark arrays/raw errors in general logs. This is a required evidence step, not a root-cause fix or licence to generate repeatedly. User approval needed before any new generation beyond the conditional acceptance run.
+
+**PHYSICAL RETEST: NOT TESTED. CORE 6-TOOTH GENERATION READY FOR TESTFLIGHT: NO.** Keep release paused. The single permitted physical acceptance generation must wait for an evidence-backed fix and regression/build checks.
+
+---
+
 # SmileCompose V1 — focused stabilisation handover
 
 ## 3 October — final staging backend gate / internal candidate
