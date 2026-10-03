@@ -1,3 +1,70 @@
+## LATEST — SELECTIVE GEMINI PROVIDER ROLLBACK, 3 October 2026
+
+### 1. WHAT WAS ACTUALLY FIXED
+
+**PASS — prepared provider configuration only.** Branch `release/v1-device-test`; fix checkpoint `f91b56d`, preceding rollback point `6e2ab27`. Local configuration and the next staging Worker package now select the retained Gemini adapter. No generation architecture, prompt, mask geometry, framing tolerance, case, storage, account, allowance or UI implementation was changed. Existing uncommitted Xcode project/shared-scheme work was preserved and excluded from the fix commit.
+
+**Deployment distinction:** no Worker deployment was performed. The last deployed staging Worker remains the Sunburst configuration recorded in the previous checkpoint. A newly built client still calls that staging URL; rebuilding/installing alone does not switch its live provider. Gemini is ready in the prepared local/staging configuration, not yet activated on the live staging service. Production configuration was unchanged.
+
+### 2. WHAT WAS TESTED — ENVIRONMENT AND EVIDENCE
+
+Local macOS checks on `f91b56d` (same source as the tested working tree), with network responses mocked at the provider boundary. Private evidence: `output/gemini-provider-rollback-2026-10-03/`.
+
+| Check | Result / evidence |
+| --- | --- |
+| Configured staging factory → Gemini request → canonical prompt → finished image extraction | **PASS**, six new tests, `focused.log`; source and canonical prompt only, even if stale input supplies an edit mask. |
+| Gemini, canonical snapshots, provider diagnostics | **PASS**, focused39/39. |
+| Retained Sunburst/OpenAI mask, response and prompt tests; alignment/mouth diagnostics | **PASS**, retained-protection24/24. |
+| Full automated suite | **PASS**,685/685,0 failed/skipped; `full-suite.log`. Includes sync/account isolation, allowance, validation and compositing tests. |
+| TypeScript / ESLint | **PASS**, `typecheck.log`, `lint.log`. |
+| Production web build + native packaging + Capacitor sync + copied-bundle credential scan | **PASS**, `build-native-sync-retry.log`. |
+| Cloudflare packaging (no deploy) | **PASS**, `cloudflare-package.log`. |
+| Signed iOS Release + strict deep signature verification | **PASS**, `ios-release.log`, `signature.log`. Existing team/capabilities retained. Bundle `uk.co.drvik.smilecompose`,1.0/build1. |
+| Distribution preflight | **FAIL — unchanged owner/legal gate:** privacy23 + terms17 unresolved items; `distribution-preflight.log`. Guard retained. |
+| Physical device / cosmetic provider acceptance | **NOT TESTED**. No install or live image request performed this pass. |
+
+First failures and reruns: new configured-path tests initially failed because the current staging configuration selected OpenAI, as intended for RED. After the switch, a test assertion used `metadata.provider` instead of the existing `generation.provider`; corrected the test fixture, not application code (`test-fixture-error.log`). Final focused/full runs passed. The first sandboxed production build stalled at compilation and was stopped (exit143); the identical command completed with local build permissions. No build code/configuration was weakened. Historical intermittent sync-conflict fixture cause/fix and original failure remain recorded below; this full-suite run passed those strengthened tests without further changes.
+
+### 3. WHAT STILL FAILS
+
+The earlier retained Sunburst outputs still fail untreated lower-tooth preservation. This configuration rollback is not proof Gemini cosmetic acceptance has been restored. The shared whole-mouth compositor is unchanged; selecting Gemini without a provider mask does not itself guarantee correct anatomical dental scope or gingival preservation. Framing/landmark rejection remains enabled. Durable charged-result recovery and distribution/legal blockers remain unchanged.
+
+### 4. WHAT WAS NOT TESTED / BLOCKED
+
+Live staging Gemini deployment and generation, iPhone/iPad acceptance, real purchase delivery and cosmetic acceptance: **NOT TESTED**. This task made **ZERO live/paid provider calls, ZERO retries, ZERO deployments/uploads**. Worker secret values were not exposed or changed; retained Google staging credential/terms assertions must be checked at an explicitly authorized deployment checkpoint. Local paid Google terms configuration restores the previously documented paid path; it is not an independent verification of the owner's legal/provider setup.
+
+### 5. WHAT NEEDS HUMAN VISUAL REVIEW
+
+For one later separately authorized comparison, use the same approved photo/settings as retained Sunburst evidence: Porcelain,6 upper teeth,Natural (same shade/intensity/shape settings). Compare Original / Gemini raw / Gemini final with retained Original / Sunburst raw / Sunburst final in `output/sunburst-test-folder-2026-10-03/`. Inspect untreated lower teeth, lips, mouth opening, gingiva, crown individuality/proportions and seams. **HUMAN REVIEW REQUIRED**; no new cosmetic claim made.
+
+### 6. EXACT NEXT ACTION
+
+First explicitly authorize deployment of the prepared matched staging Worker; do not expect an Xcode install alone to switch the provider. Then separately authorize ONE controlled Gemini comparison. No paid request is authorized by this rollback. Signed local build: `/tmp/smilecompose-openai-release/Build/Products/Release-iphoneos/App.app` (reused build-cache directory name; current contents rebuilt here). The smallest later physical acceptance check is generate once → inspect → save → force-close → reopen. Stop if generation fails. No TestFlight upload performed.
+
+### SELECTIVE ROLLBACK — REQUESTED 15-ITEM IMPLEMENTATION REPORT
+
+| Item | Outcome |
+| --- | --- |
+| 1. Exact active provider before/after | Prepared local/staging: `openai` / `gpt-image-2.5-sunburst` → `gemini` / `gemini-3.1-flash-image`. Live staging remains last deployed Sunburst until authorized deployment. |
+| 2. Files changed | `.env.example`, `wrangler.jsonc`, `tests/v1-provider-selection.test.ts`, this existing report; ignored `.env.local`. No application source changes. |
+| 3. Adapter reused | Existing `src/lib/generation/gemini.ts`, via existing `getSmileProvider`; no second integration. |
+| 4. Exact model | `gemini-3.1-flash-image`. |
+| 5. Config changes | Staging vars: `SMILE_PROVIDER=gemini`, add `GEMINI_IMAGE_MODEL=gemini-3.1-flash-image`, `SMILE_MASK_GUIDANCE=off`; retain OpenAI model/quality and treatment flags. Local: same provider/model/mask guidance and `SMILE_GEMINI_DATA_TERMS=paid`; keys and OpenAI terms/model/quality retained. Example documents Gemini defaults. Production vars unchanged. |
+| 6. Sunburst-specific behavior inactive | Selected Gemini path bypasses OpenAI Images Edit, whole-mouth alpha conversion, Sunburst formatter, OpenAI `quality=high`, decoder/error mappings. Gemini may return PNG; generic image handling remains. |
+| 7. Sunburst retained | Adapter, key support, configuration, mask conversion, tests and diagnostics unchanged. Explicit server configuration required; no fallback. |
+| 8. No whole-repo rollback | Migration `18efba3` inspected as a reference. No reset, whole-commit revert, discarded changes, merge or push. |
+| 9. Hardening preserved | Geometry/padding/sourceBounds, normalization, face/landmarks, mouth alignment/Expression Lock, compositing, output validation, guard/timeout/retries, allowance, storage/reopen, diagnostics and signed iOS settings retained. |
+| 10. Canonical treatment contract preserved | Gemini consumes `buildCanonicalPrompt` through the existing `buildImageEditPrompt` export. Whitening colour-only; Composite/Porcelain selected restoration; Alignment both; All-on-X both/zirconia; Single Tooth/Tooth Map/Precision remain hidden. No prompt edits. |
+| 11. Standard multi-tooth request construction | Source image first, current canonical prompt last; existing optional direct/style references retained if supplied. Explicit mask guidance OFF: no broad whole-mouth provider mask. Gemini TEXT+IMAGE modalities and configured aspect/resolution unchanged. Shared downstream protection still runs. |
+| 12. Automated tests | Focused39/39; retained adapter/protection24/24; full685/685; TypeScript/ESLint PASS. No tests removed/weakened. |
+| 13. Builds | Production web/native/sync, Cloudflare package, signed Xcode Release and signature PASS. Distribution preflight still blocked by40 owner/legal items. |
+| 14. Live provider calls | ZERO. No automatic fallback, live retry, deploy, physical generation or upload. |
+| 15. One controlled comparison readiness | Local preparation **PASS**; live comparison **NOT TESTED**, requires separately authorized staging activation plus ONE separately authorized request. No claim of clinical/cosmetic readiness. |
+
+STOP — no additional optimisation or features.
+
+---
+
 ## LATEST — AUTHORISED REAL TEST-FOLDER SUNBURST CHECK, 3 October 2026
 
 ### 1. WHAT WAS ACTUALLY FIXED
