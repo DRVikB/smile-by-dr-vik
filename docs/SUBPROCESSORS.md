@@ -1,5 +1,7 @@
 # Processors and sub-processors
 
+> **3 October 2026 — Sunburst staging:** The owner confirmed OpenAI API business terms/DPA and the required privacy documentation in chat, and authorised staging only. `SMILE_OPENAI_DATA_TERMS=api` is a server assertion of that confirmation, not an independent legal/retention audit. Staging uses OpenAI Images Edit (`gpt-image-2.5-sunburst`); production configuration remains Gemini. See the current checkpoint in `OVERNIGHT_V1_STABILISATION_REPORT.md`. The generated local privacy/terms shipping preflight still has unresolved owner/legal items; no production or Apple upload was made.
+
 > **2026-10-02 implementation update (not deployed):** Macro Stage 1 adds signed-in patient-case state in Supabase and binary patient media in the separate PRIVATE `patient-cases` bucket, with an account-isolated local cache/outbox. This supersedes earlier device-only descriptions for patient cases in this document. AI generation and the clinician reference library remain separate. See [the Stage 1 implementation report](CLOUD_PATIENT_SYNC_STAGE1_2026-10-02.md). Provider contracts, region, backup retention and professional approvals are not verified by this implementation.
 
 
@@ -8,6 +10,7 @@
 | Provider | Service | Data | Patient data? | Location (to confirm) | Contract / DPA | Transfer mechanism | Status |
 |---|---|---|---|---|---|---|---|
 | **Google** (Gemini Developer API, paid, **or** Vertex AI) | Image generation | Patient photo(s), prompt with design settings and notes | **Yes** (transient, plus provider abuse logging) | Gemini API: any country with Google facilities. Vertex: selected region, if the model is offered there | Google Cloud Data Processing Addendum (via the Cloud Billing account) plus the Gemini API Additional Terms / Google Cloud terms | UK Extension to the EU–US DPF (Google LLC certified?) or IDTA/Addendum | NOT VERIFIED |
+| **OpenAI (staging only)** | Images Edit API, Sunburst | Prepared photograph, aligned permission mask and clinician design prompt | **Yes** when clinician supplies patient content; current integration QA is synthetic only | Account location, processing region and retention to be documented | Owner confirmed API business terms/DPA on 3 October 2026; evidence not independently inspected | Owner/professional review required | OWNER CONFIRMED — staging only |
 | **Cloudflare** | Worker hosting, TLS, Durable Objects | All generation requests in transit (patient images in memory), IP addresses, random request IDs | **Yes** (in transit) | Global edge | Cloudflare DPA (self-serve, part of the terms) | DPF / SCCs with UK Addendum per the Cloudflare DPA | NOT VERIFIED |
 | **Supabase** | Authentication, Postgres and private Storage | Clinician account, subscription status, usage ledger, consent and audit records; **from 2026-09-28: Case Library photographs (patient images the clinician adds) and profile photos** | **Yes (Case Library images)** | Project region: [OWNER DECISION, e.g. London eu-west-2] | Supabase DPA (request or sign via dashboard) | DPF / IDTA if US access | NOT VERIFIED |
 | **RevenueCat** | Subscription management | Supabase user UUID, App Store purchase history | No | USA | RevenueCat DPA | DPF / SCCs plus UK Addendum | NOT VERIFIED |
@@ -15,7 +18,7 @@
 | **jsDelivr / Google Cloud Storage** | Download of the on-device face model and WASM files | IP address and user agent only (no images) | No | Global CDN | Public CDN terms | — | Consider self-hosting the model files to remove this recipient |
 | **Apple** | App Store, IAP, Sign in with Apple, TestFlight | Apple's own data | No | — | Apple Developer Program License Agreement. Apple is an independent controller | — | N/A (independent controller) |
 
-Not V1 processors (the code includes adapters, but they are **blocked** unless explicitly confirmed): OpenAI (`SMILE_OPENAI_DATA_TERMS=api`) and a custom HTTP backend (`SMILE_PROVIDER_DATA_TERMS=confirmed`). Enabling either requires updating this list, the DPIA and the privacy policy first.
+OpenAI is enabled for owner-led staging after the confirmation above (`SMILE_OPENAI_DATA_TERMS=api`); production activation is not authorised. The custom HTTP adapter remains blocked unless explicitly confirmed (`SMILE_PROVIDER_DATA_TERMS=confirmed`). Provider registration, DPIA/privacy wording, retention and transfer evidence require owner/professional review before external or paying use.
 
 ## Required Gemini production configuration
 

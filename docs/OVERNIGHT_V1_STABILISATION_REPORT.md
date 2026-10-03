@@ -1,3 +1,83 @@
+## SUNBURST DEVICE ACCEPTANCE FAILURE — 3 October 2026, 20:53–20:55 London
+
+### 1. WHAT WAS ACTUALLY FIXED
+
+**PASS — staging integration, not generation acceptance.** `18efba3` configures the existing OpenAI adapter for `gpt-image-2.5-sunburst`, high-quality PNG Images Edit, same-size source/mask input, alpha-permission conversion and the existing shared post-processing. Gemini remains an explicit disabled rollback; there is no automatic provider fallback. `1b18bb7` corrects upstream API-credit errors to HTTP503 so the client does not misrepresent them as a clinician subscription requirement. Both commits are separate rollback points; earlier provider checkpoint `9ebb832` remains available. No production deployment, push, merge, Apple upload, case deletion, schema or commercial configuration change.
+
+**PASS — diagnostic build configuration correction.** The last installed bundle had no value baked in for `NEXT_PUBLIC_SMILE_QA_DIAGNOSTICS`: its private recorder returned before writing. The retrieved cache ended at the older 19:37 Gemini test. The staging-only local build environment now enables the existing metadata recorder. Rebuilt JavaScript confirms the opt-in check was compiled on. The rebuilt signed Release compiled and was installed over the existing iPhone app without deleting its cases (`device-failure/physical-release-diagnostic.log`, `device-failure/iphone-install-diagnostic.log`). This does not repair either generation and cannot recover missing historical diagnostics. Raw-image capture remains disabled.
+
+### 2. WHAT WAS TESTED — ENVIRONMENT, COMMIT AND EVIDENCE
+
+Branch `release/v1-device-test`; client implementation `18efba3`, final server-only error mapping `1b18bb7`. Matched contract `2026-10-03-sunburst-v1`, pipeline `SC-SUNBURST-V1`. Staging Worker only: `smile-by-dr-vik-staging.drvik.workers.dev`, final version `13ba1d60-4494-4140-9706-73da9f9c9b43`. Supabase staging `wukcqlpuzkzwxmdkotfg`. Owner explicitly confirmed API business terms/DPA and required privacy documentation for staging; that assertion is recorded in `SUBPROCESSORS.md`, not independently audited.
+
+Private, Git-ignored evidence: `output/openai-sunburst-setup-2026-10-03/`. Metadata-only device cache was copied from `Library/Caches/smile-generation-qa.json`; no patient image, auth database or full app container was copied. Staging queries were read-only and restricted to this owner's two requests.
+
+| Test | Evidence / verdict |
+| --- | --- |
+| Full automated regression | **PASS — 671/671**, zero failures/skips, `release-tests.log`. Mocked providers; no paid calls. |
+| TypeScript / ESLint | **PASS**, `release-typecheck.log`, `release-lint.log`. |
+| Production-style web build / Capacitor sync / bundle check | **PASS**, `web-build-final.log`, `cap-sync-final.log`, `bundle-verification.log`. Updated metadata-only diagnostic rebuild: `device-failure/diagnostic-build.log`. |
+| Cloudflare packaging / staging deployment | **PASS**, `cloudflare-credit-fix.log`, `staging-deploy-final.log`. Production unchanged. |
+| Signed physical iPhone Release compile | **PASS**, `physical-release-final.log`, strict signature `signature.log`; bundle `uk.co.drvik.smilecompose`, version1.0/build1. That staging QA build was installed over the existing app. |
+| iPhone/iPad simulator fixture | **PASS**, `native-simulator.log`, xcresults under `output/simulator-reliability-2026-10-03/`. Deterministic mocked UI fixtures, not actual Sunburst delivery or cosmetic validation. |
+| Local input-mask/post-processing compatibility | **PASS**, approved synthetic source only, `local-mask-receipt.json`: source1092×1440, prepared/mask1092×1456, 478 landmarks, opaque protected corners, 25,613 editable pixels. Local source replay only; not a real provider-output test. |
+| Provider model access / staging model endpoint | **PASS — HTTP200**, `access-check.json`, `staging-model.json`. No image call was required for these checks. |
+| Owner physical Sunburst test | **FAIL — rejected image; FAIL — cosmetic acceptance of preceding delivered image.** Supplied `IMG_3510.PNG` and `IMG_3508.PNG`/`IMG_3509.PNG`. Both requests used **8**, not the requested6, upper teeth and Porcelain/Auto. No six-tooth device acceptance inferred. |
+| Strict shipping preflight | **FAIL — 40 unresolved owner/legal items** (privacy23, terms17), `ios-sync-final.log`. Signed direct-device staging QA is not shipping/TestFlight clearance. No guard weakened. |
+
+Test failure history: initial adapter/mask/contract/required-mask and credit-mapping regressions were RED before GREEN. One TypeScript/build run failed because a new test fixture omitted required `variationId`; the fixture was corrected and checks rerun. Sandbox blocked the `tsx --test` IPC socket, so the same suite ran through `node --import tsx --test tests/*.test.ts`. The earlier intermittent sync-conflict test remains separately documented; these passing runs do not establish its root cause. The diagnostic rebuild audit initially treated the presence of an unused raw-capture module export as activation; this assertion was corrected to inspect the disabled opt-in branch/configuration, with no capture-setting change. Sandbox signature verification could not read the trust store; the same strict verification passed with normal signing-store access. These were verification-environment/assertion failures, not additional provider requests.
+
+### 3. WHAT STILL FAILS — EXACT REQUEST EVIDENCE
+
+| | Displayed but owner rejected | Rejected before display/save |
+| --- | --- | --- |
+| Request ID | `6c2abe6d-dab2-47ca-baaa-e8ed04931501` | `5078b631-9c73-4b1a-bcb5-700f2cb221f4` |
+| Provider | OpenAI `gpt-image-2.5-sunburst` | OpenAI `gpt-image-2.5-sunburst` |
+| Provider input | 1536×2048 | 1092×1456 |
+| Raw output | 992×1328 PNG, valid image | 992×1328 PNG, valid image |
+| HTTP / category | 200 / success | 200 / success |
+| Provider latency | 40,335ms | 26,275ms |
+| Provider finished, London | 20:53:40 | 20:54:57 |
+| Input/output aspect drift | 0.401606% | 0.401606% |
+| Server allowance | 64→63; committed | 63→62; committed |
+
+**FAIL — mouth-alignment acceptance, not “no image”.** Request path is physical app → staging `/api/generate-smile` → authenticated reservation → shared handler → OpenAI `/v1/images/edits` → valid PNG returned → `alignPreview` → `lockFaceOutsideLips` → attempted delivery. Provider headers establish prepared dimensions, not independently decoded EXIF. The 0.401606% aspect difference is below3%. The exact screenshot wording is emitted only by `lockFace` when `lockFaceOutsideLips` sets `invalidAlignment`; therefore the failure occurred at **mouth_composite alignment validation**, after provider extraction and canvas aspect validation, before saving the new result. It does not establish a genuine crop/reframe.
+
+For the approved synthetic source, expected source1092×1440 ratio0.758333333, prepared ratio0.75, raw ratio0.746987952. Known8px padding implies cropY7.296703 / cropHeight1313.406593 on the provider canvas, then final1092×1440. These are **calculated expected geometry**, not retrieved execution diagnostics for this failed request. Raw EXIF, actual crop offsets, fitted scale/rotation/residual, detector error versus no-face result and exact categorical rejection are **NOT TESTED / unavailable** because the recorder was disabled. The raw provider result was not retained; visual reframing and replay of this exact output cannot be proved. No framing-guard relaxation is justified.
+
+**FAIL — visible anatomical/cosmetic result.** The supplied before/concept screenshots show a larger visible intraoral opening, reduced lower-tooth display and excessively uniform short-looking crowns. The owner rejects the appearance. The current ordinary V1 permission mask covers the source mouth ROI; its protected exterior is not an anatomical tooth/gum mask. `mouthTransitionMask` uses the outer-lip boundary for stable lip landmarks, or strict original inner opening for detected movement. Neither separately enforces gum, lower-tooth or selected-tooth pixels within that ROI. This establishes a protection limitation; it does **not** prove whether the exact defect first arose in raw provider generation or subsequent fitting/compositing, because raw output and new client alignment diagnostics are unavailable. Prompt text already prohibits changing mouth opening/exposure and untreated teeth. No duplicate preservation prose, new gum segmentation, mask expansion or speculative prompt change was added.
+
+**FAIL — charged failed delivery.** Both reservations are committed; there is no release/refund ledger entry for either. The failed second result cost one generation. No local refund, manual ledger adjustment or client-asserted refund was made. Current provider-success commitment does not establish successful device delivery. Durable authenticated/idempotent result recovery remains deferred and is required before external/paying beta.
+
+### 4. WHAT WAS NOT TESTED / BLOCKED
+
+**NOT TESTED:** exact raw image visual framing; six-tooth physical acceptance; four-treatment Sunburst acceptance; save/force-close/reopen of a usable Sunburst result; Apple sandbox purchase delivery; physical iPad Sunburst generation. The owner attempted two requests; the agent made **0 paid Sunburst calls / 0 retries**. These two owner requests do not grant further agent requests. Earlier agent Gemini budget17 remains exhausted. OpenAI does not supply Gemini's `finishReason` in this Images response contract; none is invented.
+
+**Security/configuration PASS:** key created once for project Default project in organisation Personal, named SmileCompose; server-only `.env.local` mode0600, ignored/untracked. No secret bytes matched tracked source or client/native/signed bundles. Cloudflare encrypted staging secrets set; production was not changed. Provider access URLs and credential names do not enter the packaged client. Camera permission, Photos export permission (`NSPhotoLibraryAddUsageDescription`), privacy manifest and existing capabilities retained. System photo picking does not require a broad library-read entitlement. No formal security-plugin scan claimed.
+
+### 5. SUNBURST OPTIMISATION ADDENDUM — IMPLEMENTED SCOPE AND LIMITS
+
+| Requested item | Current implementation / verdict |
+| --- | --- |
+| 1–3 Prompt sections/common/treatment deltas | **PASS —** one normalized contract renders TASK / CHANGE / PRESERVE / STYLE / EDIT REGION for Sunburst, rather than a second treatment engine. Canonical Gemini rollback retained. Preserves identity, expression, lips, width/opening, natural margins, untreated teeth, photographed exposure and explicit exceptions. |
+| 4 Upper/lower/both rules | V1 Alignment and All-on-X **both visible arches only**. Standard selected teeth retain intended untreated opposite-arch prompt instruction. Historical settings remain readable; no destructive migration. |
+| 5 Opposite-arch compositing | **LIMITED —** reviewed Tooth Map/manual protections reused where present. Ordinary V1 without the hidden map does not deterministically preserve the opposite arch inside the mouth. No unsupported guarantee. |
+| 6 Gingiva Preserve/Include | **LIMITED —** prompt Preserve by default; Include exception only explicit Full Arch + prosthetic gingiva. Zirconia alone never authorises gums. Ordinary mouth ROI is not a deterministic gingival mask. |
+| 7 Aspect/output normalization | **PASS for structural contract —** request source aspect preserved with provider16px sizing; existing padding removal/3% guard/shared mouth alignment retained. The physical mouth-alignment failure remains unresolved. |
+| 8 Quality | **PASS —** high default, fixed server configuration; no dynamic quality or hidden second call. |
+| 9 Versions | **PASS —** optional backward-compatible generation metadata `SC-SUNBURST-V1`, treatment WHITENING-V1 / VENEERS-V1 / ALIGNMENT-V1 / FULLARCH-V1. No schema migration. |
+| 10 Whitening/Veneers | **PASS automated; NOT TESTED complete cosmetic acceptance.** Whitening remains shade-only; veneers permit bounded restorative morphology, surface and shade. No regression acceptance inferred from code tests alone. |
+| 11 Alignment/All-on-X | **PASS automated; NOT TESTED Sunburst device acceptance.** Alignment position-only natural character; All-on-X both arches/zirconia, explicit separate prosthetic gingiva setting. Shared hardened pipeline. |
+| 12 Hidden V1 functionality | **PASS —** Single Tooth/Tooth Map/Precision remain hidden behind existing flags. No deletion or new advanced controls. |
+| 13 Build/verification | **PASS staging QA compile/tests; FAIL shipping preflight and physical generation acceptance.** Details above. |
+| 14 Manual tests/limits | Stop further paid testing now. After the confirmed rejection cause is located and a regression fix verified: one approved synthetic six-tooth Veneer test, compare mouth/expression/gums/neighbours/crop → Save → force-close → Reopen; separately test Whitening, both-arch Alignment and both-arch zirconia before any acceptance claim. No automatic retries. |
+
+### 6. EXACT NEXT ACTION FOR ME / RELEASE DECISION
+
+**Do not Generate again or delete the app/cases.** Keep the failed work and timestamps. Metadata-only staging diagnostics are now rebuilt and installed so a future authorised test can retain the exact rejection category. No additional paid test is authorised by this investigation. The current successful-looking but unacceptable concept should not be used as a patient-facing example.
+
+**CORE GENERATION READY FOR TESTFLIGHT: NO.** Build compilation is not delivery/cosmetic acceptance. Small internal TestFlight cannot be called ready while this core failure, charged-result recovery limitation and strict shipping preflight remain unresolved. Before external dentists/paying users: usable four-mode device results, honest anatomical-control limitations, durable charged-result recovery, completed privacy/terms configuration, real Apple sandbox/account checks. No automatic rollback/provider switch or production/Apple upload.
+
 ## BOTH-ARCH ALL-ON-X + ALIGNMENT CHECKPOINT — 3 October 2026, evening
 
 ### 1. WHAT WAS ACTUALLY FIXED
