@@ -1,5 +1,126 @@
 # SmileCompose V1 — focused stabilisation handover
 
+## 3 October — matched staging deployment and controlled live validation
+
+**Latest handover.** This section supersedes the earlier “implemented locally / not deployed” statements below. Earlier results and failures remain as history.
+
+### 1. WHAT WAS ACTUALLY FIXED / CHANGED
+
+- **PASS:** preserved the existing 56 changed/new source, test and documentation files in checkpoint **`a81080bba32a11e452c75d2adf1799f93c00494b`**, branch **`release/v1-device-test`**. No work discarded, merged or pushed.
+- **PASS:** deployed that checkpoint to **staging only**, `https://smile-by-dr-vik-staging.drvik.workers.dev`. Worker version **`fefc6124-3ba4-4fae-82bb-9949e4fd0d5b`**. Production unchanged.
+- **PASS:** built and development-signed the matching iOS Release app. No installation, TestFlight upload or Apple submission in this pass.
+- **No application fixes during live validation.** Two mistakes in the disposable QA harness were corrected, retaining their first-failure evidence. Neither required a production-code change or a repeated paid generation. See below.
+
+### 2. WHAT WAS TESTED — environment, commit and evidence
+
+All app code used checkpoint `a81080b`. Staging Supabase is **`smilecompose-staging` / `wukcqlpuzkzwxmdkotfg`**, not production. The user expressly authorised one disposable QA account with five temporary generations. Real customer accounts, subscriptions, prices and allowance rules were untouched.
+
+**Environment distinction:** live staging Gemini/API/Supabase; a local browser harness importing the actual photo preparation, generation service, workspace, case repository and sync code. `lockFace` was copied verbatim from this checkpoint into the ignored harness. The harness used a server-side proxy holding the disposable user's normal bearer token, not service-role generation/storage access. Admin access was used only to provision the authorised fixture. This is **not** a physical iPhone or simulator end-to-end result, nor a full production-screen interaction test.
+
+**Content:** only the existing approved synthetic demo portrait, sourced from `output/stage3-evidence/generation-source.jpg` (1092 × 1440; prior approval/provenance recorded in the Stage 3 report). None of the supplied identifiable patient photos was uploaded.
+
+Evidence root (private, Git-ignored): `output/matched-staging-2026-10-03/`.
+
+| Required status | Result | Evidence / qualification |
+|---|---|---|
+| MATCHED STAGING BACKEND | **PASS** | Deployment receipt; 14 deployed entry JavaScript assets match local build bytes; live diagnostics report contract v6 |
+| MATCHED IOS CLIENT | **PASS** | Production web build, Capacitor sync, signed Xcode Release build; 143 packaged web files match; direct-device build only |
+| COMPOSITE 6-TOOTH | **REVIEW** | Delivery/compositing/save PASS; cosmetic/anatomical review outstanding |
+| WHITENING | **REVIEW** | Delivery/compositing/save PASS; colour-only intent verified, geometry preservation still needs visual review |
+| SINGLE TOOTH | **FAIL** | Valid image delivered, but apparent opposite central incisor brightened; targeting acceptance gate failed, clinician confirmation required |
+| ALIGNMENT | **NOT RUN** | Stopped after single-tooth finding |
+| FULL ARCH PRESERVE | **NOT RUN** | Stopped; Include was also not run |
+| ALLOWANCE ACCOUNTING | **PASS** | Five granted → three committed → two remaining; invalid pre-provider fixture consumed none; no refund issued |
+| CASE SAVE/REOPEN | **PASS** | Browser close/reopen: identical source/concept, same settings, preferred design, one case; physical force-close still NOT TESTED |
+| PROVIDER DIAGNOSTICS | **PASS** | Three started + three finished records, readable through normal authenticated read-own access; safe fields only |
+
+**Build evidence:** `native-build-sync.txt`, `xcode-release.txt`, `native-match.json`, `deploy.txt`, `smoke.json`. Bundle `uk.co.drvik.smilecompose`, version **1.0**, build **1**, automatic signing, Team `7TPF7LT884`. Apple sign-in and Complete Data Protection are present in the signed entitlements. Camera and photo export descriptions and privacy manifest are present; library selection uses PHPicker rather than broad library access. Bundled staging API/Supabase and App Store `appl_` public key verified; Test Store key absent. No remote Capacitor `server.url` configured. The `capacitor://localhost` bundled-app origin is normal, not a development backend. Release compilation and signature verification passed. The first sandboxed signature check could not access normal trust evaluation; the same verification with normal macOS access passed. Distribution/legal release guard remains unchanged; direct-device build is not App Store readiness.
+
+**Checks:** fresh contract/diagnostic/account preflight **57/57 PASS**, and final focused check **57/57 PASS**, zero skipped. The earlier full **597/597**, TypeScript and ESLint passes are retained below; the full suite was not rerun in this deployment-only pass. Production web build/Capacitor and native Release build were rerun. Hosted root/pricing 200; unauthenticated account/cases 401; unsupported generation GET 405; unsigned RevenueCat webhook 401; normal QA account/case-list 200. These are endpoint checks, not a real RevenueCat purchase/webhook-delivery test.
+
+### 3. WHAT STILL FAILS — first genuine product finding
+
+**Single-tooth targeting: FAIL / clinician visual confirmation required.**
+
+Reproduction: approved synthetic full-face photo → select only FDI **11**, `Layered composite`, `Auto`, `Whiten`, Rounded/Natural, intensity 35 → one live request → raw result → current alignment and mouth composite → saved final.
+
+- The outgoing canonical region instruction identifies FDI 11 and explicitly says left/right is the patient's; settings include the matching individual `toothPlans` entry.
+- The bright central incisor appears on the **viewer's right**, opposite the requested FDI 11 side. It is visible in the **raw provider image**, and remains in the final image. Source-space colour samples corroborate the visual difference; these are manual review aids, not automated anatomical truth.
+- First failing subsystem: **provider interpretation of the selected tooth / unenforced tooth identity in the prompt-only path**, not image extraction or an introduced compositing artefact. The provider's internal reason is unknown.
+- The current single-tooth request had **no clinician-reviewed map**. `toothProtection` is absent and only the existing mouth/face composite ran. No clinician confirmation was fabricated. No mask was widened, bypassed or silently substituted.
+- **Stopped at three live provider calls**, with no additional paid retries. Alignment and Full Arch were not attempted. No application fix or refund was improvised.
+- Recommend limiting precise single-tooth claims to a reviewed-boundary workflow until that path is separately validated. This pass does not prove that reviewed anatomical boundaries are accurate.
+
+The previous `provider_no_image`, grey output and gross crop failures were **not reproduced** in this three-call synthetic sample. That does not establish that they are resolved for every photograph.
+
+### 4. WHAT WAS NOT TESTED / BLOCKED
+
+- Physical iPhone/iPad installation, camera/import flow, force-close, Apple sign-in, purchases and real webhook delivery: **NOT TESTED** here.
+- Reviewed single-tooth masking: **NOT TESTED live**; no clinician-reviewed boundary existed for this synthetic fixture. The prompt-only targeting limitation was explicitly disclosed before the call.
+- Alignment, Full Arch Preserve and prosthetic gingiva Include: **NOT RUN** after the targeting failure. Their normalised schema/contract tests pass, which is not live outcome evidence.
+- Live provider-failure reservation release: **NOT TESTED**, because all three provider calls returned images. Existing no-image/release unit tests passed. No failure was deliberately purchased to manufacture coverage.
+- No overnight billing-lifecycle redesign, account repair, production configuration change or new mask was undertaken.
+
+### 5. WHAT NEEDS HUMAN VISUAL REVIEW
+
+Open **`output/matched-staging-2026-10-03/review.html`**. Each successful provider response has Original | Raw provider | Final SmileCompose, full settings and diagnostics. Folders: `01-composite/`, `whitening/`, `single_tooth/`. `review-overview.jpg` is the overview screenshot; `01-composite/reopen-pass.jpg` shows restored media and state.
+
+| Review item | Observed technical result | Human review status |
+|---|---|---|
+| Grey/blank output, decoding, dimensions | PASS on all three; JPEG raw, lossless PNG final | No obvious full-frame corruption observed |
+| Crop and gross mouth location | PASS: known padding undone, original 1092 × 1440 canvas restored | Fine alignment / seam review required |
+| Face/expression/lips/mouth opening | Existing mouth/face composite ran; faceLocked true, lipsMoved false | REVIEW: flags alone are not an anatomical guarantee |
+| Gingiva / papillae / margins | No new gum mask; prompt requests preservation | REVIEW; preservation is not guaranteed |
+| Selected / untreated teeth | FDI 11 apparent targeting mismatch; no reviewed boundary used | FAIL for acceptance pending clinician confirmation |
+| Whitening geometry / restorative proportions | Correct exclusive prompt intent | REVIEW; provider appearance is not cosmetic ground truth |
+| Texture, translucency, anatomy and aesthetic suitability | Valid images returned | REVIEW on all three |
+
+### 6. EXACT NEXT ACTION
+
+**Review the single-tooth Original / Raw / Final row and confirm the requested tooth versus the visibly brightened tooth.** Keep precise single-tooth editing out of a patient demonstration until the targeting/boundary workflow is verified. No further live calls are needed to inspect these saved outputs.
+
+The matching Xcode project is ready for controlled physical testing after that review:
+
+1. Open `ios/App/App.xcodeproj`; select **App target → Signing & Capabilities → Automatically manage signing → your team** (`7TPF7LT884`).
+2. **Product → Scheme → Edit Scheme → Run → Build Configuration: Release**.
+3. Select your unlocked, connected iPhone as the run destination. Trust the Mac / enable Developer Mode on the phone if prompted.
+4. **Product → Run**. Do not Archive/Distribute or upload TestFlight.
+
+Built artifact: `/tmp/smile-matched-staging-20261003/Build/Products/Release-iphoneos/App.app`. Physical acceptance remains: launch → sign in → approved photo → six-tooth Composite → inspect image → save → force-close → reopen same source/concept/settings/preference. Do not interpret this browser sample as that test having passed.
+
+### Exact live requests, outcome and allowance
+
+| Mode | Request ID | HTTP app/provider | Provider latency | Finish / parts | Remaining |
+|---|---|---|---|---|---|
+| Composite, 6 | `d5b9fefd-8cab-4e3f-8f60-38999ed029d9` | 200 / 200 | 11.433 s | STOP; 1 inline JPEG, 0 text/thought | 5 → 4 |
+| Whitening, 6 | `e9a09998-fd8f-4aae-bb05-ada8e413af4b` | 200 / 200 | 10.024 s | STOP; 1 inline JPEG, 0 text/thought | 4 → 3 |
+| Single tooth, 11 | `a0f32a3f-90d6-4b40-ab1c-f226341add2b` | 200 / 200 | 10.680 s | STOP; 1 inline JPEG, 0 text/thought | 3 → 2 |
+
+Each request: source **1092 × 1440** → padded input **1092 × 1456** (3:4; full source retained) → raw **896 × 1200** → final **1092 × 1440**. Model `gemini-3.1-flash-image`, prompt `2026-10-03-treatment-contract-v6`, category `success`, retryCount **0**. Alignment and mouth compositing ran; single-tooth compositing did not. All final media were saved; cosmetic suitability is separate from the successful server delivery charge.
+
+**Total: 3 provider calls / 5 maximum, 0 provider retries, 4 generation-endpoint submissions.** The fourth submission was the harness's malformed single-tooth fixture, UUID `35193499-5735-4be3-88fa-49becc08cd5a`: HTTP 400 at `settingsSchema`, before reservation/provider, no diagnostic start event and no allowance change. Full ledger: `live-ledger.json`. Three committed reservations and three diagnostic pairs confirmed via normal authenticated RLS reads in `postflight.json` / `provider-audit.json`. No secrets or image bytes are in those diagnostics.
+
+### Save/reopen evidence and preserved first failures
+
+- Composite was saved through the real repository/outbox, tab closed, new browser tab opened, and case rehydrated. Original and final data-URL hashes match, settings match, preferred ID matches, case count is one, media status Synced. Evidence `01-composite/reopen.json` and `reopen-pass.jpg`.
+- All three cloud cases have one entry, editable draft, matching preferred design and confirmed assets. Normal authenticated GETs returned six source/concept binaries, all matching their stored checksums (`postflight.json`). No service-role shortcut was used to retrieve media.
+- **First restart check failed due to QA harness error:** it saved `screen: compare` directly; the app saves comparison state as `design`, and the draft reader rejects `compare`. Corrected the fixture to follow `page.tsx`'s existing mapping; reused the already-generated media; no app code changed and no paid retry. `reopen-first-failure.json` and screenshot retained. Subsequent correct-flow restart PASS does not erase that first test failure.
+- **First single-tooth API fixture failed due to QA harness error:** omitted `toothPlans`, violating the existing custom-selection contract. Used the app's `updateToothPlan`/mode helpers and validated all remaining settings locally. Invalid attempt and screenshot retained under `single-tooth-invalid-fixture/`; no production validation was weakened.
+
+### Checkpoints / rollback / fixture handling
+
+- Parent checkpoint: `4a8de132378c8746ed6350aacbedf421fddc6c8d`; preserved pre-checkpoint status and patch in the ignored evidence root.
+- Matched application source/client/backend: **`a81080bba32a11e452c75d2adf1799f93c00494b`**. Working tree was clean after packaging. The follow-up documentation-only handover commit does not change the built/deployed application.
+- Prior staging Worker rollback version: **`6ec38868-120f-4224-af91-0be7668d58b3`**. New version **`fefc6124-3ba4-4fae-82bb-9949e4fd0d5b`**. No rollback or production operation performed.
+- The generation-capable harness was stopped. The review server is read-only and loopback-only. Private evidence is Git-ignored. Temporary administrative key/session files are removed after evidence collection.
+- Disposable synthetic QA cases remain for audit; the QA-only allowance expires at **14:27 UTC / 15:27 BST, 3 October 2026**. Existing customer data and commercial settings were not modified.
+
+**No TestFlight upload. No production deployment. No new features. STOP.**
+
+---
+
+## Historical work and earlier checkpoints
+
 ## 3 October — generation contract cleanup + provider diagnostics (IMPLEMENTED LOCALLY)
 
 ### 1. WHAT WAS ACTUALLY FIXED
