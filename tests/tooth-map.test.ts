@@ -8,7 +8,7 @@ import { toothGeometry } from "../src/lib/toothMap/geometry";
 import { smileGuides, smoothContour, toothShapes } from "../src/lib/toothMap/outline";
 import { crownOutline, familyFor, fitSmileTemplate } from "../src/lib/toothMap/template";
 import { cutAtWaist, maskContour, samPixels } from "../src/lib/toothMap/sam";
-import { toothOverlayMode } from "../src/components/toothMap/useToothMap";
+import { readToothMapPrefs, toothOverlayMode } from "../src/components/toothMap/useToothMap";
 import { fdiOrder, isValidToothMap, photoFingerprint, presetAvailability, renumber, withSelection, teethToReview, type ToothMap, type ToothRegion } from "../src/lib/toothMap/types";
 import { buildSmileInstruction, toothDesignInstruction } from "../src/lib/generation/prompt";
 import { generationSchema, settingsSchema } from "../src/lib/generation/schema";
@@ -445,4 +445,12 @@ test("single-tooth protection needs clinician review; a sparse map cannot reduce
 
 test("Hide suppresses optional guides as well as the automatic tooth overlay", () => {
   assert.equal(toothOverlayMode({ hasMap: true, editing: false, adding: false, display: "hide", picking: false, guides: { design: true, proportions: true, proportion: "natural" }, selectedMapped: 1 }), "hidden");
+});
+
+test("smile design guides and worksheet guides are on by default; an explicit choice is remembered", () => {
+  const store = (value: unknown) => ({ getItem: () => (value === undefined ? null : JSON.stringify(value)) });
+  assert.deepEqual(readToothMapPrefs(store(undefined)).guides, { design: true, proportions: true, proportion: "natural" });
+  assert.deepEqual(readToothMapPrefs(store({ guides: { design: false } })).guides, { design: false, proportions: true, proportion: "natural" });
+  assert.equal(readToothMapPrefs(store({ guides: { proportions: false, proportion: "golden" } })).guides.proportions, false);
+  assert.equal(readToothMapPrefs({ getItem: () => "not json" }).guides.design, true, "unreadable storage falls back to on");
 });

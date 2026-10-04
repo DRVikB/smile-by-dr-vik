@@ -5,7 +5,6 @@ import { fitSmileTemplate } from "@/lib/toothMap/template";
 import type { SmileSettings } from "@/lib/types";
 import type { ToothMapController } from "./useToothMap";
 import { hitTarget, nearestHit, type ToothHitTarget } from "@/lib/toothMap/hitTargets";
-import { planningFrame } from "./ContourReference";
 
 const LONG_PRESS_MS = 480;
 const MOVE_TOLERANCE = 8;
@@ -171,14 +170,15 @@ export function ToothMapOverlay({ controller, settings, width, height, scale = 1
       {guides.proportions && (showGuides || mode === "select") && (
         // Illustrative worksheet geometry only. Review mode above always shows the real edit boundaries.
         <g className="smile-proportions" aria-hidden="true" pointerEvents="none">
-          {template.teeth.map(t => <polygon key={`f${t.fdi}`} className={`smile-guide-frame${selected.has(t.fdi) ? " is-selected" : ""}`} points={planningFrame(t)} strokeWidth={line(0.8)} vectorEffect="non-scaling-stroke" />)}
-          {template.contacts.map((c, i) => <line key={`c${i}`} className="smile-guide-contact" x1={c.x} x2={c.x} y1={c.y0} y2={c.y1} strokeWidth={line(0.8)} vectorEffect="non-scaling-stroke" />)}
-          {template.teeth.map(t => <line key={`a${t.fdi}`} className="smile-guide-axis" x1={t.axis[0][0]} y1={t.axis[0][1]} x2={t.axis[1][0]} y2={t.axis[1][1]} strokeWidth={line(0.7)} strokeDasharray={`${line(1)} ${line(3)}`} vectorEffect="non-scaling-stroke" />)}
+          {/* Worksheet style: green proportion lines (midline, contacts, canine edges), a green line across the crown
+              tops and a green incisal arc, canine to canine; solid red long axes through the front six. No boxes. */}
+          {template.contacts.map((c, i) => <line key={`c${i}`} className="smile-guide-contact" x1={c.x} x2={c.x} y1={c.y0} y2={c.y1} strokeWidth={line(0.9)} vectorEffect="non-scaling-stroke" />)}
+          {template.teeth.filter(t => t.kind !== "premolar").map(t => <line key={`a${t.fdi}`} className="smile-guide-axis" x1={t.axis[0][0]} y1={t.axis[0][1]} x2={t.axis[1][0]} y2={t.axis[1][1]} strokeWidth={line(0.9)} vectorEffect="non-scaling-stroke" />)}
           <line className="smile-guide-gingival" x1={template.topLine.x0} x2={template.topLine.x1} y1={template.topLine.y} y2={template.topLine.y} strokeWidth={line(0.8)} vectorEffect="non-scaling-stroke" />
           <path className="smile-guide-incisal" d={template.incisalArc} strokeWidth={line(0.8)} vectorEffect="non-scaling-stroke" />
         </g>
       )}
-      {showGuides && (
+      {showGuides && !guides.proportions && (
         <g className="smile-guides" aria-hidden="true">
           <line className="smile-guide-midline" x1={template.midline.x} x2={template.midline.x} y1={template.midline.y0} y2={template.midline.y1} strokeWidth={line(1)} vectorEffect="non-scaling-stroke" />
           <path className="smile-guide-arc" d={template.arc} strokeWidth={line(1.2)} vectorEffect="non-scaling-stroke" />
@@ -190,7 +190,7 @@ export function ToothMapOverlay({ controller, settings, width, height, scale = 1
           const on = selected.has(t.fdi);
           const tappable = t.mapped && mode === "select";
           return (
-            <g key={t.fdi} className={`tooth-region${on ? " is-selected" : ""}${t.mapped ? "" : " is-unmapped"}`}>
+            <g key={t.fdi} className={`tooth-region${on ? " is-selected" : ""}${t.mapped ? "" : " is-unmapped"}${t.kind === "premolar" ? " is-posterior" : ""}`}>
               <path d={t.path} vectorEffect="non-scaling-stroke" strokeWidth={line(on && mode !== "design" ? 1.6 : 1)} className={tappable ? "is-tappable" : undefined}
                 {...(tappable ? { role: "button", tabIndex: 0, "aria-label": `Tooth ${t.fdi}${on ? ", selected" : ""}`, "aria-pressed": on, ...handlers(`t${t.fdi}`, t.fdi) } : {})} />
             </g>

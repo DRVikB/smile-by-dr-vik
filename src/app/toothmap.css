@@ -98,10 +98,13 @@
 .smile-proportions line, .smile-proportions path, .smile-proportions polygon { fill: none; stroke-linecap: round; }
 .smile-guide-frame { stroke: rgba(220, 192, 143, .42); stroke-linejoin: round; }
 .smile-guide-frame.is-selected { stroke: rgba(236, 210, 165, .7); }
-.smile-guide-contact { stroke: rgba(255, 253, 248, 0.22); }
-.smile-guide-axis { stroke: rgba(255, 253, 248, 0.46); }
-.smile-guide-incisal { stroke: rgba(255, 253, 248, 0.2); }
-.smile-guide-gingival { stroke: rgba(255, 253, 248, 0.26); }
+/* Smile-design worksheet colours: green proportion lines and arcs, red long axes */
+.smile-guide-contact { stroke: rgba(128, 214, 120, 0.78); }
+.smile-guide-axis { stroke: rgba(240, 96, 88, 0.82); }
+.smile-guide-incisal { stroke: rgba(128, 214, 120, 0.85); }
+.smile-guide-gingival { stroke: rgba(128, 214, 120, 0.7); }
+/* Premolars recede, as in the reference: the front six lead */
+.is-template .tooth-region.is-posterior path { opacity: .45; }
 
 /* Scalable planning library: original vectors, never patient edit masks. */
 .contour-library { min-width: 0; border-top: 1px solid var(--border); padding-top: 4px; }

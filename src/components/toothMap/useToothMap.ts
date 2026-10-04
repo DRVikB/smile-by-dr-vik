@@ -20,18 +20,21 @@ export type ToothMapDisplay = "auto" | "show" | "hide";
 export type ToothOverlayMode = "hidden" | "select" | "single" | "design";
 export interface ToothGuides { design: boolean; proportions: boolean; proportion: Proportion }
 
-const PREFS_KEY = "smile.toothMapView";
+// v2: the smile design guides and worksheet guides are on by default; v1 choices (off by default) are not carried over.
+const PREFS_KEY = "smile.toothMapView.v2";
 
-function readPrefs(): { display: ToothMapDisplay; guides: ToothGuides } {
+export function readToothMapPrefs(storage: Pick<Storage, "getItem"> | undefined = globalThis.localStorage): { display: ToothMapDisplay; guides: ToothGuides } {
   try {
-    const raw = JSON.parse(globalThis.localStorage?.getItem(PREFS_KEY) ?? "{}") as Partial<{ display: ToothMapDisplay; guides: ToothGuides }>;
+    const raw = JSON.parse(storage?.getItem(PREFS_KEY) ?? "{}") as Partial<{ display: ToothMapDisplay; guides: Partial<ToothGuides> }>;
     const display = raw.display === "show" || raw.display === "hide" ? raw.display : "auto";
     const proportion = raw.guides?.proportion === "golden" || raw.guides?.proportion === "red" ? raw.guides.proportion : "natural";
-    return { display, guides: { design: raw.guides?.design === true, proportions: raw.guides?.proportions === true, proportion } };
+    // On unless the clinician has switched them off.
+    return { display, guides: { design: raw.guides?.design !== false, proportions: raw.guides?.proportions !== false, proportion } };
   } catch {
-    return { display: "auto", guides: { design: false, proportions: false, proportion: "natural" } };
+    return { display: "auto", guides: { design: true, proportions: true, proportion: "natural" } };
   }
 }
+const readPrefs = () => readToothMapPrefs();
 
 /**
  * Display choices never alter the generation rules. The reviewed map governs
