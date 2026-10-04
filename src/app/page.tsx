@@ -1598,6 +1598,7 @@ export default function Smile() {
                   onModeChange={setPreviewMode}
                   analysis={analysisOn}
                   onHideAnalysis={() => setAnalysisOn(false)}
+                  fill={photo}
                 />
                 <button
                   className="fullscreen-button"

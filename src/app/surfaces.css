@@ -506,6 +506,9 @@ body { background: var(--background); }
 .compare-fit:focus-visible { outline: 2px solid var(--sc-gold); outline-offset: 2px; }
 .saved-case-viewer .compare-fit { top: calc(env(safe-area-inset-top, 0px) + 82px); right: max(16px, env(safe-area-inset-right, 0px)); }
 .comparison.has-guides .compare-fit { top: 12px; }
+/* The live result: level with the version picker, under the header. */
+.app-shell .preview-screen .compare-fit { top: calc(var(--photo-header) + 9px); right: max(16px, var(--app-safe-right, 0px)); }
+.app-shell .preview-screen .comparison.has-guides .compare-fit { top: 12px; }
 /* Portrait analysis: the photograph runs up behind the header too; the details stay below it. */
 @media (orientation: portrait) {
   .saved-case-viewer .saved-case-content .comparison.has-guides { padding-top: 0; }

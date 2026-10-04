@@ -17,3 +17,9 @@ export function recentCasePages(entries: CaseLogEntry[]): RecentCase[][] {
   }));
   return Array.from({ length: Math.ceil(cases.length / 3) }, (_, i) => cases.slice(i * 3, i * 3 + 3));
 }
+
+/** The treatment from a saved summary ("8 teeth · Veneers · B1 · Oval" → "Veneers"). */
+export function recentCaseTreatment(summary: string | undefined): string | null {
+  const parts = (summary ?? "").split(" · ").map(part => part.trim()).filter(Boolean);
+  return parts.length >= 2 ? parts[1] : null;
+}

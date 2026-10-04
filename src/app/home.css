@@ -1,0 +1,164 @@
+/* ============================================================
+   Home: safe areas and layout tiers
+     iPhone portrait            (max-width 700, portrait)
+     iPhone landscape / compact (landscape, max-height 500)
+     iPad portrait, iPad landscape and iPad Pro keep the editorial
+     and cinematic compositions from studio.css and globals.css.
+   Every inset comes from the --app-safe-* variables (env(safe-area-
+   inset-*), ios-layout.css), so the layout follows the real Dynamic
+   Island, home indicator and corners on any iPhone, in either
+   landscape direction. iOS reports both side insets in landscape,
+   whichever side the cutout is on, so both sides are kept clear.
+   ============================================================ */
+.start-screen {
+  --home-pad-l: max(clamp(20px, 4vw, 44px), calc(var(--app-safe-left) + 12px));
+  --home-pad-r: max(clamp(20px, 4vw, 44px), calc(var(--app-safe-right) + 12px));
+}
+
+/* Header in three independent zones: the brand is centred in the usable
+   width (between the insets), and the profile button is anchored on its own,
+   so neither pushes the other. */
+.start-screen .portrait-top {
+  padding: max(16px, calc(var(--app-safe-top) + 14px)) var(--home-pad-r) 16px var(--home-pad-l);
+}
+.start-screen .start-profile {
+  top: max(16px, calc(var(--app-safe-top) + 12px));
+  right: max(18px, calc(var(--app-safe-right) + 8px));
+}
+.start-screen .start-copy { padding-left: var(--home-pad-l); padding-right: var(--home-pad-r); }
+.start-screen .hero-footer {
+  padding-left: var(--home-pad-l);
+  padding-right: var(--home-pad-r);
+  padding-bottom: max(34px, calc(var(--app-safe-bottom) + 16px));
+}
+
+/* ---------- Recent Cases cards (every tier) ----------
+   A wide crop of the smile, the patient, the treatment, and when. */
+.start-screen .recent-case {
+  gap: 0; padding: 5px; border-radius: 16px;
+  background: rgba(22, 19, 16, .72); border: 1px solid rgba(250, 247, 242, .16);
+  box-shadow: 0 18px 40px -24px rgba(0, 0, 0, .7);
+}
+.start-screen .recent-case img, .start-screen .recent-case .recent-case-placeholder { aspect-ratio: 2.4 / 1; border-radius: 11px; object-fit: cover; }
+.start-screen .recent-case-text { display: grid; gap: 3px; min-width: 0; padding: 10px 9px 8px; }
+.start-screen .recent-case-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.start-screen .recent-case-title strong { overflow: hidden; font-size: 15px; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; color: #FAF7F2; }
+.start-screen .recent-case-title svg { flex: none; color: rgba(250, 247, 242, .7); }
+.start-screen .recent-case small { overflow: hidden; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; color: rgba(250, 247, 242, .58); }
+.start-screen .recent-case .recent-case-treatment { font-size: 13px; color: rgba(250, 247, 242, .82); }
+/* Page dots: the current page is a short gold bar. */
+.start-screen .recent-case-pagination { justify-content: center; gap: 0; margin-top: 10px; }
+.start-screen .recent-case-dot { display: grid; place-items: center; width: 22px; min-width: 22px; min-height: 28px; padding: 0; background: none; border-radius: 0; }
+.start-screen .recent-case-dot::before { content: ""; width: 6px; height: 6px; border-radius: 3px; background: rgba(250, 247, 242, .32); transition: width 240ms var(--ease-soft, ease), background-color 240ms; }
+.start-screen .recent-case-dot[aria-current="true"]::before { width: 20px; background: var(--sc-gold); }
+.start-screen .recent-case-dot[aria-current="true"] { width: 34px; }
+.start-screen .recent-case-dot:focus-visible { outline: 2px solid var(--sc-gold); outline-offset: 2px; border-radius: 6px; }
+
+/* ---------- iPad and larger: Recent Cases run the full width along the foot of the screen ---------- */
+@media (min-width: 701px) and (min-height: 501px) {
+  .start-screen .start-copy { max-width: none; }
+  .start-screen .start-copy > :not(.recent-cases) { max-width: clamp(360px, 40vw, 500px); }
+  .start-screen .recent-cases { width: 100%; max-width: 1180px; }
+  .start-screen .recent-cases-head { margin-bottom: 12px; }
+  .start-screen .recent-cases ul { gap: 14px; }
+  .start-screen .recent-case img, .start-screen .recent-case .recent-case-placeholder { aspect-ratio: 2.8 / 1; }
+  /* With cases along the foot, the tagline would only crowd them. */
+  .start-screen:has(.recent-cases) .hero-footer { display: none; }
+  .start-screen:has(.recent-cases) .start-copy { padding-bottom: max(26px, calc(var(--app-safe-bottom) + 14px)); }
+}
+/* iPad landscape: the welcome at the top left, the cases along the bottom, the smile between. */
+@media (min-width: 701px) and (min-height: 501px) and (orientation: landscape) {
+  .start-screen .start-copy { justify-content: flex-start; padding-top: clamp(4px, 1.5vh, 24px); }
+  /* Sized to the height too, so shorter iPads (mini, Split View) keep the cases on screen. */
+  .start-screen .splash-heading { font-size: min(clamp(46px, 6.6vw, 84px), 8.4vh); }
+  .start-screen .splash-sub { margin-top: clamp(10px, 1.6vh, 18px); }
+  .start-screen .splash-actions { margin-top: clamp(16px, 2.8vh, 30px); }
+  .start-screen .recent-cases { margin-top: auto; padding-top: clamp(14px, 2.4vh, 28px); }
+}
+/* Shorter landscape iPads (11-inch, Air, mini): a tighter rhythm keeps everything on one screen. */
+@media (min-width: 701px) and (min-height: 501px) and (max-height: 900px) and (orientation: landscape) {
+  .start-screen .portrait-top { padding-bottom: 6px; }
+  .start-screen .splash-heading { font-size: min(clamp(46px, 6.6vw, 84px), 7.4vh); }
+  .start-screen .splash-primary, .start-screen .splash-outline { min-height: 48px; }
+  .start-screen .splash-actions { gap: 10px; }
+  .start-screen .allowance-pill { margin-top: 10px; }
+  .start-screen .recent-cases-head { margin-bottom: 6px; }
+  .start-screen .recent-case img, .start-screen .recent-case .recent-case-placeholder { aspect-ratio: 3.3 / 1; }
+  .start-screen .recent-case-text { gap: 2px; padding: 8px 8px 6px; }
+  .start-screen .recent-case-pagination { margin-top: 2px; }
+}
+@media (min-width: 701px) and (min-height: 501px) and (max-height: 780px) and (orientation: landscape) {
+  .start-screen .splash-heading { font-size: min(clamp(46px, 6.6vw, 84px), 6.9vh); }
+  .start-screen .recent-case img, .start-screen .recent-case .recent-case-placeholder { aspect-ratio: 3.8 / 1; }
+}
+/* iPad portrait: the photograph above, then the welcome, then the cases. */
+@media (min-width: 701px) and (orientation: portrait) {
+  .start-screen .start-copy { justify-content: flex-end; }
+  .start-screen .splash-heading { font-size: clamp(56px, 7.8vw, 96px); }
+  .start-screen .recent-cases { margin-top: clamp(28px, 4vh, 48px); }
+}
+
+/* ---------- Phones: Recent Cases as a swipeable row of larger cards ---------- */
+@media (max-width: 700px), (orientation: landscape) and (max-height: 500px) {
+  /* The row runs edge to edge; its first and last cards line up with the text, inside the insets. */
+  .start-screen .recent-cases { width: 100vw; max-width: none; margin-left: calc(-1 * var(--home-pad-l)); }
+  .start-screen .recent-cases-head { padding: 0 var(--home-pad-r) 0 var(--home-pad-l); }
+  .start-screen .recent-case-pages {
+    gap: 12px; padding: 2px 0 2px var(--home-pad-l); border-radius: 0;
+    scroll-padding-inline: var(--home-pad-l) var(--home-pad-r);
+  }
+  .start-screen .recent-case-pages::after { content: ""; flex: 0 0 calc(var(--home-pad-r) - 12px); }
+  .start-screen .recent-cases ul.recent-case-page { display: flex; flex: 0 0 auto; gap: 12px; scroll-snap-align: none; scroll-snap-stop: normal; }
+  .start-screen .recent-case-page > li { flex: 0 0 var(--recent-card, min(58vw, 236px)); scroll-snap-align: start; }
+  /* The next card peeking in says "swipe"; page dots are for the three-up iPad grid. */
+  .start-screen .recent-case-pagination { display: none; }
+  /* A long renewal note wraps tidily rather than squeezing the pill. */
+  .start-screen .allowance-pill { max-width: 100%; border-radius: 20px; padding-block: 8px; font-size: 13px; text-align: left; line-height: 1.35; }
+  .start-screen .allowance-pill small { font-size: 12px; }
+}
+
+/* ---------- iPhone portrait: hero photograph above, the welcome below ---------- */
+@media (max-width: 700px) and (orientation: portrait) {
+  /* The photograph fills the top of the screen and fades into the page, with the smile clear of the text. */
+  .start-screen .start-visual { bottom: auto; height: min(66svh, 640px); }
+  .start-screen .portrait-image { background-position: 82% 38%; }
+  .start-screen .start-visual::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(14, 11, 9, .55) 0%, rgba(14, 11, 9, 0) 22%, rgba(14, 11, 9, 0) 44%, rgba(18, 17, 16, .72) 72%, #121110 100%);
+  }
+  .start-screen::after { background: linear-gradient(90deg, rgba(14, 11, 9, .5) 0%, rgba(14, 11, 9, 0) 70%); }
+  /* The welcome sits at the foot of the first screen; with Recent Cases it starts under the
+     hero and the cases continue below, rather than squeezing into the photograph. */
+  .start-screen .start-copy { justify-content: flex-end; padding-top: clamp(140px, 24svh, 240px); padding-bottom: 24px; }
+}
+
+/* ---------- iPhone landscape: a compressed chairside view ---------- */
+@media (orientation: landscape) and (max-height: 500px) {
+  /* Text on the dark side, the smile on the other. The photograph stops at the side inset and
+     fades out there, so the teeth never sit under a cutout on that side. */
+  .start-screen .start-visual {
+    bottom: auto; height: 100svh; right: var(--app-safe-right);
+    -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent);
+  }
+  .start-screen .portrait-image { background-position: 100% 40%; }
+  .start-screen::after {
+    bottom: auto; height: 100svh;
+    background:
+      linear-gradient(90deg, rgba(14, 11, 9, .9) 0%, rgba(14, 11, 9, .72) 34%, rgba(14, 11, 9, .2) 58%, rgba(14, 11, 9, 0) 76%),
+      linear-gradient(0deg, #121110 0%, rgba(18, 17, 16, .78) 14%, rgba(18, 17, 16, 0) 44%),
+      linear-gradient(180deg, rgba(14, 11, 9, .55) 0%, rgba(14, 11, 9, 0) 26%);
+  }
+  .start-screen .portrait-top { padding-top: max(8px, var(--app-safe-top)); padding-bottom: 4px; gap: 4px; }
+  .start-screen .start-profile { top: max(10px, var(--app-safe-top)); }
+  .start-screen .start-copy { justify-content: flex-start; max-width: none; padding-top: 4px; padding-bottom: max(16px, calc(var(--app-safe-bottom) + 8px)); }
+  .start-screen .start-copy > :not(.recent-cases) { max-width: min(400px, 52vw); }
+  .start-screen .start-greeting { margin: 0; font-size: 13px; }
+  .start-screen .splash-heading { margin-top: 2px; font-size: clamp(28px, 8.4vh, 36px); line-height: 1.04; }
+  .start-screen .splash-heading br { display: none; }
+  .start-screen .splash-sub { margin-top: 6px; font-size: 14px; }
+  .start-screen .splash-actions { width: 100%; margin-top: 14px; gap: 10px; }
+  .start-screen .splash-primary, .start-screen .splash-outline { min-height: 46px; font-size: 15px; }
+  .start-screen .allowance-pill { margin-top: 10px; }
+  .start-screen .recent-cases { --recent-card: min(30vw, 220px); margin-top: 18px; }
+  .start-screen .hero-footer { display: none; }
+}

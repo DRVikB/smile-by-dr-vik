@@ -15,6 +15,7 @@ import "./studio.css";
 import "./share.css";
 import "./toothmap.css";
 import "./surfaces.css";
+import "./home.css";
 import { WebAppSetup } from "@/components/WebAppSetup";
 import { AppProviders } from "@/components/AppProviders";
 import { AppearanceController } from "@/components/AppearanceController";

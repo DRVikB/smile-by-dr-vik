@@ -1,9 +1,9 @@
 "use client";
 import { getCaseRepository } from "@/services/cases/caseRepository";
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { ChevronRight, MoreHorizontal, Settings } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
-import { recentCasePages, type RecentCase } from "@/lib/recentCases";
+import { recentCasePages, recentCaseTreatment, type RecentCase } from "@/lib/recentCases";
 import { greeting } from "@/lib/profile";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 
@@ -18,9 +18,10 @@ export function HomeHeadline({ headingRef }: { headingRef: React.Ref<HTMLHeading
     <>
       {named && <p className="start-greeting">{greeting(null)}</p>}
       <h1 ref={headingRef} tabIndex={-1} className="splash-heading">
-        {named ? <>Welcome,<br />{displayName}.</> : <>Smile design,<br />visualised.</>}
+        {/* The space keeps the words apart where a compact layout drops the line break. */}
+        {named ? <>Welcome,<br />{" "}{displayName}.</> : <>Smile design,<br />{" "}visualised.</>}
       </h1>
-      <p className="splash-sub">{named ? "Ready to design your next smile?" : "Digital smile design for clinicians."}</p>
+      <p className="splash-sub">{named ? "Let’s plan your next smile." : "Digital smile design for clinicians."}</p>
     </>
   );
 }
@@ -34,6 +35,11 @@ export function ProfileButton({ className = "" }: { className?: string }) {
       {initials || avatarUrl ? <UserAvatar initials={initials} url={avatarUrl} size="small" className="profile-button-avatar" /> : <Settings size={17} strokeWidth={1.7} aria-hidden="true" />}
     </button>
   );
+}
+
+/** Covers are whole photos: a portrait face shows its smile in the lower middle, a close-up in the centre. */
+function frameSmile(image: HTMLImageElement) {
+  image.style.objectPosition = image.naturalHeight > image.naturalWidth * 1.15 ? "50% 60%" : "50% 50%";
 }
 
 /** Swipe through all local cases, three covers at a time. */
@@ -94,11 +100,12 @@ export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unkn
         {pages.map((entries, i) => <ul className="recent-case-page" key={entries[0].id} aria-label={`Page ${i + 1} of ${pages.length}`}>
           {entries.map(entry => <li key={entry.id}>
             <button type="button" className="recent-case" onClick={() => onOpen(entry.id)} onFocus={() => goToPage(i)}>
-              {entry.thumb ? <img src={entry.thumb} alt="" loading="lazy" decoding="async" /> : <span className="recent-case-placeholder" aria-hidden="true" />}
-              <span>
-                <strong>{entry.patientName || "Unnamed case"}</strong>
-                <small>{new Date(entry.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}{entry.versions > 1 ? ` · ${entry.versions}` : ""}</small>
-                <small>{entry.draftOnly ? "Draft" : entry.testMode || entry.mode === "mock" ? "Demo concept" : "AI concept"}</small>
+              {entry.thumb ? <img src={entry.thumb} alt="" loading="lazy" decoding="async" onLoad={e => frameSmile(e.currentTarget)} /> : <span className="recent-case-placeholder" aria-hidden="true" />}
+              <span className="recent-case-text">
+                {/* The whole card opens the case, where its options are. */}
+                <span className="recent-case-title"><strong>{entry.patientName || "Unnamed case"}</strong><MoreHorizontal size={18} strokeWidth={1.8} aria-hidden="true" /></span>
+                {recentCaseTreatment(entry.summary) && <small className="recent-case-treatment">{recentCaseTreatment(entry.summary)}</small>}
+                <small>{entry.draftOnly ? "Draft" : entry.testMode || entry.mode === "mock" ? "Demo concept" : "AI concept"} · {new Date(entry.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}{entry.versions > 1 ? ` · ${entry.versions} versions` : ""}</small>
                 {syncIndicators[entry.caseId ?? entry.id] && <small>{syncIndicators[entry.caseId ?? entry.id]}</small>}
               </span>
             </button>
@@ -106,11 +113,9 @@ export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unkn
         </ul>)}
       </div>
       {pages.length > 1 && <div className="recent-case-pagination">
-        <span aria-live="polite">Page {page + 1} of {pages.length} · Swipe for more</span>
-        <div>
-          <button type="button" aria-label="Previous recent cases" disabled={page === 0} onClick={() => goToPage(page - 1)}><ChevronLeft size={17} /></button>
-          <button type="button" aria-label="Next recent cases" disabled={page === pages.length - 1} onClick={() => goToPage(page + 1)}><ChevronRight size={17} /></button>
-        </div>
+        <span className="sr-only" aria-live="polite">Page {page + 1} of {pages.length}</span>
+        {pages.map((entries, i) => <button key={entries[0].id} type="button" className="recent-case-dot"
+          aria-label={`Recent cases, page ${i + 1} of ${pages.length}`} aria-current={i === page ? "true" : undefined} onClick={() => goToPage(i)} />)}
       </div>}
     </section>
   );

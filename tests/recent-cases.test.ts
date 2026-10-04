@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { recentCasePages } from "../src/lib/recentCases";
+import { recentCasePages, recentCaseTreatment } from "../src/lib/recentCases";
 import { savedCaseExport } from "../src/lib/savedCaseExport";
 import { AI_CONCEPT_DISCLAIMER } from "../src/lib/brand";
 import { PREVIEW_DISCLAIMER, REPORT_DISCLAIMER } from "../src/lib/consultation";
@@ -47,4 +47,11 @@ test("patient exports consistently disclose AI and clinician design without guar
   assert.match(AI_CONCEPT_DISCLAIMER, /clinician’s chosen smile design/);
   assert.match(AI_CONCEPT_DISCLAIMER, /visual guide/);
   assert.match(AI_CONCEPT_DISCLAIMER, /not a guarantee of the final clinical outcome/);
+});
+
+test("recent case cards show the treatment from the saved summary", () => {
+  assert.equal(recentCaseTreatment("8 teeth · Veneers · B1 · Oval"), "Veneers");
+  assert.equal(recentCaseTreatment("6 teeth · Alignment + Composite bonding · A1 · Natural"), "Alignment + Composite bonding");
+  assert.equal(recentCaseTreatment("Whitening"), null);
+  assert.equal(recentCaseTreatment(undefined), null);
 });
