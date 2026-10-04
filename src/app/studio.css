@@ -739,3 +739,21 @@ input[type="checkbox"][role="switch"],
 .tooth-map-actions button, .tooth-map-review button, .tooth-map-field select {
   min-height: 44px;
 }
+
+/* The authority statement must be ticked before a photo can be added: until
+   it is, it reads as a raised tile with an accent edge, in both themes. */
+.photo-start .upload-authority:not(.confirmed) .ai-consent-check {
+  border: 1.5px solid var(--accent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, var(--card)) 0%, var(--card) 70%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 14%, transparent),
+    0 1px 2px color-mix(in srgb, black 18%, transparent),
+    0 10px 26px -12px color-mix(in srgb, var(--accent) 55%, transparent);
+  cursor: pointer;
+}
+.photo-start .upload-authority:not(.confirmed) .ai-consent-check input {
+  width: 24px; height: 24px;
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px; border-radius: 6px;
+}
+.photo-start .upload-authority:not(.confirmed) .ai-consent-check .photo-row-icon { color: var(--accent-text); }

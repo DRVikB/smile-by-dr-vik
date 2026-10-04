@@ -35,7 +35,7 @@ const GALLERY = [
   EXAMPLE_PORTRAITS.man,
   { src: "/onboarding/case-porcelain.jpg", width: 480, height: 300 },
   EXAMPLE_PORTRAITS.woman,
-  { src: "/onboarding/case-layered.jpg", width: 480, height: 300 },
+  { src: "/onboarding/case-male-smile.jpg", width: 480, height: 300 },
   { src: EXAMPLE_COMPARISON.after, width: 1092, height: 1440 },
 ];
 
