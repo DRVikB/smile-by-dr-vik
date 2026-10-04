@@ -451,8 +451,29 @@ input[type="checkbox"][role="switch"],
   .studio-tabs button { flex-direction: column; gap: 3px; font-size: 12.5px; }
   .studio-generate { margin: auto calc(-1 * max(20px, var(--app-safe-right))) 0 0; padding: 12px max(20px, var(--app-safe-right)) calc(12px + var(--app-safe-bottom)) 0; }
 }
+/* iPhone landscape: the iPad workflow, compressed. The photograph fills the left at full
+   height; the steps scroll in their own column on the right, with Back / Next (or
+   Generate) pinned at its foot, all inside the safe areas. */
 @media (orientation: landscape) and (max-height: 500px) {
-  .studio-stage { height: 56dvh; }
+  .studio { flex-direction: row; gap: 12px; }
+  .studio-stage {
+    flex: 1 1 auto; height: auto; min-height: 0; border-radius: 18px;
+    margin: 0 0 max(8px, var(--app-safe-bottom)) max(12px, var(--app-safe-left));
+  }
+  .studio-dock { flex: 0 0 min(400px, 50%); gap: 10px; padding: 0 max(12px, var(--app-safe-right)) 0 0; }
+  .studio-tabs, .studio-cards, .studio-steps-nav { max-width: none; margin-inline: 0; }
+  .studio-tabs { padding: 3px; border-radius: 16px; }
+  .studio-tabs::before { display: none; }
+  .studio-tabs button { flex-direction: column; gap: 2px; min-height: 46px; padding: 4px 2px; border-radius: 13px; font-size: 11px; }
+  .studio-tabs button svg { width: 18px; height: 18px; }
+  .studio-card-head h3 { font-size: 21px; }
+  .studio-card-head p { font-size: 13px; }
+  .studio-arch { zoom: 1; }
+  .studio-generate {
+    margin: auto calc(-1 * max(12px, var(--app-safe-right))) 0 0;
+    padding: 8px max(12px, var(--app-safe-right)) max(8px, var(--app-safe-bottom)) 0;
+  }
+  .studio-steps-nav .primary-button, .studio-back { min-height: 46px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .studio-card, .studio-page { animation: none; }

@@ -200,7 +200,13 @@
   .app-shell .preview-screen > .variant-picker { top: calc(var(--photo-header) + 3px); left: 16px; }
   .compact-preview-dock { width: min(380px, calc(100% - 32px)); right: 16px; left: auto; transform: none; bottom: max(10px, env(safe-area-inset-bottom)); }
   .compact-preview-dock > button { min-height: 44px; }
-  .compact-options-popover { max-height: calc(100dvh - 90px - env(safe-area-inset-top)); }
+  /* Short landscape: the options cover the dock itself and fill the height below the
+     header, scrolling inside, instead of growing up under the header. */
+  .compact-options-popover {
+    bottom: -1px; right: -1px; width: calc(100% + 2px);
+    max-height: calc(100dvh - var(--photo-header) - max(10px, var(--app-safe-bottom, 0px)) - 8px);
+  }
+  .compact-preview-dock { right: max(16px, var(--app-safe-right, 0px)); }
   .app-shell .preview-screen .review-drawer.is-open { right: 16px; left: auto; transform: none; bottom: 78px; }
   .app-shell .preview-screen .compare-label { bottom: 80px; }
   .app-shell .preview-screen .preview-label { left: auto; right: 16px; }

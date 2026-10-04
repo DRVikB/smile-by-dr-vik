@@ -84,7 +84,8 @@ export function BeforeAfterSlider({
       // The divider's handle sits below the lips, never over the teeth.
       if (rect) {
         const below = rect.top + (smile.y + smile.height) * rect.height + 56;
-        setHandleTop(((Math.min(h * 0.74, Math.max(h * 0.3, below)) - rect.top) / rect.height) * 100);
+        // Clear of the action dock along the foot, even on a short landscape phone.
+        setHandleTop(((Math.min(h * 0.74, h - 150, Math.max(h * 0.3, below)) - rect.top) / rect.height) * 100);
         if (!moved.current) setPosition(Math.round(Math.min(100, Math.max(0, ((w / 2 - rect.left) / rect.width) * 100))));
       }
     };
