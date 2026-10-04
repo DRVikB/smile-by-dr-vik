@@ -486,9 +486,11 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
             let switchOvers = device.virtualDeviceSwitchOverVideoZoomFactors.map { CGFloat($0.doubleValue) }
             let hasUltraWide = constituents.contains(.builtInUltraWideCamera)
             let base = hasUltraWide ? (switchOvers.first ?? 1) : 1
-            // Opening zoom: the telephoto lens where the phone has one; 1.5× on the selfie camera.
-            let telephoto = constituents.contains(.builtInTelephotoCamera) ? switchOvers.last : nil
-            let start = front ? base * 1.5 : (telephoto ?? base)
+            // Opening zoom: 2× on an iPhone's back camera (less perspective distortion than
+            // the wide lens, full quality from the main sensor); 1× on iPad; 1.5× on the selfie camera.
+            _ = constituents
+            let phone = UIDevice.current.userInterfaceIdiom == .phone
+            let start = front ? base * 1.5 : (phone ? base * 2 : base)
             self.device = device
             self.zoomBase = base
             self.zoomMax = min(device.maxAvailableVideoZoomFactor, max(base * 5, start))
