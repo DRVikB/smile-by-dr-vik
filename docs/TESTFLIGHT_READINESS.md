@@ -1,5 +1,36 @@
 # SmileCompose V1 — owner acceptance handover
 
+## Latest update — combined treatments (4 October 2026)
+
+**PASS — requested treatment controls implemented and installed on the physical iPhone. TestFlight remains HOLD for the existing owner acceptance, legal, distribution-signing and purchase gates.** This section supersedes the older runtime/archive and separate “Include alignment” UI described below.
+
+### What changed
+
+- Whitening, Veneers and Alignment are top-level checkboxes. All seven nonempty combinations are supported; at least one treatment remains selected. The separate Include alignment control is removed.
+- All-on-X is exclusive, both visible arches and zirconia. Selecting it clears combined permissions; selecting any standard treatment leaves All-on-X.
+- The existing material and Alignment settings are reused. An optional `whitening` field retains combined Whitening in validated generation requests, saved/reopened cases and reports. No database/schema migration, provider switch, geometry/mask change, allowance change or case deletion.
+- Combined Whitening follows the existing selected teeth and target/individual shade choices. It does not grant edits to untreated teeth; Keep still means no intentional shade change. Alignment continues to cover both visible arches.
+
+### Evidence and limits
+
+- Source/rollback checkpoint: `ad69f116733b271041401c9536da483d287c82ec` on `release/v1-device-test`; previous checkpoint `a20f910`. Owner Xcode project/scheme changes remain uncommitted and preserved.
+- **PASS:** 710/710 Node tests (61.71 s, zero skipped), TypeScript, ESLint, production web build, Capacitor sync, native bundle/config checks and Cloudflare packaging. New behavioral tests cover seven combinations, exclusivity, material/shade retention, both prompt formats and local-restart/second-device binary media recovery.
+- **PASS:** iPhone and iPad Release XCTest fixture journeys, including combined selection/review, alignment-only scope, All-on-X exclusivity, comparison interaction, force-close/reopen and iPad landscape. Actual screenshots were inspected. Fixture replay is not a live generation or real authentication/purchase test.
+- Failure history retained: seven UI behavioral RED failures and two contract RED failures before implementation; a TypeScript label-parameter error corrected; first native assertion queried a text label as a Button and was corrected to StaticText. Subsequent simulator launch/boot attempts timed out with launchd_sim/session errors during restart; after restart completed, sequential iPhone/iPad tests passed. Failed runner logs remain in the private evidence folder. Archive verification initially rejected filesystem metadata; clearing generated-artifact extended attributes produced strict/deep signature PASS, without changing code or signature requirements.
+- **PASS:** matching staging version `8196e3b0-6464-48cc-809c-7e276452a3de`, tag `ad69f11`; public treatment chunk hash matches the archived/installed iOS client. Account/status still returns HTTP401 without authentication. Gemini `gemini-3.1-flash-image`, guidance OFF, existing local safeguards and zero automatic retries retained. No production deployment or Apple upload.
+- **PASS:** development-signed Release archive `/Users/vik/Documents/New project/smile/output/treatment-combinations-2026-10-04/SmileCompose.xcarchive`, bundle `uk.co.drvik.smilecompose`, version1.0/build1, installed over existing iPhone app without uninstall/reset. Manifest SHA256 `235937f852724cd3f2deea824ccb2bfca23e102de73d50a4753fd9efb84a384e` covers 184 sorted archived-file digests, not a zip file. Distribution export was not rerun; previous certificate/profile and legal blockers remain.
+- **NOT TESTED / HUMAN REVIEW REQUIRED:** fresh physical/live generation quality for treatment combinations, real purchase and physical iPad acceptance. **Zero paid provider requests** during this change. No claim that prompt receipt or simulator replay proves cosmetic quality.
+
+### Exact next owner action
+
+Close and reopen SmileCompose on the iPhone. In Treatment, check Whitening + Veneers + Alignment; choose the existing material and shade; confirm Review shows all selected treatments. Verify All-on-X unticks the others. For the next explicitly authorised live acceptance, inspect the result, save, force-close and reopen, stopping on the first failure. Existing external/paying-beta restrictions, including durable charged-result recovery, remain.
+
+Private evidence: `/Users/vik/Documents/New project/smile/output/treatment-combinations-2026-10-04`. Screenshots: `iphone-combined-treatment-selection.png`, `iphone-combined-treatment-review.png`, `ipad-combined-treatment-selection.png`, `ipad-combined-treatment-review.png`, `ipad-ipad-landscape.png`. Supplied before references: IMG_3517.PNG and IMG_3518.PNG (owner screenshots, no design-service upload).
+
+---
+
+## Previous checkpoint — historical details retained
+
 Updated 4 October 2026 (Europe/London). **HOLD. Nothing has been uploaded to Apple.**
 
 ## 1. WHAT WAS ACTUALLY FIXED
