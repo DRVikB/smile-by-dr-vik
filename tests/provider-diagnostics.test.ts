@@ -120,6 +120,38 @@ test("QA request evidence records exact prompt digest and image roles without re
   assert.doesNotMatch(JSON.stringify(safe), /PRIVATE_|NaN/);
 });
 
+test("final response selection evidence survives the private diagnostic boundary", async () => {
+  let record: ProviderDiagnostic | undefined;
+  const provider = new GeminiSmileProvider({ apiKey: "test", fetcher: async () => Response.json(candidate([
+    blob("image/png", png, true),
+    { thoughtSignature: "PRIVATE_SIGNATURE", ...blob() },
+  ])) });
+  await generateSmile(input, undefined, provider, { requestId, onDiagnostic: d => { record = d; } });
+  const value = record as unknown as Record<string, unknown>;
+  assert.equal(value.finalImageCount, 1);
+  assert.equal(value.selectedCandidateIndex, 0);
+  assert.equal(value.selectedPartIndex, 1);
+  assert.deepEqual(value.responseImageParts, [
+    { candidateIndex: 0, partIndex: 0, thought: true, mimeType: "image/png", finishReason: "STOP", width: 1, height: 1 },
+    { candidateIndex: 0, partIndex: 1, thought: false, mimeType: "image/png", finishReason: "STOP", width: 1, height: 1 },
+  ]);
+  assert.doesNotMatch(JSON.stringify(record), /PRIVATE_|iVBOR|base64|thoughtSignature/);
+});
+
+test("per-image diagnostics are bounded and allowlisted even with an untrusted provider record", () => {
+  const baseline = { requestId, provider: "google", model: "gemini-3.1-flash-image", promptVersion: "2026-10-03-treatment-contract-v8", category: "ambiguous_image" };
+  const safe = safeProviderDiagnostic({ ...baseline, finalImageCount: 2, selectedCandidateIndex: -1, selectedPartIndex: "PRIVATE_INDEX", responseImageParts: Array.from({ length: 50 }, (_, partIndex) => ({
+    candidateIndex: 0, partIndex, thought: true, mimeType: "image/png", finishReason: "STOP", width: 1, height: 1,
+    data: png, thoughtSignature: "PRIVATE_SIGNATURE", text: "PRIVATE_TEXT",
+  })) }) as unknown as Record<string, unknown>;
+  assert.equal(safe.category, "ambiguous_image");
+  assert.equal(safe.finalImageCount, 2);
+  assert.equal(safe.selectedCandidateIndex, undefined);
+  assert.equal(safe.selectedPartIndex, undefined);
+  assert.equal((safe.responseImageParts as unknown[]).length, 16);
+  assert.doesNotMatch(JSON.stringify(safe), /PRIVATE_|iVBOR|base64|thoughtSignature|text/);
+});
+
 test("an empty Gemini response fails once; a later explicit request can succeed", async () => {
   const records: ProviderDiagnostic[] = []; let calls = 0;
   const provider = new GeminiSmileProvider({ apiKey: "test", fetcher: async () => Response.json(++calls === 1 ? candidate([], "NO_IMAGE") : candidate([blob()])) });

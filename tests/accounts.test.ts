@@ -538,10 +538,10 @@ test("the free trial grants only the trial allowance; the first paid period gran
   ]);
 });
 
-for (const kind of ["success", "empty", "text-only"] as const) {
+for (const kind of ["success", "empty", "text-only", "ambiguous"] as const) {
   test(`Gemini ${kind}: one invocation, one reservation, correct ledger outcome and duplicate rejection`, async () => {
     let attempts = 0;
-    globalThis.fetch = async () => { attempts++; return Response.json({ candidates: [{ finishReason: kind === "empty" ? "NO_IMAGE" : "STOP", content: { parts: kind === "success" ? [{ inlineData: { mimeType: "image/png", data: png.split(",")[1] } }] : kind === "text-only" ? [{ text: "No preview available" }] : [] } }] }); };
+    globalThis.fetch = async () => { attempts++; return Response.json({ candidates: [{ finishReason: kind === "empty" ? "NO_IMAGE" : "STOP", content: { parts: kind === "success" || kind === "ambiguous" ? Array.from({ length: kind === "ambiguous" ? 2 : 1 }, () => ({ inlineData: { mimeType: "image/png", data: png.split(",")[1] } })) : kind === "text-only" ? [{ text: "No preview available" }] : [] } }] }); };
     const { store, calls } = fakeStore(); const id = crypto.randomUUID(); let claimed = false;
     const claim = async () => { if (claimed) return false; claimed = true; return true; };
     const env = { SMILE_PROVIDER: "gemini", SMILE_GEMINI_API_KEY: "test", SMILE_GEMINI_DATA_TERMS: "paid" };
@@ -550,7 +550,12 @@ for (const kind of ["success", "empty", "text-only"] as const) {
     assert.equal(attempts, 1);
     const body = await response.json();
     assert.equal(body.providerDiagnostic.retryCount, 0);
-    if (kind !== "success") assert.equal(body.code, "provider_no_image");
+    if (kind !== "success") assert.equal(body.code, kind === "ambiguous" ? "invalid_provider_image" : "provider_no_image");
+    if (kind === "ambiguous") {
+      assert.equal(body.providerDiagnostic.category, "ambiguous_image");
+      assert.equal(body.providerDiagnostic.finalImageCount, 2);
+      assert.equal(body.image, undefined);
+    }
     assert.equal(calls.filter(c => c === `reserve:${id}`).length, 1);
     assert.equal(calls.filter(c => c === `commit:${id}`).length, kind === "success" ? 1 : 0);
     assert.equal(calls.filter(c => c.startsWith(`release:${id}:`)).length, kind === "success" ? 0 : 1);

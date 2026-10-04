@@ -58,6 +58,88 @@ test("a completed candidate is used without accepting a truncated or blocked ima
   }
 });
 
+test("multiple final images are rejected rather than choosing by response order", async () => {
+  const png = { inlineData: { mimeType: "image/png", data: PNG_1x1 } };
+  const jpg = { inlineData: { mimeType: "image/jpeg", data: encoded } };
+  const webp = { inlineData: { mimeType: "image/webp", data: "UklGRhoAAABXRUJQVlA4TAsAAAAvAAAAAAfQ//73v/+BiOh/AAA=" } };
+  for (const candidates of [
+    [{ finishReason: "STOP", content: { parts: [png, jpg] } }],
+    [{ finishReason: "STOP", content: { parts: [jpg, png] } }],
+    [{ finishReason: "STOP", content: { parts: [png] } }, { finishReason: "STOP", content: { parts: [jpg] } }],
+    [{ finishReason: "STOP", content: { parts: [jpg, webp] } }],
+    [{ finishReason: "STOP", content: { parts: [webp, jpg] } }],
+  ]) {
+    let calls = 0;
+    const trace: Record<string, unknown> = {};
+    const provider = new GeminiSmileProvider({ apiKey: "test", fetcher: async () => {
+      calls++;
+      return Response.json({ candidates });
+    } });
+    await assert.rejects(provider.generate(input, undefined, { update: patch => Object.assign(trace, patch) }),
+      (error: unknown) => error instanceof GenerationError && error.code === "invalid_provider_image");
+    assert.equal(trace.category, "ambiguous_image");
+    assert.equal(trace.finalImageCount, 2);
+    assert.equal(trace.selectedCandidateIndex, undefined);
+    assert.equal(calls, 1);
+  }
+});
+
+test("a global provider block takes precedence over ambiguous image parts", async () => {
+  let calls = 0;
+  const trace: Record<string, unknown> = {};
+  const provider = new GeminiSmileProvider({ apiKey: "test", fetcher: async () => {
+    calls++;
+    return Response.json({ promptFeedback: { blockReason: "SAFETY" }, candidates: [{ finishReason: "STOP", content: { parts: [
+      { inlineData: { mimeType: "image/png", data: PNG_1x1 } },
+      { inlineData: { mimeType: "image/jpeg", data: encoded } },
+    ] } }] });
+  } });
+  await assert.rejects(provider.generate(input, undefined, { update: patch => Object.assign(trace, patch) }),
+    (error: unknown) => error instanceof GenerationError && error.code === "image_not_processed" && error.status === 422);
+  assert.equal(trace.category, "blocked");
+  assert.equal(trace.blockReason, "SAFETY");
+  assert.equal(trace.finalImageCount, 2);
+  assert.equal(trace.selectedCandidateIndex, undefined);
+  assert.equal(calls, 1);
+});
+
+test("a valid thought image cannot replace an invalid final image", async () => {
+  let calls = 0;
+  const provider = new GeminiSmileProvider({ apiKey: "test", fetcher: async () => {
+    calls++;
+    return Response.json({ candidates: [{ finishReason: "STOP", content: { parts: [
+      { thought: true, inlineData: { mimeType: "image/png", data: PNG_1x1 } },
+      { inlineData: { mimeType: "image/jpeg", data: "garbage" } },
+    ] } }] });
+  } });
+  await assert.rejects(provider.generate(input),
+    (error: unknown) => error instanceof GenerationError && error.code === "invalid_provider_image");
+  assert.equal(calls, 1);
+});
+
+test("selection evidence keeps original candidate and part indices without thought signatures", async () => {
+  const trace: Record<string, unknown> = {};
+  const provider = new GeminiSmileProvider({ apiKey: "test", fetcher: async () => Response.json({ candidates: [
+    { finishReason: "MAX_TOKENS", content: { parts: [{ inlineData: { mimeType: "image/png", data: PNG_1x1 } }] } },
+    { finishReason: "STOP", content: { parts: [
+      { thought: true, inlineData: { mimeType: "image/png", data: PNG_1x1 } },
+      { text: "PRIVATE_PROVIDER_TEXT" },
+      { thoughtSignature: "PRIVATE_SIGNATURE", inlineData: { mimeType: "image/png", data: PNG_1x1 } },
+    ] } },
+  ] }) });
+  const result = await provider.generate(input, undefined, { update: patch => Object.assign(trace, patch) });
+  assert.equal(result.image, `data:image/png;base64,${PNG_1x1}`);
+  assert.equal(trace.selectedCandidateIndex, 1);
+  assert.equal(trace.selectedPartIndex, 2);
+  assert.equal(trace.finalImageCount, 1);
+  assert.deepEqual(trace.responseImageParts, [
+    { candidateIndex: 0, partIndex: 0, thought: false, mimeType: "image/png", finishReason: "MAX_TOKENS", width: 1, height: 1 },
+    { candidateIndex: 1, partIndex: 0, thought: true, mimeType: "image/png", finishReason: "STOP", width: 1, height: 1 },
+    { candidateIndex: 1, partIndex: 2, thought: false, mimeType: "image/png", finishReason: "STOP", width: 1, height: 1 },
+  ]);
+  assert.doesNotMatch(JSON.stringify(trace), /PRIVATE_|iVBOR|base64|thoughtSignature/);
+});
+
 test("Gemini adapter sends one authenticated generateContent edit with all dental choices", async () => {
   let calls = 0;
   const provider = new GeminiSmileProvider({

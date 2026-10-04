@@ -9,7 +9,7 @@ import { imageDimensions } from "./openai";
 import { geminiCostReceipt, PRICED_GEMINI_MODEL } from "./cost";
 import { nearestAspectRatio } from "../generationCanvas";
 import { developerTransport, type GoogleTransport } from "./googleTransport";
-import { inspectGeminiResponse, type ProviderTrace } from "./providerDiagnostics";
+import { inspectGeminiResponse, type ProviderTrace, type ProviderImagePartDiagnostic } from "./providerDiagnostics";
 import { safeLog } from "@/server/redact";
 export { nearestAspectRatio } from "../generationCanvas";
 
@@ -234,15 +234,43 @@ export class GeminiSmileProvider implements SmileImageProvider {
     const observation = inspectGeminiResponse(body);
     trace?.update(observation);
     const candidates = Array.isArray(body?.candidates) ? body.candidates : [];
-    const completed = candidates.filter((candidate: { finishReason?: string }) =>
-      candidate && (!candidate.finishReason || candidate.finishReason === "STOP"));
-    const parts: GeminiPart[] = completed.flatMap((candidate: { content?: { parts?: GeminiPart[] } }) =>
-      Array.isArray(candidate?.content?.parts) ? candidate.content.parts : []);
+    const imageParts: Array<{ part: GeminiPart; candidateIndex: number; partIndex: number; finishReason?: string }> = candidates.flatMap(
+      (candidate: { finishReason?: string; content?: { parts?: GeminiPart[] } }, candidateIndex: number) =>
+        Array.isArray(candidate?.content?.parts) ? candidate.content.parts.flatMap((part, partIndex) =>
+          part?.inlineData && typeof part.inlineData.mimeType === "string" && part.inlineData.mimeType.startsWith("image/")
+            ? [{ part, candidateIndex, partIndex, finishReason: candidate.finishReason }] : []) : []);
+    const responseImageParts: ProviderImagePartDiagnostic[] = imageParts.slice(0, 16).map(({ part, candidateIndex, partIndex, finishReason }) => {
+      const mimeType = part.inlineData!.mimeType!;
+      const metadata: ProviderImagePartDiagnostic = { candidateIndex, partIndex, thought: part.thought === true, mimeType, finishReason: finishReason ?? "FINISH_REASON_UNSPECIFIED" };
+      const data = part.inlineData?.data;
+      // Bounded encoded-header inspection only. No images, text or opaque
+      // thought signatures enter private diagnostics or ordinary logs.
+      if (typeof data === "string" && ["image/png", "image/jpeg"].includes(mimeType)) {
+        // PNG dimensions fit in its first 33 bytes. Read at most 64 KiB for a
+        // JPEG SOF header; larger metadata does not justify decoding every
+        // interim image merely for diagnostics. Final output is validated below.
+        const encodedHeader = data.slice(0, mimeType === "image/png" ? 44 : 87_380);
+        try { Object.assign(metadata, imageDimensions(Uint8Array.from(atob(encodedHeader), c => c.charCodeAt(0)), mimeType)); }
+        catch { /* Absence of dimensions records an unreadable image part. */ }
+      }
+      return metadata;
+    });
     // Gemini can return draft/thought images before the completed edit. Never
     // present those (or fall back to one when the final image is missing).
-    const imagePart = parts.filter((p) => p?.thought !== true &&
-      typeof p?.inlineData?.data === "string" &&
-      ["image/png", "image/jpeg"].includes(p.inlineData.mimeType ?? "")).at(-1);
+    // More than one final image is ambiguous: response order is not a result ID.
+    const finalImages = imageParts.filter(({ part, finishReason }) => (!finishReason || finishReason === "STOP") &&
+      part.thought !== true && typeof part.inlineData?.data === "string");
+    trace?.update({ responseImageParts, finalImageCount: finalImages.length });
+    if (body?.promptFeedback?.blockReason && body.promptFeedback.blockReason !== "BLOCK_REASON_UNSPECIFIED") {
+      throw new GenerationError("Google declined this image request. Your original photograph is unchanged.", 422, "image_not_processed");
+    }
+    if (finalImages.length > 1) {
+      trace?.update({ category: "ambiguous_image" });
+      throw new GenerationError("Google returned more than one finished preview, so none could be selected safely. Your photo and selections are unchanged.", 502, "invalid_provider_image");
+    }
+    const selected = finalImages[0];
+    const imagePart = ["image/png", "image/jpeg"].includes(selected?.part.inlineData?.mimeType ?? "") ? selected.part : undefined;
+    if (imagePart) trace?.update({ selectedCandidateIndex: selected.candidateIndex, selectedPartIndex: selected.partIndex });
     const data = imagePart?.inlineData?.data ?? "";
     const outMime =
       imagePart?.inlineData?.mimeType === "image/jpeg"
@@ -250,7 +278,7 @@ export class GeminiSmileProvider implements SmileImageProvider {
         : "image/png";
     const image = data ? `data:${outMime};base64,${data}` : "";
 
-    if (!image || (body?.promptFeedback?.blockReason && body.promptFeedback.blockReason !== "BLOCK_REASON_UNSPECIFIED")) {
+    if (!image) {
       const blocked = observation.category === "blocked";
       throw new GenerationError(
         blocked ? "Google declined this image request. Your original photograph is unchanged."

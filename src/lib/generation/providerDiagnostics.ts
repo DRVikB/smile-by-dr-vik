@@ -1,5 +1,5 @@
 /** Bounded structural metadata only. Never pass provider bodies/errors to a log. */
-export const diagnosticCategories = ["started", "success", "blocked", "transport_error", "http_error", "malformed_response", "malformed_image", "unsupported_mime", "empty_response", "thought_only", "text_only", "incomplete_response", "timeout", "cancelled", "unknown_response"] as const;
+export const diagnosticCategories = ["started", "success", "blocked", "transport_error", "http_error", "malformed_response", "malformed_image", "ambiguous_image", "unsupported_mime", "empty_response", "thought_only", "text_only", "incomplete_response", "timeout", "cancelled", "unknown_response"] as const;
 export type ProviderCategory = typeof diagnosticCategories[number];
 // Google GenerateContent FinishReason / PromptFeedback.BlockReason enums.
 export const finishReasons = ["FINISH_REASON_UNSPECIFIED", "STOP", "MAX_TOKENS", "SAFETY", "RECITATION", "LANGUAGE", "OTHER", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "MALFORMED_FUNCTION_CALL", "IMAGE_SAFETY", "IMAGE_PROHIBITED_CONTENT", "IMAGE_OTHER", "NO_IMAGE", "IMAGE_RECITATION", "UNEXPECTED_TOOL_CALL", "TOO_MANY_TOOL_CALLS", "MISSING_THOUGHT_SIGNATURE", "MALFORMED_RESPONSE", "ESCALATION", "PUP_LIMITED_DISABLED"];
@@ -7,6 +7,10 @@ const blockReasons = ["BLOCK_REASON_UNSPECIFIED", "SAFETY", "OTHER", "BLOCKLIST"
 const providerCodes = ["INVALID_ARGUMENT", "FAILED_PRECONDITION", "OUT_OF_RANGE", "UNAUTHENTICATED", "PERMISSION_DENIED", "NOT_FOUND", "ABORTED", "ALREADY_EXISTS", "RESOURCE_EXHAUSTED", "CANCELLED", "DATA_LOSS", "UNKNOWN", "INTERNAL", "NOT_IMPLEMENTED", "UNAVAILABLE", "DEADLINE_EXCEEDED", "API_KEY_INVALID", "API_KEY_EXPIRED", "API_KEY_SERVICE_BLOCKED", "API_KEY_HTTP_REFERRER_BLOCKED", "API_KEY_IP_ADDRESS_BLOCKED"];
 const mimeTypes = ["image/png", "image/jpeg", "image/webp", "image/gif", "application/octet-stream"];
 const modes = ["standard", "single_tooth", "whitening", "alignment", "full_arch"];
+export interface ProviderImagePartDiagnostic {
+  candidateIndex: number; partIndex: number; thought: boolean;
+  mimeType: string; finishReason: string; width?: number; height?: number;
+}
 export interface ProviderDiagnostic {
   requestId: string; provider: string; model: string; promptVersion: string;
   category: ProviderCategory; httpStatus: number | null; latencyMs: number | null;
@@ -19,6 +23,8 @@ export interface ProviderDiagnostic {
   candidates?: number; partCount?: number; textParts?: number; inlineParts?: number;
   thoughtParts?: number; otherParts?: number; imagePartExisted?: boolean;
   finishReasons?: string; mimeTypes?: string; blockReason?: string; providerCode?: string;
+  finalImageCount?: number; selectedCandidateIndex?: number; selectedPartIndex?: number;
+  responseImageParts?: ProviderImagePartDiagnostic[];
 }
 export interface ProviderTrace { update: (patch: Partial<ProviderDiagnostic>) => void }
 export interface DiagnosticContext {
@@ -62,6 +68,15 @@ export function safeProviderDiagnostic(value: unknown): ProviderDiagnostic | nul
   if (integer(v.referenceCount, 6)) result.referenceCount = v.referenceCount;
   if (typeof v.maskSent === "boolean") result.maskSent = v.maskSent;
   for (const key of ["outputWidth", "outputHeight"] as const) if (integer(v[key], 40000) && v[key] > 0) result[key] = v[key];
+  for (const key of ["finalImageCount", "selectedCandidateIndex", "selectedPartIndex"] as const) if (integer(v[key])) result[key] = v[key];
+  if (Array.isArray(v.responseImageParts)) result.responseImageParts = v.responseImageParts.slice(0, 16).flatMap(value => {
+    const part = object(value);
+    if (!integer(part.candidateIndex) || !integer(part.partIndex) || typeof part.thought !== "boolean") return [];
+    const safe: ProviderImagePartDiagnostic = { candidateIndex: part.candidateIndex, partIndex: part.partIndex,
+      thought: part.thought, mimeType: enumValue(part.mimeType, mimeTypes), finishReason: enumValue(part.finishReason, finishReasons) };
+    for (const key of ["width", "height"] as const) if (integer(part[key], 40000) && part[key] > 0) safe[key] = part[key];
+    return [safe];
+  });
   return result;
 }
 
