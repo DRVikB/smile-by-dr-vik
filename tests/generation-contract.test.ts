@@ -129,7 +129,9 @@ test("reference and mask/context instructions are subordinate and appended once"
 
 test("Full Arch design targets the reconstructed arch instead of nonexistent per-tooth goals", () => {
   const p = buildImageEditPrompt(chooseFullArch(defaultSettings));
-  assert.match(p, /DESIGN SCOPE: the selected visible prosthetic arch/);
+  assert.match(p, /FULL-ARCH DESIGN: design the visible upper and lower teeth as a natural, individual smile/);
+  assert.match(p, /central incisors are the dominant teeth/);
+  assert.doesNotMatch(p, /very little visible change|preserve that edge/, "no contradictory keep-the-edges wording for a full arch");
   assert.doesNotMatch(p, /Apply only to teeth whose goals permit contour changes/);
   assert.doesNotMatch(p, /Retain photographed central-to-lateral proportions/);
 });
