@@ -90,7 +90,6 @@ input[type="range"] { accent-color: var(--accent); }
 }
 @media (orientation: landscape) and (max-height: 500px) {
   .sc-composing-symbol { display: none; }
-  .generation-splash-content { padding-top: 76px; }
 }
 @media (prefers-reduced-motion: reduce) { .sc-composing-symbol { animation: none; } }
 /* Native disclosure keeps clinical choices compact on touch screens. */

@@ -32,7 +32,8 @@ export function SavedCaseViewer({ entry, media, analysis: startWithAnalysis = fa
         right={<button className="icon-button" onClick={onClose} aria-label="Close saved comparison"><X size={22} /></button>}
       />
       <BeforeAfterSlider original={media.originalImage} preview={media.image} isMock={isDemo}
-        previewLabel={isDemo ? "Demo preview" : "Saved · AI concept"} analysis={analysis} onHideAnalysis={() => setAnalysis(false)} />
+        previewLabel={isDemo ? "Demo preview" : "Saved · AI concept"} analysis={analysis} onHideAnalysis={() => setAnalysis(false)}
+        fill={{ ...media.photoMetadata, analysisSnapshot: media.photoMetadata?.analysisSnapshot ?? media.analysisSnapshot }} />
       <footer className="saved-case-footer">
         <span>{entry.patientName || "Saved case"} · {entry.label || "Before & after"}</span>
         <p>{isDemo ? "Demo concept · Sample imagery, not a patient result." : AI_CONCEPT_SUMMARY}</p>

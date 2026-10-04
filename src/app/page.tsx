@@ -1875,7 +1875,7 @@ export default function Smile() {
       )}
 
       {busy && photo && (
-        <GenerationState onCancel={cancelGeneration} testMode={testMode} photo={photo.dataUrl} stage={generationStage} />
+        <GenerationState onCancel={cancelGeneration} testMode={testMode} photo={photo.dataUrl} focus={photo} stage={generationStage} />
       )}
 
       {error && (

@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { containedPhotoRect } from "@/lib/photoViewport";
-import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
+import { containedPhotoRect, edgeFadeMask, focusedPhotoRect, maskStyle } from "@/lib/photoViewport";
+import { analysisRegion, smileRegion, type FocusSource } from "@/lib/photoFocus";
+import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Minus, Plus } from "lucide-react";
 import { ZoomPan } from "./ZoomPan";
 import { GuideKey, GuideLines, useSmileGuides } from "./SmileGuides";
 
@@ -17,6 +18,8 @@ export function overlayValueText(opacity: number): string {
  * illustration laid translucently over the patient's own teeth. A separate
  * visible opacity control stays usable while the photograph is zoomed.
  * With `analysis` on, the smile analysis lines are drawn on the photograph.
+ * With `fill`, the photograph fills the screen around the smile (never
+ * cropping into it), and one tap shows the whole photograph instead.
  */
 export function BeforeAfterSlider({
   original,
@@ -27,6 +30,7 @@ export function BeforeAfterSlider({
   onModeChange,
   analysis = false,
   onHideAnalysis,
+  fill,
 }: {
   original: string;
   preview: string;
@@ -36,6 +40,7 @@ export function BeforeAfterSlider({
   onModeChange?: (mode: CompareMode) => void;
   analysis?: boolean;
   onHideAnalysis?: () => void;
+  fill?: FocusSource;
 }) {
   // Found on the patient's own photo: the face they're measured against.
   const guides = useSmileGuides(original, analysis);
@@ -49,39 +54,68 @@ export function BeforeAfterSlider({
   const root = useRef<HTMLDivElement>(null);
   const photoFrame = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<ReturnType<typeof containedPhotoRect>>(null);
+  const [wholePhoto, setWholePhoto] = useState(false);
+  const filling = Boolean(fill) && !wholePhoto;
+  const [handleTop, setHandleTop] = useState<number | null>(null);
+  const [edgeMask, setEdgeMask] = useState<string | undefined>(undefined);
+  // Until the divider is moved, it starts on the middle of the screen (the smile, when filling).
+  const moved = useRef(false);
   useEffect(() => {
     const el = root.current;
     if (!el) return;
     const measure = () => {
       const image = el.querySelector<HTMLImageElement>(".compare-image");
-      setViewport(containedPhotoRect(el.clientWidth, el.clientHeight, image?.naturalWidth ?? 0, image?.naturalHeight ?? 0));
+      const w = el.clientWidth, h = el.clientHeight, nw = image?.naturalWidth ?? 0, nh = image?.naturalHeight ?? 0;
+      if (!filling) {
+        setViewport(containedPhotoRect(w, h, nw, nh)); setHandleTop(null); setEdgeMask(undefined);
+        if (!moved.current) setPosition(50);
+        return;
+      }
+      const source = { ...fill, width: fill?.width || nw, height: fill?.height || nh };
+      const smile = smileRegion(source);
+      const rect = focusedPhotoRect(w, h, nw, nh, {
+        region: analysis ? analysisRegion(source) : smile,
+        // Portrait screens keep the smile a little above the actions; analysis keeps more of the face.
+        anchor: { x: 0.5, y: h > w ? 0.46 : 0.5 },
+        maxCrop: analysis ? 0.2 : 0.4,
+      });
+      setViewport(rect);
+      // Where the filled photograph still stops short of the screen, its edges fade into the blurred copy.
+      setEdgeMask(rect ? edgeFadeMask(rect, w, h, 0.1) : undefined);
+      // The divider's handle sits below the lips, never over the teeth.
+      if (rect) {
+        const below = rect.top + (smile.y + smile.height) * rect.height + 56;
+        setHandleTop(((Math.min(h * 0.74, Math.max(h * 0.3, below)) - rect.top) / rect.height) * 100);
+        if (!moved.current) setPosition(Math.round(Math.min(100, Math.max(0, ((w / 2 - rect.left) / rect.width) * 100))));
+      }
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     el.addEventListener("load", measure, true);
     return () => { observer.disconnect(); el.removeEventListener("load", measure, true); };
-  }, [original, preview]);
+    // The focus data belongs to the photographs, so it is read again when they (or the fit) change.
+  }, [original, preview, filling, analysis]);
   const dragging = useRef<number | null>(null);
   // The divider's handle slides the comparison at any zoom level. Zoomed in,
   // dragging anywhere else pans the photo instead.
   const slideTo = (clientX: number) => {
     const box = photoFrame.current?.getBoundingClientRect();
-    if (box?.width) setPosition(Math.round(Math.min(100, Math.max(0, ((clientX - box.left) / box.width) * 100))));
+    if (box?.width) { moved.current = true; setPosition(Math.round(Math.min(100, Math.max(0, ((clientX - box.left) / box.width) * 100)))); }
   };
   return (
-    <div className={`comparison${overlay ? " comparison-overlay" : ""}${analysis ? " has-guides" : ""}`}>
+    <div className={`comparison${overlay ? " comparison-overlay" : ""}${analysis ? " has-guides" : ""}${filling ? " is-filled" : ""}`}>
       <div ref={root} className="compare-canvas">
       <img className="photo-backdrop" src={original} alt="" aria-hidden="true" />
-      <div ref={photoFrame} className="compare-frame" style={viewport ? { inset: "auto", ...viewport, overflow: "hidden" } : { visibility: "hidden" }}>
+      <div ref={photoFrame} className="compare-frame" style={viewport ? { inset: "auto", ...viewport, overflow: "hidden", ...maskStyle(edgeMask) } : { visibility: "hidden" }}>
         <ZoomPan
           className="comparison-zoom"
-          resetKey={preview}
+          resetKey={`${preview}|${filling}`}
           label=""
           overlay={!overlay ? <input
             type="range" min={0} max={100}
             value={position}
-            onChange={(e) => setPosition(Number(e.target.value))}
+            onChange={(e) => { moved.current = true; setPosition(Number(e.target.value)); }}
             className="compare-input"
             aria-label="Before and after comparison"
             aria-valuetext={`${position} percent original, ${100 - position} percent smile preview`}
@@ -133,7 +167,7 @@ export function BeforeAfterSlider({
             onPointerUp={() => { dragging.current = null; }}
             onPointerCancel={() => { dragging.current = null; }}
           />
-          <span className="compare-handle">
+          <span className="compare-handle" style={handleTop === null ? undefined : { top: `${handleTop}%` }}>
             <ChevronLeft size={17} />
             <ChevronRight size={17} />
           </span>
@@ -167,6 +201,13 @@ export function BeforeAfterSlider({
           Overlay
         </button>
       </div>
+      {fill && (
+        <button type="button" className="compare-fit" onPointerDown={(e) => e.stopPropagation()} onClick={() => setWholePhoto(v => !v)}
+          aria-label={wholePhoto ? "Fill the screen around the smile" : "Show the whole photograph"}>
+          {wholePhoto ? <Maximize2 size={14} aria-hidden="true" /> : <Minimize2 size={14} aria-hidden="true" />}
+          <span>{wholePhoto ? "Fill screen" : "Whole photo"}</span>
+        </button>
+      )}
       {isMock && (
         <div className="demo-image-label">DEMO · ORIGINAL PHOTO UNCHANGED</div>
       )}
