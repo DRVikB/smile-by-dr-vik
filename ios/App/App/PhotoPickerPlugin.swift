@@ -595,10 +595,16 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         guard let f = face else { headArc.isHidden = true; return }
         let size = previewHost.bounds.size
         let y = f.eyeY * size.height, x0 = f.faceMinX * size.width, x1 = f.faceMaxX * size.width
-        let bow = max(-1, min(1, f.pitchDegrees / 20)) * (x1 - x0) * 0.25
+        // Always an arc: the lower half of a ring around the head at eye level. Its
+        // depth follows forward/back tilt, from shallow to deep.
+        let width = x1 - x0
+        let tilt = max(-1, min(1, f.pitchDegrees / 20))
+        let depth = max(0.04, min(0.32, 0.12 + tilt * 0.14)) * width
         let path = UIBezierPath()
         path.move(to: CGPoint(x: x0, y: y))
-        path.addQuadCurve(to: CGPoint(x: x1, y: y), controlPoint: CGPoint(x: (x0 + x1) / 2, y: y + bow * 2))
+        path.addCurve(to: CGPoint(x: x1, y: y),
+                      controlPoint1: CGPoint(x: x0, y: y + depth * 1.33),
+                      controlPoint2: CGPoint(x: x1, y: y + depth * 1.33))
         CATransaction.begin(); CATransaction.setDisableActions(true)
         headArc.path = path.cgPath
         headArc.strokeColor = (abs(f.pitchDegrees) > CaptureGuidance.maxPitch ? Self.warning : Self.gold).cgColor
