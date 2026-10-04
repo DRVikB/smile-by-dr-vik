@@ -648,10 +648,10 @@ export default function Smile() {
   async function openCamera() {
     if (!isNativeApp()) { setCamera(true); return; }
     try {
-      const file = await takeNativePhoto(SMILE_GUIDE);
-      if (!file) return;
-      const prepared = await preparePhoto(file);
-      await selectPhoto({ ...prepared, framing: SMILE_GUIDE });
+      const taken = await takeNativePhoto(SMILE_GUIDE);
+      if (!taken) return;
+      const prepared = await preparePhoto(taken.file);
+      await selectPhoto({ ...prepared, framing: taken.framing });
     } catch (e) {
       setError(e instanceof Error ? e.message : "The camera couldn’t be opened.");
     }

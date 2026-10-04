@@ -75,8 +75,13 @@ public class PhotoPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
                             call.resolve(["cancelled": true])
                         case .failed(let message):
                             call.reject(message)
-                        case .captured(let data):
-                            do { call.resolve(try self.store(data, png: false)) } catch { call.reject("The photo couldn’t be saved.") }
+                        case .captured(let data, let used):
+                            do {
+                                var result = try self.store(data, png: false)
+                                // The guide actually shown (it differs in landscape), so the photo's framing is accurate.
+                                result["guide"] = ["x": used.minX, "y": used.minY, "width": used.width, "height": used.height]
+                                call.resolve(result)
+                            } catch { call.reject("The photo couldn’t be saved.") }
                         }
                     }
                     camera.modalPresentationStyle = .fullScreen
@@ -146,7 +151,8 @@ public class PhotoPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
 
 /// Live alignment checks for the capture guide, computed from on-device face
 /// landmarks (Vision) and the device's gravity vector (Core Motion). Pure
-/// rules, so the camera only draws what they decide. Nothing leaves the device.
+/// rules and geometry, so the camera only draws what they decide. Nothing
+/// leaves the device.
 struct CaptureGuidance {
     struct Face {
         /// All in the photo frame's normalised coordinates, origin top-left.
@@ -156,14 +162,36 @@ struct CaptureGuidance {
         var opening: CGFloat
         var rollDegrees: CGFloat
         var yawDegrees: CGFloat
-        /// Forward/back head tilt, and where to draw the level arc (eye line across the face).
-        var pitchDegrees: CGFloat = 0
-        var eyeY: CGFloat = 0
-        var faceMinX: CGFloat = 0
-        var faceMaxX: CGFloat = 0
+        /// Forward/back head tilt as Vision reports it (its sign is learnt, see PitchDirection).
+        var pitchDegrees: CGFloat
+        /// Nose base to eye line, as a share of mouth to eye line: grows when the chin drops.
+        var noseRatio: CGFloat
     }
-    enum Step: Equatable { case noFace, centre, closer, further, raise, lower, levelDevice, uprightDevice, headStraight, chinLevel, lookAhead, smile, ready }
+    enum Step: Equatable { case noFace, centre, closer, further, raise, lower, levelDevice, uprightDevice, headStraight, chinUp, chinDown, chinLevel, lookAhead, smile, ready }
     static let maxPitch: CGFloat = 8
+    static let maxLean: Double = 18
+
+    /// The face oval and the smile box for this frame shape, in normalised
+    /// coordinates. In portrait the box is the app's own guide and the oval is
+    /// sized so a face filling it puts the mouth in the box. A landscape frame
+    /// is too short for that box, so the oval fits the height and the box
+    /// follows the oval (and is returned with the photo as its framing).
+    static func layout(guide: CGRect, aspect: CGFloat) -> (oval: CGRect, guide: CGRect) {
+        let headRatio: CGFloat = 1.32, mouthWidthShare: CGFloat = 0.54, mouthDepth: CGFloat = 0.26
+        if aspect <= 1 {
+            let w = guide.width / mouthWidthShare
+            let h = w * headRatio * aspect
+            let cy = guide.midY - mouthDepth * h
+            return (CGRect(x: 0.5 - w / 2, y: cy - h / 2, width: w, height: h), guide)
+        }
+        let h: CGFloat = 0.86
+        let w = h / headRatio / aspect
+        let cy: CGFloat = 0.04 + h / 2
+        let boxW = w * mouthWidthShare, boxH = boxW * aspect / 2
+        let mouthY = cy + mouthDepth * h
+        return (CGRect(x: 0.5 - w / 2, y: cy - h / 2, width: w, height: h),
+                CGRect(x: 0.5 - boxW / 2, y: mouthY - boxH / 2, width: boxW, height: boxH))
+    }
 
     /// The device is upright and level: its own tilt from the nearest upright
     /// orientation, and how far it leans towards or away from the patient.
@@ -174,7 +202,9 @@ struct CaptureGuidance {
         return (angle - quarter, lean)
     }
 
-    static func step(face: Face?, guide: CGRect, gravity: (x: Double, y: Double, z: Double)?) -> Step {
+    /// `chinDown`: how far the chin is dropped (positive) or lifted (negative), in degrees;
+    /// `known` is false until the direction has been learnt on this device.
+    static func step(face: Face?, guide: CGRect, gravity: (x: Double, y: Double, z: Double)?, chinDown: CGFloat, known: Bool) -> Step {
         guard let f = face else { return .noFace }
         if abs(f.centreX - 0.5) > 0.06 { return .centre }
         let ratio = f.mouth.width / guide.width
@@ -185,10 +215,10 @@ struct CaptureGuidance {
         if let g = gravity {
             let level = deviceLevel(gravity: g)
             if abs(level.sideDegrees) > 3 { return .levelDevice }
-            if abs(level.leanDegrees) > 10 { return .uprightDevice }
+            if abs(level.leanDegrees) > maxLean { return .uprightDevice }
         }
         if abs(f.rollDegrees) > 5 { return .headStraight }
-        if abs(f.pitchDegrees) > maxPitch { return .chinLevel }
+        if abs(chinDown) > maxPitch { return known ? (chinDown > 0 ? .chinUp : .chinDown) : .chinLevel }
         if abs(f.yawDegrees) > 12 { return .lookAhead }
         if f.opening < 0.1 { return .smile }
         return .ready
@@ -196,8 +226,8 @@ struct CaptureGuidance {
 
     static func message(_ step: Step) -> String {
         switch step {
-        case .noFace: return "Find the face, looking straight at the camera"
-        case .centre: return "Centre the face"
+        case .noFace: return "Bring the face into the oval"
+        case .centre: return "Centre the face in the oval"
         case .closer: return "Move a little closer"
         case .further: return "Move a little further away"
         case .raise: return "Move the camera down a little"
@@ -205,6 +235,8 @@ struct CaptureGuidance {
         case .levelDevice: return "Level the device"
         case .uprightDevice: return "Hold the device upright"
         case .headStraight: return "Keep the head straight"
+        case .chinUp: return "Lift the chin slightly"
+        case .chinDown: return "Lower the chin slightly"
         case .chinLevel: return "Keep the chin level — look straight at the camera"
         case .lookAhead: return "Look straight at the camera"
         case .smile: return "Smile and show the teeth"
@@ -213,17 +245,51 @@ struct CaptureGuidance {
     }
 }
 
+/// Which sign of Vision's pitch means "chin down" on this device, learnt from
+/// the face itself: as the chin drops, the nose base moves towards the mouth
+/// on screen. Once pitch and that ratio clearly move together, the direction
+/// is kept (on this device only) so prompts can say which way to move.
+final class PitchDirection {
+    private static let key = "smile.camera.pitchChinDownSign"
+    private var samples: [(pitch: Double, ratio: Double)] = []
+    private(set) var sign: CGFloat? = {
+        let stored = UserDefaults.standard.integer(forKey: PitchDirection.key)
+        return stored == 0 ? nil : CGFloat(stored)
+    }()
+
+    func observe(_ face: CaptureGuidance.Face) {
+        guard sign == nil else { return }
+        samples.append((Double(face.pitchDegrees), Double(face.noseRatio)))
+        if samples.count > 60 { samples.removeFirst() }
+        guard samples.count >= 20 else { return }
+        let n = Double(samples.count)
+        let mp = samples.map(\.pitch).reduce(0, +) / n, mr = samples.map(\.ratio).reduce(0, +) / n
+        var cov = 0.0, vp = 0.0, vr = 0.0
+        for s in samples { cov += (s.pitch - mp) * (s.ratio - mr); vp += pow(s.pitch - mp, 2); vr += pow(s.ratio - mr, 2) }
+        guard vp / n > 9, vr > 0 else { return } // needs a few degrees of real head movement
+        let correlation = cov / sqrt(vp * vr)
+        guard abs(correlation) > 0.5 else { return }
+        let learnt: CGFloat = correlation > 0 ? 1 : -1
+        sign = learnt
+        UserDefaults.standard.set(Int(learnt), forKey: Self.key)
+    }
+}
+
 /// The SmileCompose camera: a 3:4 live view (4:3 in landscape) showing exactly the photo's frame,
-/// the smile guide at the same fractions of that frame as the web capture guide, live alignment
-/// guidance (the guide turns gold when the face, device and smile line up), pinch or −/+ zoom
+/// a face oval with a centre crosshair and a head-level arc, the smile box, live alignment guidance
+/// (oval, box and instruction turn gold when face, device and smile line up), pinch or −/+ zoom
 /// across the lenses, and a flip between cameras. It captures a full-quality still
 /// (AVCapturePhotoOutput, quality prioritised) rather than a frame of video.
 final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVCaptureVideoDataOutputSampleBufferDelegate {
-    enum Result { case cancelled, failed(String), captured(Data) }
+    enum Result { case cancelled, failed(String), captured(Data, CGRect) }
 
     private static let gold = UIColor(red: 208 / 255, green: 164 / 255, blue: 102 / 255, alpha: 1)
+    private static let warning = UIColor(red: 0.89, green: 0.33, blue: 0.36, alpha: 1)
+    private static let quiet = UIColor(white: 1, alpha: 0.4)
 
     private let guide: CGRect
+    private var activeGuide: CGRect
+    private var oval = CGRect.zero
     private var front: Bool
     private let completion: (Result) -> Void
     private let session = AVCaptureSession()
@@ -232,6 +298,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
     private let photoOutput = AVCapturePhotoOutput()
     private let videoOutput = AVCaptureVideoDataOutput()
     private let motion = CMMotionManager()
+    private let pitchDirection = PitchDirection()
     private var device: AVCaptureDevice?
     private var rotationCoordinator: AnyObject?
     /// The zoom factor that reads as 1× (the wide lens), and the most we allow.
@@ -246,13 +313,13 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
 
     private let previewLayer = AVCaptureVideoPreviewLayer()
     private let previewHost = UIView()
-    private let guideView = UIView()
-    private let midline = UIView()
-    private let levelLine = UIView()
+    private let ovalLayer = CAShapeLayer()
     private let headArc = CAShapeLayer()
-    private static let warning = UIColor(red: 0.89, green: 0.33, blue: 0.36, alpha: 1)
+    private let guideView = UIView()
+    private let crossV = UIView()
+    private let crossH = UIView()
     private let hint = UILabel()
-    private let hintPill = UIView()
+    private let hintBar = UIView()
     private let closeButton = UIButton(type: .system)
     private let flipButton = UIButton(type: .system)
     private let shutter = UIButton(type: .custom)
@@ -264,6 +331,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
 
     init(guide: CGRect, front: Bool, completion: @escaping (Result) -> Void) {
         self.guide = guide
+        self.activeGuide = guide
         self.front = front
         self.completion = completion
         super.init(nibName: nil, bundle: nil)
@@ -285,33 +353,39 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         previewHost.addGestureRecognizer(UIPinchGestureRecognizer(target: self, action: #selector(pinched(_:))))
         view.addSubview(previewHost)
 
-        for line in [midline, levelLine] {
-            line.backgroundColor = UIColor(white: 1, alpha: 0.35)
+        for line in [crossV, crossH] {
+            line.backgroundColor = Self.quiet
             line.isUserInteractionEnabled = false
             previewHost.addSubview(line)
         }
-        headArc.fillColor = nil
-        headArc.lineWidth = 2
-        headArc.lineCap = .round
+        for shape in [ovalLayer, headArc] {
+            shape.fillColor = nil
+            shape.lineCap = .round
+            previewHost.layer.addSublayer(shape)
+        }
+        ovalLayer.lineWidth = 3
+        ovalLayer.strokeColor = UIColor(white: 1, alpha: 0.9).cgColor
+        headArc.lineWidth = 2.5
+        headArc.strokeColor = Self.warning.cgColor
         headArc.isHidden = true
-        previewHost.layer.addSublayer(headArc)
-        guideView.layer.borderColor = UIColor.white.cgColor
-        guideView.layer.borderWidth = 2
-        guideView.layer.cornerRadius = 12
+        guideView.layer.borderColor = UIColor(white: 1, alpha: 0.6).cgColor
+        guideView.layer.borderWidth = 1.5
+        guideView.layer.cornerRadius = 10
         guideView.isUserInteractionEnabled = false
         previewHost.addSubview(guideView)
 
-        hintPill.backgroundColor = UIColor(white: 0, alpha: 0.55)
-        hintPill.layer.cornerRadius = 18
-        hintPill.isUserInteractionEnabled = false
-        view.addSubview(hintPill)
-        hint.text = "Line the smile up inside the box"
+        hintBar.backgroundColor = UIColor(white: 1, alpha: 0.12)
+        hintBar.layer.cornerRadius = 14
+        hintBar.isUserInteractionEnabled = false
+        view.addSubview(hintBar)
+        hint.text = CaptureGuidance.message(.noFace)
         hint.textColor = .white
-        hint.font = .systemFont(ofSize: 15, weight: .semibold)
+        hint.font = .systemFont(ofSize: 16, weight: .semibold)
         hint.textAlignment = .center
         hint.adjustsFontSizeToFitWidth = true
+        hint.minimumScaleFactor = 0.8
         hint.accessibilityTraits = .updatesFrequently
-        view.addSubview(hint)
+        hintBar.addSubview(hint)
 
         let symbols = UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold)
         closeButton.setImage(UIImage(systemName: "xmark", withConfiguration: symbols), for: .normal)
@@ -378,7 +452,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         super.viewDidLayoutSubviews()
         let safe = view.safeAreaLayoutGuide.layoutFrame
         let portrait = view.bounds.height >= view.bounds.width
-        let top: CGFloat = 64, bottom: CGFloat = 170
+        let top: CGFloat = 62, bottom: CGFloat = portrait ? 222 : 168
         let area = CGRect(x: safe.minX + 12, y: safe.minY + top, width: safe.width - 24, height: safe.height - top - bottom)
         // The live view has the photo's own shape, so it shows the whole photo and the guide maps exactly.
         let aspect: CGFloat = portrait ? 3.0 / 4.0 : 4.0 / 3.0
@@ -387,19 +461,27 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         previewHost.frame = CGRect(x: area.midX - size.width / 2, y: area.midY - size.height / 2, width: size.width, height: size.height)
         CATransaction.begin(); CATransaction.setDisableActions(true)
         previewLayer.frame = previewHost.bounds
+        let layout = CaptureGuidance.layout(guide: guide, aspect: aspect)
+        oval = layout.oval
+        activeGuide = layout.guide
+        let ovalPx = CGRect(x: oval.minX * size.width, y: oval.minY * size.height, width: oval.width * size.width, height: oval.height * size.height)
+        ovalLayer.path = UIBezierPath(ovalIn: ovalPx).cgPath
         CATransaction.commit()
-        guideView.frame = CGRect(x: guide.minX * size.width, y: guide.minY * size.height, width: guide.width * size.width, height: guide.height * size.height)
-        midline.bounds = CGRect(x: 0, y: 0, width: 1, height: size.height)
-        midline.center = CGPoint(x: size.width / 2, y: size.height / 2)
-        levelLine.bounds = CGRect(x: 0, y: 0, width: size.width * 0.8, height: 1)
-        levelLine.center = CGPoint(x: size.width / 2, y: size.height * 0.42)
+        guideView.frame = CGRect(x: activeGuide.minX * size.width, y: activeGuide.minY * size.height,
+                                 width: activeGuide.width * size.width, height: activeGuide.height * size.height)
+        crossV.frame = CGRect(x: size.width / 2 - 0.5, y: 0, width: 1, height: size.height)
+        crossH.frame = CGRect(x: 0, y: ovalPx.midY - 0.5, width: size.width, height: 1)
+        drawHeadArc()
         applyRotation()
 
-        closeButton.frame = CGRect(x: safe.minX + 16, y: safe.minY + 10, width: 44, height: 44)
-        hint.frame = CGRect(x: safe.minX + 80, y: safe.minY + 14, width: safe.width - 160, height: 36)
-        let pillWidth = min(hint.intrinsicContentSize.width + 36, safe.width - 150)
-        hintPill.frame = CGRect(x: safe.midX - pillWidth / 2, y: safe.minY + 14, width: pillWidth, height: 36)
-        zoomBar.frame = CGRect(x: safe.midX - 80, y: safe.maxY - bottom + 18, width: 160, height: 40)
+        closeButton.frame = CGRect(x: safe.minX + 16, y: safe.minY + 9, width: 44, height: 44)
+        // Portrait: the instruction sits just below the photo; landscape: over its lower edge.
+        let barWidth = min(size.width - 24, 520)
+        hintBar.frame = portrait
+            ? CGRect(x: previewHost.frame.midX - size.width / 2, y: previewHost.frame.maxY + 10, width: size.width, height: 46)
+            : CGRect(x: previewHost.frame.midX - barWidth / 2, y: previewHost.frame.maxY - 58, width: barWidth, height: 46)
+        hint.frame = hintBar.bounds.insetBy(dx: 14, dy: 0)
+        zoomBar.frame = CGRect(x: safe.midX - 80, y: safe.maxY - 152, width: 160, height: 40)
         zoomOut.frame = CGRect(x: 0, y: 0, width: 48, height: 40)
         zoomIn.frame = CGRect(x: 112, y: 0, width: 48, height: 40)
         zoomLabel.frame = CGRect(x: 48, y: 0, width: 64, height: 40)
@@ -482,13 +564,11 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
             self.session.commitConfiguration()
 
             // With an ultra-wide lens, 1× (the wide lens) is the first switch-over point.
-            let constituents = device.constituentDevices.map(\.deviceType)
             let switchOvers = device.virtualDeviceSwitchOverVideoZoomFactors.map { CGFloat($0.doubleValue) }
-            let hasUltraWide = constituents.contains(.builtInUltraWideCamera)
+            let hasUltraWide = device.constituentDevices.contains { $0.deviceType == .builtInUltraWideCamera }
             let base = hasUltraWide ? (switchOvers.first ?? 1) : 1
             // Opening zoom: 2× on an iPhone's back camera (less perspective distortion than
             // the wide lens, full quality from the main sensor); 1× on iPad; 1.5× on the selfie camera.
-            _ = constituents
             let phone = UIDevice.current.userInterfaceIdiom == .phone
             let start = front ? base * 1.5 : (phone ? base * 2 : base)
             self.device = device
@@ -521,7 +601,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
     }
 
     @objc private func sessionResumed() {
-        DispatchQueue.main.async { self.setHint("Line the smile up inside the box", ready: false) }
+        DispatchQueue.main.async { self.setHint(CaptureGuidance.message(.noFace), ready: false) }
     }
 
     @objc private func sessionFailed() {
@@ -539,22 +619,28 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         let handler = VNImageRequestHandler(cvPixelBuffer: pixels, orientation: .up)
         try? handler.perform([request])
         let face = (request.results ?? []).max { $0.boundingBox.width < $1.boundingBox.width }.flatMap(Self.describe)
-        DispatchQueue.main.async { self.latestFace = face; self.updateGuidance() }
+        DispatchQueue.main.async {
+            self.latestFace = face
+            if let face { self.pitchDirection.observe(face) }
+            self.updateGuidance()
+        }
     }
 
     /// Vision coordinates (normalised, origin bottom-left) to the photo frame's, origin top-left.
     private static func describe(_ observation: VNFaceObservation) -> CaptureGuidance.Face? {
         guard let landmarks = observation.landmarks, let outer = landmarks.outerLips, let inner = landmarks.innerLips,
-              let leftEye = landmarks.leftEye, let rightEye = landmarks.rightEye else { return nil }
+              let leftEye = landmarks.leftEye, let rightEye = landmarks.rightEye, let nose = landmarks.nose else { return nil }
         let box = observation.boundingBox
         func points(_ region: VNFaceLandmarkRegion2D) -> [CGPoint] {
             region.normalizedPoints.map { CGPoint(x: box.minX + $0.x * box.width, y: 1 - (box.minY + $0.y * box.height)) }
         }
-        let lips = points(outer), opening = points(inner)
+        let lips = points(outer), opening = points(inner), eyes = points(leftEye) + points(rightEye)
         guard let minX = lips.map(\.x).min(), let maxX = lips.map(\.x).max(), let minY = lips.map(\.y).min(), let maxY = lips.map(\.y).max(),
-              let innerTop = opening.map(\.y).min(), let innerBottom = opening.map(\.y).max(), maxX > minX else { return nil }
+              let innerTop = opening.map(\.y).min(), let innerBottom = opening.map(\.y).max(), let noseBase = points(nose).map(\.y).max(),
+              maxX > minX, !eyes.isEmpty else { return nil }
+        let eyeY = eyes.map(\.y).reduce(0, +) / CGFloat(eyes.count)
+        let mouthY = (minY + maxY) / 2
         let degrees: (NSNumber?) -> CGFloat = { CGFloat(($0?.doubleValue ?? 0) * 180 / .pi) }
-        let eyes = points(leftEye) + points(rightEye)
         var pitch: CGFloat = 0
         if #available(iOS 15.0, *) { pitch = degrees(observation.pitch) }
         return CaptureGuidance.Face(
@@ -564,14 +650,16 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
             rollDegrees: degrees(observation.roll),
             yawDegrees: degrees(observation.yaw),
             pitchDegrees: pitch,
-            eyeY: eyes.map(\.y).reduce(0, +) / CGFloat(max(1, eyes.count)),
-            faceMinX: box.minX,
-            faceMaxX: box.maxX)
+            noseRatio: mouthY > eyeY ? (noseBase - eyeY) / (mouthY - eyeY) : 0)
     }
+
+    /// Chin drop in degrees: positive when the chin is down. Until the direction
+    /// is learnt, Vision's sign is assumed (and prompts stay neutral).
+    private var chinDown: CGFloat { (latestFace?.pitchDegrees ?? 0) * (pitchDirection.sign ?? 1) }
 
     private func updateGuidance() {
         let gravity = motion.deviceMotion.map { ($0.gravity.x, $0.gravity.y, $0.gravity.z) }
-        let step = CaptureGuidance.step(face: latestFace, guide: guide, gravity: gravity)
+        let step = CaptureGuidance.step(face: latestFace, guide: activeGuide, gravity: gravity, chinDown: chinDown, known: pitchDirection.sign != nil)
         let ready = step == .ready
         readySince = ready ? (readySince ?? Date()) : nil
         let steady = ready && Date().timeIntervalSince(readySince!) > 0.6
@@ -579,27 +667,22 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         if steady && !wasReady { haptic.impactOccurred() }
         wasReady = steady
 
-        drawHeadArc(latestFace)
         let centred = latestFace.map { abs($0.centreX - 0.5) <= 0.06 } ?? false
-        midline.backgroundColor = centred ? Self.gold : UIColor(white: 1, alpha: 0.35)
-        if let g = gravity {
-            let level = CaptureGuidance.deviceLevel(gravity: g)
-            levelLine.transform = CGAffineTransform(rotationAngle: CGFloat(-level.sideDegrees * .pi / 180))
-            levelLine.backgroundColor = abs(level.sideDegrees) <= 3 ? Self.gold : UIColor(white: 1, alpha: 0.35)
-        }
+        let deviceLevel = gravity.map { abs(CaptureGuidance.deviceLevel(gravity: $0).sideDegrees) <= 3 } ?? true
+        let headLevel = latestFace != nil && abs(chinDown) <= CaptureGuidance.maxPitch
+        crossV.backgroundColor = centred ? Self.gold : Self.quiet
+        crossH.backgroundColor = headLevel && deviceLevel ? Self.gold : Self.quiet
+        drawHeadArc()
     }
 
-    /// A line across the eyes that bows with forward/back head tilt (like a
-    /// spirit level for the head): soft red when tilted, gold once level.
-    private func drawHeadArc(_ face: CaptureGuidance.Face?) {
-        guard let f = face else { headArc.isHidden = true; return }
+    /// The head's eye-level "equator", pinned to the oval's sides at the centre
+    /// line. It curves down as the chin drops and up as it lifts (the front of a
+    /// ring around the head, seen from the camera), and disappears once level.
+    private func drawHeadArc() {
         let size = previewHost.bounds.size
-        let y = f.eyeY * size.height, x0 = f.faceMinX * size.width, x1 = f.faceMaxX * size.width
-        // Always an arc: the lower half of a ring around the head at eye level. Its
-        // depth follows forward/back tilt, from shallow to deep.
-        let width = x1 - x0
-        let tilt = max(-1, min(1, f.pitchDegrees / 20))
-        let depth = max(0.04, min(0.32, 0.12 + tilt * 0.14)) * width
+        guard latestFace != nil, abs(chinDown) > CaptureGuidance.maxPitch, size.width > 0 else { headArc.isHidden = true; return }
+        let x0 = oval.minX * size.width, x1 = oval.maxX * size.width, y = oval.midY * size.height
+        let depth = (x1 - x0) / 2 * sin(min(35, abs(chinDown)) * .pi / 180) * 1.8 * (chinDown > 0 ? 1 : -1)
         let path = UIBezierPath()
         path.move(to: CGPoint(x: x0, y: y))
         path.addCurve(to: CGPoint(x: x1, y: y),
@@ -607,7 +690,6 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
                       controlPoint2: CGPoint(x: x1, y: y + depth * 1.33))
         CATransaction.begin(); CATransaction.setDisableActions(true)
         headArc.path = path.cgPath
-        headArc.strokeColor = (abs(f.pitchDegrees) > CaptureGuidance.maxPitch ? Self.warning : Self.gold).cgColor
         headArc.isHidden = false
         CATransaction.commit()
     }
@@ -615,11 +697,10 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
     private func setHint(_ text: String, ready: Bool) {
         hint.text = text
         hint.textColor = ready ? .black : .white
-        hintPill.backgroundColor = ready ? Self.gold : UIColor(white: 0, alpha: 0.55)
-        guideView.layer.borderColor = (ready ? Self.gold : UIColor.white).cgColor
-        guideView.layer.borderWidth = ready ? 3 : 2
+        hintBar.backgroundColor = ready ? Self.gold : UIColor(white: 0.1, alpha: 0.82)
+        ovalLayer.strokeColor = (ready ? Self.gold : UIColor(white: 1, alpha: 0.9)).cgColor
+        guideView.layer.borderColor = (ready ? Self.gold : UIColor(white: 1, alpha: 0.6)).cgColor
         view.viewWithTag(42)?.layer.borderColor = (ready ? Self.gold : UIColor.white).cgColor
-        view.setNeedsLayout()
     }
 
     // MARK: Zoom, flip, capture
@@ -658,8 +739,11 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
 
     @objc private func cancel() { finish(.cancelled) }
 
+    private var guideAtCapture = CGRect.zero
+
     @objc private func capture() {
         shutter.isEnabled = false
+        guideAtCapture = activeGuide
         let orientation = currentOrientation()
         var captureAngle: CGFloat?
         if #available(iOS 17.0, *), let coordinator = rotationCoordinator as? AVCaptureDevice.RotationCoordinator {
@@ -696,7 +780,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
             }
             return
         }
-        DispatchQueue.main.async { self.finish(.captured(data)) }
+        DispatchQueue.main.async { self.finish(.captured(data, self.guideAtCapture)) }
     }
 
     private func finish(_ result: Result) {
