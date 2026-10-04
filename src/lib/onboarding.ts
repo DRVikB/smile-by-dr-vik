@@ -1,6 +1,7 @@
 /**
  * First-run onboarding: which step to show, derived from facts rather than a
- * stored state machine, so an interrupted onboarding resumes where it left off.
+ * stored state machine. Progress continues within the session; a cold launch
+ * restarts unfinished onboarding from Welcome, preserving names and completion.
  *
  *   WELCOME → ACCOUNT → PERSONALISE → HOW IT WORKS → YOUR STYLE → SUBSCRIPTION → READY
  *
@@ -98,6 +99,7 @@ export function onboardingDecision(input: OnboardingInput): OnboardingDecision {
   if (profile.hasGenerationHistory || input.deviceHasCases)
     return needsName ? step("personalise", true) : { kind: "completeSilently" };
 
+  if (local.welcomeSeen === false) return step("welcome");
   if (needsName) return step("personalise");
   if (!local.howItWorksSeen) return step("howItWorks");
   if (!local.styleLibrarySeen) return step("styleLibrary");
@@ -110,10 +112,17 @@ export const ONBOARDING_PROGRESS: OnboardingStep[] = ["account", "personalise", 
 
 const KEY = "smile.onboarding";
 
-export function readLocalOnboarding(storage: Pick<Storage, "getItem"> | null = safeStorage()): LocalOnboarding {
+export function readLocalOnboarding(storage: Pick<Storage, "getItem"> | null = safeStorage(), { forLaunch = false }: { forLaunch?: boolean } = {}): LocalOnboarding {
   try {
     const parsed = JSON.parse(storage?.getItem(KEY) ?? "{}") as unknown;
-    return parsed && typeof parsed === "object" ? parsed as LocalOnboarding : {};
+    const local = parsed && typeof parsed === "object" ? parsed as LocalOnboarding : {};
+    if (!forLaunch) return local;
+    return {
+      ...local, welcomeSeen: false, accountDeferred: false, nameSkipped: false,
+      howItWorksSeen: false, styleLibrarySeen: false, subscriptionSeen: false,
+      accounts: Object.fromEntries(Object.entries(local.accounts ?? {}).map(([id, flags]) =>
+        [id, flags.completed ? flags : { ...flags, nameSkipped: false, subscriptionDeferred: false }])),
+    };
   } catch {
     return {};
   }

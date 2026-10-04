@@ -45,6 +45,12 @@ function fixture(id=uuid()){
  const media:CaseLogMedia={id:version,image:png,originalImage:png,preferences:{settings:defaultSettings}};
  const draft:SmileCase={caseId:id,patientName:"AB",photo:{dataUrl:png,name:"x",width:1,height:1},settings:defaultSettings,variants:[],result:{image:png,variationId:version,mode:"live"},screen:"preview"};return {id,version,entry,media,draft};
 }
+test("launch opens Home but explicit case reopen restores the accepted comparison",async()=>{
+ const r=repo(),f=fixture();r.disconnect();await r.persistCase(f.draft);
+ const home=await r.readCase({forLaunch:true});
+ assert.equal(home?.screen,"start");assert.deepEqual(home?.photo,f.draft.photo);assert.deepEqual(home?.result,f.draft.result);
+ const opened=await r.reopenCase(f.id);assert.equal(opened.screen,"preview");assert.deepEqual(opened.result,f.draft.result);
+});
 test("pending upload never prevents comparison/export locally, including offline",async()=>{
  const r=repo(),f=fixture();r.disconnect();await r.recordVisualisation(f.entry,f.media);
  assert.equal((await r.mediaStatus(f.version)).state,"PENDING_UPLOAD");

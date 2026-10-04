@@ -4,6 +4,17 @@ import assert from 'node:assert/strict';
 import { persistCase, readCase } from '../src/lib/storage';
 import { defaultSettings, type SmileCase } from '../src/lib/types';
 const photo = { name: 'test.png', width: 200, height: 200, dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' };
+test('cold launch returns Home while preserving the exact working design and accepted result', async () => {
+  const saved: SmileCase = { photo, settings: { ...defaultSettings, targetShade: 'BL1' }, result: { image: photo.dataUrl, mode: 'live', variationId: 'accepted-version' }, screen: 'preview', variants: [], patientName: 'QA' };
+  await persistCase(saved);
+  const launched = await readCase({ forLaunch: true });
+  assert.equal(launched?.screen, 'start');
+  assert.deepEqual(launched?.photo, saved.photo);
+  assert.deepEqual(launched?.settings, saved.settings);
+  assert.deepEqual(launched?.result, saved.result);
+  assert.deepEqual(await readCase(), saved, 'a launch read must not rewrite or delete the saved draft');
+  await persistCase(null);
+});
 test('current case, reference and demo state survive a new database connection; New Smile wins queued writes', async () => {
   const saved: SmileCase = { photo, reference: photo, settings: defaultSettings, result: null, screen: 'design', variants: [], testMode: true, testPreview: photo.dataUrl };
   await persistCase(saved);

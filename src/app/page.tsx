@@ -490,7 +490,7 @@ export default function Smile() {
 
   useEffect(() => {
     let active = true;
-    readCase()
+    readCase({ forLaunch: true })
       .then((c) => {
         if (active && c) {
           restoreWorkingCase(c);

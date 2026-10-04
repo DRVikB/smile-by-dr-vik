@@ -1,13 +1,14 @@
 "use client";
+import { useEffect, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { CaptureSymbol, ComposeSymbol, IconTile, PresentSymbol, ShareSymbol, VisualiseSymbol } from "@/components/icons/SmileIcons";
-import { EXAMPLE_COMPARISON, EXAMPLE_PORTRAITS } from "@/lib/exampleImages";
+import { EXAMPLE_COMPARISON, EXAMPLE_PORTRAITS, SUBSCRIPTION_COMPARISON } from "@/lib/exampleImages";
 import { SUBSCRIPTION_PRODUCTS } from "@/config/subscriptions";
 
 /**
  * Purpose-built onboarding visuals. They are composed from SmileCompose's own
- * sample case (test-mode images, cropped for size) and the Home screen's hero
- * photograph — never a patient — and are themed through the tokens in
+ * sample case and fictional portraits,
+ * and the Home screen's hero photograph. They are themed through the tokens in
  * src/app/theme.css, so they work in Light and Dark. Motion is decorative and is
  * removed under Reduce Motion.
  */
@@ -31,25 +32,66 @@ function Photo({ src, large, className }: { src: string; large?: string; classNa
 }
 
 /** Before / after of the sample case with an animated reveal. */
-export function SmileReveal({ animate = true, size = "hero", handle = "dot" }: {
+export function SmileReveal({ animate = true, size = "hero", handle = "dot", comparison, interactive = false }: {
   animate?: boolean;
   size?: "hero" | "compact";
   /** The divider's handle: a gold dot, or the arrows of a slider. */
   handle?: "dot" | "arrows";
+  comparison?: { before: string; after: string };
+  interactive?: boolean;
 }) {
+  const [introDone, setIntroDone] = useState(!animate);
+  const [position, setPosition] = useState(50);
+  const [interacted, setInteracted] = useState(false);
+  const dragging = useRef<number | null>(null);
+  useEffect(() => {
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const respectMotion = () => { if (motion.matches) setIntroDone(true); };
+    respectMotion();
+    motion.addEventListener("change", respectMotion);
+    return () => motion.removeEventListener("change", respectMotion);
+  }, []);
+  const startInteraction = () => { setIntroDone(true); setInteracted(true); };
+  const slideTo = (clientX: number, frame: HTMLDivElement) => {
+    const box = frame.getBoundingClientRect();
+    if (box.width) setPosition(Math.round(Math.min(100, Math.max(0, (clientX - box.left) / box.width * 100))));
+  };
   return (
-    <figure className={`reveal-card ${size}${animate ? " animate" : ""}`}>
-      <div className="reveal-frame">
-        <Photo className="reveal-img" src={BEFORE} large={size === "hero" ? BEFORE_LARGE : undefined} />
-        <Photo className="reveal-img reveal-after" src={AFTER} large={size === "hero" ? AFTER_LARGE : undefined} />
+    <figure className={`reveal-card ${size}${animate && !introDone ? " animate" : ""}${interactive ? " interactive" : ""}`}
+      style={{ "--split": `${position}%` } as React.CSSProperties}
+      onAnimationEnd={e => { if (e.target === e.currentTarget && e.animationName === "reveal-split") setIntroDone(true); }}>
+      <div className="reveal-frame"
+        role={interactive ? "slider" : undefined} tabIndex={interactive ? 0 : undefined}
+        aria-label={interactive ? "Before and concept comparison" : undefined}
+        aria-valuemin={interactive ? 0 : undefined} aria-valuemax={interactive ? 100 : undefined}
+        aria-valuenow={interactive ? position : undefined}
+        aria-valuetext={interactive ? `${position} percent before, ${100 - position} percent concept` : undefined}
+        onPointerDown={interactive ? e => {
+          if (!e.isPrimary || e.button !== 0) return;
+          startInteraction(); dragging.current = e.pointerId;
+          e.currentTarget.setPointerCapture(e.pointerId); slideTo(e.clientX, e.currentTarget);
+        } : undefined}
+        onPointerMove={interactive ? e => { if (dragging.current === e.pointerId) slideTo(e.clientX, e.currentTarget); } : undefined}
+        onPointerUp={() => { dragging.current = null; }}
+        onPointerCancel={() => { dragging.current = null; }}
+        onLostPointerCapture={() => { dragging.current = null; }}
+        onKeyDown={interactive ? e => {
+          const delta = { ArrowLeft: -5, ArrowDown: -5, ArrowRight: 5, ArrowUp: 5, PageDown: -10, PageUp: 10 }[e.key];
+          if (delta === undefined && e.key !== "Home" && e.key !== "End") return;
+          e.preventDefault(); startInteraction();
+          setPosition(value => e.key === "Home" ? 0 : e.key === "End" ? 100 : Math.min(100, Math.max(0, value + delta!)));
+        } : undefined}>
+        <Photo className="reveal-img" src={comparison?.before ?? BEFORE} large={!comparison && size === "hero" ? BEFORE_LARGE : undefined} />
+        <Photo className="reveal-img reveal-after" src={comparison?.after ?? AFTER} large={!comparison && size === "hero" ? AFTER_LARGE : undefined} />
         <span className="reveal-divider" aria-hidden="true">
-          {handle === "arrows"
+          {handle === "arrows" || interactive && introDone
             ? <span className="reveal-handle arrows"><ChevronLeft size={14} strokeWidth={2} /><ChevronRight size={14} strokeWidth={2} /></span>
             : <span className="reveal-handle" />}
         </span>
         <span className="reveal-tag before" aria-hidden="true">Before</span>
         <span className="reveal-tag after" aria-hidden="true">Concept</span>
       </div>
+      {interactive && introDone && !interacted && <span className="reveal-hint" role="status">Try it for yourself<small>Swipe left or right</small></span>}
       <figcaption className="sr-only">An illustrative demo smile, before and as a smile concept.</figcaption>
     </figure>
   );
@@ -59,7 +101,7 @@ export function SmileReveal({ animate = true, size = "hero", handle = "dot" }: {
 export function WelcomeVisual() {
   return (
     <div className="ob-stage welcome-stage">
-      <SmileReveal />
+      <SmileReveal interactive />
     </div>
   );
 }
@@ -149,8 +191,8 @@ export function HowItWorksVisual() {
 /** Subscription: the before/after, full bleed, with a slider handle between Before and Concept. */
 export function ProHero() {
   return (
-    <div className="ob-stage pro-hero" aria-hidden="true">
-      <SmileReveal handle="arrows" />
+    <div className="ob-stage pro-hero">
+      <SmileReveal interactive handle="arrows" comparison={SUBSCRIPTION_COMPARISON} />
     </div>
   );
 }

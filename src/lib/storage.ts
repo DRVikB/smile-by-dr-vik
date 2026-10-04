@@ -18,7 +18,7 @@ export function createDraftStore(scope: WorkspaceLease, factory:IDBFactory=globa
     });
   }
 
-  async function readCase(): Promise<SmileCase | null> {
+  async function readCase({ forLaunch = false }: { forLaunch?: boolean } = {}): Promise<SmileCase | null> {
     const db = await open();
     try {
       return await new Promise((resolve, reject) => {
@@ -78,6 +78,9 @@ export function createDraftStore(scope: WorkspaceLease, factory:IDBFactory=globa
                !/^[a-f0-9]{64}$/.test(c.aiConsent.photoFingerprint) ||
                !Number.isFinite(c.aiConsent.confirmedAt))) delete c.aiConsent;
           if (c.screen === "preview" && !c.result) c.screen = "design";
+          // A cold launch restores the work, but opens Home. Ordinary reads and
+          // explicit case reopening keep their saved navigation unchanged.
+          if (forLaunch) c.screen = "start";
           resolve(c);
         };
         req.onerror = () => reject(req.error);

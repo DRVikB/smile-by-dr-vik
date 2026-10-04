@@ -50,6 +50,21 @@ const signedIn = (overrides: Partial<OnboardingInput> = {}): OnboardingInput => 
 });
 const stepOf = (input: OnboardingInput) => { const d = onboardingDecision(input); return d.kind === "step" ? d.step : d.kind; };
 
+test("a cold launch restarts incomplete onboarding while preserving names and completion", () => {
+  const store = new Map<string, string>();
+  const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v); } };
+  const progress = { welcomeSeen: true, accountDeferred: true, preferredName: "Dr Vik", howItWorksSeen: true, styleLibrarySeen: true, subscriptionSeen: true, accounts: { "user-1": { subscriptionDeferred: true }, "finished": { completed: true } } };
+  writeLocalOnboarding(progress, storage);
+  const restarted = readLocalOnboarding(storage, { forLaunch: true });
+  assert.equal(stepOf({ ...base, local: restarted }), "welcome");
+  assert.equal(stepOf(signedIn({ local: restarted, profile: { preferredName: "Dr Vik", onboardingCompletedAt: null, hasGenerationHistory: false } })), "welcome");
+  assert.equal(restarted.preferredName, "Dr Vik");
+  assert.equal(stepOf(signedIn({ userId: "finished", local: restarted })), "none");
+  assert.deepEqual(readLocalOnboarding(storage), progress, "normal in-session reads keep progress");
+  writeLocalOnboarding({ ...progress, completedAt: 123 }, storage);
+  assert.equal(stepOf({ ...base, local: readLocalOnboarding(storage, { forLaunch: true }) }), "none");
+});
+
 test("a new user goes welcome → account → personalise → how it works → your style → subscription → ready", () => {
   assert.equal(stepOf(base), "welcome");
   assert.equal(stepOf({ ...base, local: { welcomeSeen: true } }), "account");

@@ -106,6 +106,12 @@
   transform: rotate(-6deg) translate(-7%, 3%);
 }
 .reveal-frame { position: relative; aspect-ratio: 4 / 4.6; overflow: hidden; border-radius: 28px; background: #1A1714; box-shadow: var(--ob-card-shadow); isolation: isolate; }
+.reveal-card.interactive .reveal-frame { cursor: ew-resize; touch-action: pan-y; }
+.reveal-card.interactive .reveal-frame:focus-visible { outline: 3px solid var(--sc-gold); outline-offset: -3px; }
+.reveal-card.interactive .reveal-divider, .reveal-card.interactive .reveal-tag { pointer-events: none; }
+.reveal-hint { position: absolute; top: max(18px, calc(env(safe-area-inset-top) + 12px)); left: 50%; transform: translateX(-50%); padding: 10px 16px; border-radius: 14px; background: rgba(250, 249, 246, .96); color: #2A2521; box-shadow: 0 4px 20px rgba(0, 0, 0, .2); text-align: center; font-size: 14px; font-weight: 600; white-space: nowrap; pointer-events: none; animation: reveal-hint-in 220ms ease-out; }
+.reveal-hint small { display: block; margin-top: 3px; font-size: 12px; font-weight: 400; }
+@keyframes reveal-hint-in { from { opacity: 0; } to { opacity: 1; } }
 .reveal-card.compact .reveal-frame { border-radius: 20px; }
 .reveal-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 42%; user-select: none; }
 .reveal-after { clip-path: inset(0 0 0 var(--split)); }
@@ -313,6 +319,33 @@
   .is-plain .ob-actions { justify-items: center; }
   .is-plain .ob-actions .ob-button { max-width: 420px; }
 }
+/* The subscription card grows with its contents instead of hiding its exit
+   below an inner scroll. The page may scroll on small screens; dismissal stays visible. */
+.onboarding.has-hero[data-step="subscription"] { overflow-y: auto; }
+.onboarding[data-step="subscription"] .ob-layout { flex: none; height: auto; min-height: 100%; }
+.onboarding[data-step="subscription"] .ob-sheet { flex: none; height: auto; overflow: visible; }
+.onboarding[data-step="subscription"] .ob-top { padding-right: 52px; }
+.onboarding[data-step="subscription"] .ob-head { margin-top: 0; }
+.onboarding[data-step="subscription"] .ob-body { margin-bottom: 0; }
+.ob-dismiss {
+  position: fixed; z-index: 3; top: calc(env(safe-area-inset-top) + 16px); right: max(16px, env(safe-area-inset-right));
+  display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
+  border: 1px solid var(--border); border-radius: 50%; background: var(--background); color: var(--text-primary);
+  cursor: pointer; box-shadow: var(--shadow-sm);
+}
+.ob-dismiss:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+@media (min-width: 700px) and (orientation: landscape) {
+  .onboarding[data-step="subscription"] .ob-sheet { min-height: calc(100dvh - 48px); gap: 12px; padding: 24px 30px; }
+  .onboarding[data-step="subscription"] .ob-title { font-size: 32px; }
+  .onboarding[data-step="subscription"] .ob-head { gap: 8px; }
+  .onboarding[data-step="subscription"] .paywall-features { gap: 6px; font-size: 13px; }
+  .onboarding[data-step="subscription"] .plan-option { padding: 12px 14px; }
+  .onboarding[data-step="subscription"] .plan-note { font-size: 12px; line-height: 1.4; }
+  .onboarding[data-step="subscription"] .account-stack { gap: 10px; margin-top: 0; }
+  .onboarding[data-step="subscription"] .paywall-legal { margin-top: 10px; }
+  .ob-dismiss { top: calc(env(safe-area-inset-top) + 36px); right: max(36px, calc(env(safe-area-inset-right) + 12px)); }
+}
+
 @media (min-width: 700px) and (orientation: landscape) and (max-height: 520px) {
   .ob-display { font-size: 40px; }
   .ob-title { font-size: 30px; }
@@ -325,6 +358,7 @@
 @media (prefers-reduced-motion: reduce) {
   .ob-layout, .how-card, .float-a, .float-b, .float-c, .how-step { animation: none; }
   .reveal-card.animate { animation: none; --split: 50%; }
+  .reveal-hint { animation: none; }
   .onboarding-loading-mark { animation-duration: 3s; }
 }
 

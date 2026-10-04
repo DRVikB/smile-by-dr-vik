@@ -1,7 +1,7 @@
 "use client";
 import { getCaseRepository } from "@/services/cases/caseRepository";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { AppleSignInButton } from "@/components/account/AppleSignInButton";
 import { PrivacyLink, TermsLink } from "@/components/account/LegalLinks";
@@ -13,7 +13,6 @@ import {
   ONBOARDING_PROGRESS, onboardingDecision, readLocalOnboarding, updateAccountFlags, writeLocalOnboarding,
   type AccountOnboardingFlags, type LocalOnboarding, type OnboardingStep,
 } from "@/lib/onboarding";
-import { isNativeApp } from "@/native/platform";
 import { AuthMessage, signInWithApple } from "@/services/auth/authService";
 import { AddReferenceCases, materialShort } from "@/components/caseLibrary/CaseLibraryView";
 import { useCaseLibrary } from "@/components/caseLibrary/caseLibraryContext";
@@ -24,7 +23,7 @@ import { HeroPhoto, HowItWorksVisual, ProHero, StyleLibraryVisual, WelcomeVisual
 /**
  * First-run onboarding: Welcome → Account → Personalise → How it works →
  * Your style (Case Library) → Subscription → Ready. Short, skippable where it
- * should be, and resumable. It collects no professional details; the only
+ * should be. Unfinished onboarding restarts at Welcome on cold launch. It collects no professional details; the only
  * patient images are finished cases the clinician chooses to add.
  */
 export function Onboarding({ appReady, onCreateFirst }: {
@@ -41,7 +40,7 @@ export function Onboarding({ appReady, onCreateFirst }: {
   const completing = useRef(false);
 
   useEffect(() => {
-    setLocal(readLocalOnboarding());
+    setLocal(readLocalOnboarding(undefined, { forLaunch: true }));
     const repository = getCaseRepository();
     void Promise.resolve(repository)
       .then(async log => { const c = await log.caseCounts(); return c.active + c.archived + c.deleted > 0; })
@@ -146,7 +145,7 @@ function Progress({ step, configured }: { step: OnboardingStep; configured: bool
  * the right. Without one (How it works) the content is a single column.
  * The sheet opens with the wordmark (and the app icon's mark, `mark`) and the progress dashes.
  */
-function Frame({ step, configured, hero, head, children, progress = true, mark = false }: {
+function Frame({ step, configured, hero, head, children, progress = true, mark = false, onDismiss }: {
   step: OnboardingStep;
   configured: boolean;
   hero?: React.ReactNode;
@@ -154,9 +153,11 @@ function Frame({ step, configured, hero, head, children, progress = true, mark =
   children: React.ReactNode;
   progress?: boolean;
   mark?: boolean;
+  onDismiss?: () => void;
 }) {
   return (
     <div className={`onboarding ob-frame ${hero ? "has-hero" : "is-plain"}`} data-step={step}>
+      {onDismiss && <button type="button" className="ob-dismiss" title="Not now" aria-label="Not now — continue without subscribing" onClick={onDismiss}><X size={20} aria-hidden="true" /></button>}
       <div className="ob-layout" key={step}>
         {hero && <div className="ob-visual">{hero}</div>}
         <div className="ob-sheet">
@@ -363,14 +364,11 @@ function StyleLibraryStep({ configured, onContinue }: { configured: boolean; onC
 function SubscriptionStep({ configured, onDefer }: { configured: boolean; onDefer: () => void }) {
   const heading = useFocusHeading("subscription");
   return (
-    <Frame step="subscription" configured={configured} hero={<ProHero />} head={<>
+    <Frame step="subscription" configured={configured} onDismiss={onDefer} hero={<ProHero />} head={<>
       <p className="ob-eyebrow">SmileCompose Pro</p>
       <h1 ref={heading} tabIndex={-1} className="ob-title">Every consultation, visualised.</h1>
     </>}>
       <div className="ob-plans"><ProPlans /></div>
-      <div className="ob-actions">
-        <button className="text-button ob-quiet" onClick={onDefer}>{isNativeApp() ? "Not now" : "Continue"}</button>
-      </div>
     </Frame>
   );
 }

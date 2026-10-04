@@ -94,7 +94,7 @@ export function createCaseRepository(scope: WorkspaceLease) {
   async getCase(id:string){const entries=(await log.listLog()).filter(e=>caseIdOf(e)===id&&!e.draftOnly),media=new Map<string,CaseLogMedia>();for(const e of entries){const m=await mediaFor(e.id);if(m)media.set(e.id,m);}return buildCase(id,entries,media);},
   async recordVisualisation(entry:CaseLogEntry,media:CaseLogMedia){if(!entry.testMode&&entry.mode!=="mock")return write(async()=>{await log.addLogEntry(entry,media);await snapshot(caseIdOf(entry));change();});},
   async addLogEntry(entry:CaseLogEntry,media:CaseLogMedia){return methods.recordVisualisation(entry,media);},
-  async readCase(){const draft=await drafts.readCase();if(draft){sync.pinCase(draft.caseId);await restoreAnalysisSnapshot(draft.photo.dataUrl,draft.photo.analysisSnapshot);}scope.assert();return draft;},
+  async readCase(options?:{forLaunch?:boolean}){const draft=await drafts.readCase(options);if(draft){sync.pinCase(draft.caseId);await restoreAnalysisSnapshot(draft.photo.dataUrl,draft.photo.analysisSnapshot);}scope.assert();return draft;},
   async persistCase(value:SmileCase|null){if(value?.testMode)return;sync.pinCase(value?.caseId);return write(async()=>{await drafts.persistCase(value);if(value?.caseId)await snapshot(value.caseId);});},
   async updateLogReview(...args:Parameters<typeof log.updateLogReview>){return editEntry(args[0],async()=>{const media=await mediaFor(args[0]);const entry=(await log.listAllLog()).find(e=>e.id===args[0]);if(media&&entry)await log.addLogEntry(entry,media);return log.updateLogReview(...args);});},
   async setCaseArchived(...args:Parameters<typeof log.setCaseArchived>){return editEntry(args[0],()=>log.setCaseArchived(...args));},

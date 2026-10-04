@@ -14,8 +14,14 @@ export const EXAMPLE_PORTRAITS = {
   },
 } as const;
 
-/** Registered before/after pair of the established demo; full frames on every device. */
+/** Fictional matched before/concept illustration; not evidence of a live generation or clinical outcome. */
 export const EXAMPLE_COMPARISON = {
-  before: "/examples/demo-portrait-before-v1.webp",
-  after: "/examples/demo-portrait-after-v1.webp",
+  before: "/examples/demo-portrait-before-v2.webp",
+  after: "/examples/demo-portrait-after-v2.webp",
+} as const;
+
+/** Fictional male sample with illustrative edited teeth; not a clinical before/after. */
+export const SUBSCRIPTION_COMPARISON = {
+  before: "/examples/subscription-fictional-man-before-v2.webp",
+  after: "/examples/subscription-fictional-man-after-v2.webp",
 } as const;

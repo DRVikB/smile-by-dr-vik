@@ -2,6 +2,15 @@
 
 **Viewer change: PASS. Core generation repair: NOT ESTABLISHED. Additional provider invocations by Codex during this continuation: 0; retries: 0.** The owner requested inspection for every photo. This changes only the private staging diagnostic viewer. Gemini, treatment-contract-v9, prompt, mask guidance OFF, no-automatic-retry policy, generation validation, treatment permissions and acceptance/save rules remain unchanged. No backend deployment, production change, allowance adjustment or Apple upload.
 
+## Requested onboarding/UI follow-up — 4 October 2026
+
+- Welcome uses the new fictional brunette Before/Concept. After owner review, Subscription now uses a corrected fictional salt-and-pepper male pair: stained/chipped Before with both laterals present, complete balanced white Concept. The rejected gap/wide-incisor edit and owner-likeness assets are archived privately outside public assets. These are illustrative, not clinical outcomes; provenance and exact prompts are recorded in ILLUSTRATIVE_ASSETS_2026-10-01.md.
+- Both hero reveals play the existing intro, then show Try it for yourself and allow pointer/keyboard comparison. First interaction dismisses the hint. Browser checks establish completed hint, both swipe directions, accessible slider and keyboard0/100/95; reduced-motion handling is included, physical-device gesture acceptance remains untested. No SmileCompose provider invocation or allowance consumed.
+- Subscription card has a visible circled X using the existing defer action and no internal scroll. Browser tablet landscape 1194×834 fits the full card/page; compact phones retain whole-page scrolling for all plan/legal content while dismissal stays visible.
+- Initial mount opens Home while restoring photo/settings/accepted result/versions; ordinary case reopening keeps the saved design/preview. Foreground/background resume does not invoke the launch reset. Unfinished onboarding restarts at Welcome after a cold launch; completed onboarding stays completed.
+- Browser checks: incomplete subscription reload → Welcome; X → Ready; completed onboarding/photo step reload → Home. Regression tests preserve source/settings/result and explicit repository reopening. Full suite773/773 PASS, lint/TypeScript/production/native build PASS; four new image source/native hashes match. No physical background/force-close acceptance claimed for this UI change, no device installation, backend deployment, provider invocation, allowance change or Apple upload.
+- Owner Xcode changes and stored cases preserved. This UI work does not resolve the core generation failures documented below; no TestFlight readiness claim.
+
 ## Latest owner test — 17:21 screenshot: provider returned TEXT ONLY
 
 - **FAIL — new request62e8993f-e00b-43d4-b4b7-d5a6323554b7**, same woman-photo case836a920f-0505-4de3-8057-d42ad3741161. Normal authenticated staging reservation16:20:38.921676UTC /17:20:38BST; failure/release16:20:41.337697UTC. Device cache independently retrieved without relaunch/reinstall/replay/generation.
