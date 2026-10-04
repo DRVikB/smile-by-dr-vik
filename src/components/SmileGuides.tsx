@@ -55,7 +55,7 @@ export function useSmileGuides(src: string, enabled: boolean): GuidesState {
  * image of the same box, they land exactly on it and zoom with it. `scale`
  * is the viewer's zoom, so lines keep a constant on-screen weight.
  */
-export function GuideLines({ guides, scale = 1, advanced = false }: { guides: SmileGuides; scale?: number; advanced?: boolean }) {
+export function GuideLines({ guides, scale = 1, advanced = true }: { guides: SmileGuides; scale?: number; advanced?: boolean }) {
   const clip = useId();
   const s = Math.max(0.2, scale);
   const common = { fill: "none", vectorEffect: "non-scaling-stroke", strokeLinecap: "round", strokeLinejoin: "round" } as const;
@@ -89,8 +89,11 @@ const MESSAGES: Record<Exclude<GuidesState["status"], "off" | "ready">, string> 
   unavailable: "Smile analysis couldn’t start. It needs a connection the first time it’s used on this device.",
 };
 
-/** Technical detail lives below the photo, never over the patient's face. */
-export function GuideKey({ state, advanced, onAdvanced, onHide }: { state: GuidesState; advanced: boolean; onAdvanced: (value: boolean) => void; onHide?: () => void }) {
+/**
+ * Technical detail lives below the photo, never over the patient's face. Every
+ * guide and reading is shown: the full (advanced) analysis is the only one.
+ */
+export function GuideKey({ state, onHide }: { state: GuidesState; onHide?: () => void }) {
   if (state.status === "off") return null;
   return (
     <section className="analysis-details" aria-label="Smile analysis details"
@@ -98,14 +101,10 @@ export function GuideKey({ state, advanced, onAdvanced, onHide }: { state: Guide
       <div className="analysis-details-head"><strong>Smile analysis</strong>{onHide && <button type="button" className="text-button" onClick={onHide}>Hide analysis</button>}</div>
       {state.status === "ready" ? (
         <>
-          <div className="settings-segment" role="group" aria-label="Analysis guides">
-            <button type="button" aria-pressed={!advanced} onClick={() => onAdvanced(false)}>Basic</button>
-            <button type="button" aria-pressed={advanced} onClick={() => onAdvanced(true)}>Advanced</button>
-          </div>
-          <details>
+          <details open>
           <summary>Guide key &amp; measurements</summary>
           <ul className="guide-key-lines">
-            {GUIDE_ORDER.filter(key => advanced || key !== "mouthLine").map((key) => (
+            {GUIDE_ORDER.map((key) => (
               <li key={key}>
                 <i className={`guide-swatch${GUIDE_STYLES[key].dashed ? " dashed" : ""}${key === "smileArc" ? " arc" : ""}`}
                   style={{ "--guide": GUIDE_STYLES[key].colour } as React.CSSProperties} aria-hidden="true" />

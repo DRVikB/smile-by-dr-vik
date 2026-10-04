@@ -47,7 +47,6 @@ export function BeforeAfterSlider({
   const [position, setPosition] = useState(50);
   const [opacity, setOpacity] = useState(50);
   const [localMode, setLocalMode] = useState<CompareMode>("slide");
-  const [advanced, setAdvanced] = useState(false);
   const mode = controlledMode ?? localMode;
   const changeMode = (next: CompareMode) => { setLocalMode(next); onModeChange?.(next); };
   const overlay = mode === "overlay";
@@ -130,7 +129,7 @@ export function BeforeAfterSlider({
                 alt={isMock ? "Illustrative demo concept" : "AI illustration overlaid on the original"}
                 style={{ opacity: opacity / 100 }}
               />
-              {guides.status === "ready" && <GuideLines guides={guides.guides} scale={scale} advanced={advanced} />}
+              {guides.status === "ready" && <GuideLines guides={guides.guides} scale={scale} />}
             </>
           ) : (
             <>
@@ -149,7 +148,7 @@ export function BeforeAfterSlider({
                 alt="Original smile"
                 style={{ clipPath: `inset(0 calc(${50 + (50 - position) / scale}% + ${x / scale}px) 0 0)` }}
               />
-              {guides.status === "ready" && <GuideLines guides={guides.guides} scale={scale} advanced={advanced} />}
+              {guides.status === "ready" && <GuideLines guides={guides.guides} scale={scale} />}
             </>
           )}
         </ZoomPan>
@@ -212,7 +211,7 @@ export function BeforeAfterSlider({
         <div className="demo-image-label">DEMO · ORIGINAL PHOTO UNCHANGED</div>
       )}
       </div>
-      {analysis && <GuideKey state={guides} advanced={advanced} onAdvanced={setAdvanced} onHide={() => { setAdvanced(false); onHideAnalysis?.(); }} />}
+      {analysis && <GuideKey state={guides} onHide={() => onHideAnalysis?.()} />}
     </div>
   );
 }
