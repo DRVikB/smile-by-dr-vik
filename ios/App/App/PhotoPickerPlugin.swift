@@ -156,8 +156,14 @@ struct CaptureGuidance {
         var opening: CGFloat
         var rollDegrees: CGFloat
         var yawDegrees: CGFloat
+        /// Forward/back head tilt, and where to draw the level arc (eye line across the face).
+        var pitchDegrees: CGFloat = 0
+        var eyeY: CGFloat = 0
+        var faceMinX: CGFloat = 0
+        var faceMaxX: CGFloat = 0
     }
-    enum Step: Equatable { case noFace, centre, closer, further, raise, lower, levelDevice, uprightDevice, headStraight, lookAhead, smile, ready }
+    enum Step: Equatable { case noFace, centre, closer, further, raise, lower, levelDevice, uprightDevice, headStraight, chinLevel, lookAhead, smile, ready }
+    static let maxPitch: CGFloat = 8
 
     /// The device is upright and level: its own tilt from the nearest upright
     /// orientation, and how far it leans towards or away from the patient.
@@ -182,6 +188,7 @@ struct CaptureGuidance {
             if abs(level.leanDegrees) > 10 { return .uprightDevice }
         }
         if abs(f.rollDegrees) > 5 { return .headStraight }
+        if abs(f.pitchDegrees) > maxPitch { return .chinLevel }
         if abs(f.yawDegrees) > 12 { return .lookAhead }
         if f.opening < 0.1 { return .smile }
         return .ready
@@ -198,6 +205,7 @@ struct CaptureGuidance {
         case .levelDevice: return "Level the device"
         case .uprightDevice: return "Hold the device upright"
         case .headStraight: return "Keep the head straight"
+        case .chinLevel: return "Keep the chin level — look straight at the camera"
         case .lookAhead: return "Look straight at the camera"
         case .smile: return "Smile and show the teeth"
         case .ready: return "Hold still"
@@ -241,6 +249,8 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
     private let guideView = UIView()
     private let midline = UIView()
     private let levelLine = UIView()
+    private let headArc = CAShapeLayer()
+    private static let warning = UIColor(red: 0.89, green: 0.33, blue: 0.36, alpha: 1)
     private let hint = UILabel()
     private let hintPill = UIView()
     private let closeButton = UIButton(type: .system)
@@ -280,6 +290,11 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
             line.isUserInteractionEnabled = false
             previewHost.addSubview(line)
         }
+        headArc.fillColor = nil
+        headArc.lineWidth = 2
+        headArc.lineCap = .round
+        headArc.isHidden = true
+        previewHost.layer.addSublayer(headArc)
         guideView.layer.borderColor = UIColor.white.cgColor
         guideView.layer.borderWidth = 2
         guideView.layer.cornerRadius = 12
@@ -527,7 +542,8 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
 
     /// Vision coordinates (normalised, origin bottom-left) to the photo frame's, origin top-left.
     private static func describe(_ observation: VNFaceObservation) -> CaptureGuidance.Face? {
-        guard let landmarks = observation.landmarks, let outer = landmarks.outerLips, let inner = landmarks.innerLips else { return nil }
+        guard let landmarks = observation.landmarks, let outer = landmarks.outerLips, let inner = landmarks.innerLips,
+              let leftEye = landmarks.leftEye, let rightEye = landmarks.rightEye else { return nil }
         let box = observation.boundingBox
         func points(_ region: VNFaceLandmarkRegion2D) -> [CGPoint] {
             region.normalizedPoints.map { CGPoint(x: box.minX + $0.x * box.width, y: 1 - (box.minY + $0.y * box.height)) }
@@ -536,12 +552,19 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         guard let minX = lips.map(\.x).min(), let maxX = lips.map(\.x).max(), let minY = lips.map(\.y).min(), let maxY = lips.map(\.y).max(),
               let innerTop = opening.map(\.y).min(), let innerBottom = opening.map(\.y).max(), maxX > minX else { return nil }
         let degrees: (NSNumber?) -> CGFloat = { CGFloat(($0?.doubleValue ?? 0) * 180 / .pi) }
+        let eyes = points(leftEye) + points(rightEye)
+        var pitch: CGFloat = 0
+        if #available(iOS 15.0, *) { pitch = degrees(observation.pitch) }
         return CaptureGuidance.Face(
             centreX: box.midX,
             mouth: CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY),
             opening: (innerBottom - innerTop) / (maxX - minX),
             rollDegrees: degrees(observation.roll),
-            yawDegrees: degrees(observation.yaw))
+            yawDegrees: degrees(observation.yaw),
+            pitchDegrees: pitch,
+            eyeY: eyes.map(\.y).reduce(0, +) / CGFloat(max(1, eyes.count)),
+            faceMinX: box.minX,
+            faceMaxX: box.maxX)
     }
 
     private func updateGuidance() {
@@ -554,6 +577,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         if steady && !wasReady { haptic.impactOccurred() }
         wasReady = steady
 
+        drawHeadArc(latestFace)
         let centred = latestFace.map { abs($0.centreX - 0.5) <= 0.06 } ?? false
         midline.backgroundColor = centred ? Self.gold : UIColor(white: 1, alpha: 0.35)
         if let g = gravity {
@@ -561,6 +585,23 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
             levelLine.transform = CGAffineTransform(rotationAngle: CGFloat(-level.sideDegrees * .pi / 180))
             levelLine.backgroundColor = abs(level.sideDegrees) <= 3 ? Self.gold : UIColor(white: 1, alpha: 0.35)
         }
+    }
+
+    /// A line across the eyes that bows with forward/back head tilt (like a
+    /// spirit level for the head): soft red when tilted, gold once level.
+    private func drawHeadArc(_ face: CaptureGuidance.Face?) {
+        guard let f = face else { headArc.isHidden = true; return }
+        let size = previewHost.bounds.size
+        let y = f.eyeY * size.height, x0 = f.faceMinX * size.width, x1 = f.faceMaxX * size.width
+        let bow = max(-1, min(1, f.pitchDegrees / 20)) * (x1 - x0) * 0.25
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: x0, y: y))
+        path.addQuadCurve(to: CGPoint(x: x1, y: y), controlPoint: CGPoint(x: (x0 + x1) / 2, y: y + bow * 2))
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        headArc.path = path.cgPath
+        headArc.strokeColor = (abs(f.pitchDegrees) > CaptureGuidance.maxPitch ? Self.warning : Self.gold).cgColor
+        headArc.isHidden = false
+        CATransaction.commit()
     }
 
     private func setHint(_ text: String, ready: Bool) {
