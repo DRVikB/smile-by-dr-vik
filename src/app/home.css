@@ -62,9 +62,9 @@
   .start-screen .recent-cases-head { margin-bottom: 12px; }
   .start-screen .recent-cases ul { gap: 14px; }
   .start-screen .recent-case img, .start-screen .recent-case .recent-case-placeholder { aspect-ratio: 2.8 / 1; }
-  /* With cases along the foot, the tagline would only crowd them. */
-  .start-screen:has(.recent-cases) .hero-footer { display: none; }
-  .start-screen:has(.recent-cases) .start-copy { padding-bottom: max(26px, calc(var(--app-safe-bottom) + 14px)); }
+  /* With cases along the foot, the tagline sits as a slim line beneath them. */
+  .start-screen:has(.recent-cases) .start-copy { padding-bottom: 6px; }
+  .start-screen:has(.recent-cases) .hero-footer { padding-top: 6px; padding-bottom: max(14px, calc(var(--app-safe-bottom) + 6px)); }
 }
 /* iPad landscape: the welcome at the top left, the cases along the bottom, the smile between. */
 @media (min-width: 701px) and (min-height: 501px) and (orientation: landscape) {
@@ -88,7 +88,10 @@
   .start-screen .recent-case-pagination { margin-top: 2px; }
 }
 @media (min-width: 701px) and (min-height: 501px) and (max-height: 780px) and (orientation: landscape) {
-  .start-screen .splash-heading { font-size: min(clamp(46px, 6.6vw, 84px), 6.9vh); }
+  .start-screen .splash-heading { font-size: min(clamp(46px, 6.6vw, 84px), 6.6vh); }
+  .start-screen .splash-sub { margin-top: 8px; }
+  .start-screen .splash-actions { margin-top: 14px; }
+  .start-screen .recent-cases { padding-top: 8px; }
   .start-screen .recent-case img, .start-screen .recent-case .recent-case-placeholder { aspect-ratio: 3.8 / 1; }
 }
 /* iPad portrait: the photograph above, then the welcome, then the cases. */
@@ -130,6 +133,8 @@
   /* The welcome sits at the foot of the first screen; with Recent Cases it starts under the
      hero and the cases continue below, rather than squeezing into the photograph. */
   .start-screen .start-copy { justify-content: flex-end; padding-top: clamp(140px, 24svh, 240px); padding-bottom: 24px; }
+  /* The tagline closes the page on every iPhone, short ones included. */
+  .start-screen .hero-footer { display: flex; }
 }
 
 /* ---------- iPhone landscape: a compressed chairside view ---------- */
@@ -160,5 +165,5 @@
   .start-screen .splash-primary, .start-screen .splash-outline { min-height: 46px; font-size: 15px; }
   .start-screen .allowance-pill { margin-top: 10px; }
   .start-screen .recent-cases { --recent-card: min(30vw, 220px); margin-top: 18px; }
-  .start-screen .hero-footer { display: none; }
+  .start-screen .hero-footer { padding-top: 4px; }
 }
