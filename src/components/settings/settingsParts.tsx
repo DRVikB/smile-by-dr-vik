@@ -4,8 +4,12 @@ import { ChevronRight } from "lucide-react";
 import type { CaseState } from "@/lib/caseLog";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 
-export type SettingsSection = "profile" | "subscription" | "cases" | "library" | "appearance" | "privacy" | "support" | "about";
-export type SettingsPage = { kind: "editProfile" } | { kind: "cases"; filter: CaseState } | { kind: "help" };
+/** Account, Plan & Usage, Cases & Storage, Preferences, Privacy & Data, Help & About. */
+export type SettingsSection = "profile" | "subscription" | "cases" | "appearance" | "privacy" | "about";
+/** Second-level pages: detail, explanations and destructive controls live here, not on the main list. */
+export type SettingsPage =
+  | { kind: "editProfile" } | { kind: "signIn" } | { kind: "plan" } | { kind: "cases"; filter: CaseState }
+  | { kind: "dataPrivacy" } | { kind: "manageData" } | { kind: "help" } | { kind: "about" };
 
 export interface ConfirmRequest {
   title: string;
@@ -69,6 +73,17 @@ export function Row({ label, value, detail, onClick, destructive, disabled, trai
   return onClick
     ? <button type="button" className={className} onClick={onClick} disabled={disabled}>{content}</button>
     : <div className={className}>{content}</div>;
+}
+
+/** A small figure with its label, for summaries such as "2 Active cases". Tappable when it leads somewhere. */
+export function StatTile({ value, label, icon, onClick }: { value: React.ReactNode; label: string; icon: React.ReactNode; onClick?: () => void }) {
+  const content = <>
+    <span className="settings-stat-icon" aria-hidden="true">{icon}</span>
+    <span className="settings-stat-text"><strong>{value}</strong><small>{label}</small></span>
+  </>;
+  return onClick
+    ? <button type="button" className="settings-stat" onClick={onClick}>{content}</button>
+    : <div className="settings-stat">{content}</div>;
 }
 
 /** Remaining-style usage bar. The text carries the meaning; the bar is decorative reinforcement. */

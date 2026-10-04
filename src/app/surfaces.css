@@ -587,3 +587,92 @@ body { background: var(--background); }
 .studio-goals-label { font-weight: 500; color: var(--text-primary); }
 .studio-goals-value { flex: 1 1 auto; min-width: 0; }
 .studio-goals .text-button { min-height: 44px; }
+
+/* ============================================================
+   Settings: calm and scannable. An account summary, a membership
+   card, compact grouped rows, and detail one level down. Quiet
+   brand touches: a warm ivory canvas (Light), champagne icon discs
+   and selections, serif only for the account name and plan.
+   ============================================================ */
+:root:not([data-theme="dark"]) .settings-panel { --settings-canvas: #FAF7F2; }
+.settings-panel { background: var(--settings-canvas, var(--background)); }
+.settings-panel .settings-top { background: color-mix(in srgb, var(--settings-canvas, var(--background)) 88%, transparent); }
+.settings-panel .settings-group { margin-bottom: 22px; }
+.settings-panel .settings-group-title { margin: 0 0 7px 14px; font-size: 12px; letter-spacing: .06em; }
+.settings-panel .settings-list { border-radius: 18px; }
+.settings-panel .settings-row { min-height: 52px; padding: 10px 16px; font-size: 16px; }
+.settings-panel .settings-row-icon {
+  display: grid; flex: none; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent-text);
+}
+.settings-panel .settings-row-value { font-size: 15px; }
+.settings-panel .settings-group-footer { margin: 8px 14px 0; font-size: 12.5px; }
+
+/* Account summary */
+.settings-panel .profile-card {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px;
+  margin: 0 0 16px; padding: 14px 12px 14px 16px; border-radius: 20px;
+}
+.settings-panel .profile-card .settings-avatar { width: 64px; height: 64px; font-size: 24px; }
+.settings-panel .profile-card-name { font-size: 25px; line-height: 1.1; }
+.settings-panel .profile-card-sub { margin-top: 2px; font-size: 13px; }
+.settings-panel .profile-badge { margin-top: 7px; padding: 3px 10px; font-size: 11.5px; }
+.settings-panel .profile-badge.pro { background: var(--accent-soft); color: var(--accent-text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent); }
+.profile-card-edit {
+  display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 2px; border: 0; background: none;
+  color: var(--accent-text); font: inherit; font-size: 14px; font-weight: 500; white-space: nowrap; cursor: pointer;
+}
+.profile-card-edit:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 8px; }
+.settings-panel .profile-card .profile-card-action { grid-column: 1 / -1; width: 100%; margin: 2px 0 0; min-height: 46px; }
+@media (max-width: 380px) {
+  .settings-panel .profile-card { grid-template-columns: auto minmax(0, 1fr); }
+  .profile-card-edit { grid-column: 2; justify-self: start; min-height: 32px; }
+}
+
+/* Plan & Usage card */
+.plan-card .settings-list > * + * { border-top: 0; }
+.plan-card-head { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; border-bottom: 1px solid var(--separator); }
+.plan-card-icon { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--accent-gradient, var(--accent)); color: #FFFDF8; }
+.plan-card-head h3 { flex: 1; margin: 0; font-size: 16px; font-weight: 600; }
+.plan-card-link { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 4px; border: 0; background: none; color: var(--accent-text); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; }
+.plan-card-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 8px; }
+.plan-card-body { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 16px; padding: 14px 16px 16px; }
+.plan-card-name { min-width: 0; }
+.plan-card-title { margin: 0; font-family: var(--font-display); font-size: 22px; line-height: 1.15; }
+.plan-card-sub { margin: 3px 0 0; font-size: 14px; color: var(--text-secondary); }
+.plan-card-balance { display: flex; align-items: center; gap: 8px; margin: 0; }
+.plan-card-balance strong { font-family: var(--font-display); font-size: 38px; font-weight: 400; line-height: 1; color: var(--accent-text); }
+.plan-card-balance span { font-size: 12.5px; line-height: 1.25; color: var(--text-secondary); }
+.plan-card-bar, .plan-card-action, .plan-card-note { grid-column: 1 / -1; }
+.plan-card-bar .usage-bar { height: 6px; box-shadow: none; }
+.plan-card-bar .usage-bar > span { background: var(--accent-gradient, var(--accent)); }
+.plan-card-action { min-height: 46px; }
+.plan-card-note { margin: 0; font-size: 12.5px; color: var(--text-secondary); }
+
+/* Cases & Storage summary tiles */
+.settings-panel .settings-list > .settings-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 12px; border-top: 0; }
+.settings-stat {
+  display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 62px; padding: 10px; border: 0; border-radius: 14px;
+  background: var(--inset-bg, var(--control-background)); color: inherit; font: inherit; text-align: left;
+}
+button.settings-stat { cursor: pointer; }
+button.settings-stat:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.settings-stat-icon { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--card); color: var(--accent-text); }
+.settings-stat-text { display: grid; min-width: 0; }
+.settings-stat-text strong { font-size: 20px; font-weight: 600; line-height: 1.1; white-space: nowrap; }
+.settings-stat-text small { overflow: hidden; font-size: 12px; color: var(--text-secondary); white-space: nowrap; text-overflow: ellipsis; }
+@media (max-width: 440px) {
+  .settings-stat { justify-content: center; text-align: center; }
+  .settings-stat-icon { display: none; }
+}
+
+/* Preferences: one compact System | Light | Dark control */
+.settings-panel .appearance-row { flex-wrap: wrap; row-gap: 8px; }
+.settings-panel .appearance-row .settings-row-label { overflow-wrap: normal; white-space: nowrap; }
+.settings-panel .settings-group-footer .inline-link { min-height: 0; padding: 0; vertical-align: baseline; }
+.settings-panel .appearance-picker { display: inline-grid; grid-template-columns: repeat(3, auto); gap: 2px; margin-left: auto; padding: 3px; border-radius: 12px; background: var(--control-background); }
+.settings-panel .appearance-option {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 56px; min-height: 44px;
+  padding: 4px 10px; border-radius: 9px; font-size: 12px; color: var(--text-secondary);
+}
+.settings-panel .appearance-option[aria-checked="true"] { background: var(--card); color: var(--accent-text); font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), var(--shadow-sm); }

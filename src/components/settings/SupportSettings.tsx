@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { CircleHelp, FileText, Info, Mail, MessageCircleWarning } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { LEGAL_LINKS } from "@/config/accounts";
 import { RECENTLY_DELETED_DAYS } from "@/config/cases";
@@ -20,32 +21,38 @@ function useAppInfo(): AppInfo | null {
   return info;
 }
 
-export function SupportSection() {
+/**
+ * Help & About. Report a Problem and Contact Support appear only once a support
+ * address is configured, rather than as unavailable rows.
+ */
+export function HelpAboutSection() {
+  const account = useAccount();
   const nav = useSettingsNav();
   const info = useAppInfo();
   return (
-    <Group id="settings-support" title="Support"
-      footer={SUPPORT_EMAIL ? "Problem reports include the app version, platform and OS version only — never patient photos or case details." : "A support contact will be published before release."}>
-      <Row label="Help" onClick={() => (HELP_URL ? openExternal(HELP_URL) : nav.openPage({ kind: "help" }))} />
-      <Row label="Report a Problem" disabled={!SUPPORT_EMAIL || !info} onClick={() => info && openExternal(problemReportUrl(SUPPORT_EMAIL, info))} />
-      <Row label="Contact Support" disabled={!SUPPORT_EMAIL} onClick={() => openExternal(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("SmileCompose support")}`)} />
+    <Group id="settings-about" title="Help & About"
+      footer={SUPPORT_EMAIL ? "Problem reports include the app version, platform and OS version only — never patient photos or case details." : undefined}>
+      <Row icon={<CircleHelp size={17} strokeWidth={1.6} />} label="Help" onClick={() => (HELP_URL ? openExternal(HELP_URL) : nav.openPage({ kind: "help" }))} />
+      {SUPPORT_EMAIL && <Row icon={<MessageCircleWarning size={17} strokeWidth={1.6} />} label="Report a Problem" disabled={!info} onClick={() => info && openExternal(problemReportUrl(SUPPORT_EMAIL, info))} />}
+      {SUPPORT_EMAIL && <Row icon={<Mail size={17} strokeWidth={1.6} />} label="Contact Support" onClick={() => openExternal(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("SmileCompose support")}`)} />}
+      <Row icon={<Info size={17} strokeWidth={1.6} />} label="About SmileCompose" onClick={() => nav.openPage({ kind: "about" })} />
+      <Row icon={<FileText size={17} strokeWidth={1.6} />} label="Privacy Policy" onClick={() => account.openPrivacy("privacy")} />
+      <Row icon={<FileText size={17} strokeWidth={1.6} />} label="Terms of Service" onClick={() => account.openPrivacy("terms")} />
     </Group>
   );
 }
 
-export function AboutSection() {
-  const account = useAccount();
+/** Settings › About SmileCompose. */
+export function AboutPage() {
   const info = useAppInfo();
   return (
-    <Group id="settings-about" title="About">
+    <Group>
       <div className="settings-about">
         <p className="settings-about-name">SmileCompose</p>
         <p className="settings-about-tagline">Smile design, visualised.</p>
         <p className="settings-about-meta">Version {versionLabel(info)}</p>
         <p className="settings-about-meta">Designed by Dr Vik</p>
       </div>
-      <Row label="Privacy Policy" onClick={() => account.openPrivacy("privacy")} />
-      <Row label="Terms of Service" onClick={() => account.openPrivacy("terms")} />
       <Row label="Apple Licensed Application EULA" onClick={() => openExternal(LEGAL_LINKS.appleEula)} />
     </Group>
   );
@@ -62,7 +69,7 @@ export function HelpPage() {
         <Row label="Where are my cases stored?" detail="Cases save locally first and sync privately to your signed-in account. Cached cases can reopen offline; AI generation needs a connection. Unassigned older cases require explicit import." />
         <Row label="How are generations counted?" detail="Each completed smile visualisation uses one generation from your plan. A generation that fails isn’t counted." />
         <Row label="What is test mode?" detail="A demonstration with sample images that uses no generations and no account." />
-        <Row label="Can I undo deleting a case?" detail={`Yes, for ${RECENTLY_DELETED_DAYS} days: open Settings › Case library › Recently Deleted.`} />
+        <Row label="Can I undo deleting a case?" detail={`Yes, for ${RECENTLY_DELETED_DAYS} days: open Settings › Cases & Storage › Manage Cases › Recently Deleted.`} />
       </Group>
     </div>
   );

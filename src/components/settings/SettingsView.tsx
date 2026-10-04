@@ -1,13 +1,12 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BadgeCheck, BookMarked, ChevronLeft, FolderOpen, Info, LifeBuoy, Palette, ShieldCheck, UserRound } from "lucide-react";
+import { BadgeCheck, ChevronLeft, FolderOpen, Info, Palette, ShieldCheck, UserRound } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { CasesSection, ManageCasesPage } from "./CasesSettings";
-import { CaseLibrarySection } from "./CaseLibrarySettings";
-import { PrivacySection } from "./PrivacySettings";
-import { EditProfilePage, ProfileHeader, ProfileSection } from "./ProfileSettings";
-import { SubscriptionSection } from "./SubscriptionSettings";
-import { AboutSection, HelpPage, SupportSection } from "./SupportSettings";
+import { DataPrivacyPage, ManageDataPage, PrivacySection } from "./PrivacySettings";
+import { AccountSection, EditProfilePage, ProfileHeader, SignInMethodsPage, SignOutSection } from "./ProfileSettings";
+import { PlanCard, PlanDetailsPage } from "./SubscriptionSettings";
+import { AboutPage, HelpAboutSection, HelpPage } from "./SupportSettings";
 import { AppearanceSection } from "./AppearanceSettings";
 import {
   Avatar, ConfirmDialog, SettingsContext, useMediaQuery, useOnline,
@@ -17,17 +16,18 @@ import {
 export type { SettingsSection } from "./settingsParts";
 
 const SECTIONS: { key: SettingsSection; label: string; Icon: typeof UserRound }[] = [
-  { key: "profile", label: "Profile", Icon: UserRound },
-  { key: "subscription", label: "Subscription & Usage", Icon: BadgeCheck },
-  { key: "cases", label: "Cases", Icon: FolderOpen },
-  { key: "library", label: "Case Library", Icon: BookMarked },
-  { key: "appearance", label: "Appearance", Icon: Palette },
+  { key: "profile", label: "Account", Icon: UserRound },
+  { key: "subscription", label: "Plan & Usage", Icon: BadgeCheck },
+  { key: "cases", label: "Cases & Storage", Icon: FolderOpen },
+  { key: "appearance", label: "Preferences", Icon: Palette },
   { key: "privacy", label: "Privacy & Data", Icon: ShieldCheck },
-  { key: "support", label: "Support", Icon: LifeBuoy },
-  { key: "about", label: "About", Icon: Info },
+  { key: "about", label: "Help & About", Icon: Info },
 ];
 
-const PAGE_TITLES = { editProfile: "Edit Profile", help: "Help" } as const;
+const PAGE_TITLES = {
+  editProfile: "Edit Profile", signIn: "Sign-in Methods", plan: "Plan & Usage", dataPrivacy: "Data & Privacy",
+  manageData: "Manage Data", help: "Help", about: "About SmileCompose",
+} as const;
 const CASE_TITLES = { active: "Manage Cases", archived: "Archived Cases", deleted: "Recently Deleted" } as const;
 
 function pageTitle(page: SettingsPage): string {
@@ -36,22 +36,22 @@ function pageTitle(page: SettingsPage): string {
 
 function SectionContent({ section, withHeader }: { section: SettingsSection; withHeader: boolean }) {
   switch (section) {
-    case "profile": return <>{withHeader && <ProfileHeader />}<ProfileSection /></>;
-    case "subscription": return <SubscriptionSection />;
+    case "profile": return <>{withHeader && <ProfileHeader />}<AccountSection />{withHeader && <SignOutSection />}</>;
+    case "subscription": return <PlanCard />;
     case "cases": return <CasesSection />;
-    case "library": return <CaseLibrarySection />;
     case "appearance": return <AppearanceSection />;
     case "privacy": return <PrivacySection />;
-    case "support": return <SupportSection />;
-    case "about": return <AboutSection />;
+    case "about": return <HelpAboutSection />;
   }
 }
 
+/** The main list answers who you are, your plan and usage, where your cases are, and key preferences; detail sits one level down. */
+const STACK_ORDER: SettingsSection[] = ["subscription", "profile", "cases", "appearance", "privacy", "about"];
+
 /**
- * Settings: one place for Profile, Subscription & Usage, Cases (patient
- * cases on this device), Case Library (style references), Appearance,
- * Privacy & Data, Support and About.
- * iPhone (narrow): a grouped list with pushed sub-pages.
+ * Settings: Account, Plan & Usage, Cases & Storage (patient cases and the Case
+ * Library), Preferences, Privacy & Data, and Help & About.
+ * iPhone (narrow): an account summary, then grouped sections with pushed sub-pages.
  * iPad / desktop (≥ 768 px): a sidebar of sections and a detail pane.
  */
 export function SettingsView({ initialSection, onClose, onSectionChange }: {
@@ -111,7 +111,12 @@ export function SettingsView({ initialSection, onClose, onSectionChange }: {
   const pageBody = page && (
     page.kind === "editProfile" ? <EditProfilePage onDone={back} />
       : page.kind === "cases" ? <ManageCasesPage key={page.filter} initialFilter={page.filter} />
-        : <HelpPage />
+        : page.kind === "signIn" ? <SignInMethodsPage />
+          : page.kind === "plan" ? <PlanDetailsPage />
+            : page.kind === "dataPrivacy" ? <DataPrivacyPage />
+              : page.kind === "manageData" ? <ManageDataPage />
+                : page.kind === "about" ? <AboutPage />
+                  : <HelpPage />
   );
   const detailTitle = page ? pageTitle(page) : SECTIONS.find(s => s.key === section)?.label ?? "Settings";
   const planLine = !account.user ? (account.configured ? "Not signed in" : "On this device") : account.hasProAccess ? "SmileCompose Pro" : "Free";
@@ -165,7 +170,8 @@ export function SettingsView({ initialSection, onClose, onSectionChange }: {
                 {pageBody ?? (
                   <>
                     <ProfileHeader />
-                    {SECTIONS.map(({ key }) => <SectionContent key={key} section={key} withHeader={false} />)}
+                    {STACK_ORDER.map(key => <SectionContent key={key} section={key} withHeader={false} />)}
+                    <SignOutSection />
                   </>
                 )}
               </div>

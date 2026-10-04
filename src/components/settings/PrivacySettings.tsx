@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { Database, Download, ShieldCheck } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { PRIVACY_CONTACT_EMAIL } from "@/config/legal";
 import { isNativeApp } from "@/native/platform";
@@ -30,16 +31,12 @@ function DeleteAccountBody({ options, showSubscriptionNotice, onManage }: {
   );
 }
 
-export function PrivacySection() {
+/** Shared by the Privacy & Data rows and its pages. */
+function usePrivacyActions() {
   const account = useAccount();
   const [scope] = useState(captureWorkspace);
-  const { configured, user, status, hasProAccess, customerInfo } = account;
+  const { user, status, hasProAccess, customerInfo } = account;
   const nav = useSettingsNav();
-  const [storageUsed, setStorageUsed] = useState<number | null>(null);
-
-  useEffect(() => {
-    void import("@/lib/dataExport").then(m => m.deviceStorageUsed()).then(setStorageUsed);
-  }, []);
 
   async function exportData(): Promise<string> {
     const token = user ? await account.getAccessToken() : null;
@@ -65,31 +62,74 @@ export function PrivacySection() {
     });
   }
 
+  return {
+    scope,
+    exportData: () => void exportData().then(message => message && nav.say(message)).catch(() => nav.say("Your data couldn’t be exported. Please try again.")),
+    deleteAccount,
+  };
+}
+
+/** Privacy & Data on the main list: explanations and destructive controls sit one level down. */
+export function PrivacySection() {
+  const nav = useSettingsNav();
+  const { exportData } = usePrivacyActions();
   return (
-    <Group id="settings-privacy" title="Privacy & data"
+    <Group id="settings-privacy" title="Privacy & Data">
+      <Row icon={<ShieldCheck size={17} strokeWidth={1.6} />} label="Data & Privacy" detail="How patient photos and cases are stored and processed" onClick={() => nav.openPage({ kind: "dataPrivacy" })} />
+      <Row icon={<Download size={17} strokeWidth={1.6} />} label="Export My Data" onClick={exportData} />
+      <Row icon={<Database size={17} strokeWidth={1.6} />} label="Manage Data" detail="Delete cases, device data or your account" onClick={() => nav.openPage({ kind: "manageData" })} />
+    </Group>
+  );
+}
+
+/** Settings › Data & Privacy: how data is kept, in full. */
+export function DataPrivacyPage() {
+  const account = useAccount();
+  const [storageUsed, setStorageUsed] = useState<number | null>(null);
+  useEffect(() => {
+    void import("@/lib/dataExport").then(m => m.deviceStorageUsed()).then(setStorageUsed);
+  }, []);
+  return (
+    <Group title="How your data is kept"
       footer={PRIVACY_CONTACT_EMAIL
         ? <>Privacy questions or requests: <a className="inline-link" href={`mailto:${PRIVACY_CONTACT_EMAIL}`}>{PRIVACY_CONTACT_EMAIL}</a></>
         : "Privacy contact: to be published before release."}>
       <p className="settings-note">Patient cases save on this device first and sync to private storage in your signed-in SmileCompose account. Cached cases remain usable offline. AI generation is a separate transfer that requires your per-patient confirmation. Local data is excluded from iCloud backups. Finished cases you add to your Case Library are stored privately in your SmileCompose account, and a few matching ones are sent with a design as style references when “Use my Case Library” is on. SmileCompose does not use patient data to train AI models.</p>
       <Row label="Storage used on this device" value={storageUsed === null ? "…" : formatBytes(storageUsed)} />
-      <Row label="Privacy Policy" onClick={() => account.openPrivacy("privacy")} />
       <Row label="Data Processing Information" onClick={() => account.openPrivacy("processing")} />
-      <Row label="Export My Data" onClick={() => void exportData().then(message => message && nav.say(message)).catch(() => nav.say("Your data couldn’t be exported. Please try again."))} />
-      <Row label="Delete all cases" destructive onClick={() => nav.confirm({
-        title: "Delete all cases?",
-        body: <p className="control-hint">Permanently removes this workspace’s current case, every saved case and everything in Recently Deleted — patient photos, generated visualisations, case references and notes — from this account and its synced devices. Your reference library, account and subscription are kept. This can’t be undone.</p>,
-        confirmLabel: "Delete all cases",
-        destructive: true,
-        onConfirm: async () => { const repository=(await import("@/services/cases/caseRepository")).getCaseRepository(); await repository.clearLog(); await repository.persistCase(null); nav.say("Cases removed locally. Account deletions will sync when connected."); },
-      })} />
-      <Row label="Delete all data on this device" destructive onClick={() => nav.confirm({
-        title: "Delete all data on this device?",
-        body: <p className="control-hint">Removes every account’s local case cache, unowned cases, patient photos, generated results and preferences stored by SmileCompose on this device, including any library cases kept on this device. Your account (including your Case Library and profile photo) and subscription are not affected. This can’t be undone.</p>,
-        confirmLabel: "Delete device data",
-        destructive: true,
-        onConfirm: async () => { await (await import("@/lib/localData")).deleteAllLocalData(indexedDB, localStorage, scope); window.location.reload(); },
-      })} />
-      {configured && user && <Row label="Delete Account" destructive onClick={deleteAccount} />}
     </Group>
+  );
+}
+
+/** Settings › Manage Data: every destructive control, each behind its own confirmation. */
+export function ManageDataPage() {
+  const account = useAccount();
+  const { configured, user } = account;
+  const nav = useSettingsNav();
+  const { scope, deleteAccount } = usePrivacyActions();
+  return (
+    <>
+      <Group title="Cases and this device" footer="Deleting is permanent. Each action asks you to confirm first.">
+        <Row label="Delete all cases" destructive onClick={() => nav.confirm({
+          title: "Delete all cases?",
+          body: <p className="control-hint">Permanently removes this workspace’s current case, every saved case and everything in Recently Deleted — patient photos, generated visualisations, case references and notes — from this account and its synced devices. Your reference library, account and subscription are kept. This can’t be undone.</p>,
+          confirmLabel: "Delete all cases",
+          destructive: true,
+          onConfirm: async () => { const repository=(await import("@/services/cases/caseRepository")).getCaseRepository(); await repository.clearLog(); await repository.persistCase(null); nav.say("Cases removed locally. Account deletions will sync when connected."); },
+        })} />
+        <Row label="Delete all data on this device" destructive onClick={() => nav.confirm({
+          title: "Delete all data on this device?",
+          body: <p className="control-hint">Removes every account’s local case cache, unowned cases, patient photos, generated results and preferences stored by SmileCompose on this device, including any library cases kept on this device. Your account (including your Case Library and profile photo) and subscription are not affected. This can’t be undone.</p>,
+          confirmLabel: "Delete device data",
+          destructive: true,
+          onConfirm: async () => { await (await import("@/lib/localData")).deleteAllLocalData(indexedDB, localStorage, scope); window.location.reload(); },
+        })} />
+      </Group>
+      {configured && user && (
+        <Group title="Account" footer="Deleting your account doesn’t cancel your App Store subscription.">
+          <Row label="Delete Account" destructive onClick={deleteAccount} />
+        </Group>
+      )}
+    </>
   );
 }

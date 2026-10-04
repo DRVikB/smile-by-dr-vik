@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { ChevronRight, KeyRound, LogOut, Mail, ShieldCheck, UserRound } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { NAME_LIMITS, isPrivateRelayEmail, maskEmail, normaliseName, providerLabel } from "@/lib/profile";
 import { AccountApiError } from "@/services/account/accountApi";
@@ -10,7 +11,10 @@ function planBadge(hasPro: boolean, expired: boolean): string {
   return hasPro ? "SmileCompose Pro" : expired ? "Pro expired" : "Free";
 }
 
-/** Account card at the top of Settings. Signed in, tapping the avatar adds, changes or removes the profile photo. */
+/**
+ * The account summary at the top of Settings: photo, names, sign-in, plan and
+ * Edit profile. Signed in, tapping the photo adds, changes or removes it.
+ */
 export function ProfileHeader() {
   const { configured, user, status, hasProAccess, names, displayName, initials, avatarUrl, openAuth } = useAccount();
   const nav = useSettingsNav();
@@ -38,20 +42,22 @@ export function ProfileHeader() {
             <p className={`profile-badge${hasProAccess ? " pro" : ""}`}>{planBadge(hasProAccess, expired)}</p>
           </>
         ) : configured ? (
-          <>
-            <p className="profile-card-sub">Not signed in</p>
-            <button className="primary-button profile-card-action" onClick={() => openAuth("signIn")}>Sign in or create account</button>
-          </>
+          <p className="profile-card-sub">Not signed in</p>
         ) : (
           <p className="profile-card-sub">Profile stored on this device</p>
         )}
       </div>
+      <button type="button" className="profile-card-edit" onClick={() => nav.openPage({ kind: "editProfile" })}>
+        Edit profile<ChevronRight size={16} strokeWidth={1.8} aria-hidden="true" />
+      </button>
+      {configured && !user && <button className="primary-button profile-card-action" onClick={() => openAuth("signIn")}>Sign in or create account</button>}
       {editingPhoto && <ProfilePhotoEditor onClose={() => setEditingPhoto(false)} onSaved={nav.say} />}
     </div>
   );
 }
 
-export function ProfileSection() {
+/** Account: name, email, how you sign in, and two-factor authentication. */
+export function AccountSection() {
   const account = useAccount();
   const { configured, user, status, names } = account;
   const nav = useSettingsNav();
@@ -59,47 +65,60 @@ export function ProfileSection() {
   const providers = new Set((user?.identities ?? []).map(identity => identity.provider));
   const email = user?.email ?? status?.email ?? null;
   const relay = isPrivateRelayEmail(email);
+  const methods = (["apple", "email"] as const).filter(p => providers.has(p)).map(p => p === "apple" ? "Apple" : "Email").join(" + ");
+
+  function toggleMfa() {
+    if (!status?.mfaEnrolled) { account.openMfa("enroll"); return; }
+    nav.confirm({
+      title: "Turn off two-factor authentication?",
+      body: <p className="control-hint">Your account will be protected by your password or Sign in with Apple only.</p>,
+      confirmLabel: "Turn off",
+      destructive: true,
+      onConfirm: async () => { await account.disableMfa(); return "Two-factor authentication is off."; },
+    });
+  }
 
   return (
-    <>
-      <Group id="settings-profile" title="Profile">
-        <Row label="Preferred name" value={names.preferredName ?? "Not set"} onClick={() => nav.openPage({ kind: "editProfile" })} />
-        {user && <Row label="Account name" value={names.fullName ?? "Not set"} onClick={() => nav.openPage({ kind: "editProfile" })} />}
-        {user && (
-          <Row label="Email" value={email ? undefined : "Not shared"}
-            detail={email ? `${showEmail ? email : maskEmail(email)}${relay ? " · Hide My Email relay" : ""}` : undefined}
-            trailing={email ? (
-              <button type="button" className="text-button settings-inline-action" onClick={() => setShowEmail(v => !v)} aria-label={showEmail ? "Hide email address" : "Show email address"}>
-                {showEmail ? "Hide" : "Show"}
-              </button>
-            ) : undefined} />
-        )}
-      </Group>
-
-      {configured && user && (
-        <Group id="settings-signin" title="Sign-in methods" footer="Sign-in methods are linked to this SmileCompose account only.">
-          {(["apple", "email"] as const).map(provider => (
-            <Row key={provider} label={providerLabel(provider)} value={providers.has(provider) ? "Connected" : "Not set up"} />
-          ))}
-        </Group>
+    <Group id="settings-profile" title="Account">
+      <Row icon={<UserRound size={17} strokeWidth={1.6} />} label="Preferred name" value={names.preferredName ?? "Not set"} onClick={() => nav.openPage({ kind: "editProfile" })} />
+      {user && (
+        <Row icon={<Mail size={17} strokeWidth={1.6} />} label="Email" value={email ? (showEmail ? email : maskEmail(email)) : "Not shared"}
+          detail={relay ? "Hide My Email relay" : undefined}
+          trailing={email ? (
+            <button type="button" className="text-button settings-inline-action" onClick={() => setShowEmail(v => !v)} aria-label={showEmail ? "Hide email address" : "Show email address"}>
+              {showEmail ? "Hide" : "Show"}
+            </button>
+          ) : undefined} />
       )}
-
+      {configured && user && <Row icon={<KeyRound size={17} strokeWidth={1.6} />} label="Sign-in methods" value={methods || "—"} onClick={() => nav.openPage({ kind: "signIn" })} />}
       {configured && user && (
-        <Group id="settings-security" title="Security">
-          <Row label="Two-factor authentication" value={status?.mfaEnrolled ? "On" : "Off"}
-            onClick={() => status?.mfaEnrolled
-              ? nav.confirm({
-                title: "Turn off two-factor authentication?",
-                body: <p className="control-hint">Your account will be protected by your password or Sign in with Apple only.</p>,
-                confirmLabel: "Turn off",
-                destructive: true,
-                onConfirm: async () => { await account.disableMfa(); return "Two-factor authentication is off."; },
-              })
-              : account.openMfa("enroll")} />
-          <Row label="Sign out" onClick={() => void account.signOut()} />
-        </Group>
+        <Row icon={<ShieldCheck size={17} strokeWidth={1.6} />} label="Security" value={`Two-factor authentication ${status?.mfaEnrolled ? "On" : "Off"}`} onClick={toggleMfa} />
       )}
-    </>
+    </Group>
+  );
+}
+
+/** Settings › Sign-in methods. */
+export function SignInMethodsPage() {
+  const { user } = useAccount();
+  const providers = new Set((user?.identities ?? []).map(identity => identity.provider));
+  return (
+    <Group title="Sign-in methods" footer="Sign-in methods are linked to this SmileCompose account only.">
+      {(["apple", "email"] as const).map(provider => (
+        <Row key={provider} label={providerLabel(provider)} value={providers.has(provider) ? "Connected" : "Not set up"} />
+      ))}
+    </Group>
+  );
+}
+
+/** The last row of Settings when signed in. */
+export function SignOutSection() {
+  const account = useAccount();
+  if (!account.configured || !account.user) return null;
+  return (
+    <Group>
+      <Row icon={<LogOut size={17} strokeWidth={1.6} />} label="Sign out" onClick={() => void account.signOut()} />
+    </Group>
   );
 }
 

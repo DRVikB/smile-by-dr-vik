@@ -1,35 +1,47 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import { Archive, FolderOpen, HardDrive, ListChecks, Search, Trash2, X } from "lucide-react";
 import { RECENTLY_DELETED_DAYS } from "@/config/cases";
 import type { CaseLogEntry } from "@/lib/types";
 import type { CaseCounts, CaseState } from "@/lib/caseLog";
-import { Group, Row, formatDate, useSettingsNav } from "./settingsParts";
+import { Group, Row, StatTile, formatBytes, formatDate, useSettingsNav } from "./settingsParts";
+import { CaseLibraryRow } from "./CaseLibrarySettings";
 
 import { getCaseRepository } from "@/services/cases/caseRepository";
 import { LegacyCaseImport } from "./LegacyCaseImport";
 
-/** Patient Cases: summary and routes only; the full case browser stays in Cases. Not the Case Library. */
+/**
+ * Cases & Storage: patient cases on this device, the Case Library of finished
+ * work, and how much space they take. Summary and routes only; the full case
+ * browser stays in Cases.
+ */
 export function CasesSection() {
   const [repository] = useState(getCaseRepository);
-  const loadCaseLog = () => Promise.resolve(repository);
   const nav = useSettingsNav();
   const [counts, setCounts] = useState<CaseCounts | null>(null);
+  const [deviceBytes, setDeviceBytes] = useState<number | null>(null);
 
   useEffect(() => {
-    const load=()=>{void loadCaseLog().then(async log => { setCounts(await log.caseCounts()); }).catch(() => setCounts(null));};
-    load();return repository.subscribe(load);
+    const load = () => { void repository.caseCounts().then(setCounts).catch(() => setCounts(null)); };
+    load(); return repository.subscribe(load);
+  }, [repository]);
+  useEffect(() => {
+    void import("@/lib/dataExport").then(m => m.deviceStorageUsed()).then(setDeviceBytes).catch(() => setDeviceBytes(null));
   }, []);
 
   const count = (n: number | undefined) => (n === undefined ? "…" : String(n));
   return (
-    <Group id="settings-cases" title="Cases" footer="Patient cases save on this device first and sync privately to your signed-in account.">
+    <Group id="settings-cases" title="Cases & Storage"
+      footer={<>Cases save on this device first and sync privately to your account. Case Library references are stored privately in your account. <button type="button" className="inline-link" onClick={() => nav.openPage({ kind: "dataPrivacy" })}>Learn more</button></>}>
+      <div className="settings-stats">
+        <StatTile icon={<FolderOpen size={18} strokeWidth={1.6} />} value={count(counts?.active)} label="Active cases" onClick={() => nav.openPage({ kind: "cases", filter: "active" })} />
+        <StatTile icon={<Archive size={18} strokeWidth={1.6} />} value={count(counts?.archived)} label="Archived" onClick={() => nav.openPage({ kind: "cases", filter: "archived" })} />
+        <StatTile icon={<HardDrive size={18} strokeWidth={1.6} />} value={deviceBytes === null ? "…" : formatBytes(deviceBytes).replace("under 1 MB", "< 1 MB")} label="On this device" />
+      </div>
+      <Row icon={<ListChecks size={17} strokeWidth={1.6} />} label="Manage Cases" onClick={() => nav.openPage({ kind: "cases", filter: "active" })} />
+      {Boolean(counts?.deleted) && <Row icon={<Trash2 size={17} strokeWidth={1.6} />} label="Recently Deleted" value={String(counts?.deleted)} onClick={() => nav.openPage({ kind: "cases", filter: "deleted" })} />}
+      <CaseLibraryRow />
       <LegacyCaseImport />
-      <Row label="Active cases" value={count(counts?.active)} />
-      <Row label="Archived cases" value={count(counts?.archived)} />
-      <Row label="Manage Cases" onClick={() => nav.openPage({ kind: "cases", filter: "active" })} />
-      <Row label="Archived Cases" onClick={() => nav.openPage({ kind: "cases", filter: "archived" })} />
-      <Row label="Recently Deleted" value={counts?.deleted ? String(counts.deleted) : undefined} onClick={() => nav.openPage({ kind: "cases", filter: "deleted" })} />
     </Group>
   );
 }
