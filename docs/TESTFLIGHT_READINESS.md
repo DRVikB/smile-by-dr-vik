@@ -1,5 +1,9 @@
 # SmileCompose V1 — owner acceptance handover
 
+## Current gate — confirmed physical generation failure (4 October 2026)
+
+**HOLD — core generation is not cleared for TestFlight.** Both owner screenshots are matched to successful Gemini responses rejected at generated-face detection after normalisation. Response-part selection, references and the 3% aspect guard are ruled out for these requests. Latest raw outputs were not retained; provider reframing versus detector false-negative remains unresolved. The local ambiguity-parser correction is independently tested, not a repair for the physical failure and not deployed. No new paid requests are authorised. See the current evidence and exact one-call capture proposal in [OVERNIGHT_V1_STABILISATION_REPORT.md](OVERNIGHT_V1_STABILISATION_REPORT.md). This diagnostic hold supersedes acceptance steps below; do not repeatedly Generate in the installed build.
+
 ## Latest update — combined treatments (4 October 2026)
 
 **PASS — requested treatment controls implemented and installed on the physical iPhone. TestFlight remains HOLD for the existing owner acceptance, legal, distribution-signing and purchase gates.** This section supersedes the older runtime/archive and separate “Include alignment” UI described below.

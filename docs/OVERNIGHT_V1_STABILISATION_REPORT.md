@@ -1,6 +1,83 @@
-# CURRENT — FINAL OWNER ACCEPTANCE CANDIDATE, 4 October 2026
+# CURRENT — CORE GENERATION DIAGNOSTIC HOLD, 4 October 2026
 
-## Latest update — combined treatments (4 October 2026)
+## Recurring physical-iPhone framing failure — supersedes readiness below
+
+**FAIL — core generation is not cleared for TestFlight.** Chairside-companion work is paused. No paid generation, provider switch, prompt change, threshold relaxation, new crop architecture, ledger write, external deployment or iPhone reinstall occurred during this audit. Existing cases and valid versions remain intact.
+
+### 1. WHAT WAS ACTUALLY FIXED
+
+**PASS, local only:** corrected a separately demonstrated Gemini parser defect: multiple completed non-thought image parts were previously resolved with `.at(-1)`. The parser now rejects ambiguous final images, including mixed JPEG/WEBP finals, and retains bounded private candidate/part selection metadata. Global prompt blocks retain precedence. Thought images were already excluded before this pass; signatures are never interpreted as thought flags or logged. This change does **not** explain or repair the two physical failures below. No production architecture or generation/allowance policy changed.
+
+Local fix checkpoint: `3f8e0e9`; isolated rollback parent `55ac4c3` (application `ad69f11`). No migration or persisted case change. This checkpoint is not deployed or installed. Google’s [image response documentation](https://ai.google.dev/gemini-api/docs/generate-content/image-generation#thought-signatures) distinguishes `thought:true` from signatures on final images; this distinction was already respected by the deployed parser.
+
+### 2. WHAT WAS TESTED — environment, checkpoint and evidence
+
+- Investigation began at `55ac4c3` (documentation checkpoint), application `ad69f11`, branch `release/v1-device-test`. The stale GitHub snapshot `65b838b` was not restored. Owner Xcode project/scheme changes remain preserved and excluded from the fix.
+- **PASS, read-only runtime check:** staging Worker version `8196e3b0-6464-48cc-809c-7e276452a3de`, tag `ad69f11`, 100% deployment. `SMILE_PROVIDER=gemini`; `GEMINI_IMAGE_MODEL=gemini-3.1-flash-image`; mask guidance OFF; Alignment/FullArch ON; SingleTooth OFF. The retained Sunburst configuration is inactive. Server/client protection, consent and no-automatic-provider-retry remain enabled.
+- **PASS, physical diagnostic retrieval only:** connected iPhone has `uk.co.drvik.smilecompose`, version1.0/build1, installation URL matches the previously installed `ad69f11` archive receipt. This is not a new physical generation test. The 09:37 request used backend promptv8 before the 08:53UTC deployment; 10:12 used promptv9 afterwards.
+- **PASS:** final full Node suite **717/717**, zero failures/skips/cancellations (61.6s); parser/diagnostic/account-ledger checks **69/69**; four actual-handler reference-isolation checks. TypeScript, full ESLint, production web build and Cloudflare packaging pass.
+- Verification history: initial parser RED demonstrated last-image acceptance and missing part evidence; first GREEN suite716/716. Independent review then reproduced mixed-MIME ambiguity and block-precedence failures. Both fixed with new regressions; final717/717. First sandboxed Next build stalled at compilation for over five minutes and was stopped; the same build after review completed with normal local build permissions. Failed/stalled logs are retained. No tests/guards weakened.
+
+### 3. EXACT PHYSICAL REQUESTS / FIRST BROKEN BOUNDARY
+
+| Evidence | IMG_3519.PNG, 09:37 BST | IMG_3520.PNG, 10:12 BST |
+|---|---|---|
+| SmileCompose request / reservation | `b83a4f8f-aa3b-490a-b28d-296fb97d5f8d` | `d2c46ffd-a49b-4ebb-b7c2-378ba4289038` |
+| Server reservation / commit UTC | 08:37:21.882 / 08:37:32.066 | 09:11:48.652 / 09:11:58.337 |
+| Provider | Google Gemini `gemini-3.1-flash-image` | same |
+| Prompt version | `2026-10-03-treatment-contract-v8` | `2026-10-04-treatment-contract-v9` |
+| Ledger treatment | Porcelain / Auto | Layered composite / Auto |
+| Path / selected count | alignment / 8 | alignment / 8 |
+| Source / submitted canvas | 1320×1741 / 1320×1760 | same |
+| Raw provider image | JPEG896×1200, no EXIF orientation | same |
+| Provider result | HTTP200, STOP, valid encoded image, 10,006ms, retries0 | HTTP200, STOP, valid encoded image, 9,080ms, retries0 |
+| Candidate / selected part | 0 / 0, inferred from only one candidate/part/image | same |
+| Thought images / references | 0 / 0; actual order `source,prompt`; mask not sent | same |
+| Normalised canvas | 1320×1741 | same |
+| First rejection | `mouth_composite`: `generated_face_not_found` → `generated_landmarks_missing` | same |
+| Source / generated landmarks | 478 / 0 | same |
+| Allowance | one reservation committed; reserved balance61; no release/refund | one reservation committed; reserved balance60; no release/refund |
+
+Request route: normal client → `POST /api/generate-smile` → authenticated reservation/consent/reference handling → Gemini Developer API `generateContent` → selected final image → `alignPreview` → `lockFaceOutsideLips`. `src/app/page.tsx` throws the exact supplied message only when mouth lock returns `invalidAlignment=true`. The distinct >3% aspect exception was not thrown. Generated-image decode, padding removal and normalisation completed. Detailed inference returned an empty face list, rather than a decode/model/worker exception. Similarity fitting, mouth mask generation, compositing and saving of this failed result were never reached.
+
+**RULED OUT for these exact requests:** interim thought-image selection; multiple-final-image selection; optional manual/Case Library references; provider mask guidance; >3% aspect rejection. Both actual requests already were source-only. Another reference-isolation generation would repeat a condition already proven absent.
+
+### 4. GEOMETRY / REMAINING UNCERTAINTY
+
+Source aspect `1320/1741 = 0.758184951`; prepared `1320/1760 = 0.75`; raw `896/1200 = 0.746666667`. Relative raw/prepared drift is **0.444444%**, below3%. Known padding is9px top/10px bottom; `sourceBounds={x:0,y:9/1760,width:1,height:1741/1760}`. Recorded removal is x0/y6.136363636/w896/h1187.045454545, output1320×1741, scales1.473214286/1.466666667. Both actual records match current geometry calculations; there is no demonstrated orientation/coordinate bug.
+
+**UNRESOLVED:** why the detector found no face in these two final images. It could be genuine provider reframing or a false negative on a correctly framed final image. Dimensions and missing landmarks do not distinguish them. Exact latest submitted/raw/normalised bytes were not retained. On-device capture is restricted to one fingerprinted synthetic fixture; its cache contains only the older `6b937aba…` capture. Normal generation responses are `no-store`; request protection stores a timestamp, not output; no durable server result redelivery exists. The latest saved draft has no result and no generated asset in the failure window. Diagnostics cannot reconstruct the missing image. No manual or fake local refund was made.
+
+Latest saved draft snapshot (updated09:11:59UTC): Whitening + Veneers + Alignment, Layered composite, eight upper selected teeth14/13/12/11/21/22/23/24, Square/Balanced, clinician A3 → Bleach, Natural texture, intensity67, Preserve existing smile arc, full face, AlignmentBoth. This is mutable case state and is not used as an immutable reconstruction of the earlier09:37 request. LibraryStyle was true, but actual provider receipts prove zero attached references.
+
+### 5. OFFLINE / REPLAY EVIDENCE
+
+**Actual running browser, current unchanged preparation/detection/normalisation/mouth-lock code; zero provider calls:**
+
+- **PASS rejection:** retained approved synthetic failure `6b937aba-2ba3-424a-beb3-51cc0bba0150` (3Oct14:22) is visibly an enlarged retracted mouth on grey, with the original face absent. Both raw and normalised images return no face. It correctly remains rejected; no composite is fabricated. Historical exact outgoing bytes are unavailable, so its submitted image is explicitly labelled a reconstruction. This proves a historical provider reframe, not the latest two failures.
+- **PASS delivery replay:** retained six-tooth Porcelain `fa41311e-0889-4832-b673-6a0f812664a6` (blue-cardigan approved test photo) and `69f61253-81b9-4cfe-9cd5-a6edd00b631e` (glasses photo) retain original, exact submitted and raw bytes. Current preparation matches the retained submitted bytes; raw/normalised478 landmarks, alignment/composite pass, protected exterior0 changed pixels. The blue-cardigan control uses the same pictured source/dimensions and rounding geometry as the latest failures. Different settings/results: it is not proof of eight-tooth combined-treatment reliability.
+- **NOT TESTED:** replay of latest failed outputs, because those bytes are unavailable. **HUMAN REVIEW REQUIRED:** dental/anatomical/cosmetic quality of the successful controls. No unchanged original or rejected output was marked a successful simulation.
+
+Private, git-ignored review: `output/framing-boundary-audit-2026-10-04/geometry/visual-review.html`, `receipt.json`, `FINDINGS.md`, `image-manifest.json`. Latest phone metadata: `device/generation-qa.json`; selection evidence: `response-selection-evidence.json`; source-only contract: `references/source-only-request-manifest.json`. No identifiable screenshots uploaded to a design service. Temporary replay browser/server closed.
+
+### 6. EXACT NEXT ACTION / BOUNDED TEST PROPOSAL
+
+**Do not Generate again in the current normal build. No additional paid request is authorised by this brief.** To resolve the decisive missing evidence, approve **one** staging diagnostic capture, no retry:
+
+- Input: already-approved `/Users/vik/Documents/New project/smile/test images/IMG_3291.jpg` (blue-cardigan photo); capture exact imported source and actual outgoing bytes privately.
+- Settings: reproduce the latest saved eight-tooth combination above, resolution1K, no direct reference, no client styleReferences, explicit `libraryStyle=false`, provider Gemini/model unchanged; prompts and all guards unchanged.
+- Disposable authenticated staging fixture only, with one authorised test generation; no change to owner/commercial allowances. Existing expired fixture is not automatically extended.
+- Before any paid action, prove private capture is armed for this exact approved fixture and that client/backend versions match. Retain each raw image part without signatures privately, plus selected raw, normalised and attempted composite if reached. Ordinary diagnostics retain only bounded structural metadata.
+- Run once on the physical iPhone, then inspect/replay the returned bytes locally. If delivered: inspect, save, force-close, reopen the same result. If rejected: stop; do not retry or change the prompt.
+
+If capture proves a correctly framed image, locate and reproduce the detector/downstream fault before changing it. If it proves repeated genuine source-only reframing, the smallest architectural proposal is a **separately gated, default-OFF** mouth-region input using the existing shared path: deterministic source crop/transform, sufficient protected surrounding context for registration, validation appropriate to a mouth crop (not a full-face-only detector), and treatment-specific permitted regions restored into untouched original pixels. Reject unrelated/reframed mouths; never force-fit/warp them. Whitening, Veneers, Alignment and FullArch cannot share indiscriminate permissions; explicit prosthetic gingiva remains separate. Crop/registration and protected-pixel regression evidence plus human anatomy review would be required before enabling it. **No such architecture was implemented in this pass.**
+
+**CORE GENERATION READY FOR TESTFLIGHT: NO.** Local parser correction is independently verified, not deployed and not a repair for these physical failures. Staging/iPhone remain at the matched `ad69f11` checkpoint; previous valid cases are preserved. Durable charged-result recovery remains deferred and required before external/paying beta.
+
+---
+
+## Earlier update — combined treatments (4 October 2026)
+
 
 **PASS — requested treatment controls implemented and installed on the physical iPhone. TestFlight remains HOLD for the existing owner acceptance, legal, distribution-signing and purchase gates.** This section supersedes the older runtime/archive and separate “Include alignment” UI described below.
 
