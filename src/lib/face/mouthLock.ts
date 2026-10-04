@@ -1,7 +1,10 @@
 import type { MouthAlignmentDiagnostic } from "./alignmentDiagnostic";
+import { releaseCanvas } from "../canvasMemory";
 import { compositeMasked, measureProtectedRegionChange, editableRegionRange } from "./geometry";
 import { detectFace, detectFaceDetailed } from "./landmarks";
-import { planMouthLock, mouthTransitionMask, type MouthLockFailure } from "./lock";
+import { planMouthLock, pixelLockPlan, mouthTransitionMask, type MouthLockFailure } from "./lock";
+import { alignByPixels, pixelMatchAccepted, samePhotograph } from "./pixelAlign";
+import { OUTER_LIP, pick } from "./geometry";
 
 export interface MouthLockResult {
   image: string;
@@ -36,6 +39,7 @@ export async function lockFaceOutsideLips(
 ): Promise<MouthLockResult> {
   const untouched = { image: generated, locked: false, lipsMoved: false };
   let failureReason: MouthLockFailure = "mouth_image_decode_failed";
+  let canvas: HTMLCanvasElement | undefined;
   try {
     const [origPoints, generatedDetection, o, g] = await Promise.all([
       detectFace(original),
@@ -52,11 +56,35 @@ export async function lockFaceOutsideLips(
     let lastDiagnostic: MouthAlignmentDiagnostic = {};
     const emit = (d: MouthAlignmentDiagnostic) => { lastDiagnostic = d; try { report?.({ ...d, ...(generatedDetection.failure ? { generatedFaceFailure: generatedDetection.failure } : {}), sourceWidth: width, sourceHeight: height, generatedWidth: g.naturalWidth, generatedHeight: g.naturalHeight }); } catch { /* QA must never affect delivery. */ } };
     if (!sameAspect) emit({ rejection: "canvas_geometry_invalid", sourceLandmarkCount: origPoints?.length ?? 0, generatedLandmarkCount: genPoints?.length ?? 0 });
-    const plan = sameAspect ? planMouthLock(origPoints, scaledPoints, emit) : null;
+    let plan = sameAspect ? planMouthLock(origPoints, scaledPoints, emit) : null;
+    const box = (pts: [number, number][], grow: number) => {
+      const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+      const gx = (Math.max(...xs) - Math.min(...xs)) * grow, gy = (Math.max(...ys) - Math.min(...ys)) * grow;
+      return { x0: Math.min(...xs) - gx, y0: Math.min(...ys) - gy, x1: Math.max(...xs) + gx, y1: Math.max(...ys) + gy };
+    };
+    const face = origPoints && origPoints.length >= 468 ? box(origPoints, 0.05) : null;
+    const mouthBox = origPoints && origPoints.length >= 468 ? box(pick(origPoints, OUTER_LIP), 0.25) : null;
+    if (!plan && sameAspect && origPoints && face && mouthBox) {
+      // Landmarks can disagree on a faithful redraw. Compare the face itself,
+      // mouth excluded: the same photo at the same framing passes; another
+      // person, a reframed image or a mouth close-up does not.
+      let probe: HTMLCanvasElement | undefined;
+      try {
+        probe = document.createElement("canvas"); probe.width = width; probe.height = height;
+        const pctx = probe.getContext("2d", { willReadFrequently: true });
+        if (pctx) {
+          pctx.drawImage(o, 0, 0, width, height); const source = pctx.getImageData(0, 0, width, height).data;
+          pctx.drawImage(g, 0, 0, width, height); const drawn = pctx.getImageData(0, 0, width, height).data;
+          const match = alignByPixels(source, drawn, width, height, face, mouthBox, Math.max(8, 0.015 * Math.max(width, height)));
+          if (pixelMatchAccepted(match)) plan = pixelLockPlan(origPoints, match.dx, match.dy);
+        }
+      } catch { /* No pixel check available: the landmark rejection stands. */ }
+      finally { releaseCanvas(probe); }
+    }
     if (!plan) return { ...untouched, invalidAlignment: Boolean(origPoints),
       failureReason: origPoints ? "mouth_alignment_rejected" : "mouth_source_landmarks_unavailable" };
     failureReason = "mouth_canvas_unavailable";
-    const canvas = document.createElement("canvas");
+    canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -72,6 +100,11 @@ export async function lockFaceOutsideLips(
     ctx.drawImage(g, 0, 0, width, height);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const editedPixels = ctx.getImageData(0, 0, width, height);
+    // Landmark geometry alone can fit another person with a similar pose. The
+    // aligned face around the mouth must also be this photograph.
+    const identity = face && mouthBox ? alignByPixels(originalPixels.data, editedPixels.data, width, height, face, mouthBox, 2) : null;
+    // (Too small a face to compare leaves the landmark decision standing.)
+    if (identity && !samePhotograph(identity)) return { ...untouched, invalidAlignment: true, failureReason: "mouth_alignment_rejected" };
 
     const mask = mouthTransitionMask(plan, width, height);
     const editableRange = editableRegionRange(editedPixels.data, width, mask);
@@ -97,5 +130,7 @@ export async function lockFaceOutsideLips(
     };
   } catch {
     return { ...untouched, failureReason };
+  } finally {
+    releaseCanvas(canvas);
   }
 }

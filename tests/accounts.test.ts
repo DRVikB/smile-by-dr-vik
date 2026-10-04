@@ -122,12 +122,12 @@ test("exact private staging capture retains parts before rejection without putti
   assert.deepEqual(body.qaCapture.validatedRequest.settings, input.settings);
   assert.equal(storeCalls.filter(call => call.startsWith("reserve:")).length, 1);
   assert.equal(storeCalls.includes(`release:${id}:provider_no_image`), true);
-  assert.equal(calls, 1);
+  assert.equal(calls, 2, "a reply with no finished image is retried once in the same reservation");
   for (const secret of ["data:image", "private-signature", "private-provider-text"]) assert.equal(JSON.stringify(auditRecords).includes(secret), false);
   const duplicate = await handleGenerationRequest(request(), env, claim, services(store));
   assert.equal(duplicate.status, 409);
   assert.equal((await duplicate.json()).code, "duplicate_request");
-  assert.equal(calls, 1);
+  assert.equal(calls, 2);
   assert.equal(storeCalls.filter(call => call.startsWith("reserve:")).length, 1);
 });
 
@@ -209,11 +209,12 @@ test("provider evidence is retained for the authenticated owner and returned on 
   assert.equal(body.providerDiagnostic.httpStatus, 200, "backend 502 is different from Google's 200");
   assert.equal(body.providerDiagnostic.finishReasons, "NO_IMAGE");
   assert.equal(body.providerDiagnostic.category, "text_only");
-  assert.deepEqual(events.map(e => [e.owner, e.event]), [[user.id, "generation_provider_started"], [user.id, "generation_provider_finished"]]);
+  assert.deepEqual(events.map(e => [e.owner, e.event]), [[user.id, "generation_provider_started"], [user.id, "generation_provider_finished"],
+    [user.id, "generation_provider_started"], [user.id, "generation_provider_finished"]]);
   assert.equal(calls.filter(c => c.startsWith(`release:${id}:`)).length, 1);
   assert.equal(calls.some(c => c.startsWith("commit:")), false);
-  assert.equal(callsToGoogle, 1);
-  assert.equal(body.providerDiagnostic.retryCount, 0);
+  assert.equal(callsToGoogle, 2, "text-only is retried once");
+  assert.equal(body.providerDiagnostic.retryCount, 1);
   assert.doesNotMatch(JSON.stringify(events), /PRIVATE_|data:image|base64|case-7/);
 });
 
@@ -597,7 +598,7 @@ test("the free trial grants only the trial allowance; the first paid period gran
 });
 
 for (const kind of ["success", "empty", "text-only", "ambiguous"] as const) {
-  test(`Gemini ${kind}: one invocation, one reservation, correct ledger outcome and duplicate rejection`, async () => {
+  test(`Gemini ${kind}: one reservation (no-image replies retried once), correct ledger outcome and duplicate rejection`, async () => {
     let attempts = 0;
     globalThis.fetch = async () => { attempts++; return Response.json({ candidates: [{ finishReason: kind === "empty" ? "NO_IMAGE" : "STOP", content: { parts: kind === "success" || kind === "ambiguous" ? Array.from({ length: kind === "ambiguous" ? 2 : 1 }, () => ({ inlineData: { mimeType: "image/png", data: png.split(",")[1] } })) : kind === "text-only" ? [{ text: "No preview available" }] : [] } }] }); };
     const { store, calls } = fakeStore(); const id = crypto.randomUUID(); let claimed = false;
@@ -605,9 +606,11 @@ for (const kind of ["success", "empty", "text-only", "ambiguous"] as const) {
     const env = { SMILE_PROVIDER: "gemini", SMILE_GEMINI_API_KEY: "test", SMILE_GEMINI_DATA_TERMS: "paid" };
     const response = await handleGenerationRequest(generationRequest("good-token", id), env, claim, services(store));
     assert.equal(response.status, kind === "success" ? 200 : 502);
-    assert.equal(attempts, 1);
+    // A reply with no image at all is retried once inside the same reservation.
+    const noImage = kind === "empty" || kind === "text-only";
+    assert.equal(attempts, noImage ? 2 : 1);
     const body = await response.json();
-    assert.equal(body.providerDiagnostic.retryCount, 0);
+    assert.equal(body.providerDiagnostic.retryCount, noImage ? 1 : 0);
     if (kind !== "success") assert.equal(body.code, kind === "ambiguous" ? "invalid_provider_image" : "provider_no_image");
     if (kind === "ambiguous") {
       assert.equal(body.providerDiagnostic.category, "ambiguous_image");
@@ -618,7 +621,7 @@ for (const kind of ["success", "empty", "text-only", "ambiguous"] as const) {
     assert.equal(calls.filter(c => c === `commit:${id}`).length, kind === "success" ? 1 : 0);
     assert.equal(calls.filter(c => c.startsWith(`release:${id}:`)).length, kind === "success" ? 0 : 1);
     assert.equal((await handleGenerationRequest(generationRequest("good-token", id), env, claim, services(store))).status, 409);
-    assert.equal(attempts, 1);
+    assert.equal(attempts, noImage ? 2 : 1);
     assert.equal(calls.filter(c => c === `reserve:${id}`).length, 1);
   });
 }

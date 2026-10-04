@@ -63,7 +63,7 @@ import { takeNativePhoto } from "@/native/photos";
 import type { ShortcutAction } from "@/native/shortcuts";
 
 import { thumbnail } from "@/lib/thumb";
-import { preparePhoto } from "@/lib/photos";
+import { ensurePhotoDimensions, preparePhoto } from "@/lib/photos";
 import { assessResultScaleFromDataUrls } from "@/lib/resultCheck";
 import { getReportPreferences } from "@/lib/report";
 import { useSmileTools } from "@/lib/useSmileTools";
@@ -78,6 +78,7 @@ import { generateSmileImage } from "@/services/ai/smileImageService";
 import { startGenerationDiagnostic, type GenerationStage } from "@/services/ai/generationDiagnostics";
 import { earliestGenerationStage } from "@/lib/generation/progress";
 import { EditAreaRequiredError, sourceProtectionPoints } from "@/lib/generation/sourceProtection";
+import { isOnDeviceWhitening, ON_DEVICE_WHITENING_VERSION, whitenOnDevice } from "@/lib/whiteningDevice";
 import { onWorkspaceDetach, type WorkspaceLease } from "@/lib/workspace";
 import { createLibraryStore } from "@/lib/caseLibrary";
 import { getCaseRepository } from "@/services/cases/caseRepository";
@@ -134,6 +135,7 @@ async function lockFace(
   scope: WorkspaceLease,
   stage: (value: GenerationStage) => void = () => {},
   alignment?: (diagnostic: MouthAlignmentDiagnostic) => void,
+  automaticMap?: import("@/lib/toothMap/types").ToothMap | null,
 ): Promise<Pick<GenerationResult, "image" | "faceLocked" | "lipsMoved" | "editAreaProtected" | "toothProtection">> {
   scope.assert();
   const { lockFaceOutsideLips } = await import("@/lib/face/mouthLock");
@@ -165,6 +167,13 @@ async function lockFace(
     toothProtection = outcome.protection;
     scope.assert();
     rememberToothDebug(imageOut, { heatmap: outcome.debugImage, mask: outcome.debugMask });
+  } else if (automaticMap && !photo.editMask) {
+    // Teeth detected on the device bound the change: only the selected teeth come
+    // from the result; other teeth (upper and lower), gums and lips stay original.
+    stage("tooth_composite");
+    const outcome = await protectWithToothMap(photo.dataUrl, imageOut, automaticMap, settings, { automatic: true });
+    imageOut = outcome.image;
+    toothProtection = outcome.protection;
   }
   scope.assert();
   return { image: imageOut, editAreaProtected: Boolean(photo.editMask), faceLocked: r.locked, lipsMoved: r.lipsMoved, ...(toothProtection ? { toothProtection } : {}) };
@@ -188,6 +197,15 @@ export default function Smile() {
   const { readCase, persistCase, updateLogReview } = repository;
   const [screen, setScreen] = useState<Screen>("start");
   const [photo, setPhoto] = useState<Photo | null>(null);
+  // One build saved imported photos as 0×0; restore their real size on open.
+  useEffect(() => {
+    if (!photo || (photo.width > 0 && photo.height > 0)) return;
+    let live = true;
+    void ensurePhotoDimensions(photo).then(fixed => {
+      if (live) setPhoto(current => current && current.dataUrl === fixed.dataUrl ? { ...current, width: fixed.width, height: fixed.height } : current);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [photo]);
   // Groups this case's visualisations; see SmileComposeCase in src/models/case.ts.
   const [caseId, setCaseId] = useState("");
   const [uploadAuthority, setUploadAuthority] = useState<UploadAuthority | null>(null);
@@ -368,7 +386,12 @@ export default function Smile() {
           restoreWorkingCase: (...args) => qaBindings.current!.restoreWorkingCase?.(...args),
         };
         const stop = await harness.installPhysicalQaHarness(adapters.createPhysicalQaAdapters(latest));
-        if (active) cleanup = stop; else stop();
+        if (active) {
+          cleanup = stop;
+          const viewer = await import("@/services/ai/unvalidatedOutput");
+          const current = latest.current();
+          if (active) viewer.updateUnvalidatedOutputContext(current.caseId, current.photo?.dataUrl ?? "");
+        } else stop();
       }).catch(() => { /* A missing private fixture cannot enable the QA entry or a provider call. */ });
     return () => { active = false; cleanup?.(); };
   }, []);
@@ -414,6 +437,17 @@ export default function Smile() {
   // Bumped after each version is written to Cases.
   const [caseLogVersion, setCaseLogVersion] = useState(0);
   const caseSession = useRef(0);
+  // Diagnostic images have their own ephemeral lease; never enter case/result state.
+  const inspectionContext = useRef({ caseId, source: photo?.dataUrl ?? "", session: caseSession.current });
+  if (process.env.NEXT_PUBLIC_SMILE_QA_PHYSICAL_HARNESS === "1") inspectionContext.current = { caseId, source: photo?.dataUrl ?? "", session: caseSession.current };
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_SMILE_QA_PHYSICAL_HARNESS !== "1") return;
+    let active = true;
+    void import("@/services/ai/unvalidatedOutput").then(viewer => {
+      if (active) viewer.updateUnvalidatedOutputContext(caseId, photo?.dataUrl ?? "");
+    });
+    return () => { active = false; };
+  }, [caseId, photo?.dataUrl]);
   useEffect(() => onWorkspaceDetach(() => { caseSession.current++; request.current?.abort(); logWrites.current.clear(); }), []);
   const heading = useRef<HTMLHeadingElement>(null);
   const firstScreen = useRef(true);
@@ -666,6 +700,7 @@ export default function Smile() {
     privateQa?: PrivateReplayBoundary,
   ): Promise<GenerationResult> {
     if (privateQa && process.env.NEXT_PUBLIC_SMILE_QA_PHYSICAL_HARNESS !== "1") throw new Error("qa_disabled");
+    photoIn = await ensurePhotoDimensions(photoIn);
     settingsIn = normalizeTreatmentScope(settingsIn);
     const unavailable = generationUnavailable(settingsIn);
     if (unavailable) throw new SmileGenerationError(unavailable, "mode_unavailable");
@@ -692,11 +727,50 @@ export default function Smile() {
         preferences,
       };
     }
+    if (isOnDeviceWhitening(settingsIn) && !privateQa) {
+      // Colour only, on this device, for every visible tooth in both arches: the
+      // teeth keep their exact outlines, nothing is uploaded and no generation is used.
+      onStage("prepare_image");
+      const { detectFace } = await import("@/lib/face/landmarks");
+      const points = settingsIn.shotType === "Close-up" ? null : await detectFace(photoIn.dataUrl, controller.signal).catch(() => null);
+      repository.scope.assert();
+      // Without face landmarks (a close-up), the detected teeth locate the mouth.
+      const map = points ? null : photoIn.toothMap ?? await (await import("@/lib/toothMap/detect")).detectToothMap(photoIn, settingsIn.shotType, undefined, { signal: controller.signal }).catch(() => null);
+      repository.scope.assert();
+      if (controller.signal.aborted) throw controller.signal.reason;
+      onStage("tooth_composite");
+      const whitened = await whitenOnDevice(photoIn, settingsIn, points, map);
+      repository.scope.assert();
+      onStage("complete");
+      return {
+        image: whitened.image,
+        mode: "live",
+        variationId: crypto.randomUUID(),
+        preferences,
+        faceLocked: true,
+        editAreaProtected: Boolean(photoIn.editMask),
+        generation: { provider: "on-device", model: ON_DEVICE_WHITENING_VERSION, promptVersion: ON_DEVICE_WHITENING_VERSION, generatedAt: new Date().toISOString() },
+        elapsedSeconds: (performance.now() - started) / 1000,
+      };
+    }
     const requestId = privateQa?.requestId ?? crypto.randomUUID();
     const diagnostic = startGenerationDiagnostic({ requestId,
       generationPath: settingsIn.treatmentMode === "full_arch" ? "full_arch" : settingsIn.alignment ? "alignment" : settingsIn.selectedTeeth.length === 1 ? "single_tooth" : settingsIn.toothPlans?.length ? "custom" : "standard",
       selectedToothCount: settingsIn.selectedTeeth.length, sourceWidth: photoIn.width, sourceHeight: photoIn.height });
     const reportStage = (stage: GenerationStage) => { diagnostic.stage(stage); onStage(stage); };
+    let inspection: { store: import("@/services/ai/unvalidatedOutput").UnvalidatedOutputStore;
+      ticket: NonNullable<ReturnType<import("@/services/ai/unvalidatedOutput").UnvalidatedOutputStore["begin"]>> } | undefined;
+    if (process.env.NEXT_PUBLIC_SMILE_QA_PHYSICAL_HARNESS === "1") {
+      const context = inspectionContext.current, scope = repository.scope;
+      try {
+        const { getUnvalidatedOutputInspector } = await import("@/services/ai/unvalidatedOutput");
+        const store = getUnvalidatedOutputInspector();
+        store?.context(context);
+        const ticket = store?.begin(requestId, photoIn.dataUrl, () => !controller.signal.aborted && !scope.signal.aborted &&
+          inspectionContext.current.caseId === context.caseId && inspectionContext.current.source === context.source && caseSession.current === context.session);
+        if (store && ticket) inspection = { store, ticket };
+      } catch { /* Private viewing must not change normal generation behaviour. */ }
+    }
     try {
       // Check existing protection before spending a generation. A reviewed
       // selected-tooth mask or clinician-painted area can also protect the face.
@@ -705,6 +779,16 @@ export default function Smile() {
         const { detectFace } = await import("@/lib/face/landmarks");
         repository.scope.assert();
         sourcePoints = await sourceProtectionPoints(photoIn, toothPlan.ok, detectFace, controller.signal);
+      }
+      // Multi-tooth veneers and bonding: limit the result to the selected teeth,
+      // found on the device, so the image service cannot redraw the rest of the mouth.
+      let automaticMap: import("@/lib/toothMap/types").ToothMap | null = null;
+      if (!toothPlan.ok && !photoIn.editMask && !settingsIn.alignment && settingsIn.treatmentMode !== "full_arch") {
+        const { automaticProtectionPlan } = await import("@/lib/toothMap/protect");
+        const candidate = photoIn.toothMap && automaticProtectionPlan(photoIn.toothMap, photoIn.dataUrl, settingsIn).ok ? photoIn.toothMap
+          : await (await import("@/lib/toothMap/detect")).detectToothMap(photoIn, settingsIn.shotType, undefined, { signal: controller.signal }).catch(() => null);
+        repository.scope.assert();
+        if (candidate && automaticProtectionPlan(candidate, photoIn.dataUrl, settingsIn).ok) automaticMap = candidate;
       }
       // Case Library style references are attached by the server, from the
       // signed-in account's own private library; the app never sends them. The
@@ -715,7 +799,15 @@ export default function Smile() {
       if (controller.signal.aborted) throw controller.signal.reason;
       const toothMapKey = toothPlan.ok && photoIn.toothMap ? { precisionVersion: 2, photoId: photoIn.toothMap.photoId, teeth: photoIn.toothMap.teeth.map(t => [t.fdi, t.visible, t.outline]) } : null;
       const protectionVersion = (await import("@/lib/face/lock")).MOUTH_LOCK_VERSION;
-      const fingerprint = await previewFingerprint({ image: photoIn.dataUrl, editMask: photoIn.editMask, toothMap: toothMapKey, settings: settingsIn, resolution: effectiveResolution, provider: pricing?.model, reference: reference?.dataUrl, styleReferences, protectionVersion });
+      // The server can change image service while the app stays open. Each
+      // service needs a different request (a masked PNG edit or a plain photo),
+      // so confirm the current one now rather than trusting the launch-time value.
+      const livePricing = await fetch(apiUrl("/api/generation-cost"), { cache: "no-store", signal: controller.signal })
+        .then(r => r.ok ? r.json() as Promise<GenerationPricing> : null).catch(() => null);
+      const currentPricing = livePricing && typeof livePricing.model === "string" && typeof livePricing.supportsDraft === "boolean" ? livePricing : pricing;
+      if (currentPricing?.model !== pricing?.model) setPricing(currentPricing);
+      if (controller.signal.aborted) throw controller.signal.reason;
+      const fingerprint = await previewFingerprint({ image: photoIn.dataUrl, editMask: photoIn.editMask, toothMap: toothMapKey, settings: settingsIn, resolution: effectiveResolution, provider: currentPricing?.model, reference: reference?.dataUrl, styleReferences, protectionVersion, toothLimit: automaticMap ? "automatic-v1" : null });
       const reusable = [result, ...variants.map(v => v.result)].find(r => r?.requestFingerprint === fingerprint);
       if (reusable && !privateQa) { diagnostic.finish("reused"); onStage("complete"); return reusable; }
       if (!privateQa?.retainedResult && exceedsRequestLimit(costs.requested, 1, requestLimit)) throw new Error("This case has reached its generation limit. Change the case limit under Allowance to create more.");
@@ -727,10 +819,24 @@ export default function Smile() {
       reportStage("prepare_mask");
       const editMask = toothPlan.ok && photoIn.toothMap
         ? (await import("@/lib/toothMap/protect")).guidanceMask(photoIn.toothMap, photoIn.dataUrl, settingsIn, requestCanvas.photo, requestCanvas.sourceBounds)
-        : undefined;
-      const providerInput = pricing?.model.startsWith("gpt-image-")
+        : automaticMap ? (await import("@/lib/toothMap/protect")).guidanceMask(automaticMap, photoIn.dataUrl, settingsIn, requestCanvas.photo, requestCanvas.sourceBounds, { automatic: true })
+          : undefined;
+      const buildInput = async () => currentPricing?.model.startsWith("gpt-image-")
         ? await (await import("@/lib/generation/openaiEditInput")).prepareOpenAIEditInput(photoIn, requestCanvas, editMask, sourcePoints)
         : { originalImage: requestCanvas.photo.dataUrl, editMask };
+      let providerInput = await buildInput();
+      // The whole original photograph must go out with the instructions. On a
+      // device short of canvas memory it can be drawn blank, and a blank picture
+      // comes back as an invented person: check before spending a generation.
+      const { sameImageContent } = await import("@/lib/canvasMemory");
+      if (!await sameImageContent(photoIn.dataUrl, providerInput.originalImage, requestCanvas.sourceBounds)) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const { prepareGenerationPhoto: prepareAgain } = await import("@/lib/photos");
+        Object.assign(requestCanvas, await prepareAgain(photoIn));
+        providerInput = await buildInput();
+        if (!await sameImageContent(photoIn.dataUrl, providerInput.originalImage, requestCanvas.sourceBounds))
+          throw new SmileGenerationError("This device couldn’t prepare the photo, so nothing was sent and no generation was used. Close and reopen SmileCompose, then try again.", "source_image_blank");
+      }
       if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1") {
         const { captureSyntheticQaPrepared } = await import("@/services/ai/syntheticQaCapture");
         const status = privateQa?.capture
@@ -770,6 +876,8 @@ export default function Smile() {
           : next.cost;
         setCosts((c) => completeCost(c, receipt));
       }
+      // Selected provider bytes are decoded/retained before any geometry rejection.
+      if (inspection) await inspection.store.raw(inspection.ticket, next.image).catch(() => false);
       const { alignPreview } = await import("@/lib/photos");
       if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1") {
         const { captureSyntheticQaRaw } = await import("@/services/ai/syntheticQaCapture");
@@ -781,6 +889,7 @@ export default function Smile() {
       }
       reportStage("align");
       const alignedImage = await alignPreview(next.image, photoIn, requestCanvas, diagnostic.rawOutput, diagnostic.geometry);
+      inspection?.store.normalized(inspection.ticket, alignedImage);
       if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1") {
         const { captureSyntheticQaNormalized } = await import("@/services/ai/syntheticQaCapture");
         if (privateQa?.capture) await privateQa.capture.captureNormalized(requestId, photoIn.dataUrl, alignedImage);
@@ -789,7 +898,7 @@ export default function Smile() {
       repository.scope.assert();
       next = { ...next, image: alignedImage };
       if (next.mode === "live") {
-        next = { ...next, ...(await lockFace(photoIn, alignedImage, settingsIn, repository.scope, reportStage, diagnostic.alignment)) };
+        next = { ...next, ...(await lockFace(photoIn, alignedImage, settingsIn, repository.scope, reportStage, diagnostic.alignment, automaticMap)) };
         reportStage("quality_check");
         // Advisory only, and only when there's a trustworthy anchor to check
         // against — an uploaded photo has no capture guide to measure from.
@@ -813,11 +922,14 @@ export default function Smile() {
         preferences.styleReferenceCount = used;
         preferences.styleReferenceStatus = used ? "used" : "no-match";
       }
+      inspection?.store.final(inspection.ticket, next.image);
       diagnostic.finish("succeeded");
       onStage("complete");
       return { ...next, preferences, requestFingerprint: fingerprint, elapsedSeconds: (performance.now() - started) / 1000 };
     } catch (error) {
       diagnostic.fail(controller.signal.aborted ? "cancelled" : error instanceof SmileGenerationError || error instanceof EditAreaRequiredError ? error.code : "stage_failed");
+      const failure = diagnostic.snapshot();
+      inspection?.store.reject(inspection.ticket, { stage: failure?.stage, reason: failure?.alignment?.rejection ?? failure?.alignment?.generatedFaceFailure ?? failure?.errorCode });
       throw error;
     } finally {
       await privateQa?.receipt?.(diagnostic.snapshot());
@@ -912,8 +1024,10 @@ export default function Smile() {
     const controller = new AbortController();
     request.current = controller;
     try {
-      const consentForRequest = testMode ? null : approvedConsent ?? aiConsent;
-      if (!testMode) {
+      // Whitening is rendered on this device: no photo is sent, so no AI permission is needed.
+      const onDevice = isOnDeviceWhitening(used);
+      const consentForRequest = testMode || onDevice ? null : approvedConsent ?? aiConsent;
+      if (!testMode && !onDevice) {
         let photoFingerprint: string;
         try { photoFingerprint = await fingerprintPhotoForConsent(photo.dataUrl, reference?.dataUrl); }
         catch { setError("This device couldn’t verify the permission record. No AI request was sent. Please reload the app and try again."); return; }
@@ -1748,7 +1862,10 @@ export default function Smile() {
       {error && (
         <div className="global-error" role="alert">
           {error}
-          <button onClick={() => setError("")} aria-label="Dismiss error">
+          <button onClick={() => {
+            setError("");
+            if (process.env.NEXT_PUBLIC_SMILE_QA_PHYSICAL_HARNESS === "1") void import("@/services/ai/unvalidatedOutput").then(viewer => viewer.getUnvalidatedOutputInspector()?.clear());
+          }} aria-label="Dismiss error">
             ×
           </button>
         </div>

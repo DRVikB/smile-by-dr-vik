@@ -1,4 +1,5 @@
 import type { Framing, Photo } from "./types";
+import { releaseCanvas } from "./canvasMemory";
 import { assessPhotoQuality } from "./photoQuality";
 import { frameWithinCanvas, generationCanvas } from "./generationCanvas";
 import type { RawOutputDiagnostic, OutputGeometryDiagnostic } from "./face/alignmentDiagnostic";
@@ -59,6 +60,8 @@ export async function preparePhoto(file: File): Promise<Photo> {
       : undefined;
 
     const dataUrl = canvas.toDataURL("image/jpeg", 0.93);
+    const { width, height } = canvas;
+    releaseCanvas(canvas, qCanvas);
     if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1") {
       const { registerSyntheticQaPhoto } = await import("@/services/ai/syntheticQaCapture");
       await registerSyntheticQaPhoto(file, dataUrl);
@@ -66,8 +69,8 @@ export async function preparePhoto(file: File): Promise<Photo> {
     return {
       dataUrl,
       name: file.name,
-      width: canvas.width,
-      height: canvas.height,
+      width,
+      height,
       quality,
     };
   } catch (error) {
@@ -77,6 +80,17 @@ export async function preparePhoto(file: File): Promise<Photo> {
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+const validSize = (n: unknown) => typeof n === "number" && Number.isSafeInteger(n) && n > 0;
+
+/** A photo saved without its pixel size (one build stored 0×0) gets it back from the image. */
+export async function ensurePhotoDimensions<T extends Pick<Photo, "dataUrl" | "width" | "height">>(photo: T): Promise<T> {
+  if (validSize(photo.width) && validSize(photo.height)) return photo;
+  const image = new Image();
+  image.src = photo.dataUrl;
+  await image.decode();
+  return { ...photo, width: image.naturalWidth, height: image.naturalHeight };
 }
 
 /** Temporary provider-compatible canvas. The saved original stays untouched. */
@@ -95,8 +109,10 @@ export async function prepareGenerationPhoto(original: Photo): Promise<{ photo: 
   ctx.fillStyle = "#808080";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(image, source.x * canvas.width, source.y * canvas.height, source.width * canvas.width, source.height * canvas.height);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.95), width = canvas.width, height = canvas.height;
+  releaseCanvas(canvas);
   return { sourceBounds: source, photo: { ...original,
-    dataUrl: canvas.toDataURL("image/jpeg", 0.95), width: canvas.width, height: canvas.height,
+    dataUrl, width, height,
     framing: original.framing ? frameWithinCanvas(original.framing, source) : undefined,
   } };
 }
@@ -140,5 +156,7 @@ export async function alignPreview(
   try { reportGeometry?.({ cropX: source.x * image.naturalWidth, cropY: source.y * image.naturalHeight,
     cropWidth: source.width * image.naturalWidth, cropHeight: source.height * image.naturalHeight,
     finalWidth: canvas.width, finalHeight: canvas.height, scaleX: canvas.width / (source.width * image.naturalWidth), scaleY: canvas.height / (source.height * image.naturalHeight) }); } catch { /* Diagnostics cannot alter delivery. */ }
-  return canvas.toDataURL("image/jpeg", 0.95);
+  const aligned = canvas.toDataURL("image/jpeg", 0.95);
+  releaseCanvas(canvas);
+  return aligned;
 }

@@ -24,7 +24,7 @@ function fixture(fingerprint: () => Promise<string>, persist = async () => false
   const context = {
     request, photo: { dataUrl: "approved-synthetic-fixture" }, settings: {}, busy: false,
     normalizeTreatmentScope: (s: unknown) => s, generationUnavailable: () => null,
-    isNoChangeDesign: () => false, accountReadyForGeneration: () => true,
+    isNoChangeDesign: () => false, accountReadyForGeneration: () => true, isOnDeviceWhitening: () => false,
     testMode: false, aiConsent: { version: "qa", photoFingerprint: "fixture" },
     fingerprintPhotoForConsent: fingerprint, reference: null, AI_CONSENT_VERSION: "qa",
     setPendingAiConsent: () => { prompts++; }, persistConsentBeforeGeneration: persist,

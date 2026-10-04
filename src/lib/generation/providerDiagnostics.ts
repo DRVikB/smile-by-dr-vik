@@ -16,6 +16,8 @@ export interface ProviderDiagnostic {
   category: ProviderCategory; httpStatus: number | null; latencyMs: number | null;
   retryCount: number; treatmentMode: string; selectedToothCount: number | null;
   inputWidth: number; inputHeight: number;
+  /** Encoded size of the source photo; a blank canvas is tiny. */
+  inputBytes?: number;
   requestedWidth: number | null; requestedHeight: number | null;
   requestedAspectRatio?: string; requestedResolution?: string;
   promptHash?: string; imagePartOrder?: string; referenceCount?: number; maskSent?: boolean;
@@ -55,6 +57,7 @@ export function safeProviderDiagnostic(value: unknown): ProviderDiagnostic | nul
     retryCount: integer(v.retryCount, 10) ? v.retryCount : 0,
     treatmentMode: enumValue(v.treatmentMode, modes), selectedToothCount: integer(v.selectedToothCount, 32) ? v.selectedToothCount : null,
     inputWidth: integer(v.inputWidth, 40000) ? v.inputWidth : 0, inputHeight: integer(v.inputHeight, 40000) ? v.inputHeight : 0,
+    ...(integer(v.inputBytes, 100_000_000) ? { inputBytes: v.inputBytes } : {}),
     requestedWidth: integer(v.requestedWidth, 40000) ? v.requestedWidth : null, requestedHeight: integer(v.requestedHeight, 40000) ? v.requestedHeight : null,
   };
   for (const key of ["candidates", "partCount", "textParts", "inlineParts", "thoughtParts", "otherParts"] as const) if (integer(v[key])) result[key] = v[key];

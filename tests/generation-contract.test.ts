@@ -142,15 +142,20 @@ test("combined Whitening validates and reaches both prompts without overriding v
   assert.equal(contract.whitening, true);
   assert.equal(contract.treatment, "Porcelain");
   assert.equal(contract.shape, defaultSettings.shape);
-  for (const format of ["canonical", "sunburst"] as const) {
-    const prompt = renderGenerationContract(contract, format);
-    assert.equal((prompt.match(/COMBINED WHITENING:/g) ?? []).length, 1);
-    assert.match(prompt, /TREATMENT: Porcelain/);
-    assert.match(prompt, /ORTHODONTIC ALIGNMENT CONCEPT/);
-    assert.match(prompt, /Preserve untreated teeth/);
-    assert.match(prompt, /B1 shade/);
-    assert.doesNotMatch(prompt, /WHITENING: dental colour\/shade change only/);
-  }
+  const prompt = renderGenerationContract(contract, "canonical");
+  assert.equal((prompt.match(/COMBINED WHITENING:/g) ?? []).length, 1);
+  assert.match(prompt, /TREATMENT: Porcelain/);
+  assert.match(prompt, /ORTHODONTIC ALIGNMENT CONCEPT/);
+  assert.match(prompt, /Preserve untreated teeth/);
+  assert.match(prompt, /B1 shade/);
+  assert.doesNotMatch(prompt, /WHITENING: dental colour\/shade change only/);
+  const sunburst = renderGenerationContract(contract, "sunburst");
+  assert.equal((sunburst.match(/Whitening is included/g) ?? []).length, 1);
+  assert.match(sunburst, /Treatment: porcelain veneers/);
+  assert.match(sunburst, /Also straighten the teeth/);
+  assert.match(sunburst, /they may only be moved as part of the straightening/);
+  assert.match(sunburst, /VITA B1/);
+  assert.doesNotMatch(sunburst, /teeth whitening, colour only/);
 });
 test("combined Whitening honours Keep and never leaks into exclusive All-on-X or alignment only", () => {
   const combined = { ...defaultSettings, whitening: true, targetShade: "The same" as const };
@@ -160,4 +165,14 @@ test("combined Whitening honours Keep and never leaks into exclusive All-on-X or
     assert.equal(normalizeGenerationContract(settings).whitening, undefined);
     assert.doesNotMatch(buildImageEditPrompt(settings), /COMBINED WHITENING:/);
   }
+});
+
+test("the photo-edit task and whole-photo output come first; retractors are only mentioned for close-ups", () => {
+  const face = buildImageEditPrompt(defaultSettings);
+  assert.match(face.split("\n\n")[0], /^TASK: Edit the first image, a full-face photograph.*entire face, head, hair, clothing and background.*Do not crop to or enlarge the mouth or teeth\.$/);
+  assert.doesNotMatch(face, /retractor/i);
+  assert.match(face, /a text-only reply is not a result/);
+  const close = buildImageEditPrompt({ ...defaultSettings, shotType: "Close-up" });
+  assert.match(close.split("\n\n")[0], /^TASK: Edit the first image, a dental close-up photograph/);
+  assert.match(close, /Retain retractors\./);
 });

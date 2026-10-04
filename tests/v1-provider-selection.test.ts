@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { getSmileProvider, generateSmile } from "../src/lib/generation/provider";
+import { buildSunburstPrompt, SUNBURST_PROMPT_VERSION } from "../src/lib/generation/contract";
+import { SMILE_PROMPT_VERSION } from "../src/lib/generation/version";
 import { contractExamples } from "./fixtures/generation-contract-examples";
 
 // Exercise the deployed configuration through the real factory and adapter;
@@ -11,7 +13,7 @@ const snapshots = JSON.parse(readFileSync(new URL("./fixtures/generation-contrac
 const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j4WQAAAAASUVORK5CYII=";
 
 for (const name of ["Whitening", "Composite", "Porcelain", "Alignment", "Full Arch preserve gingiva", "Full Arch include prosthetic gingiva"]) {
-  test(`staging ${name} uses Gemini canonical source/prompt without a Sunburst mask`, async () => {
+  test(`staging ${name} uses Gemini with the canonical instruction and no mask`, async () => {
     const previousFetch = globalThis.fetch;
     let calls = 0;
     globalThis.fetch = async (url, init) => {
@@ -36,9 +38,33 @@ for (const name of ["Whitening", "Composite", "Porcelain", "Alignment", "Full Ar
       }, undefined, provider);
       assert.equal(result.image, `data:image/png;base64,${png}`);
       assert.equal(result.generation?.provider, "google");
+      assert.equal(result.generation?.promptVersion, SMILE_PROMPT_VERSION);
       assert.equal(calls, 1);
     } finally {
       globalThis.fetch = previousFetch;
     }
   });
 }
+
+test("Sunburst stays available as an explicit alternative with its masked edit and own instruction", async () => {
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async (url, init) => {
+    calls++;
+    assert.equal(String(url), "https://api.openai.com/v1/images/edits");
+    const form = init?.body as FormData;
+    assert.equal(form.get("model"), "gpt-image-2.5-sunburst");
+    assert.ok(form.get("mask"), "the protected edit area travels with every request");
+    assert.equal(form.get("prompt"), buildSunburstPrompt(contractExamples.Porcelain));
+    return Response.json({ data: [{ b64_json: png }] });
+  };
+  try {
+    const provider = getSmileProvider({ ...config.env.staging.vars, SMILE_PROVIDER: "openai", OPENAI_API_KEY: "synthetic-test-key" });
+    const result = await generateSmile({ originalImage: `data:image/png;base64,${png}`, editMask: `data:image/png;base64,${png}`, settings: contractExamples.Porcelain }, undefined, provider);
+    assert.equal(result.generation?.provider, "openai");
+    assert.equal(result.generation?.promptVersion, SUNBURST_PROMPT_VERSION);
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});

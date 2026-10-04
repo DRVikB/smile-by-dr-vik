@@ -36,8 +36,10 @@ test("provider diagnostics distinguish structural causes and never retain respon
     assert.equal(d.requestId, requestId);
     assert.equal(d.model, "gemini-3.1-flash-image");
     assert.equal(d.inputWidth, 1);
-    assert.equal(d.retryCount, 0);
-    assert.equal(calls, 1);
+    // Only a reply with no image at all is retried, once.
+    const retried = ["empty_response", "text_only", "thought_only"].includes(category);
+    assert.equal(d.retryCount, retried ? 1 : 0);
+    assert.equal(calls, retried ? 2 : 1);
     assert.ok(d.latencyMs! >= 0);
     assert.doesNotMatch(JSON.stringify(records), /PRIVATE_|iVBOR|base64|originalImage/);
   }
@@ -152,25 +154,25 @@ test("per-image diagnostics are bounded and allowlisted even with an untrusted p
   assert.doesNotMatch(JSON.stringify(safe), /PRIVATE_|iVBOR|base64|thoughtSignature|text/);
 });
 
-test("an empty Gemini response fails once; a later explicit request can succeed", async () => {
+test("an empty Gemini response is retried once in the same request; a second empty reply fails", async () => {
   const records: ProviderDiagnostic[] = []; let calls = 0;
   const provider = new GeminiSmileProvider({ apiKey: "test", fetcher: async () => Response.json(++calls === 1 ? candidate([], "NO_IMAGE") : candidate([blob()])) });
-  await assert.rejects(generateSmile(input, undefined, provider, { requestId, onDiagnostic: d => { records.push(d); } }), (error: unknown) =>
-    error instanceof Error && "code" in error && error.code === "provider_no_image");
-  assert.equal(calls, 1, "failure cannot initiate a second paid call");
-  assert.deepEqual(records.map(d => [d.requestId, d.retryCount, d.category]), [[requestId, 0, "started"], [requestId, 0, "empty_response"]]);
-  const nextRequestId = "eb615061-eab6-4c5d-a3cc-adf9f008d9c7";
-  const result = await generateSmile(input, undefined, provider, { requestId: nextRequestId, onDiagnostic: d => { records.push(d); } });
+  const result = await generateSmile(input, undefined, provider, { requestId, onDiagnostic: d => { records.push(d); } });
   assert.ok(result.image);
-  assert.equal(calls, 2, "the explicitly initiated second request can invoke Gemini once");
-  assert.equal(records.at(-1)?.requestId, nextRequestId);
-  assert.equal(records.at(-1)?.retryCount, 0);
+  assert.equal(calls, 2, "one retry after a reply with no image");
+  assert.deepEqual(records.map(d => [d.requestId, d.retryCount, d.category]),
+    [[requestId, 0, "started"], [requestId, 0, "empty_response"], [requestId, 1, "started"], [requestId, 1, "success"]]);
+  let empty = 0;
+  const never = new GeminiSmileProvider({ apiKey: "test", fetcher: async () => { empty++; return Response.json(candidate([], "NO_IMAGE")); } });
+  await assert.rejects(generateSmile(input, undefined, never, { requestId, onDiagnostic: () => {} }), (error: unknown) =>
+    error instanceof Error && "code" in error && error.code === "provider_no_image");
+  assert.equal(empty, 2, "never more than one retry");
 });
 test("empty-response cancellation cannot initiate another provider invocation", async () => {
   for (const cancel of [false, true]) {
     let calls = 0; const controller = new AbortController();
     const provider = new GeminiSmileProvider({ apiKey: "test", fetcher: async () => { calls++; return Response.json(candidate([], "NO_IMAGE")); } });
     await assert.rejects(generateSmile(input, controller.signal, provider, { requestId, onDiagnostic: d => { if (cancel && d.category === "empty_response") controller.abort(); } }));
-    assert.equal(calls, 1);
+    assert.equal(calls, cancel ? 1 : 2, cancel ? "cancelling prevents the retry" : "one retry, then fail");
   }
 });

@@ -3,6 +3,7 @@ import { activeToothPlans, resolvedToothIntent } from "../teeth";
 import { canGuideSmileArc } from "../smilePrinciples";
 import { DEFAULT_FULL_ARCH, type Framing, type SmileSettings, type TargetShade, type ToothPlan } from "../types";
 import { resolveDesignPlan, toothLengthPolicy } from "./designPlan";
+import { renderSunburstPrompt } from "./sunburstPrompt";
 
 export { SMILE_PROMPT_VERSION } from "./version";
 export interface RenderContext { hasReference?: boolean; framing?: Framing; styleReferenceCount?: number; sourceBounds?: Framing; hasEditMask?: boolean }
@@ -70,7 +71,7 @@ export function renderGenerationContract(c: GenerationContract, format: "canonic
   const { context, fullArch, mode } = c;
   const includeGingiva = fullArch?.prostheticGingiva === "include";
   const instructions = [
-    "PRESERVATION: Preserve facial identity, facial expression, head position, lip position, mouth width, mouth opening and non-treatment facial anatomy. Keep eyes, nose, skin, hair, beard and facial hair, background, camera perspective, framing and lighting unchanged. Do not widen the mouth. Do not open the lips further. Keep the same visible upper/lower tooth exposure. If only upper teeth are visible, keep the lower teeth hidden; if lower teeth are partly visible, do not reveal more of them. Changing the treatment or design never authorises revealing concealed teeth. Retain retractors. Work inside the original smile envelope.",
+    `PRESERVATION: Preserve facial identity, facial expression, head position, lip position, mouth width, mouth opening and non-treatment facial anatomy. Keep eyes, nose, skin, hair, beard and facial hair, background, camera perspective, framing and lighting unchanged. Do not widen the mouth. Do not open the lips further. Keep the same visible upper/lower tooth exposure. If only upper teeth are visible, keep the lower teeth hidden; if lower teeth are partly visible, do not reveal more of them. Changing the treatment or design never authorises revealing concealed teeth.${c.shotType === "Close-up" ? " Retain retractors." : ""} Work inside the original smile envelope.`,
     includeGingiva ? "Preserve natural gingival tissue outside the selected prosthetic interface. Only the explicit interface exception below permits gum redesign."
       : "NATURAL SOFT TISSUE IS PROTECTED: Do not edit the gingiva. Retain natural gingival margins, recession, papillae, gingival zeniths, pigmentation, texture and asymmetry. Do not recentre, level or symmetrise the gums, or erase black triangles by adding gum tissue.",
     "RULE PRIORITY: (1) protected anatomy, clinician-supplied restrictions and treatment-specific limits; (2) individual tooth goals/shades, otherwise global design; (3) notes within those permissions; (4) material and style. Lower-priority preferences never expand permissions. Preserve the photographed bite relationship; do not invent intrusion, extrusion, jaw opening or correction of overbite/overjet. No photograph establishes occlusal contacts or restorative space.",
@@ -141,29 +142,20 @@ export function renderGenerationContract(c: GenerationContract, format: "canonic
   if (context.hasEditMask) instructions.push("EDIT MASK: the final image is an aligned black-and-white guidance mask. White permits edits within this contract; black protects original pixels. Never return the mask. The reviewed single-tooth boundary remains the treatment limit.");
   // 7. Output. Photographic scale/aspect, without impossible exact provider pixel-size demands.
   if (mode === "restorative") instructions.push("Before returning, compare with the original and undo any extra length not expressly allowed by its tooth-specific edge permission.");
-  instructions.push("OUTPUT: Return ONE complete edited source photograph at the requested output resolution with the original aspect ratio, framing, scale, rotation and crop. Never return an enlarged mouth, isolated teeth, a close-up crop, collage, mask or reference image. Do not zoom, pan, mirror or move the face. Match natural light, white balance, the shadow the upper lip casts, grain and sharpness with no visible seam. Keep naturally asymmetric detail where the goal permits. Avoid duplicate crowns, notches, floating enamel, sharp mask-like cut-offs, merged contacts or dark slivers. Preserve features already balanced; very little visible change may be appropriate. This is an AI visual concept for clinician discussion, not a diagnosis, predicted or guaranteed clinical result.");
-  if (format === "canonical") return instructions.join("\n\n");
-  // Reuse the same normalised permissions and tooth goals; only provider prose
-  // and presentation differ. Gemini rollback retains its existing contract.
-  const preserve = [
-    "Preserve exactly patient identity, facial anatomy and expression, outer lips and lip position, mouth width and mouth opening, head position, skin, hair, facial hair, eyes, nose, lighting, pose, background and original camera framing. Retain retractors and the photographed smile envelope and tooth exposure; never reveal hidden teeth. Do not beautify or retouch unrelated areas.",
-    instructions[1], instructions[2],
-  ];
-  const change: string[] = [], style: string[] = [], region: string[] = [];
-  for (const instruction of instructions.slice(3)) {
-    if (instruction.startsWith("OUTPUT:")) {
-      region.push("Return one complete edited source photograph at the requested resolution and original aspect ratio, framing, scale, rotation and crop. No mouth close-up, isolated teeth, collage, mask or reference image. Retain natural light, grain, sharpness and asymmetric detail; avoid seams, merged or duplicated crowns, floating enamel and sharp cut-offs. This is a clinician-discussion AI concept, not a diagnosis or guaranteed outcome.");
-    } else if (/^(REGION:|SOURCE CANVAS:|The on-screen guide|EXPLICIT EXCEPTION)/.test(instruction)) region.push(instruction);
-    else if (/^(Material:|DESIGN|CONTOUR AND TEXTURE|Smile arc preference:|Optional facial style|Close-up\/retracted|Use photographed)/.test(instruction)) style.push(instruction);
-    else if (/^FDI \d+: .*preserve unchanged/.test(instruction)) preserve.push(instruction);
-    else change.push(instruction);
-  }
-  region.unshift("Modify only the intended dental appearance within the supplied editable region. The separate PNG alpha mask uses transparent pixels for editable areas and opaque pixels for protected areas; it is guidance, not permission to exceed this treatment contract.");
-  return ["TASK", "Edit the supplied patient photograph as a believable dental visualisation.", "", "CHANGE", ...change, "", "PRESERVE", ...preserve, "", "STYLE", ...(style.length ? style : ["Retain the patient's natural dental character and photographic surface appearance."]), "", "EDIT REGION", ...region].join("\n");
+  instructions.push("OUTPUT: Return ONE complete edited source photograph at the requested output resolution with the original aspect ratio, framing, scale, rotation and crop. Never return an enlarged mouth, isolated teeth, a close-up crop, collage, mask or reference image. Do not zoom, pan, mirror or move the face. Match natural light, white balance, the shadow the upper lip casts, grain and sharpness with no visible seam. Keep naturally asymmetric detail where the goal permits. Avoid duplicate crowns, notches, floating enamel, sharp mask-like cut-offs, merged contacts or dark slivers. Preserve features already balanced; very little visible change may be appropriate. This is an AI visual concept for clinician discussion, not a diagnosis, predicted or guaranteed clinical result. Respond with the edited photograph itself; a text-only reply is not a result.");
+  // The task comes first: a long list of rules alone led the image model to answer
+  // with text, or with an enlarged crop of the teeth instead of the whole photo.
+  const task = c.shotType === "Close-up"
+    ? "TASK: Edit the first image, a dental close-up photograph, so that only the teeth show the requested change. Return that same complete photograph, framed and scaled exactly as supplied. Do not crop further or enlarge the teeth."
+    : "TASK: Edit the first image, a full-face photograph, so that only the teeth show the requested change. Return that same complete photograph: the entire face, head, hair, clothing and background, framed and scaled exactly as supplied. Do not crop to or enlarge the mouth or teeth.";
+  if (format === "canonical") return [task, ...instructions].join("\n\n");
+  // Same normalised permissions and tooth goals; plain-language prose for the
+  // masked image-edit model.
+  return renderSunburstPrompt(c);
 }
 
 export const SUNBURST_PIPELINE_VERSION = "SC-SUNBURST-V1";
-export const SUNBURST_PROMPT_VERSION = "2026-10-03-sunburst-v1";
+export const SUNBURST_PROMPT_VERSION = "2026-10-04-sunburst-v3";
 export function sunburstTreatmentVersion(s: SmileSettings): string {
   const mode = normalizeGenerationContract(s).mode;
   return ({ whitening: "WHITENING-V1", restorative: "VENEERS-V1", alignment: "ALIGNMENT-V1", full_arch: "FULLARCH-V1" })[mode];

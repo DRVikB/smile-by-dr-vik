@@ -4,9 +4,9 @@ import { upperTeeth, caseFeatures, smileArcs, biteContexts, toothShapes, toothEd
 import { supportedTeeth } from "../teeth";
 import { generationModes } from "./modes";
 const toothId = z.number().int().refine(id => supportedTeeth.includes(id));
-export const imageSchema = z
+const encodedImage = (max: number) => z
   .string()
-  .max(8_000_000)
+  .max(max)
   .regex(
     /^data:image\/(jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/,
     "Provide a valid JPG or PNG image.",
@@ -17,6 +17,14 @@ export const imageSchema = z
       ? data.startsWith("/9j/")
       : data.startsWith("iVBORw0KGgo");
   }, "Image content does not match its type.");
+export const imageSchema = encodedImage(8_000_000);
+/** The patient photograph. A masked edit needs a lossless PNG of the whole
+ * photo, which can be about twice the size of the JPEG; the 24 MB request cap
+ * still bounds the total. */
+export const sourceImageSchema = encodedImage(16_000_000).refine(
+  value => value.startsWith("data:image/png") || value.length <= 8_000_000,
+  "Photo is too large.",
+);
 export const settingsSchema = z
   .object({
     clinicalData: z.object({
@@ -93,7 +101,7 @@ export const styleImageSchema = imageSchema.refine(
 /** Request-canvas PNG guidance: Gemini uses white=editable; OpenAI uses transparent=editable. */
 export const editMaskSchema = imageSchema.refine(v => v.startsWith("data:image/png") && v.length <= 1_500_000, "Edit mask must be a small PNG.");
 export const generationSchema = z.object({
-  originalImage: imageSchema,
+  originalImage: sourceImageSchema,
   editMask: editMaskSchema.optional(),
   resolution: z.enum(["512", "1K"]).optional(),
   generationMode: z.enum(generationModes).optional(),

@@ -24,7 +24,7 @@ test("raw decoded geometry is reported before normalization or framing rejection
  const savedImage=globalThis.Image,savedDocument=globalThis.document;
  let dimensions=[896,1200];const draws:unknown[][]=[];
  class FakeImage {src=""; get naturalWidth(){return dimensions[0];} get naturalHeight(){return dimensions[1];} async decode(){} }
- const canvas={width:0,height:0,getContext:()=>({drawImage:(...args:unknown[])=>draws.push(args)}),toDataURL:()=>"normalized"};
+ let exported=[0,0];const canvas={width:0,height:0,getContext:()=>({drawImage:(...args:unknown[])=>draws.push(args)}),toDataURL:()=>{exported=[canvas.width,canvas.height];return "normalized";}};
  Object.assign(globalThis,{Image:FakeImage,document:{createElement:()=>canvas}});
  const original={dataUrl:"original",name:"QA",width:1320,height:1737};
  const request={photo:{...original,width:1320,height:1760},sourceBounds:{x:0,y:11/1760,width:1,height:1737/1760}};
@@ -34,7 +34,7 @@ test("raw decoded geometry is reported before normalization or framing rejection
    for(const size of [[1320,1760],[900,1200],[896,1200]]) {
     dimensions=size;assert.equal(await alignPreview(raw,original,request,d=>observed=d),"normalized");
     assert.deepEqual(observed,{width:size[0],height:size[1],mime:"image/jpeg",exifOrientation:6});
-    assert.equal(canvas.width,1320);assert.equal(canvas.height,1737);
+    assert.deepEqual(exported,[1320,1737]);
     assert.deepEqual(draws.at(-1)?.slice(1),[0,11/1760*size[1],size[0],1737/1760*size[1],0,0,1320,1737]);
    }
    dimensions=[1200,1200];const before=draws.length;

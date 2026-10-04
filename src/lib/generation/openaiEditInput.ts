@@ -1,6 +1,7 @@
 import type { Framing, Photo } from "../types";
+import { releaseCanvas } from "../canvasMemory";
 import type { Point } from "../face/geometry";
-import { mouthTransitionMask, planMouthLock } from "../face/lock";
+import { mouthOpeningMask, planMouthLock } from "../face/lock";
 
 /** OpenAI transparency means editable, the inverse of our compositing alpha. */
 export function openAIAlphaMask(rgba: Uint8ClampedArray, encoding: "alpha" | "grayscale"): Uint8ClampedArray {
@@ -39,7 +40,7 @@ export async function prepareOpenAIEditInput(original: Photo, prepared: { photo:
   } else if (!guidance) {
     const plan = planMouthLock(points ?? null, points ?? null);
     if (!plan) throw new Error("Face protection could not find the mouth. No generation request was sent.");
-    const region = mouthTransitionMask(plan, original.width, original.height);
+    const region = mouthOpeningMask(plan, original.width, original.height);
     const local = document.createElement("canvas"); local.width = original.width; local.height = original.height;
     const localCtx = local.getContext("2d");
     if (!localCtx || !region.width || !region.height) throw new Error("The edit area could not be prepared.");
@@ -47,6 +48,7 @@ export async function prepareOpenAIEditInput(original: Photo, prepared: { photo:
     for (let i = 0; i < region.alpha.length; i++) pixels.data[i * 4 + 3] = Math.round(region.alpha[i] * 255);
     localCtx.putImageData(pixels, region.x0, region.y0);
     ctx.drawImage(local, bounds.x * photo.width, bounds.y * photo.height, bounds.width * photo.width, bounds.height * photo.height);
+    releaseCanvas(local);
   }
   if (!guidance || original.editMask) {
     const converted = openAIAlphaMask(ctx.getImageData(0, 0, photo.width, photo.height).data, "alpha");
@@ -56,5 +58,7 @@ export async function prepareOpenAIEditInput(original: Photo, prepared: { photo:
   }
   if (!permission || !permission.some((v, i) => i % 4 === 3 && v < 255)) throw new Error("No editable area was found. No generation request was sent.");
   const out = ctx.createImageData(photo.width, photo.height); out.data.set(permission); ctx.putImageData(out, 0, 0);
-  return { originalImage, editMask: canvas.toDataURL("image/png") };
+  const editMask = canvas.toDataURL("image/png");
+  releaseCanvas(canvas);
+  return { originalImage, editMask };
 }

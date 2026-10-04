@@ -47,12 +47,14 @@ test("OpenAI adapter sends a single authenticated image edit with all dental cho
       assert.deepEqual(Buffer.from(await file.arrayBuffer()), pngBytes);
       const prompt = String(form.get("prompt"));
       for (const token of [
-        defaultSettings.treatment,
-        "Gently whiten",
-        "Rounded",
+        "single-shade composite bonding",
+        "a few shades whiter",
+        "rounded shape",
         "35/100",
-        "14, 13, 12, 11, 21, 22, 23, 24",
-        "untreated teeth",
+        "the eight upper front teeth",
+        "upper right first premolar (14)",
+        "upper left first premolar (24)",
+        "Every tooth not listed above, including all lower teeth",
       ])
         assert.ok(prompt.includes(token));
       return Response.json({ data: [{ b64_json: encoded }] });
@@ -154,10 +156,10 @@ test("OpenAI includes patient reference and bounded own-case images in the state
     assert.deepEqual(Buffer.from(await images[1].arrayBuffer()), pngBytes);
     for (const image of images.slice(2)) assert.deepEqual(Buffer.from(await image.arrayBuffer()), pngBytes);
     const prompt = String(form.get("prompt"));
-    assert.match(prompt, /first image is the SOURCE PATIENT to edit/);
-    assert.match(prompt, /next image is a smile the patient likes/);
-    assert.match(prompt, /following 5 images are finished cases/);
-    assert.match(prompt, /SOURCE CANVAS/);
+    assert.match(prompt, /^Edit image 1, a portrait photo/);
+    assert.match(prompt, /Image 2 is a smile the patient likes/);
+    assert.match(prompt, /Images 3 to 7 are finished cases/);
+    assert.match(prompt, /thin grey padding bands/);
     assert.equal(form.get("model"), DEFAULT_IMAGE_MODEL);
     assert.equal(form.get("quality"), "high");
     assert.equal(form.get("n"), "1");
@@ -265,4 +267,14 @@ test("cancelled generation does not send a paid request", async () => {
   });
   await assert.rejects(provider.generate(input, controller.signal));
   assert.equal(calls, 0);
+});
+
+test("a full-resolution lossless PNG source for a masked edit passes validation; an oversized JPEG does not", async () => {
+  const { sourceImageSchema, imageSchema } = await import("../src/lib/generation/schema");
+  const png = `data:image/png;base64,iVBORw0KGgo${"A".repeat(12_000_000)}`;
+  const jpeg = `data:image/jpeg;base64,/9j/${"A".repeat(12_000_000)}`;
+  assert.equal(sourceImageSchema.safeParse(png).success, true);
+  assert.equal(sourceImageSchema.safeParse(jpeg).success, false);
+  assert.equal(sourceImageSchema.safeParse(`data:image/png;base64,iVBORw0KGgo${"A".repeat(16_000_000)}`).success, false);
+  assert.equal(imageSchema.safeParse(png).success, false, "other images keep the 8 million character cap");
 });

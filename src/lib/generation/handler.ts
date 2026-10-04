@@ -1,4 +1,5 @@
 import { claimInMemory, validRequestId, type RequestClaim } from "./requestGuard";
+import { sourceLooksBlank } from "./sourceCheck";
 import { isNoChangeDesign } from "./designPlan";
 import { generationUnavailable } from "./availability";
 import { GenerationError } from "./errors";
@@ -109,6 +110,13 @@ export async function handleGenerationRequest(
     return Response.json(
       { error: "Check the photo and design selections, then try again." },
       { status: 400, headers },
+    );
+  // A blank source makes the image service invent a person. Refuse it before
+  // anything is reserved: no generation is used.
+  if (sourceLooksBlank(parsed.data.originalImage))
+    return Response.json(
+      { error: "The photo didn’t reach the image service intact, so nothing was sent and no generation was used. Close and reopen SmileCompose, then try again.", code: "source_image_blank" },
+      { status: 422, headers },
     );
   let providerDiagnostic: ProviderDiagnostic | undefined;
   let qaCapture: QaCaptureEnvelope | undefined;

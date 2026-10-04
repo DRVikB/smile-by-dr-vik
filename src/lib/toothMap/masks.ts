@@ -129,6 +129,8 @@ export interface EditRegionInput {
   original?: Uint8ClampedArray;
   /** Width of the soft edge, in pixels. */
   feather: number;
+  /** Close horizontal gaps up to this many pixels between selected teeth (automatic maps). */
+  bridge?: number;
 }
 
 export interface EditRegion {
@@ -158,6 +160,12 @@ export function buildEditRegion(input: EditRegionInput): EditRegion {
       if(!oralSpace)allowed[i]=0;
     }
   }
+  // Automatic outlines can stop short of contacts or miss a tooth between two
+  // selected ones: close those gaps along each row, never upwards or downwards.
+  if (input.bridge && input.bridge > 0) {
+    const closed = closeRows(allowed, w, h, Math.round(input.bridge));
+    allowed.set(closed);
+  }
   // Unselected teeth, with a pixel of margin, are never inside the edit.
   if (input.protectedTeeth.length) {
     const others = new Uint8Array(w * h);
@@ -184,6 +192,21 @@ export function buildEditRegion(input: EditRegionInput): EditRegion {
   const area = (2 * r + 1) ** 2;
   for (let i = 0; i < alpha.length; i++) alpha[i] = allowed[i] ? Math.round((255 * count[i]) / area) : 0;
   return { allowed, alpha };
+}
+
+/** Fill runs of 0 no longer than 2r between 1s on the same row. */
+function closeRows(mask: Uint8Array, w: number, h: number, r: number): Uint8Array {
+  const out = new Uint8Array(mask);
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    let last = -1;
+    for (let x = 0; x < w; x++) {
+      if (!mask[row + x]) continue;
+      if (last >= 0 && x - last > 1 && x - last - 1 <= 2 * r) out.fill(1, row + last + 1, row + x);
+      last = x;
+    }
+  }
+  return out;
 }
 
 /** A narrow feather: a few pixels on a phone photo, never a wide blur. */

@@ -130,9 +130,34 @@ export function planMouthLock(
   };
 }
 
+/**
+ * A plan for an edit verified by pixels rather than landmarks (see
+ * pixelAlign.ts): a pure shift, and always the strict source mouth opening,
+ * so the patient's own lips are kept whatever the edit did to them.
+ */
+export function pixelLockPlan(original: Point[], dx: number, dy: number): LockPlan {
+  const [left, right] = pick(original, COMMISSURES);
+  return {
+    transform: { a: 1, b: 0, tx: dx, ty: dy },
+    warp: dx !== 0 || dy !== 0,
+    lipsMoved: true,
+    polygon: pick(original, INNER_LIP),
+    outerBoundary: pick(original, OUTER_LIP),
+    grow: 0,
+    feather: Math.max(1, 0.005 * distance(left, right)),
+  };
+}
+
 /** Avoid slicing crowns at the approximate inner-lip landmarks. Where the
  * provider lip geometry remains stable, blend within the source outer lip
  * contour. Never expand beyond it. Moved lips retain the strict opening. */
+/** The editable area sent with a masked edit: the source mouth opening (the
+ * teeth) with a narrow margin. Lips and jaw stay outside it, so the image
+ * service has no licence to open the mouth or move the lips. */
+export function mouthOpeningMask(plan: LockPlan, width: number, height: number): Mask {
+  return polygonMask(plan.polygon, width, height, plan.feather * 3, plan.feather);
+}
+
 export function mouthTransitionMask(plan: LockPlan, width: number, height: number): Mask {
   return polygonMask(plan.lipsMoved ? plan.polygon : plan.outerBoundary,
     width, height, 0, plan.feather, true);

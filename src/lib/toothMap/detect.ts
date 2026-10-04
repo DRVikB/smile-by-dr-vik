@@ -1,4 +1,5 @@
 import { analyseSmile } from "../face/analysis";
+import { releaseCanvas } from "../canvasMemory";
 import { INNER_LIP, pick, type Point } from "../face/geometry";
 import type { Photo } from "../types";
 import { findTeethRegion, segmentTeeth, type SegmentResult } from "./segment";
@@ -80,6 +81,7 @@ export async function detectToothMap(photo: Pick<Photo, "dataUrl">, shotType: "F
   if (!ctx) return null;
   ctx.drawImage(img, crop.x, crop.y, crop.w, crop.h, 0, 0, cw, ch);
   const rgba = ctx.getImageData(0, 0, cw, ch).data;
+  releaseCanvas(canvas);
   // No face: find the teeth's own region so skin elsewhere is never read as teeth.
   const closeUpRegion = mouth ? null : findTeethRegion(rgba, cw, ch);
   if (!mouth && !closeUpRegion) return null;
@@ -163,7 +165,9 @@ async function refine(img: HTMLImageElement, map: ToothMap, W: number, H: number
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return map;
     ctx.drawImage(img, x0, y0, w, h, 0, 0, w, h);
-    const { map: refined, stats } = await refineInWorker(map, { rgba: ctx.getImageData(0, 0, w, h).data, width: w, height: h, origin: [x0, y0], photoWidth: W, photoHeight: H }, signal);
+    const crop = ctx.getImageData(0, 0, w, h).data;
+    releaseCanvas(canvas);
+    const { map: refined, stats } = await refineInWorker(map, { rgba: crop, width: w, height: h, origin: [x0, y0], photoWidth: W, photoHeight: H }, signal);
     onRefine?.(stats);
     return refined;
   } catch {

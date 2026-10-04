@@ -62,8 +62,11 @@ export const treatmentLabel = (t: Treatment) => TREATMENT_NAMES[t];
 export const targetShadeLabel = (t: TargetShade) => TARGET_SHADES[t];
 export const textureLabel = (t: TextureLevel) => TEXTURES[t];
 
-/** "6 upper teeth". */
-export const teethLabel = (s: Pick<SmileSettings, "selectedTeeth">) => toothSummary(s);
+/** "6 upper teeth"; whitening always covers both arches. */
+export const teethLabel = (s: Pick<SmileSettings, "selectedTeeth"> & Partial<Pick<SmileSettings, "treatment" | "alignment" | "treatmentMode">>) =>
+  wholeMouthWhitening(s) ? "Upper and lower teeth" : toothSummary(s);
+const wholeMouthWhitening = (s: Partial<Pick<SmileSettings, "treatment" | "alignment" | "treatmentMode">>) =>
+  s.treatment === "Whitening" && !s.alignment && s.treatmentMode !== "full_arch";
 
 function arches(s: SmileSettings): string {
   const a = s.alignment?.arches ?? "Both";
@@ -118,7 +121,7 @@ export function proposedSmileRows(s: SmileSettings, referenceUsed?: boolean): [s
     rows.push(["Teeth", arches(s).replace(/^the /, "").replace(/^\w/, c => c.toUpperCase())]);
   } else {
     rows.push(["Teeth", teethLabel(s)]);
-    if (s.selectedTeeth.length) rows.push(["Selected teeth", s.selectedTeeth.join(", ")]);
+    if (s.selectedTeeth.length && !wholeMouthWhitening(s)) rows.push(["Selected teeth", s.selectedTeeth.join(", ")]);
     if (!isShadeOnly(s)) rows.push(["Tooth shape", shapeLabel(s)]);
     rows.push(["Target shade", targetShadeLabel(s.targetShade)]);
     if (!isShadeOnly(s)) {

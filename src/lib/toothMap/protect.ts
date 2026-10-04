@@ -1,4 +1,5 @@
 import type { SmileSettings, ToothProtection } from "../types";
+import { releaseCanvas } from "../canvasMemory";
 import { buildEditRegion, compositeWithAlpha, featherFor, measureChange, selectedPlans, toothEditRule } from "./masks";
 import type { Point } from "./segment";
 import {fillPolygon} from "./segment";
@@ -53,8 +54,25 @@ function load(src: string): Promise<HTMLImageElement> {
   });
 }
 
+/**
+ * Automatic limit for multi-tooth restorative concepts: teeth detected on the
+ * device (unconfirmed, possibly missing some) bound what the result may change.
+ * Selected teeth that weren't found stay original; so do lips, gums and every
+ * unselected tooth, upper or lower. A reviewed map uses the exact path above.
+ */
+export function automaticProtectionPlan(map: ToothMap | null | undefined, originalDataUrl: string, settings: SmileSettings) {
+  if (settings.treatment === "Whitening") return { ok: false, reason: "no-teeth" } as const;
+  return protectionPlan(map, originalDataUrl, settings, { automatic: true });
+}
+
+/** Automatic maps: close gaps up to about one narrow tooth between selected teeth. */
+function bridgeFor(outlines: Point[][]): number {
+  const widths = outlines.map(o => Math.max(...o.map(p => p[0])) - Math.min(...o.map(p => p[0]))).sort((a, b) => a - b);
+  return widths.length > 1 ? Math.round(widths[0] * 0.6) : 0;
+}
+
 /** Whether the map can govern this design; if not, why. */
-export function protectionPlan(map: ToothMap | null | undefined, originalDataUrl: string, settings: SmileSettings):
+export function protectionPlan(map: ToothMap | null | undefined, originalDataUrl: string, settings: SmileSettings, options: { automatic?: boolean } = {}):
   { ok: true; teeth: number[]; notFound: number[] } | { ok: false; reason: ProtectSkip } {
   // Full-arch protects by arch (arch.ts), not by tooth.
   if (settings.treatmentMode === "full_arch" && settings.fullArch) return { ok: false, reason: "full-arch" };
@@ -68,9 +86,9 @@ export function protectionPlan(map: ToothMap | null | undefined, originalDataUrl
   const present = new Set(map.teeth.filter(t => t.visible && t.fdi !== null).map(t => t.fdi as number));
   const teeth = wanted.filter(t => present.has(t));
   if (!teeth.length) return { ok: false, reason: "no-teeth" };
-  if (!map.confirmedByClinician) return { ok: false, reason: "unconfirmed" };
-  if (teeth.length !== wanted.length) return { ok: false, reason: "incomplete-map" };
-  const selected = map.teeth.filter(t => t.visible && t.fdi !== null && wanted.includes(t.fdi));
+  if (!options.automatic && !map.confirmedByClinician) return { ok: false, reason: "unconfirmed" };
+  if (!options.automatic && teeth.length !== wanted.length) return { ok: false, reason: "incomplete-map" };
+  const selected = map.teeth.filter(t => t.visible && t.fdi !== null && teeth.includes(t.fdi));
   if (selected.length !== teeth.length || selected.some(t => {
     const area = Math.abs(t.outline.reduce((sum,p,i) => { const next=t.outline[(i+1)%t.outline.length]; return sum+p[0]*next[1]-next[0]*p[1]; },0))/2;
     return area < 0.000001 || area > 0.25;
@@ -83,19 +101,21 @@ export function protectionPlan(map: ToothMap | null | undefined, originalDataUrl
  * canvas (white = may change), sent to the provider as guidance. Guidance
  * only: the compositing above is what protects the photo.
  */
-export function guidanceMask(map: ToothMap, originalDataUrl: string, settings: SmileSettings, canvasSize: { width: number; height: number }, sourceBounds: { x: number; y: number; width: number; height: number }): string | undefined {
-  const plan = protectionPlan(map, originalDataUrl, settings);
+export function guidanceMask(map: ToothMap, originalDataUrl: string, settings: SmileSettings, canvasSize: { width: number; height: number }, sourceBounds: { x: number; y: number; width: number; height: number }, options: { automatic?: boolean } = {}): string | undefined {
+  const plan = protectionPlan(map, originalDataUrl, settings, options);
   if (!plan.ok) return undefined;
   const W = canvasSize.width, H = canvasSize.height;
   const px = (outline: [number, number][]): Point[] => outline.map(([x, y]) => [(sourceBounds.x + x * sourceBounds.width) * W, (sourceBounds.y + y * sourceBounds.height) * H]);
   const plans = selectedPlans(settings);
   const chosen = new Set(plan.teeth);
+  const selectedTeeth = map.teeth.filter(t => t.visible && t.fdi !== null && chosen.has(t.fdi)).map(t => ({ outline: px(t.outline), rule: toothEditRule(settings, plans.get(t.fdi as number)) }));
   const region = buildEditRegion({
     width: W, height: H,
-    selected: map.teeth.filter(t => t.visible && t.fdi !== null && chosen.has(t.fdi)).map(t => ({ outline: px(t.outline), rule: toothEditRule(settings, plans.get(t.fdi as number)) })),
+    selected: selectedTeeth,
     protectedTeeth: map.teeth.filter(t => !(t.visible && t.fdi !== null && chosen.has(t.fdi))).map(t => px(t.outline)),
     mouthOpening: map.mouthOpening ? px(map.mouthOpening) : null,
     feather: 0,
+    bridge: options.automatic ? bridgeFor(selectedTeeth.map(t => t.outline)) : 0,
   });
   if (!region.allowed.some(Boolean)) throw new Error("The selected tooth boundary has no usable edit area. Review or redraw it before generating.");
   const canvas = document.createElement("canvas");
@@ -111,6 +131,7 @@ export function guidanceMask(map: ToothMap, originalDataUrl: string, settings: S
   }
   ctx.putImageData(image, 0, 0);
   const png = canvas.toDataURL("image/png");
+  releaseCanvas(canvas);
   return png.length <= 1_500_000 ? png : undefined;
 }
 
@@ -119,9 +140,9 @@ export async function protectWithToothMap(
   candidateUrl: string,
   map: ToothMap,
   settings: SmileSettings,
-  options: { debug?: boolean } = {},
+  options: { debug?: boolean; automatic?: boolean } = {},
 ): Promise<ProtectOutcome> {
-  const plan = protectionPlan(map, originalUrl, settings);
+  const plan = protectionPlan(map, originalUrl, settings, { automatic: options.automatic });
   if (!plan.ok) throw new Error(`Tooth map protection unavailable: ${plan.reason}`);
   const [o, g] = await Promise.all([load(originalUrl), load(candidateUrl)]);
   const W = o.naturalWidth, H = o.naturalHeight;
@@ -152,6 +173,7 @@ export async function protectWithToothMap(
     mouthOpening: map.mouthOpening ? px(map.mouthOpening) : null,
     original: original.data,
     feather: featherFor(Math.max(...xs) - Math.min(...xs)),
+    bridge: options.automatic ? bridgeFor(selected.map(t => t.outline)) : 0,
   });
   if (!region.allowed.some(Boolean)) throw new Error("The selected tooth boundary has no usable edit area. Review or redraw it before generating.");
 
@@ -180,6 +202,7 @@ export async function protectWithToothMap(
     insideChange: Math.round(before.inside * 1000) / 1000,
     verified: after.outside <= OUTSIDE_TOLERANCE,
   };
+  if (!protection.verified) releaseCanvas(canvas);
   if (!protection.verified) throw new Error("The selected-teeth preview could not be protected reliably. Your original photo is unchanged. Review the tooth boundaries before trying again.");
 
   let debugImage: string | undefined, debugMask: string | undefined;
@@ -199,5 +222,6 @@ export async function protectWithToothMap(
     ctx.putImageData(mask, 0, 0);
     debugMask = canvas.toDataURL("image/png");
   }
+  releaseCanvas(canvas);
   return { image, protection, debugImage, debugMask };
 }

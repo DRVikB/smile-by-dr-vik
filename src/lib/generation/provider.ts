@@ -201,6 +201,8 @@ export function getSmileProvider(
     "provider_not_configured",
   );
 }
+/** Finished without any image: the only case that is retried (once). */
+const NO_IMAGE_CATEGORIES = new Set<string>(["text_only", "empty_response", "thought_only"]);
 export async function generateSmile(
   input: unknown,
   signal?: AbortSignal,
@@ -219,7 +221,7 @@ export async function generateSmile(
     category: "started", httpStatus: null, latencyMs: null, retryCount: 0,
     treatmentMode: settings.treatmentMode === "full_arch" ? "full_arch" : settings.alignment?.only ? "alignment" : settings.treatment === "Whitening" ? "whitening" : selectedCount === 1 ? "single_tooth" : "standard",
     selectedToothCount: settings.treatmentMode === "full_arch" || settings.alignment?.only ? null : selectedCount,
-    inputWidth: dimensions.width, inputHeight: dimensions.height, requestedWidth: null, requestedHeight: null,
+    inputWidth: dimensions.width, inputHeight: dimensions.height, inputBytes: Math.floor(encoded.length * 3 / 4), requestedWidth: null, requestedHeight: null,
   };
   const emit = async () => {
     const safe = safeProviderDiagnostic(diagnostic);
@@ -233,19 +235,30 @@ export async function generateSmile(
     } catch { /* Logging never changes delivery or allowance. */ }
     finally { clearTimeout(timer); }
   };
-  // One user action invokes the image provider at most once. An explicit later
-  // Generate action gets a new guarded request and reservation in the handler.
+  // One user action is one generation. The provider is called again only when
+  // it finished without producing any image (text only, empty or thoughts only):
+  // no image was made or billed as output, so one retry within the same
+  // reservation is cheap. Errors, blocks, returned images and cancellation never
+  // retry; an explicit later Generate gets a new guarded request.
   await emit();
-  const started = Date.now();
-  let result: GenerationResult;
-  try {
-    result = await provider.generate(parsed, signal, { update: patch => { diagnostic = { ...diagnostic, ...patch }; },
-      ...(diagnostics?.captureImageParts ? { captureImageParts: diagnostics.captureImageParts } : {}) });
-    diagnostic.category = "success";
-  } catch (error) {
-    if (diagnostic.category === "started") diagnostic.category = signal?.aborted ? "cancelled" : "unknown_response";
-    throw error;
-  } finally {
+  let result: GenerationResult | undefined;
+  for (let attempt = 0; !result; attempt++) {
+    const started = Date.now();
+    try {
+      result = await provider.generate(parsed, signal, { update: patch => { diagnostic = { ...diagnostic, ...patch }; },
+        ...(diagnostics?.captureImageParts ? { captureImageParts: diagnostics.captureImageParts } : {}) });
+      diagnostic.category = "success";
+    } catch (error) {
+      if (diagnostic.category === "started") diagnostic.category = signal?.aborted ? "cancelled" : "unknown_response";
+      const retry = attempt === 0 && !signal?.aborted && error instanceof GenerationError && error.code === "provider_no_image"
+        && NO_IMAGE_CATEGORIES.has(diagnostic.category);
+      diagnostic.latencyMs = Date.now() - started;
+      await emit();
+      if (!retry) throw error;
+      diagnostic = { ...diagnostic, category: "started", httpStatus: null, latencyMs: null, retryCount: attempt + 1 };
+      await emit();
+      continue;
+    }
     diagnostic.latencyMs = Date.now() - started;
     await emit();
   }

@@ -10,6 +10,7 @@ import { canGuideSmileArc } from "@/lib/smilePrinciples";
 import { activeToothPlans, toothSummary } from "@/lib/teeth";
 import { GenerationCosts, allowanceLabel, type GenerationCostsProps } from "@/components/GenerationCosts";
 import { AllowanceBanner, AllowanceLine } from "@/components/account/Allowance";
+import { isOnDeviceWhitening } from "@/lib/whiteningDevice";
 import { SegmentedControl, SHAPES, ToothForm } from "./StudioParts";
 import { ToothChart } from "@/components/ToothChart";
 import { ClinicalDataFields } from "@/components/ClinicalDataFields";
@@ -207,7 +208,7 @@ export function DesignStudio({
     { id: "shade", value: QUICK_SHADES.find(q => q.value === settings.targetShade)?.label ?? settings.targetShade },
     { id: "treatment", value: `Full-arch restoration · ${restorationLabel(fullArch.restorationType)}${fullArch.prostheticGingiva === "auto" ? "" : ` · ${fullArch.prostheticGingiva === "include" ? "with" : "no"} prosthetic gingiva`}` },
   ] : [
-    { id: "teeth", value: alignment?.only ? `${alignment.arches === "Both" ? "Both arches" : `${alignment.arches} arch`} · positions only` : `${toothSummary(settings)}${settings.treatment === "Whitening" ? " · Colour only" : settings.designIntent && settings.designIntent !== "Auto" ? ` · ${settings.designIntent}` : ""}` },
+    { id: "teeth", value: alignment?.only ? `${alignment.arches === "Both" ? "Both arches" : `${alignment.arches} arch`} · positions only` : `${settings.treatment === "Whitening" ? "Upper and lower teeth · Colour only" : `${toothSummary(settings)}${ settings.designIntent && settings.designIntent !== "Auto" ? ` · ${settings.designIntent}` : ""}`}` },
     { id: "shape", value: alignment?.only ? "Unchanged (alignment only)" : settings.treatment === "Whitening" ? "Unchanged (whitening)" : `${shape?.name ?? settings.shape} · ${settings.character}` },
     { id: "shade", value: alignment?.only ? "Kept (alignment only)" : QUICK_SHADES.find(q => q.value === settings.targetShade)?.label ?? settings.targetShade },
     { id: "treatment", value: standardTreatmentSummary(settings, restoration) },
@@ -232,6 +233,9 @@ export function DesignStudio({
           {page("teeth", alignment?.only && !fullArch ? <>
             <header className="studio-card-head"><h3>Alignment</h3><p>Both visible arches. Natural tooth shape and shade are retained.</p></header>
             <p className="control-hint">A visual guide to a straighter smile, not an orthodontic treatment plan.</p>
+          </> : !fullArch && settings.treatment === "Whitening" ? <>
+            <header className="studio-card-head"><h3>Teeth</h3><p>Whitening covers every visible tooth, upper and lower.</p></header>
+            <p className="control-hint">Only the colour changes. Each tooth keeps its exact shape, and the gums and lips stay as photographed.</p>
           </> : fullArch ? <>
             <header className="studio-card-head"><h3>Full Arch / All-on-X</h3><p>Both visible arches · Zirconia.</p></header>
             <p className="control-hint">Preview both arches as a matching pair. A visual restorative concept for discussion, with the existing lip and face protection.</p>
@@ -463,13 +467,15 @@ export function DesignStudio({
                 {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
               </button>
             </div>
-            {!fullArch && settings.treatment === "Whitening" && <p className="control-hint">Whitening changes colour only. Shape and harmonised-design comparisons are unavailable for this treatment.</p>}
+            {!fullArch && settings.treatment === "Whitening" && <p className="control-hint">Whitening changes colour only: each tooth keeps its exact shape. Shape and harmonised-design comparisons are unavailable for this treatment.</p>}
             <GenerationCosts {...costs} />
           </>)}
         </fieldset>
 
         <div className="studio-generate">
-          {tab === "review" && !costs.testMode && <AllowanceLine />}
+          {tab === "review" && !costs.testMode && (isOnDeviceWhitening(settings)
+            ? <p className="allowance-line" role="status">Whitening is shown on this device. No generation is used and the photo stays here.</p>
+            : <AllowanceLine />)}
           {unavailable && <p className="control-hint" role="status">{unavailable}</p>}
           {tab === "review" && noChange && <p className="control-hint">No change selected: select teeth to edit and choose a different shade or design goal. No generation is needed.</p>}
           {tab === "review" && suggestBoundaryReview && <p className="control-hint">Ready to generate with automatic face protection. <button type="button" className="text-button" onClick={() => { go("teeth"); toothMap?.setEditing(true); }}>Optional tooth-map review</button></p>}
