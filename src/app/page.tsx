@@ -92,6 +92,17 @@ import { HomeHeadline, ProfileButton, RecentCases } from "@/components/home/Home
 import { AllowanceBanner, AllowancePill } from "@/components/account/Allowance";
 import { DOCUMENT_VERSIONS } from "@/config/legal";
 import { DEMO_PREVIEW_NOTICE, loadDemoPreview } from "@/lib/demoPreviews";
+import type { SyntheticQaCapture } from "@/services/ai/syntheticQaCapture";
+import type { PhysicalQaBindings } from "@/services/ai/physicalQaAdapters";
+import type { GenerationDiagnostic } from "@/services/ai/generationDiagnostics";
+
+interface PrivateReplayBoundary {
+  requestId: string;
+  retainedResult?: GenerationResult;
+  capture?: SyntheticQaCapture;
+  prepared?: (photo: Photo, input: string, bounds: import("@/lib/types").Framing, settings: SmileSettings) => Promise<void>;
+  receipt?: (value: GenerationDiagnostic | null) => Promise<void>;
+}
 
 type Variant = SmileVariant;
 
@@ -314,6 +325,53 @@ export default function Smile() {
   useSmileTools({ screen, hasPhoto: !!photo, settings, busy }, setSettings);
   const account = useAccount();
   const caseLibrary = useCaseLibrary();
+  const qaBindings = useRef<PhysicalQaBindings | null>(null);
+  if (process.env.NEXT_PUBLIC_SMILE_QA_PHYSICAL_HARNESS === "1") qaBindings.current = {
+    current: () => ({ photo, settings, account, repository, caseId, ready, testMode, effectiveResolution, reference, requestPreview }),
+    applySession: async (session) => {
+      const { supabase } = await import("@/services/auth/supabaseClient");
+      const client = supabase();
+      if (!client || (await client.auth.setSession(session)).error) throw new Error("qa_session_unavailable");
+    },
+    importSource: async (file, config) => {
+      const current = qaBindings.current!.current();
+      if (!config.qaUserId || current.account.user?.id !== config.qaUserId || !current.ready || current.account.statusState !== "loaded")
+        throw new Error("qa_fixture_not_ready");
+      const imported = { ...await preparePhoto(file), sourceProvenance: "prepared" as const };
+      current.repository.scope.assert();
+      if (!config.qaCaseId) throw new Error("qa_case_id_missing");
+      setCaseId(config.qaCaseId); setPhoto(imported); setSettings(structuredClone(config.settings));
+      setReference(null); setVariants([]); setResult(null); setTestMode(false); setTestPreview(null);
+      setPatientName("Authorised QA"); setResolution("1K"); setRequestLimit(0); resetCaseCosts();
+      setScreen("design"); setError("");
+      await current.repository.persistCase({ caseId: config.qaCaseId, photo: imported, settings: structuredClone(config.settings),
+        result: null, variants: [], screen: "design", testMode: false, resolution: "1K", reference: null, patientName: "Authorised QA" });
+      const until = performance.now() + 20000;
+      while (qaBindings.current?.current().photo?.dataUrl !== imported.dataUrl || qaBindings.current?.current().caseId !== config.qaCaseId) {
+        if (performance.now() > until) throw new Error("qa_import_not_ready");
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      }
+    },
+    displayResult: (next) => { setResult(next); setScreen("preview"); },
+    restoreWorkingCase,
+  };
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_SMILE_QA_PHYSICAL_HARNESS !== "1") return;
+    let active = true, cleanup: (() => void) | undefined;
+    void Promise.all([import("@/services/ai/physicalQaHarness"), import("@/services/ai/physicalQaAdapters")])
+      .then(async ([harness, adapters]) => {
+        const latest: PhysicalQaBindings = {
+          current: () => qaBindings.current!.current(),
+          importSource: (...args) => qaBindings.current!.importSource(...args),
+          applySession: (...args) => qaBindings.current!.applySession(...args),
+          displayResult: (...args) => qaBindings.current!.displayResult(...args),
+          restoreWorkingCase: (...args) => qaBindings.current!.restoreWorkingCase?.(...args),
+        };
+        const stop = await harness.installPhysicalQaHarness(adapters.createPhysicalQaAdapters(latest));
+        if (active) cleanup = stop; else stop();
+      }).catch(() => { /* A missing private fixture cannot enable the QA entry or a provider call. */ });
+    return () => { active = false; cleanup?.(); };
+  }, []);
   const { setLegacyTools } = caseLibrary;
   useEffect(() => {
     setLegacyTools(() => setLibraryOpen(true));
@@ -605,7 +663,9 @@ export default function Smile() {
     controller: AbortController,
     consentVersion?: string,
     onStage: (stage: GenerationStage) => void = () => {},
+    privateQa?: PrivateReplayBoundary,
   ): Promise<GenerationResult> {
+    if (privateQa && process.env.NEXT_PUBLIC_SMILE_QA_PHYSICAL_HARNESS !== "1") throw new Error("qa_disabled");
     settingsIn = normalizeTreatmentScope(settingsIn);
     const unavailable = generationUnavailable(settingsIn);
     if (unavailable) throw new SmileGenerationError(unavailable, "mode_unavailable");
@@ -632,7 +692,7 @@ export default function Smile() {
         preferences,
       };
     }
-    const requestId = crypto.randomUUID();
+    const requestId = privateQa?.requestId ?? crypto.randomUUID();
     const diagnostic = startGenerationDiagnostic({ requestId,
       generationPath: settingsIn.treatmentMode === "full_arch" ? "full_arch" : settingsIn.alignment ? "alignment" : settingsIn.selectedTeeth.length === 1 ? "single_tooth" : settingsIn.toothPlans?.length ? "custom" : "standard",
       selectedToothCount: settingsIn.selectedTeeth.length, sourceWidth: photoIn.width, sourceHeight: photoIn.height });
@@ -657,8 +717,8 @@ export default function Smile() {
       const protectionVersion = (await import("@/lib/face/lock")).MOUTH_LOCK_VERSION;
       const fingerprint = await previewFingerprint({ image: photoIn.dataUrl, editMask: photoIn.editMask, toothMap: toothMapKey, settings: settingsIn, resolution: effectiveResolution, provider: pricing?.model, reference: reference?.dataUrl, styleReferences, protectionVersion });
       const reusable = [result, ...variants.map(v => v.result)].find(r => r?.requestFingerprint === fingerprint);
-      if (reusable) { diagnostic.finish("reused"); onStage("complete"); return reusable; }
-      if (exceedsRequestLimit(costs.requested, 1, requestLimit)) throw new Error("This case has reached its generation limit. Change the case limit under Allowance to create more.");
+      if (reusable && !privateQa) { diagnostic.finish("reused"); onStage("complete"); return reusable; }
+      if (!privateQa?.retainedResult && exceedsRequestLimit(costs.requested, 1, requestLimit)) throw new Error("This case has reached its generation limit. Change the case limit under Allowance to create more.");
       const { prepareGenerationPhoto } = await import("@/lib/photos");
       reportStage("prepare_image");
       const requestCanvas = await prepareGenerationPhoto(photoIn);
@@ -671,13 +731,17 @@ export default function Smile() {
       const providerInput = pricing?.model.startsWith("gpt-image-")
         ? await (await import("@/lib/generation/openaiEditInput")).prepareOpenAIEditInput(photoIn, requestCanvas, editMask, sourcePoints)
         : { originalImage: requestCanvas.photo.dataUrl, editMask };
-      if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1" && providerInput.editMask) {
+      if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1") {
         const { captureSyntheticQaPrepared } = await import("@/services/ai/syntheticQaCapture");
-        await captureSyntheticQaPrepared(requestId, photoIn.dataUrl, providerInput.originalImage, providerInput.editMask);
+        const status = privateQa?.capture
+          ? await privateQa.capture.capturePrepared(requestId, photoIn.dataUrl, providerInput.originalImage, providerInput.editMask)
+          : await captureSyntheticQaPrepared(requestId, photoIn.dataUrl, providerInput.originalImage, providerInput.editMask);
+        if (privateQa && status !== "saved") throw new Error("qa_capture_not_ready");
+        await privateQa?.prepared?.(requestCanvas.photo, providerInput.originalImage, requestCanvas.sourceBounds, settingsIn);
       }
       if (controller.signal.aborted) throw controller.signal.reason;
       reportStage("request");
-      let next = await generateSmileImage({
+      let next = privateQa?.retainedResult ?? await generateSmileImage({
         caseId,
         ...providerInput,
         sourceBounds: requestCanvas.sourceBounds,
@@ -689,12 +753,18 @@ export default function Smile() {
       }, {
         requestId,
         onResponse: diagnostic.response, onProviderDiagnostic: diagnostic.provider,
+        ...(process.env.NEXT_PUBLIC_SMILE_QA_PHYSICAL_HARNESS === "1" ? {
+          onQaCapture: async (envelope: unknown) => {
+            const { captureProviderEnvelope } = await import("@/services/ai/physicalQaAdapters");
+            await captureProviderEnvelope(requestId, photoIn.dataUrl, envelope);
+          },
+        } : {}),
         signal: controller.signal,
         accessToken: await account.getAccessToken(),
         onSubmitted: () => setCosts((c) => ({ ...c, requested: c.requested + 1 })),
       });
       repository.scope.assert();
-      if (costSession.current === session) {
+      if (costSession.current === session && !privateQa?.retainedResult) {
         const receipt = next.mode === "mock"
           ? { usd: 0, basis: "usage" as const, model: "mock", resolution: effectiveResolution }
           : next.cost;
@@ -703,13 +773,18 @@ export default function Smile() {
       const { alignPreview } = await import("@/lib/photos");
       if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1") {
         const { captureSyntheticQaRaw } = await import("@/services/ai/syntheticQaCapture");
-        diagnostic.rawQaCapture(await captureSyntheticQaRaw(requestId, photoIn.dataUrl, next.image));
+        const rawStatus = privateQa?.capture
+          ? await privateQa.capture.captureRaw(requestId, photoIn.dataUrl, next.image)
+          : await captureSyntheticQaRaw(requestId, photoIn.dataUrl, next.image);
+        diagnostic.rawQaCapture(rawStatus);
+        if (privateQa && rawStatus !== "saved") throw new Error("qa_raw_capture_failed");
       }
       reportStage("align");
       const alignedImage = await alignPreview(next.image, photoIn, requestCanvas, diagnostic.rawOutput, diagnostic.geometry);
       if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1") {
         const { captureSyntheticQaNormalized } = await import("@/services/ai/syntheticQaCapture");
-        await captureSyntheticQaNormalized(requestId, photoIn.dataUrl, alignedImage);
+        if (privateQa?.capture) await privateQa.capture.captureNormalized(requestId, photoIn.dataUrl, alignedImage);
+        else await captureSyntheticQaNormalized(requestId, photoIn.dataUrl, alignedImage);
       }
       repository.scope.assert();
       next = { ...next, image: alignedImage };
@@ -730,7 +805,8 @@ export default function Smile() {
       repository.scope.assert();
       if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1") {
         const { captureSyntheticQaFinal } = await import("@/services/ai/syntheticQaCapture");
-        await captureSyntheticQaFinal(requestId, photoIn.dataUrl, next.image);
+        if (privateQa?.capture) await privateQa.capture.captureFinal(requestId, photoIn.dataUrl, next.image);
+        else await captureSyntheticQaFinal(requestId, photoIn.dataUrl, next.image);
       }
       if (settingsIn.libraryStyle) {
         const used = next.styleReferencesUsed?.count ?? 0;
@@ -743,6 +819,8 @@ export default function Smile() {
     } catch (error) {
       diagnostic.fail(controller.signal.aborted ? "cancelled" : error instanceof SmileGenerationError || error instanceof EditAreaRequiredError ? error.code : "stage_failed");
       throw error;
+    } finally {
+      await privateQa?.receipt?.(diagnostic.snapshot());
     }
   }
 

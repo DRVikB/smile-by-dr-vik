@@ -275,3 +275,75 @@ final class LiveGenerationTests: XCTestCase {
         let reopened = XCTAttachment(screenshot: safari.screenshot()); reopened.name = "live-reopened"; reopened.lifetime = .keepAlways; add(reopened)
     }
 }
+
+// These tests act only on the explicitly enabled private capture panel in the
+// installed app's actual WebView. They never reinstall or clear app data.
+final class PhysicalCaptureTests: XCTestCase {
+    func testProviderDisabledCaptureAndRelaunch() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication(bundleIdentifier: "uk.co.drvik.smilecompose")
+        app.terminate(); app.launch()
+        let run = app.buttons["QA capture self-test"]
+        XCTAssertTrue(run.waitForExistence(timeout: 45), "Diagnostic capture must be enabled in the installed physical build")
+        run.tap()
+        let passed = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'QA self-test: PASS'")).firstMatch
+        XCTAssertTrue(passed.waitForExistence(timeout: 120), "Capture preflight failed. Do not invoke the provider.")
+        app.terminate(); app.launch()
+        let verify = app.buttons["QA verify capture after relaunch"]
+        XCTAssertTrue(verify.waitForExistence(timeout: 45)); verify.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'QA capture-relaunch: PASS'")).firstMatch.waitForExistence(timeout: 60), "Retained capture must read back after app relaunch")
+        let evidence = XCTAttachment(screenshot: app.screenshot()); evidence.name = "capture-preflight-physical"; evidence.lifetime = .keepAlways; add(evidence)
+    }
+}
+
+final class PhysicalOneInvocationTests: XCTestCase {
+    func testExactlyOneAuthorisedGeneration() throws {
+        guard ProcessInfo.processInfo.environment["SMILE_QA_LIVE"] == "1" else { throw XCTSkip("Paid invocation requires explicit live scheme selection") }
+        continueAfterFailure = false
+        let app = XCUIApplication(bundleIdentifier: "uk.co.drvik.smilecompose")
+        app.launch()
+        let run = app.buttons["QA one authorised generation"]
+        XCTAssertTrue(run.waitForExistence(timeout: 45)); run.tap()
+        // Failure is decisive evidence too. Never retry this tap.
+        let outcome = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'QA live: PASS' OR label BEGINSWITH 'QA live: FAIL'")).firstMatch
+        XCTAssertTrue(outcome.waitForExistence(timeout: 300), "No terminal receipt; invocation remains spent")
+        let evidence = XCTAttachment(screenshot: app.screenshot()); evidence.name = "one-authorised-physical-outcome"; evidence.lifetime = .keepAlways; add(evidence)
+    }
+}
+
+final class PhysicalFixtureSignInTests: XCTestCase {
+    func testAdoptNormalDisposableSessionBeforeLiveAction() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication(bundleIdentifier: "uk.co.drvik.smilecompose")
+        app.terminate(); app.launch()
+        let signIn = app.buttons["QA sign in fixture"]
+        XCTAssertTrue(signIn.waitForExistence(timeout: 45)); signIn.tap()
+        // AccountProvider remounts the page into the normal authenticated workspace.
+        // The paid tap is a separate test and is never issued during sign-in.
+        XCTAssertTrue(app.buttons["QA one authorised generation"].waitForExistence(timeout: 45))
+    }
+}
+
+final class PhysicalReplayTests: XCTestCase {
+    func testRetainedOutputOnActualWebView() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication(bundleIdentifier: "uk.co.drvik.smilecompose")
+        app.launch()
+        let run = app.buttons["QA replay retained output"]
+        XCTAssertTrue(run.waitForExistence(timeout: 45)); run.tap()
+        let outcome = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'QA replay: PASS' OR label BEGINSWITH 'QA replay: FAIL'")).firstMatch
+        XCTAssertTrue(outcome.waitForExistence(timeout: 180), "Offline replay must produce a retained receipt")
+        let evidence = XCTAttachment(screenshot: app.screenshot()); evidence.name = "same-bytes-physical-replay"; evidence.lifetime = .keepAlways; add(evidence)
+    }
+}
+
+final class PhysicalSavedReopenTests: XCTestCase {
+    func testSavedAcceptedVersionAfterForceClose() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication(bundleIdentifier: "uk.co.drvik.smilecompose")
+        app.terminate(); app.launch()
+        let verify = app.buttons["QA verify saved result"]
+        XCTAssertTrue(verify.waitForExistence(timeout: 45)); verify.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'QA saved-reopen: PASS'")).firstMatch.waitForExistence(timeout: 60), "The exact accepted version must reopen")
+    }
+}

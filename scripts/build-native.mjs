@@ -30,6 +30,7 @@ const release = process.env.SMILE_RELEASE_BUILD === "1";
 if (release) {
   const problems = [];
   if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1") problems.push("Synthetic raw-image capture is QA-only and must be disabled for distribution.");
+  if (process.env.NEXT_PUBLIC_SMILE_QA_PHYSICAL_HARNESS === "1") problems.push("The physical generation harness is QA-only and must be disabled for distribution.");
   const rcKey = process.env.NEXT_PUBLIC_REVENUECAT_IOS_API_KEY ?? "";
   if (!rcKey) problems.push("NEXT_PUBLIC_REVENUECAT_IOS_API_KEY is not set.");
   else if (rcKey.startsWith("test_")) problems.push("NEXT_PUBLIC_REVENUECAT_IOS_API_KEY is a RevenueCat Test Store key; use the App Store (appl_) key.");
@@ -44,6 +45,16 @@ if (release) {
 const exists = (path) => stat(path).then(() => true, () => false);
 if (!(await exists("dist/client/_next/static")) || !(await exists(".next/server/app/index.html")))
   throw new Error("Run `npm run build` before building the native bundle.");
+
+// Next inlines public flags at compile time. Shell flags alone cannot establish
+// that a previously built QA bundle is safe to package for distribution.
+if (release) {
+  const qaMarkers = ["QA capture self-test", "QA one authorised generation", "qa_fixture_not_ready", "smile-qa-capture-runs/"];
+  for await (const path of files("dist/client")) {
+    const content = await readFile(path, "utf8");
+    if (qaMarkers.some(marker => content.includes(marker))) throw new Error(`Distribution blocked: ${path} contains compiled private QA controls. Rebuild with capture and harness disabled.`);
+  }
+}
 
 await rm(OUT, { recursive: true, force: true });
 await cp("dist/client", OUT, { recursive: true });

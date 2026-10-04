@@ -83,6 +83,7 @@ export function startGenerationDiagnostic(initial: Omit<GenerationDiagnostic, "t
   const update = (patch: Partial<GenerationDiagnostic>) => { value = { ...value, ...patch, timestamp: Date.now() }; persist(value); };
   persist(value);
   return {
+    snapshot: () => safeGenerationDiagnostic(value),
     alignment: (alignment: MouthAlignmentDiagnostic) => update({ alignment }),
     geometry: (geometry: OutputGeometryDiagnostic) => update({ geometry }),
     rawOutput: (rawOutput: RawOutputDiagnostic) => update({ rawOutput }),
