@@ -133,3 +133,31 @@ test("Full Arch design targets the reconstructed arch instead of nonexistent per
   assert.doesNotMatch(p, /Apply only to teeth whose goals permit contour changes/);
   assert.doesNotMatch(p, /Retain photographed central-to-lateral proportions/);
 });
+
+test("combined Whitening validates and reaches both prompts without overriding veneer shape or selected boundaries", () => {
+  const settings = settingsSchema.parse({ ...defaultSettings, treatment: "Porcelain", whitening: true, alignment: { arches: "Both" }, targetShade: "B1", designIntent: "Reshape" });
+  assert.equal(settings.whitening, true, "backend must not strip the checked Whitening treatment");
+  const contract = normalizeGenerationContract(settings);
+  assert.equal(contract.mode, "restorative");
+  assert.equal(contract.whitening, true);
+  assert.equal(contract.treatment, "Porcelain");
+  assert.equal(contract.shape, defaultSettings.shape);
+  for (const format of ["canonical", "sunburst"] as const) {
+    const prompt = renderGenerationContract(contract, format);
+    assert.equal((prompt.match(/COMBINED WHITENING:/g) ?? []).length, 1);
+    assert.match(prompt, /TREATMENT: Porcelain/);
+    assert.match(prompt, /ORTHODONTIC ALIGNMENT CONCEPT/);
+    assert.match(prompt, /Preserve untreated teeth/);
+    assert.match(prompt, /B1 shade/);
+    assert.doesNotMatch(prompt, /WHITENING: dental colour\/shade change only/);
+  }
+});
+test("combined Whitening honours Keep and never leaks into exclusive All-on-X or alignment only", () => {
+  const combined = { ...defaultSettings, whitening: true, targetShade: "The same" as const };
+  assert.match(buildImageEditPrompt(combined), /COMBINED WHITENING:/);
+  assert.match(buildImageEditPrompt(combined), /No intentional shade change/);
+  for (const settings of [chooseFullArch(combined), { ...combined, alignment: { arches: "Both" as const, only: true } }]) {
+    assert.equal(normalizeGenerationContract(settings).whitening, undefined);
+    assert.doesNotMatch(buildImageEditPrompt(settings), /COMBINED WHITENING:/);
+  }
+});

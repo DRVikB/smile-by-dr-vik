@@ -30,6 +30,7 @@ export function normalizeGenerationContract(s: SmileSettings, context: RenderCon
     mode, fullArch, teeth, preservedTeeth: fullArch || mode === "alignment" ? [] : (s.toothPlans ?? []).filter(p => p.intent === "Preserve" || p.condition === "Missing").map(p => ({ ...p })),
     alignment: fullArch ? undefined : s.alignment ? { ...s.alignment, arches: "Both" as const } : undefined,
     treatment: mode === "restorative" ? s.treatment : undefined,
+    whitening: mode === "restorative" && s.whitening ? true : undefined,
     targetShade: mode === "alignment" ? "The same" as const : s.targetShade,
     currentShade: s.currentShade && s.currentShadeSource ? { value: s.currentShade, source: s.currentShadeSource } : undefined,
     shape: contour ? s.shape : undefined, character: contour ? s.character : undefined, texture: contour ? s.texture : undefined,
@@ -74,7 +75,7 @@ export function renderGenerationContract(c: GenerationContract, format: "canonic
       : "NATURAL SOFT TISSUE IS PROTECTED: Do not edit the gingiva. Retain natural gingival margins, recession, papillae, gingival zeniths, pigmentation, texture and asymmetry. Do not recentre, level or symmetrise the gums, or erase black triangles by adding gum tissue.",
     "RULE PRIORITY: (1) protected anatomy, clinician-supplied restrictions and treatment-specific limits; (2) individual tooth goals/shades, otherwise global design; (3) notes within those permissions; (4) material and style. Lower-priority preferences never expand permissions. Preserve the photographed bite relationship; do not invent intrusion, extrusion, jaw opening or correction of overbite/overjet. No photograph establishes occlusal contacts or restorative space.",
   ];
-  // 2. Treatment. Modes are exclusive, except an explicitly supported alignment add-on.
+  // 2. Combined standard treatments share the existing region and design contract.
   if (fullArch) {
     const arch = "upper and lower";
     instructions.push(`TREATMENT: ${arch} full-arch fixed ${fullArch.restorationType} restorative concept. This is a visual restorative concept only. Reconstruct the visible selected arch as a coherent fixed prosthesis; replace compromised, broken-down, discoloured, irregular, spaced or missing visible teeth only within this selected arch.`);
@@ -82,6 +83,7 @@ export function renderGenerationContract(c: GenerationContract, format: "canonic
   } else if (mode === "alignment") instructions.push(alignmentInstruction(c.alignment!));
   else if (mode === "whitening") instructions.push("TREATMENT: WHITENING: dental colour/shade change only. Preserve tooth position, width, length, morphology, incisal edges, surface texture, contacts, spacing and wear, except for separately selected alignment positioning if present. Shape, texture, length and width preferences cannot authorise geometric changes.");
   else instructions.push(`TREATMENT: ${c.treatment}. ${resolveDesignPlan({ treatment: c.treatment } as SmileSettings).material}`);
+  if (c.whitening) instructions.push("COMBINED WHITENING: Alongside the selected veneer material/design, illustrate the selected target shade on the selected teeth only. The shade instructions below remain authoritative, including Keep/The same and individual shade overrides. This does not permit extra tooth reshaping, whitening untreated teeth or changing the edit region, and does not predict how existing restorations respond to whitening.");
   if (c.alignment && mode !== "alignment") instructions.push(alignmentInstruction(c.alignment));
   // 3. Region: no restorative FDI selection leaks into whole-arch or alignment-only modes.
   if (fullArch) {

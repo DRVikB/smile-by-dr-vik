@@ -131,6 +131,8 @@ export interface SmileSettings {
   toothPlans?: ToothPlan[];
   caseFeatures?: CaseFeature[];
   treatment: Treatment;
+  /** Explicit Whitening alongside veneers; uses the same selected teeth and target shade. */
+  whitening?: boolean;
   /**
    * Orthodontic alignment concept: show the visible teeth of these arches
    * straightened. Off when absent. `only` means no restorative change: teeth

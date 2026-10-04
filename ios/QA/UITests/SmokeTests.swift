@@ -6,7 +6,7 @@ final class SmokeTests: XCTestCase {
         XCTAssertTrue(choice.waitForExistence(timeout: 10))
         let footer = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Next:'")).firstMatch
         let bottom = footer.exists ? footer.frame.minY - 8 : app.frame.maxY - 110
-        // WebKit exposes radio choices as Other; XCTest does not scroll these
+        // WebKit exposes treatment choices as Other; XCTest does not scroll these
         // before tapping. Move them clear of the pinned Next action first.
         let top = app.buttons["Treatment"].frame.maxY + 12
         for _ in 0..<8 {
@@ -65,7 +65,16 @@ final class SmokeTests: XCTestCase {
         for title in ["Whitening", "Veneers", "Alignment", "Full Arch / All-on-X"] {
             XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch.waitForExistence(timeout: 5), "Missing V1 treatment: " + title)
         }
+        tapChoice("Whitening", in: app)
         tapChoice("Alignment", in: app)
+        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Include alignment'")).firstMatch.exists)
+        let selectionShot = XCTAttachment(screenshot: app.screenshot()); selectionShot.name = "combined-treatment-selection"; selectionShot.lifetime = .keepAlways; add(selectionShot)
+        app.buttons["Review"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == 'Whitening + Composite bonding + Alignment'")).firstMatch.waitForExistence(timeout: 10), app.debugDescription)
+        let combinedShot = XCTAttachment(screenshot: app.screenshot()); combinedShot.name = "combined-treatment-review"; combinedShot.lifetime = .keepAlways; add(combinedShot)
+        app.buttons["Treatment"].tap()
+        tapChoice("Veneers", in: app)
+        tapChoice("Whitening", in: app)
         app.buttons["Teeth"].tap()
         XCTAssertTrue(app.staticTexts["Both visible arches. Natural tooth shape and shade are retained."].waitForExistence(timeout: 10))
         XCTAssertFalse(app.switches["6"].exists)

@@ -4,6 +4,9 @@ import { IDBFactory } from "fake-indexeddb";
 import { backend,device,lease,A,B } from "./fixtures/patient-sync";
 import { EMPTY_STATE,EMPTY_SUMMARY,PatientSyncError,type CaseMutation,type PatientAsset,type PatientState } from "../src/services/cases/sync/types";
 import { encodePatientState,hydrate,dataUrlBlob,blobDataUrl } from "../src/services/cases/sync/media";
+import { toggleTreatment, normalizeTreatmentScope } from "../src/lib/fullArch";
+import { settingsSchema } from "../src/lib/generation/schema";
+import { preferenceRows } from "../src/lib/report";
 import { defaultSettings,type SmileCase } from "../src/lib/types";
 import { validStructured } from "../src/server/patientCaseHandlers";
 import { createPatientLocalStore } from "../src/services/cases/sync/localStore";
@@ -131,3 +134,19 @@ test("private bucket read/upload policies require registered owner/case/asset pa
 });
 test("tombstone scrubs previous clinical mutation snapshots",async()=>{const m={...create(),state:state("sensitive notes")};const c=await server.store.mutate(A,m);await server.store.mutate(A,{...update(m,c.revision),type:"DELETE_CASE"});const rows=await server.db.query('select * from patient_case_mutations where case_id=$1',[m.id]);assert.equal(JSON.stringify(rows.rows).includes("sensitive notes"),false);await assert.rejects(server.store.mutate(A,m),e=>e instanceof PatientSyncError&&e.status===410);});
 test("list keyset pagination has no missing or repeated UUIDs",async()=>{const ids:string[]=[];for(let i=0;i<54;i++){const m=create();ids.push(m.id);await server.store.mutate(B,m);}let cursor:string|undefined;const all:string[]=[];do{const page=await server.store.list(B,cursor);all.push(...page.cases.map(c=>c.id));cursor=page.nextCursor??undefined;}while(cursor);assert.equal(new Set(all).size,all.length);assert.ok(ids.every(id=>all.includes(id)));});
+
+test("combined treatments, material and shade survive local restart and second-device media reopen",async()=>{
+ const factory=new IDBFactory(),a=device(server,A,factory),id=uuid();
+ const settings=toggleTreatment(toggleTreatment({...defaultSettings,treatment:"Porcelain",targetShade:"B1"},"Whitening"),"Alignment");
+ const draft={caseId:id,photo:{dataUrl:image,name:"synthetic.jpg",width:10,height:10},settings,result:{image,variationId:uuid(),mode:"live",preferences:{settings}},screen:"preview"} as SmileCase;
+ a.offline(true);const encoded=await encodePatientState(a.scope,a.store,id,{entries:[],media:[],draft});
+ await a.sync.enqueue(id,encoded.state,encoded.summary,encoded.assets);a.stop();
+ const resumed=device(server,A,factory);await resumed.sync.run();
+ const b=device(server);await b.sync.run();const saved=await b.store.getCase(id);
+ const restored=await hydrate<SmileCase>(saved!.state.draft!,aid=>b.sync.loadAsset(id,aid),b.scope);
+ assert.equal(restored.result?.image,image);assert.equal(restored.photo.dataUrl,image);
+ assert.deepEqual(restored.settings,settings);assert.deepEqual(restored.result?.preferences?.settings,settings);
+ assert.deepEqual(normalizeTreatmentScope(settingsSchema.parse(restored.settings)),settings);
+ assert.equal(preferenceRows(restored.settings).find(([key])=>key==="Treatment")?.[1],"Whitening + Porcelain + Alignment");
+ assert.equal((await resumed.store.outbox()).length,0);resumed.stop();b.stop();
+});

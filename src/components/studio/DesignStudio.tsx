@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, ImagePlus, X } from "lucide-react";
 import type { CurrentShade, FaceShape, FullArchPlan, Photo, ShotType, SmileCharacter, SmileSettings, TargetShade, TeethCount, TextureLevel, Treatment } from "@/lib/types";
 import { upperTeeth, smileArcs, biteContexts, isFullArch } from "@/lib/types";
-import { chooseFullArch as withFullArch, chooseStandard as withStandard, chooseAlignment, normalizeTreatmentScope } from "@/lib/fullArch";
+import { chooseFullArch as withFullArch, chooseStandard as withStandard, normalizeTreatmentScope, selectedTreatments, toggleTreatment, standardTreatmentSummary } from "@/lib/fullArch";
 import { DESIGN_INTENTS, isNoChangeDesign, resolveDesignPlan } from "@/lib/generation/designPlan";
 import { canGuideSmileArc } from "@/lib/smilePrinciples";
 import { activeToothPlans, toothSummary } from "@/lib/teeth";
@@ -98,27 +98,30 @@ function More({ children, label = "More options" }: { children: React.ReactNode;
 /** V1 treatment choices reuse the existing settings and material controls. */
 export function TreatmentOptions({ settings, onChange }: { settings: SmileSettings; onChange: (settings: SmileSettings) => void }) {
   const fullArch = isFullArch(settings);
-  const alignment = Boolean(settings.alignment?.only) && !fullArch;
-  const veneers = !fullArch && !alignment && settings.treatment !== "Whitening";
+  const selected = selectedTreatments(settings);
+  const alignment = selected.includes("Alignment");
+  const whitening = selected.includes("Whitening");
+  const veneers = selected.includes("Veneers");
   const materials = settings.treatment === "Composite"
     ? [{ value: "Composite" as Treatment, title: "Composite", detail: "Earlier general composite setting" }, ...TREATMENTS.filter(t => t.value !== "Whitening")]
     : TREATMENTS.filter(t => t.value !== "Whitening");
-  const standard = (treatment: Treatment) => onChange(withStandard(settings, { treatment, alignment: settings.alignment?.only ? undefined : settings.alignment }));
+  const standard = (treatment: Treatment) => onChange(withStandard(settings, { treatment }));
   return <>
-    <div className="studio-treatments" role="radiogroup" aria-label="Treatment">
-      <button type="button" role="radio" aria-checked={!fullArch && !alignment && settings.treatment === "Whitening"} className="studio-treatment" onClick={() => standard("Whitening")}>
+    <p className="control-hint">Choose one or combine treatments. All-on-X is used on its own.</p>
+    <div className="studio-treatments" role="group" aria-label="Treatment">
+      <button type="button" role="checkbox" aria-checked={whitening} className="studio-treatment" onClick={() => onChange(toggleTreatment(settings, "Whitening"))}>
         <span className="studio-treatment-text"><strong>Whitening</strong><small>Colour only · keeps natural tooth form</small></span>
-        <span className="studio-check" aria-hidden="true">{!fullArch && !alignment && settings.treatment === "Whitening" && <Check size={14} strokeWidth={2.6} />}</span>
+        <span className="studio-check" aria-hidden="true">{whitening && <Check size={14} strokeWidth={2.6} />}</span>
       </button>
-      <button type="button" role="radio" aria-checked={veneers} className="studio-treatment" onClick={() => standard(settings.treatment === "Whitening" ? "Layered composite" : settings.treatment)}>
+      <button type="button" role="checkbox" aria-checked={veneers} className="studio-treatment" onClick={() => onChange(toggleTreatment(settings, "Veneers"))}>
         <span className="studio-treatment-text"><strong>Veneers</strong><small>Composite or porcelain · shape, shade and surface character</small></span>
         <span className="studio-check" aria-hidden="true">{veneers && <Check size={14} strokeWidth={2.6} />}</span>
       </button>
-      {INTERNAL_ALIGNMENT && <button type="button" role="radio" aria-checked={alignment} className="studio-treatment" onClick={() => onChange(chooseAlignment(settings))}>
-        <span className="studio-treatment-text"><strong>Alignment</strong><small>Both arches · natural tooth shape and shade</small></span>
+      {INTERNAL_ALIGNMENT && <button type="button" role="checkbox" aria-checked={alignment} className="studio-treatment" onClick={() => onChange(toggleTreatment(settings, "Alignment"))}>
+        <span className="studio-treatment-text"><strong>Alignment</strong><small>Both arches · straightens alongside your other choices</small></span>
         <span className="studio-check" aria-hidden="true">{alignment && <Check size={14} strokeWidth={2.6} />}</span>
       </button>}
-      {INTERNAL_FULL_ARCH && <button type="button" role="radio" aria-checked={fullArch} className="studio-treatment" onClick={() => onChange(withFullArch(settings))}>
+      {INTERNAL_FULL_ARCH && <button type="button" role="checkbox" aria-checked={fullArch} className="studio-treatment" onClick={() => onChange(withFullArch(settings))}>
         <span className="studio-treatment-text"><strong>Full Arch / All-on-X</strong><small>Both visible arches · zirconia restorative concept</small></span>
         <span className="studio-check" aria-hidden="true">{fullArch && <Check size={14} strokeWidth={2.6} />}</span>
       </button>}
@@ -131,14 +134,6 @@ export function TreatmentOptions({ settings, onChange }: { settings: SmileSettin
           <span className="studio-check" aria-hidden="true">{settings.treatment === t.value && <Check size={14} strokeWidth={2.6} />}</span>
         </button>)}
       </div>
-    </div>}
-    {INTERNAL_ALIGNMENT && !fullArch && !alignment && <div className="control-group">
-      <button type="button" role="switch" aria-checked={Boolean(settings.alignment)} className="studio-treatment"
-        onClick={() => onChange(withStandard(settings, { alignment: settings.alignment ? undefined : { arches: "Both" } }))}>
-        <span className="studio-treatment-text"><strong>Include alignment</strong><small>A straighter smile alongside your selected treatment</small></span>
-        <span className="studio-check" aria-hidden="true">{settings.alignment && <Check size={14} strokeWidth={2.6} />}</span>
-      </button>
-      {settings.alignment && <p className="control-hint">Both visible arches. Your selected teeth, material, shape and shade still apply. A visual concept, not orthodontic planning.</p>}
     </div>}
     {alignment && <p className="control-hint">A straighter-smile visualisation, not orthodontic planning. Root movement, bite, attachments and treatment staging are not simulated. Clinical assessment is required.</p>}
   </>;
@@ -205,7 +200,6 @@ export function DesignStudio({
   const alignment = normalizeTreatmentScope(settings).alignment;
   const precisionReady = Boolean(toothMap?.photoUrl&&generationProtectionPlan(toothMap.map,toothMap.photoUrl,settings).ok&&toothMap.status!=="refining");
   const suggestBoundaryReview = INTERNAL_SINGLE_TOOTH && !costs.testMode && !fullArch && !alignment && activeToothPlans(settings).length===1 && !precisionReady;
-  const alignedLabel = alignment ? `Straightened · ${alignment.arches === "Both" ? "both arches" : `${alignment.arches.toLowerCase()} arch`}` : "";
   const restoration = treatments.find(t => t.value === settings.treatment)?.title ?? settings.treatment;
   const summary: { id: StudioTab; value: string }[] = fullArch ? [
     { id: "teeth", value: archLabel(fullArch.arch) },
@@ -216,7 +210,7 @@ export function DesignStudio({
     { id: "teeth", value: alignment?.only ? `${alignment.arches === "Both" ? "Both arches" : `${alignment.arches} arch`} · positions only` : `${toothSummary(settings)}${settings.treatment === "Whitening" ? " · Colour only" : settings.designIntent && settings.designIntent !== "Auto" ? ` · ${settings.designIntent}` : ""}` },
     { id: "shape", value: alignment?.only ? "Unchanged (alignment only)" : settings.treatment === "Whitening" ? "Unchanged (whitening)" : `${shape?.name ?? settings.shape} · ${settings.character}` },
     { id: "shade", value: alignment?.only ? "Kept (alignment only)" : QUICK_SHADES.find(q => q.value === settings.targetShade)?.label ?? settings.targetShade },
-    { id: "treatment", value: alignment ? (alignment.only ? alignedLabel : `${alignedLabel} + ${restoration.toLowerCase()}`) : restoration },
+    { id: "treatment", value: standardTreatmentSummary(settings, restoration) },
   ];
 
   return (

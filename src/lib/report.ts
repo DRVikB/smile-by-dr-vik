@@ -1,4 +1,5 @@
 import { activeToothPlans, resolvedToothIntent } from "./teeth";
+import { standardTreatmentSummary } from "./fullArch";
 import { smileArcSummary } from "./smilePrinciples";
 import type { GenerationResult, PreviewPreferences, SmileSettings, SmileVariant } from "./types";
 import { fullArchLabel, isFullArch } from "./types";
@@ -28,7 +29,7 @@ export function preferenceRows(settings: SmileSettings): [string, string][] {
   return [
     ["Shade", settings.targetShade],
     ["Tooth shape", colourOnly ? "Unchanged (shade only)" : { Square: "Square", Rounded: "Round", Triangular: "Triangle" }[settings.shape]],
-    [colourOnly && settings.treatment !== "Whitening" ? "Material reference" : "Treatment", settings.treatment],
+    [colourOnly && settings.treatment !== "Whitening" ? "Material reference" : "Treatment", standardTreatmentSummary(settings)],
     ["Design goal", settings.treatment === "Whitening" ? "Shade only" : settings.designIntent ?? "Auto"],
     ...(settings.alignment ? [["Alignment concept", `${settings.alignment.arches === "Both" ? "Both arches" : `${settings.alignment.arches} arch`}${settings.alignment.only ? " · alignment only" : ""} · orthodontic suitability not assessed`] as [string, string]] : []),
     ["Selected teeth", `${settings.selectedTeeth.length} teeth · ${settings.selectedTeeth.join(", ")}`],

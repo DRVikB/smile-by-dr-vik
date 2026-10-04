@@ -1,6 +1,6 @@
 "use client";
 import type { MouthAlignmentDiagnostic } from "@/lib/face/alignmentDiagnostic";
-import { normalizeTreatmentScope } from "@/lib/fullArch";
+import { normalizeTreatmentScope, standardTreatmentSummary } from "@/lib/fullArch";
 import { generationUnavailable, INTERNAL_SINGLE_TOOTH } from "@/lib/generation/availability";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -767,7 +767,7 @@ export default function Smile() {
             mode: entryResult.mode,
             testMode,
             label,
-            summary: `${toothSummary(used)} · ${used.treatmentMode === "full_arch" && used.fullArch ? (used.fullArch.restorationType === "zirconia" ? "Zirconia" : "Provisional") : used.treatment} · ${used.targetShade} · ${used.shape}`,
+            summary: `${toothSummary(used)} · ${used.treatmentMode === "full_arch" && used.fullArch ? (used.fullArch.restorationType === "zirconia" ? "Zirconia" : "Provisional") : standardTreatmentSummary(used)} · ${used.targetShade} · ${used.shape}`,
             thumb,
           },
           { id, image: entryResult.image, originalImage: photo.dataUrl, photoMetadata: { sourceProvenance:photo.sourceProvenance,name:photo.name,width:photo.width,height:photo.height,framing:photo.framing,quality:photo.quality,toothMap:photo.toothMap,analysisSnapshot:photo.analysisSnapshot }, analysisSnapshot:photo.analysisSnapshot, preferences: entryResult.preferences ?? { settings: used, testMode }, review: entryResult.review, scaleFlag: entryResult.scaleFlag, aiConsent: testMode ? undefined : consent ?? aiConsent ?? undefined, generation: entryResult.generation },

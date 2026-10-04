@@ -41,6 +41,7 @@ export const settingsSchema = z
       edge: z.enum(toothEdges).optional(),
     })).max(28).optional(),
     treatment: z.enum(["Whitening", "Composite", "Single-shade composite", "Layered composite", "Porcelain"]),
+    whitening: z.boolean().optional(),
     alignment: z.object({ arches: z.enum(["Upper", "Lower", "Both"]), only: z.boolean().optional() }).optional(),
     treatmentMode: z.enum(["standard", "full_arch"]).optional(),
     fullArch: z.object({

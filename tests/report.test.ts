@@ -34,3 +34,10 @@ test('shade-only reports do not claim the ignored shape or texture was applied',
   assert.equal(rows['Design goal'], 'Shade only');
   assert.equal(rows.Treatment, undefined);
 });
+
+test('combined treatment report shows every selection while retaining material and shade', () => {
+  const rows = Object.fromEntries(preferenceRows({ ...defaultSettings, treatment: 'Porcelain', whitening: true, alignment: { arches: 'Both' }, targetShade: 'B1' }));
+  assert.equal(rows.Treatment, 'Whitening + Porcelain + Alignment');
+  assert.equal(rows.Shade, 'B1');
+  assert.match(rows['Alignment concept'], /Both arches/);
+});
