@@ -111,6 +111,8 @@ export interface GenerateOptions {
   requestId?: string;
   onResponse?: (status: number) => void;
   onProviderDiagnostic?: (record: ProviderDiagnostic) => void;
+  /** Explicit private QA only. Called before provider-result validation; excluded from delivered/saved results. */
+  onQaCapture?: (envelope: unknown) => void | Promise<void>;
   signal?: AbortSignal;
   fetcher?: typeof fetch;
   online?: () => boolean;
@@ -178,7 +180,10 @@ export async function generateSmileImage(
   }
 
   options.onResponse?.(response.status);
-  const body = await response.json().catch(() => null) as (Partial<GenerationResult> & { code?: string; providerDiagnostic?: unknown }) | null;
+  const body = await response.json().catch(() => null) as (Partial<GenerationResult> & { code?: string; providerDiagnostic?: unknown; qaCapture?: unknown }) | null;
+  if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1" && body?.qaCapture && options.onQaCapture) {
+    try { await options.onQaCapture(body.qaCapture); } catch { /* Private capture failures never convert an image into a successful result. */ }
+  }
   const diagnostic = safeProviderDiagnostic(body?.providerDiagnostic);
   if (diagnostic?.requestId === requestId) {
     try { options.onProviderDiagnostic?.(diagnostic); } catch { /* Private QA must not affect delivery. */ }
@@ -187,8 +192,9 @@ export async function generateSmileImage(
   if (!imageSchema.safeParse(body.image).success || !["mock", "live"].includes(String(body.mode)))
     throw fail(new SmileGenerationError(GENERATION_MESSAGES.failed, "invalid_result"));
 
-  const { providerDiagnostic: rawDiagnostic, ...delivered } = body;
+  const { providerDiagnostic: rawDiagnostic, qaCapture: privateCapture, ...delivered } = body;
   void rawDiagnostic; // Only the sanitized QA callback retains provider metadata.
+  void privateCapture; // Raw QA evidence is never persisted as patient-facing result metadata.
   const result = { ...(delivered as GenerationResult), requestId };
   emitGenerationEvent({
     ...base,

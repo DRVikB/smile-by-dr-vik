@@ -239,7 +239,8 @@ export async function generateSmile(
   const started = Date.now();
   let result: GenerationResult;
   try {
-    result = await provider.generate(parsed, signal, { update: patch => { diagnostic = { ...diagnostic, ...patch }; } });
+    result = await provider.generate(parsed, signal, { update: patch => { diagnostic = { ...diagnostic, ...patch }; },
+      ...(diagnostics?.captureImageParts ? { captureImageParts: diagnostics.captureImageParts } : {}) });
     diagnostic.category = "success";
   } catch (error) {
     if (diagnostic.category === "started") diagnostic.category = signal?.aborted ? "cancelled" : "unknown_response";

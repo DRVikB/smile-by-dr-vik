@@ -9,7 +9,7 @@ import { imageDimensions } from "./openai";
 import { geminiCostReceipt, PRICED_GEMINI_MODEL } from "./cost";
 import { nearestAspectRatio } from "../generationCanvas";
 import { developerTransport, type GoogleTransport } from "./googleTransport";
-import { inspectGeminiResponse, type ProviderTrace, type ProviderImagePartDiagnostic } from "./providerDiagnostics";
+import { inspectGeminiResponse, finishReasons, type ProviderTrace, type ProviderImagePartDiagnostic } from "./providerDiagnostics";
 import { safeLog } from "@/server/redact";
 export { nearestAspectRatio } from "../generationCanvas";
 
@@ -261,6 +261,27 @@ export class GeminiSmileProvider implements SmileImageProvider {
     const finalImages = imageParts.filter(({ part, finishReason }) => (!finishReason || finishReason === "STOP") &&
       part.thought !== true && typeof part.inlineData?.data === "string");
     trace?.update({ responseImageParts, finalImageCount: finalImages.length });
+    // Only the handler's exact staging/account/request/source allowlist can
+    // install this callback. Retain image parts before downstream rejection;
+    // text, thought signatures and the full provider body never leave here.
+    if (trace?.captureImageParts) {
+      let capturedBytes = 0;
+      const retained = imageParts.slice(0, 16).map((entry, index) => {
+        const metadata = { ...responseImageParts[index],
+          mimeType: ["image/png", "image/jpeg", "image/webp", "image/gif"].includes(entry.part.inlineData?.mimeType ?? "") ? entry.part.inlineData!.mimeType! : "image/unsupported",
+          finishReason: finishReasons.includes(responseImageParts[index].finishReason) ? responseImageParts[index].finishReason : "unknown" };
+        const data = entry.part.inlineData?.data;
+        const mime = entry.part.inlineData?.mimeType;
+        const selected = finalImages.length === 1 && finalImages[0] === entry && ["image/png", "image/jpeg"].includes(mime ?? "");
+        if (!["image/png", "image/jpeg", "image/webp", "image/gif"].includes(mime ?? "")) return { ...metadata, selected, omitted: "unsupported_mime" as const };
+        if (typeof data !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) return { ...metadata, selected, omitted: "invalid_encoding" as const };
+        if (data.length > 8_000_000 || capturedBytes + data.length > 24_000_000) return { ...metadata, selected, omitted: "size_limit" as const };
+        capturedBytes += data.length;
+        return { ...metadata, selected, image: `data:${mime};base64,${data}` };
+      });
+      try { await trace.captureImageParts(retained, Math.max(0, imageParts.length - retained.length)); }
+      catch { /* QA capture never changes provider parsing, charges or retry behavior. */ }
+    }
     if (body?.promptFeedback?.blockReason && body.promptFeedback.blockReason !== "BLOCK_REASON_UNSPECIFIED") {
       throw new GenerationError("Google declined this image request. Your original photograph is unchanged.", 422, "image_not_processed");
     }

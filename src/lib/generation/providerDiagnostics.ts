@@ -26,10 +26,15 @@ export interface ProviderDiagnostic {
   finalImageCount?: number; selectedCandidateIndex?: number; selectedPartIndex?: number;
   responseImageParts?: ProviderImagePartDiagnostic[];
 }
-export interface ProviderTrace { update: (patch: Partial<ProviderDiagnostic>) => void }
+export interface ProviderTrace {
+  update: (patch: Partial<ProviderDiagnostic>) => void;
+  /** Separate private QA transport; never included in sanitized diagnostic records. */
+  captureImageParts?: (parts: import("./qaCapture").QaImagePart[], omittedPartCount: number) => void | Promise<void>;
+}
 export interface DiagnosticContext {
   requestId: string;
   onDiagnostic: (record: ProviderDiagnostic) => void | Promise<void>;
+  captureImageParts?: ProviderTrace["captureImageParts"];
 }
 const integer = (v: unknown, max = 10000): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= max;
 const object = (v: unknown): Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};

@@ -12,6 +12,7 @@ import { AccountError } from "@/server/accountStore";
 import { selectStyleReferences } from "@/server/caseLibraryHandlers";
 import { type ProviderDiagnostic } from "./providerDiagnostics";
 import { safeLog } from "@/server/redact";
+import { qaCaptureAuthorization, type QaCaptureEnvelope } from "./qaCapture";
 
 const ACCOUNT_ERRORS: Record<AccountError["code"], { status: number; error: string }> = {
   auth_required: { status: 401, error: "Sign in to your SmileCompose account to generate a smile." },
@@ -110,6 +111,7 @@ export async function handleGenerationRequest(
       { status: 400, headers },
     );
   let providerDiagnostic: ProviderDiagnostic | undefined;
+  let qaCapture: QaCaptureEnvelope | undefined;
   try {
     const serverEnv = env ?? readServerEnvironment();
     const unavailable = generationUnavailable(parsed.data.settings, {
@@ -153,6 +155,9 @@ export async function handleGenerationRequest(
       try {
         const user = await authenticate(request, services);
         if (!user) throw new AccountError("auth_required");
+        const capture = await qaCaptureAuthorization(request.url, serverEnv, user.id, id!, parsed.data);
+        if (capture.state === "rejected") return Response.json({ error: "The private diagnostic request does not match its approved configuration. No provider request was sent.", code: "qa_capture_not_authorised" }, { status: 403, headers });
+        if (capture.state === "approved") qaCapture = capture.envelope;
         if (!(await evaluateAccess(user, services)).pro) throw new AccountError("subscription_required");
         usage = await services.store.reserve(user.id, id!, parsed.data.caseId ?? null);
         reservation = { services, id: id! };
@@ -196,7 +201,7 @@ export async function handleGenerationRequest(
           await reservation.services.store.recordSecurityEvent(accountUserId, "system", event, metadata)
             .catch(() => safeLog("warn", "generation_diagnostic_write_failed", { requestId: record.requestId }));
         }
-      } } : undefined);
+      }, ...(qaCapture ? { captureImageParts: (parts, omittedPartCount) => { qaCapture!.parts = parts; qaCapture!.omittedPartCount = omittedPartCount; } } : {}) } : undefined);
     } catch (error) {
       // Failed before completion: return the reserved generation.
       await reservation?.services.store.release(reservation.id, error instanceof GenerationError ? error.code : "generation_failed").catch(() => {});
@@ -216,16 +221,17 @@ export async function handleGenerationRequest(
         .catch(() => safeLog("error", "generation_commit_failed", {}));
     }
     const styleReferencesUsed = { count: styleReferences.length, caseIds: referenceCaseIds };
-    return Response.json({ ...result, ...(providerDiagnostic ? { providerDiagnostic } : {}), styleReferencesUsed, ...(usage ? { usage } : {}) }, { headers });
+    return Response.json({ ...result, ...(providerDiagnostic ? { providerDiagnostic } : {}), ...(qaCapture ? { qaCapture } : {}), styleReferencesUsed, ...(usage ? { usage } : {}) }, { headers });
   } catch (error) {
     if (error instanceof GenerationError)
       return Response.json(
-        { error: error.message, code: error.code, ...(providerDiagnostic ? { providerDiagnostic } : {}) },
+        { error: error.message, code: error.code, ...(providerDiagnostic ? { providerDiagnostic } : {}), ...(qaCapture ? { qaCapture } : {}) },
         { status: error.status, headers },
       );
     return Response.json(
       {
         ...(providerDiagnostic ? { providerDiagnostic } : {}),
+        ...(qaCapture ? { qaCapture } : {}),
         error:
           "We couldn’t create your preview. Your photo and selections are safe — please try again.",
       },

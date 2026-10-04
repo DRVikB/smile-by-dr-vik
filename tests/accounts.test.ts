@@ -14,6 +14,8 @@ import { revokeAppleAuthorization } from "../src/server/appleRevoke";
 import { accountsMode } from "../src/server/env";
 import { SUBSCRIPTION_PRODUCTS, TRIAL_GENERATIONS, generationsForProduct, planForProduct } from "../src/config/subscriptions";
 import { defaultSettings } from "../src/lib/types";
+import { qaSettingsSha256, qaSourceSha256 } from "../src/lib/generation/qaCapture";
+import { generationSchema } from "../src/lib/generation/schema";
 
 const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 const user: AuthenticatedUser = { id: "11111111-1111-4111-8111-111111111111", email: "dr@example.test", providers: ["email"] };
@@ -90,6 +92,62 @@ const generationRequest = (token?: string, id = crypto.randomUUID()) => new Requ
   method: "POST",
   headers: { "Content-Type": "application/json", "X-Smile-Request-Id": id, "X-Smile-AI-Consent": "smilecompose-ai-v2", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   body: JSON.stringify({ originalImage: png, settings: defaultSettings, caseId: "case-7" }),
+});
+
+test("exact private staging capture retains parts before rejection without putting image content in audit records", async () => {
+  const id = crypto.randomUUID(), runId = crypto.randomUUID();
+  const input = generationSchema.parse({ originalImage: png, settings: { ...defaultSettings, libraryStyle: false } });
+  const env = { SMILE_PROVIDER: "gemini", SMILE_GEMINI_API_KEY: "fixture-only", SMILE_GEMINI_DATA_TERMS: "paid",
+    SUPABASE_URL: "https://wukcqlpuzkzwxmdkotfg.supabase.co", SMILE_MASK_GUIDANCE: "off",
+    SMILE_QA_CAPTURE_ENABLED: "1", SMILE_QA_CAPTURE_USER_ID: user.id, SMILE_QA_CAPTURE_RUN_ID: runId, SMILE_QA_CAPTURE_REQUEST_ID: id,
+    SMILE_QA_CAPTURE_SOURCE_SHA256: await qaSourceSha256(png), SMILE_QA_CAPTURE_SETTINGS_SHA256: await qaSettingsSha256(input.settings) };
+  let calls = 0;
+  globalThis.fetch = (async () => { calls++; return Response.json({ candidates: [{ finishReason: "STOP", content: { parts: [
+    { thought: true, thoughtSignature: "private-signature", inlineData: { mimeType: "image/png", data: png.split(",")[1] } },
+    { text: "private-provider-text" },
+  ] } }] }); }) as typeof fetch;
+  const auditRecords: unknown[] = [];
+  const { store, calls: storeCalls } = fakeStore({ recordSecurityEvent: async (_user, _actor, _event, metadata) => { auditRecords.push(metadata); } });
+  const request = () => new Request("https://smile-by-dr-vik-staging.drvik.workers.dev/api/generate-smile", { method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer good-token", "X-Smile-AI-Consent": "smilecompose-ai-v2", "X-Smile-Request-Id": id }, body: JSON.stringify(input) });
+  const claims = new Set<string>();
+  const claim = async (requestId: string) => { if (claims.has(requestId)) return false; claims.add(requestId); return true; };
+  const response = await handleGenerationRequest(request(), env, claim, services(store));
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.equal(body.qaCapture.runId, runId);
+  assert.equal(body.qaCapture.requestId, id);
+  assert.equal(body.qaCapture.parts[0].image, png);
+  assert.equal(body.qaCapture.parts[0].thought, true);
+  assert.deepEqual(body.qaCapture.validatedRequest.settings, input.settings);
+  assert.equal(storeCalls.filter(call => call.startsWith("reserve:")).length, 1);
+  assert.equal(storeCalls.includes(`release:${id}:provider_no_image`), true);
+  assert.equal(calls, 1);
+  for (const secret of ["data:image", "private-signature", "private-provider-text"]) assert.equal(JSON.stringify(auditRecords).includes(secret), false);
+  const duplicate = await handleGenerationRequest(request(), env, claim, services(store));
+  assert.equal(duplicate.status, 409);
+  assert.equal((await duplicate.json()).code, "duplicate_request");
+  assert.equal(calls, 1);
+  assert.equal(storeCalls.filter(call => call.startsWith("reserve:")).length, 1);
+});
+
+test("a pinned QA account cannot spend its diagnostic allowance on a different source or setting", async () => {
+  const id = crypto.randomUUID();
+  const input = generationSchema.parse({ originalImage: png, settings: { ...defaultSettings, libraryStyle: false } });
+  const env = { SMILE_PROVIDER: "gemini", SMILE_GEMINI_API_KEY: "fixture-only", SMILE_GEMINI_DATA_TERMS: "paid",
+    SUPABASE_URL: "https://wukcqlpuzkzwxmdkotfg.supabase.co", SMILE_MASK_GUIDANCE: "off", SMILE_QA_CAPTURE_ENABLED: "1",
+    SMILE_QA_CAPTURE_USER_ID: user.id, SMILE_QA_CAPTURE_RUN_ID: crypto.randomUUID(), SMILE_QA_CAPTURE_REQUEST_ID: id,
+    SMILE_QA_CAPTURE_SOURCE_SHA256: await qaSourceSha256(png), SMILE_QA_CAPTURE_SETTINGS_SHA256: await qaSettingsSha256(input.settings) };
+  let calls = 0; globalThis.fetch = (async () => { calls++; throw Error("must not call provider"); }) as typeof fetch;
+  const { store, calls: storeCalls } = fakeStore();
+  const response = await handleGenerationRequest(new Request("https://smile-by-dr-vik-staging.drvik.workers.dev/api/generate-smile", {
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer good-token", "X-Smile-AI-Consent": "smilecompose-ai-v2", "X-Smile-Request-Id": id },
+    body: JSON.stringify({ ...input, settings: { ...input.settings, intensity: 66 } }),
+  }), env, async () => true, services(store));
+  assert.equal(response.status, 403);
+  assert.equal((await response.json()).code, "qa_capture_not_authorised");
+  assert.equal(calls, 0);
+  assert.deepEqual(storeCalls, []);
 });
 
 test("live generation requires a signed-in account", async () => {

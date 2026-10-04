@@ -23,6 +23,13 @@ export interface ServerEnvironment extends ProviderEnvironment {
   SMILE_INTERNAL_SINGLE_TOOTH?: string;
   SMILE_INTERNAL_ALIGNMENT?: string;
   SMILE_INTERNAL_FULL_ARCH?: string;
+  /** Private staging diagnostic pins. All are required; never accepted from a client. */
+  SMILE_QA_CAPTURE_ENABLED?: string;
+  SMILE_QA_CAPTURE_RUN_ID?: string;
+  SMILE_QA_CAPTURE_REQUEST_ID?: string;
+  SMILE_QA_CAPTURE_USER_ID?: string;
+  SMILE_QA_CAPTURE_SOURCE_SHA256?: string;
+  SMILE_QA_CAPTURE_SETTINGS_SHA256?: string;
 }
 
 const SERVER_KEYS = [
@@ -30,6 +37,8 @@ const SERVER_KEYS = [
   "REVENUECAT_ALLOW_SANDBOX", "APPLE_TEAM_ID", "APPLE_KEY_ID", "APPLE_PRIVATE_KEY", "APPLE_CLIENT_ID",
   "STYLE_REFERENCE_LIMIT",
   "SMILE_INTERNAL_SINGLE_TOOTH", "SMILE_INTERNAL_ALIGNMENT", "SMILE_INTERNAL_FULL_ARCH",
+  "SMILE_QA_CAPTURE_ENABLED", "SMILE_QA_CAPTURE_RUN_ID", "SMILE_QA_CAPTURE_REQUEST_ID",
+  "SMILE_QA_CAPTURE_USER_ID", "SMILE_QA_CAPTURE_SOURCE_SHA256", "SMILE_QA_CAPTURE_SETTINGS_SHA256",
 ] as const;
 
 export function readServerEnvironment(): ServerEnvironment {
