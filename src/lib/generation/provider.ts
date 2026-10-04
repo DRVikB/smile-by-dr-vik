@@ -201,8 +201,10 @@ export function getSmileProvider(
     "provider_not_configured",
   );
 }
-/** Finished without any image: the only case that is retried (once). */
+/** Finished without any image: retried once. */
 const NO_IMAGE_CATEGORIES = new Set<string>(["text_only", "empty_response", "thought_only"]);
+/** The provider was overloaded (HTTP 5xx): up to two more tries after these pauses. */
+export const BUSY_RETRY_DELAYS_MS = [1500, 4000];
 export async function generateSmile(
   input: unknown,
   signal?: AbortSignal,
@@ -236,10 +238,10 @@ export async function generateSmile(
     finally { clearTimeout(timer); }
   };
   // One user action is one generation. The provider is called again only when
-  // it finished without producing any image (text only, empty or thoughts only):
-  // no image was made or billed as output, so one retry within the same
-  // reservation is cheap. Errors, blocks, returned images and cancellation never
-  // retry; an explicit later Generate gets a new guarded request.
+  // nothing was made: a reply with no image (once), or the provider overloaded
+  // (up to twice, after a pause). Both stay within the same reservation. Other
+  // errors, blocks, returned images and cancellation never retry; an explicit
+  // later Generate gets a new guarded request.
   await emit();
   let result: GenerationResult | undefined;
   for (let attempt = 0; !result; attempt++) {
@@ -250,11 +252,15 @@ export async function generateSmile(
       diagnostic.category = "success";
     } catch (error) {
       if (diagnostic.category === "started") diagnostic.category = signal?.aborted ? "cancelled" : "unknown_response";
-      const retry = attempt === 0 && !signal?.aborted && error instanceof GenerationError && error.code === "provider_no_image"
-        && NO_IMAGE_CATEGORIES.has(diagnostic.category);
+      const noImage = attempt === 0 && error instanceof GenerationError && error.code === "provider_no_image" && NO_IMAGE_CATEGORIES.has(diagnostic.category);
+      const busy = attempt < BUSY_RETRY_DELAYS_MS.length && error instanceof GenerationError && error.code === "provider_busy";
       diagnostic.latencyMs = Date.now() - started;
       await emit();
-      if (!retry) throw error;
+      if (signal?.aborted || !(noImage || busy)) throw error;
+      if (busy) await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, BUSY_RETRY_DELAYS_MS[attempt]);
+        signal?.addEventListener("abort", () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
+      });
       diagnostic = { ...diagnostic, category: "started", httpStatus: null, latencyMs: null, retryCount: attempt + 1 };
       await emit();
       continue;

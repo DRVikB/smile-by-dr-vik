@@ -180,6 +180,8 @@ async function lockFace(
 }
 
 const ignoreCount = () => {};
+/** Automatic per-tooth limiting of AI results (see requestPreview). */
+const AUTOMATIC_TOOTH_LIMIT = false;
 
 /** The teeth (with a margin) for the Teeth step to zoom to; null when there is no map. */
 function toothFocus(map: Photo["toothMap"]): { x: number; y: number; width: number; height: number } | null {
@@ -780,10 +782,12 @@ export default function Smile() {
         repository.scope.assert();
         sourcePoints = await sourceProtectionPoints(photoIn, toothPlan.ok, detectFace, controller.signal);
       }
-      // Multi-tooth veneers and bonding: limit the result to the selected teeth,
-      // found on the device, so the image service cannot redraw the rest of the mouth.
+      // Optional: limit multi-tooth results to the selected teeth found on the
+      // device. Off: on crowded or irregular teeth the automatic outlines cut the
+      // edit into patches; the whole mouth opening (lips and face restored) reads
+      // far better. A clinician-reviewed map still governs its own path above.
       let automaticMap: import("@/lib/toothMap/types").ToothMap | null = null;
-      if (!toothPlan.ok && !photoIn.editMask && !settingsIn.alignment && settingsIn.treatmentMode !== "full_arch") {
+      if (AUTOMATIC_TOOTH_LIMIT && !toothPlan.ok && !photoIn.editMask && !settingsIn.alignment && settingsIn.treatmentMode !== "full_arch") {
         const { automaticProtectionPlan } = await import("@/lib/toothMap/protect");
         const candidate = photoIn.toothMap && automaticProtectionPlan(photoIn.toothMap, photoIn.dataUrl, settingsIn).ok ? photoIn.toothMap
           : await (await import("@/lib/toothMap/detect")).detectToothMap(photoIn, settingsIn.shotType, undefined, { signal: controller.signal }).catch(() => null);

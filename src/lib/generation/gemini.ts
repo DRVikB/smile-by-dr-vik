@@ -220,6 +220,9 @@ export class GeminiSmileProvider implements SmileImageProvider {
           429,
           "rate_limited",
         );
+      // Overloaded or briefly unavailable on Google's side: nothing was made.
+      if ([500, 502, 503, 504].includes(response.status) || status === "UNAVAILABLE")
+        throw new GenerationError("The image service is busy right now. Please try again in a moment.", 503, "provider_busy");
       throw new GenerationError(
         "Google Gemini couldn’t create this preview. Your original photo is unchanged — please try again.",
       );

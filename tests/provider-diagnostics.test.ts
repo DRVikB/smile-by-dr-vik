@@ -176,3 +176,31 @@ test("empty-response cancellation cannot initiate another provider invocation", 
     assert.equal(calls, cancel ? 1 : 2, cancel ? "cancelling prevents the retry" : "one retry, then fail");
   }
 });
+
+test("an overloaded provider (HTTP 503) is retried twice after a pause, within the same request", async () => {
+  const { BUSY_RETRY_DELAYS_MS } = await import("../src/lib/generation/provider");
+  const saved = [...BUSY_RETRY_DELAYS_MS]; BUSY_RETRY_DELAYS_MS.splice(0, 2, 1, 1);
+  const busy = () => Response.json({ error: { code: 503, status: "UNAVAILABLE", message: "PRIVATE overloaded" } }, { status: 503 });
+  try {
+    let calls = 0; const records: ProviderDiagnostic[] = [];
+    const recovers = new GeminiSmileProvider({ apiKey: "test", fetcher: async () => ++calls <= 2 ? busy() : Response.json(candidate([blob()])) });
+    const result = await generateSmile(input, undefined, recovers, { requestId, onDiagnostic: d => { records.push(d); } });
+    assert.ok(result.image);
+    assert.equal(calls, 3);
+    assert.equal(records.at(-1)?.retryCount, 2);
+    assert.equal(records.at(-1)?.category, "success");
+
+    let failing = 0;
+    const down = new GeminiSmileProvider({ apiKey: "test", fetcher: async () => { failing++; return busy(); } });
+    await assert.rejects(generateSmile(input, undefined, down, { requestId, onDiagnostic: () => {} }), (error: unknown) =>
+      error instanceof Error && "code" in error && error.code === "provider_busy" && "status" in error && error.status === 503);
+    assert.equal(failing, 3, "never more than two retries");
+
+    let cancelled = 0; const controller = new AbortController();
+    const slow = new GeminiSmileProvider({ apiKey: "test", fetcher: async () => { cancelled++; return busy(); } });
+    BUSY_RETRY_DELAYS_MS.splice(0, 2, 50, 50);
+    const pending = generateSmile(input, controller.signal, slow, { requestId, onDiagnostic: d => { if (d.category === "http_error") controller.abort(); } });
+    await assert.rejects(pending);
+    assert.equal(cancelled, 1, "cancelling during the pause stops further tries");
+  } finally { BUSY_RETRY_DELAYS_MS.splice(0, 2, ...saved); }
+});
