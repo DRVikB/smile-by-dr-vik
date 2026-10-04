@@ -205,3 +205,10 @@
       .cl-sidebar-add, .version-star, .log-row, .settings-row, .cl-item, .version-open, .recent-case):active { transform: none; }
   .settings-scroll, .settings-detail-body, .cl-main, .log-list, .version-grid, .floating-panel-body, .onboarding { scroll-behavior: auto; }
 }
+
+/* Cases on iOS: the list is the touch-scroll area (vertical pan, momentum,
+   no scroll chaining to the page behind), and the sheet's entrance animation
+   leaves no transform behind once finished, which can stop iOS from routing
+   touch scrolling to the list inside it. */
+.log-list { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y; }
+.sheet-backdrop > .log-panel { animation-fill-mode: backwards; }

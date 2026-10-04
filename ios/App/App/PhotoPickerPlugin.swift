@@ -1,5 +1,7 @@
 import Foundation
 import AVFoundation
+import CoreMotion
+import Vision
 import Capacitor
 import PhotosUI
 import UniformTypeIdentifiers
@@ -142,30 +144,105 @@ public class PhotoPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
 
 // MARK: - Camera
 
+/// Live alignment checks for the capture guide, computed from on-device face
+/// landmarks (Vision) and the device's gravity vector (Core Motion). Pure
+/// rules, so the camera only draws what they decide. Nothing leaves the device.
+struct CaptureGuidance {
+    struct Face {
+        /// All in the photo frame's normalised coordinates, origin top-left.
+        var centreX: CGFloat
+        var mouth: CGRect
+        /// Inner-lip opening height / mouth width.
+        var opening: CGFloat
+        var rollDegrees: CGFloat
+        var yawDegrees: CGFloat
+    }
+    enum Step: Equatable { case noFace, centre, closer, further, raise, lower, levelDevice, uprightDevice, headStraight, lookAhead, smile, ready }
+
+    /// The device is upright and level: its own tilt from the nearest upright
+    /// orientation, and how far it leans towards or away from the patient.
+    static func deviceLevel(gravity g: (x: Double, y: Double, z: Double)) -> (sideDegrees: Double, leanDegrees: Double) {
+        let angle = atan2(g.x, g.y) * 180 / .pi
+        let quarter = (angle / 90).rounded() * 90
+        let lean = asin(max(-1, min(1, g.z))) * 180 / .pi
+        return (angle - quarter, lean)
+    }
+
+    static func step(face: Face?, guide: CGRect, gravity: (x: Double, y: Double, z: Double)?) -> Step {
+        guard let f = face else { return .noFace }
+        if abs(f.centreX - 0.5) > 0.06 { return .centre }
+        let ratio = f.mouth.width / guide.width
+        if ratio < 0.6 { return .closer }
+        if ratio > 1.05 { return .further }
+        if f.mouth.midY < guide.minY { return .lower }
+        if f.mouth.midY > guide.maxY { return .raise }
+        if let g = gravity {
+            let level = deviceLevel(gravity: g)
+            if abs(level.sideDegrees) > 3 { return .levelDevice }
+            if abs(level.leanDegrees) > 10 { return .uprightDevice }
+        }
+        if abs(f.rollDegrees) > 5 { return .headStraight }
+        if abs(f.yawDegrees) > 12 { return .lookAhead }
+        if f.opening < 0.1 { return .smile }
+        return .ready
+    }
+
+    static func message(_ step: Step) -> String {
+        switch step {
+        case .noFace: return "Find the face, looking straight at the camera"
+        case .centre: return "Centre the face"
+        case .closer: return "Move a little closer"
+        case .further: return "Move a little further away"
+        case .raise: return "Move the camera down a little"
+        case .lower: return "Move the camera up a little"
+        case .levelDevice: return "Level the device"
+        case .uprightDevice: return "Hold the device upright"
+        case .headStraight: return "Keep the head straight"
+        case .lookAhead: return "Look straight at the camera"
+        case .smile: return "Smile and show the teeth"
+        case .ready: return "Hold still"
+        }
+    }
+}
+
 /// The SmileCompose camera: a 3:4 live view (4:3 in landscape) showing exactly the photo's frame,
-/// the smile guide at the same fractions of that frame as the web capture guide, pinch or −/+ zoom
+/// the smile guide at the same fractions of that frame as the web capture guide, live alignment
+/// guidance (the guide turns gold when the face, device and smile line up), pinch or −/+ zoom
 /// across the lenses, and a flip between cameras. It captures a full-quality still
 /// (AVCapturePhotoOutput, quality prioritised) rather than a frame of video.
-final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate {
+final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVCaptureVideoDataOutputSampleBufferDelegate {
     enum Result { case cancelled, failed(String), captured(Data) }
+
+    private static let gold = UIColor(red: 208 / 255, green: 164 / 255, blue: 102 / 255, alpha: 1)
 
     private let guide: CGRect
     private var front: Bool
     private let completion: (Result) -> Void
     private let session = AVCaptureSession()
     private let sessionQueue = DispatchQueue(label: "uk.co.drvik.smilecompose.camera")
+    private let analysisQueue = DispatchQueue(label: "uk.co.drvik.smilecompose.camera.analysis")
     private let photoOutput = AVCapturePhotoOutput()
+    private let videoOutput = AVCaptureVideoDataOutput()
+    private let motion = CMMotionManager()
     private var device: AVCaptureDevice?
+    private var rotationCoordinator: AnyObject?
     /// The zoom factor that reads as 1× (the wide lens), and the most we allow.
     private var zoomBase: CGFloat = 1
     private var zoomMax: CGFloat = 5
     private var pinchStart: CGFloat = 1
     private var finished = false
+    private var lastAnalysis = Date.distantPast
+    private var latestFace: CaptureGuidance.Face?
+    private var readySince: Date?
+    private var wasReady = false
 
     private let previewLayer = AVCaptureVideoPreviewLayer()
     private let previewHost = UIView()
     private let guideView = UIView()
+    private let midline = UIView()
+    private let levelLine = UIView()
     private let hint = UILabel()
+    private let hintPill = UIView()
     private let closeButton = UIButton(type: .system)
     private let flipButton = UIButton(type: .system)
     private let shutter = UIButton(type: .custom)
@@ -173,6 +250,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
     private let zoomOut = UIButton(type: .system)
     private let zoomIn = UIButton(type: .system)
     private let zoomBar = UIView()
+    private let haptic = UIImpactFeedbackGenerator(style: .light)
 
     init(guide: CGRect, front: Bool, completion: @escaping (Result) -> Void) {
         self.guide = guide
@@ -193,20 +271,31 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         previewHost.layer.addSublayer(previewLayer)
         previewHost.clipsToBounds = true
         previewHost.layer.cornerRadius = 18
+        previewHost.backgroundColor = UIColor(white: 0.07, alpha: 1)
         previewHost.addGestureRecognizer(UIPinchGestureRecognizer(target: self, action: #selector(pinched(_:))))
         view.addSubview(previewHost)
 
+        for line in [midline, levelLine] {
+            line.backgroundColor = UIColor(white: 1, alpha: 0.35)
+            line.isUserInteractionEnabled = false
+            previewHost.addSubview(line)
+        }
         guideView.layer.borderColor = UIColor.white.cgColor
         guideView.layer.borderWidth = 2
         guideView.layer.cornerRadius = 12
         guideView.isUserInteractionEnabled = false
         previewHost.addSubview(guideView)
 
+        hintPill.backgroundColor = UIColor(white: 0, alpha: 0.55)
+        hintPill.layer.cornerRadius = 18
+        hintPill.isUserInteractionEnabled = false
+        view.addSubview(hintPill)
         hint.text = "Line the smile up inside the box"
         hint.textColor = .white
-        hint.font = .systemFont(ofSize: 15, weight: .medium)
+        hint.font = .systemFont(ofSize: 15, weight: .semibold)
         hint.textAlignment = .center
         hint.adjustsFontSizeToFitWidth = true
+        hint.accessibilityTraits = .updatesFrequently
         view.addSubview(hint)
 
         let symbols = UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold)
@@ -225,8 +314,6 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
 
         shutter.backgroundColor = .white
         shutter.layer.cornerRadius = 32
-        shutter.layer.borderColor = UIColor(white: 1, alpha: 0.45).cgColor
-        shutter.layer.borderWidth = 0
         shutter.accessibilityLabel = "Take photo"
         shutter.addTarget(self, action: #selector(capture), for: .touchUpInside)
         view.addSubview(shutter)
@@ -252,7 +339,24 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         zoomLabel.textAlignment = .center
         zoomBar.addSubview(zoomLabel)
 
+        // iPadOS pauses the camera when it treats the app as multitasking (Stage
+        // Manager, Split View): say so instead of showing a silent black preview.
+        let centre = NotificationCenter.default
+        centre.addObserver(self, selector: #selector(sessionInterrupted(_:)), name: AVCaptureSession.wasInterruptedNotification, object: session)
+        centre.addObserver(self, selector: #selector(sessionResumed), name: AVCaptureSession.interruptionEndedNotification, object: session)
+        centre.addObserver(self, selector: #selector(sessionFailed), name: AVCaptureSession.runtimeErrorNotification, object: session)
+
+        if motion.isDeviceMotionAvailable {
+            motion.deviceMotionUpdateInterval = 1.0 / 15
+            motion.startDeviceMotionUpdates()
+        }
+        haptic.prepare()
         configureSession()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+        motion.stopDeviceMotionUpdates()
     }
 
     override func viewDidLayoutSubviews() {
@@ -270,10 +374,16 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         previewLayer.frame = previewHost.bounds
         CATransaction.commit()
         guideView.frame = CGRect(x: guide.minX * size.width, y: guide.minY * size.height, width: guide.width * size.width, height: guide.height * size.height)
-        if let connection = previewLayer.connection, connection.isVideoOrientationSupported { connection.videoOrientation = currentOrientation() }
+        midline.bounds = CGRect(x: 0, y: 0, width: 1, height: size.height)
+        midline.center = CGPoint(x: size.width / 2, y: size.height / 2)
+        levelLine.bounds = CGRect(x: 0, y: 0, width: size.width * 0.8, height: 1)
+        levelLine.center = CGPoint(x: size.width / 2, y: size.height * 0.42)
+        applyRotation()
 
         closeButton.frame = CGRect(x: safe.minX + 16, y: safe.minY + 10, width: 44, height: 44)
-        hint.frame = CGRect(x: safe.minX + 70, y: safe.minY + 10, width: safe.width - 140, height: 44)
+        hint.frame = CGRect(x: safe.minX + 80, y: safe.minY + 14, width: safe.width - 160, height: 36)
+        let pillWidth = min(hint.intrinsicContentSize.width + 36, safe.width - 150)
+        hintPill.frame = CGRect(x: safe.midX - pillWidth / 2, y: safe.minY + 14, width: pillWidth, height: 36)
         zoomBar.frame = CGRect(x: safe.midX - 80, y: safe.maxY - bottom + 18, width: 160, height: 40)
         zoomOut.frame = CGRect(x: 0, y: 0, width: 48, height: 40)
         zoomIn.frame = CGRect(x: 112, y: 0, width: 48, height: 40)
@@ -284,6 +394,8 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         flipButton.frame = CGRect(x: safe.maxX - 76, y: safe.maxY - 82, width: 44, height: 44)
     }
 
+    // MARK: Orientation
+
     private func currentOrientation() -> AVCaptureVideoOrientation {
         switch view.window?.windowScene?.interfaceOrientation {
         case .landscapeLeft: return .landscapeLeft
@@ -292,6 +404,27 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         default: return .portrait
         }
     }
+
+    /// Preview and analysis frames upright for the current orientation (rotation
+    /// angles on iOS 17+, where the older orientation property is deprecated).
+    private func applyRotation() {
+        if #available(iOS 17.0, *), let coordinator = rotationCoordinator as? AVCaptureDevice.RotationCoordinator {
+            let previewAngle = coordinator.videoRotationAngleForHorizonLevelPreview
+            let captureAngle = coordinator.videoRotationAngleForHorizonLevelCapture
+            if let c = previewLayer.connection, c.isVideoRotationAngleSupported(previewAngle) { c.videoRotationAngle = previewAngle }
+            sessionQueue.async {
+                if let c = self.videoOutput.connection(with: .video), c.isVideoRotationAngleSupported(captureAngle) { c.videoRotationAngle = captureAngle }
+            }
+        } else {
+            let orientation = currentOrientation()
+            if let c = previewLayer.connection, c.isVideoOrientationSupported { c.videoOrientation = orientation }
+            sessionQueue.async {
+                if let c = self.videoOutput.connection(with: .video), c.isVideoOrientationSupported { c.videoOrientation = orientation }
+            }
+        }
+    }
+
+    // MARK: Session
 
     private static func camera(front: Bool) -> AVCaptureDevice? {
         if front { return AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) }
@@ -307,6 +440,9 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         sessionQueue.async {
             self.session.beginConfiguration()
             self.session.sessionPreset = .photo
+            if #available(iOS 16.0, *), self.session.isMultitaskingCameraAccessSupported {
+                self.session.isMultitaskingCameraAccessEnabled = true
+            }
             self.session.inputs.forEach { self.session.removeInput($0) }
             guard let device = Self.camera(front: front), let input = try? AVCaptureDeviceInput(device: device), self.session.canAddInput(input) else {
                 self.session.commitConfiguration()
@@ -317,19 +453,127 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
             if !self.session.outputs.contains(self.photoOutput), self.session.canAddOutput(self.photoOutput) {
                 self.session.addOutput(self.photoOutput)
             }
+            if !self.session.outputs.contains(self.videoOutput), self.session.canAddOutput(self.videoOutput) {
+                self.videoOutput.alwaysDiscardsLateVideoFrames = true
+                self.videoOutput.setSampleBufferDelegate(self, queue: self.analysisQueue)
+                self.session.addOutput(self.videoOutput)
+            }
+            // Analysis frames mirror the front preview, so landmarks map onto what is shown.
+            if let c = self.videoOutput.connection(with: .video), c.isVideoMirroringSupported {
+                c.automaticallyAdjustsVideoMirroring = false
+                c.isVideoMirrored = front
+            }
             self.photoOutput.maxPhotoQualityPrioritization = .quality
             self.session.commitConfiguration()
 
             // With an ultra-wide lens, 1× (the wide lens) is the first switch-over point.
-            let hasUltraWide = device.constituentDevices.contains { $0.deviceType == .builtInUltraWideCamera }
-            let base = hasUltraWide ? CGFloat(device.virtualDeviceSwitchOverVideoZoomFactors.first?.doubleValue ?? 1) : 1
+            let constituents = device.constituentDevices.map(\.deviceType)
+            let switchOvers = device.virtualDeviceSwitchOverVideoZoomFactors.map { CGFloat($0.doubleValue) }
+            let hasUltraWide = constituents.contains(.builtInUltraWideCamera)
+            let base = hasUltraWide ? (switchOvers.first ?? 1) : 1
+            // Opening zoom: the telephoto lens where the phone has one; 1.5× on the selfie camera.
+            let telephoto = constituents.contains(.builtInTelephotoCamera) ? switchOvers.last : nil
+            let start = front ? base * 1.5 : (telephoto ?? base)
             self.device = device
             self.zoomBase = base
-            self.zoomMax = min(device.maxAvailableVideoZoomFactor, base * 5)
-            self.setZoom(base)
+            self.zoomMax = min(device.maxAvailableVideoZoomFactor, max(base * 5, start))
+            self.setZoom(start)
+            DispatchQueue.main.async {
+                if #available(iOS 17.0, *) {
+                    self.rotationCoordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: self.previewLayer)
+                }
+                self.applyRotation()
+            }
             if !self.session.isRunning { self.session.startRunning() }
         }
     }
+
+    @objc private func sessionInterrupted(_ note: Notification) {
+        var message = "The camera is paused. Return to SmileCompose full screen to continue."
+        if let raw = note.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int,
+           let reason = AVCaptureSession.InterruptionReason(rawValue: raw) {
+            switch reason {
+            case .videoDeviceNotAvailableWithMultipleForegroundApps:
+                message = "The camera pauses while other apps share the screen. Show SmileCompose full screen."
+            case .videoDeviceInUseByAnotherClient:
+                message = "Another app is using the camera. Close it to continue."
+            default: break
+            }
+        }
+        DispatchQueue.main.async { self.setHint(message, ready: false) }
+    }
+
+    @objc private func sessionResumed() {
+        DispatchQueue.main.async { self.setHint("Line the smile up inside the box", ready: false) }
+    }
+
+    @objc private func sessionFailed() {
+        sessionQueue.async { if !self.session.isRunning { self.session.startRunning() } }
+    }
+
+    // MARK: Guidance
+
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        // About eight checks a second is enough to guide, and light on the battery.
+        let now = Date()
+        guard now.timeIntervalSince(lastAnalysis) > 0.12, let pixels = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        lastAnalysis = now
+        let request = VNDetectFaceLandmarksRequest()
+        let handler = VNImageRequestHandler(cvPixelBuffer: pixels, orientation: .up)
+        try? handler.perform([request])
+        let face = (request.results ?? []).max { $0.boundingBox.width < $1.boundingBox.width }.flatMap(Self.describe)
+        DispatchQueue.main.async { self.latestFace = face; self.updateGuidance() }
+    }
+
+    /// Vision coordinates (normalised, origin bottom-left) to the photo frame's, origin top-left.
+    private static func describe(_ observation: VNFaceObservation) -> CaptureGuidance.Face? {
+        guard let landmarks = observation.landmarks, let outer = landmarks.outerLips, let inner = landmarks.innerLips else { return nil }
+        let box = observation.boundingBox
+        func points(_ region: VNFaceLandmarkRegion2D) -> [CGPoint] {
+            region.normalizedPoints.map { CGPoint(x: box.minX + $0.x * box.width, y: 1 - (box.minY + $0.y * box.height)) }
+        }
+        let lips = points(outer), opening = points(inner)
+        guard let minX = lips.map(\.x).min(), let maxX = lips.map(\.x).max(), let minY = lips.map(\.y).min(), let maxY = lips.map(\.y).max(),
+              let innerTop = opening.map(\.y).min(), let innerBottom = opening.map(\.y).max(), maxX > minX else { return nil }
+        let degrees: (NSNumber?) -> CGFloat = { CGFloat(($0?.doubleValue ?? 0) * 180 / .pi) }
+        return CaptureGuidance.Face(
+            centreX: box.midX,
+            mouth: CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY),
+            opening: (innerBottom - innerTop) / (maxX - minX),
+            rollDegrees: degrees(observation.roll),
+            yawDegrees: degrees(observation.yaw))
+    }
+
+    private func updateGuidance() {
+        let gravity = motion.deviceMotion.map { ($0.gravity.x, $0.gravity.y, $0.gravity.z) }
+        let step = CaptureGuidance.step(face: latestFace, guide: guide, gravity: gravity)
+        let ready = step == .ready
+        readySince = ready ? (readySince ?? Date()) : nil
+        let steady = ready && Date().timeIntervalSince(readySince!) > 0.6
+        setHint(steady ? "Lined up — take the photo" : CaptureGuidance.message(step), ready: ready)
+        if steady && !wasReady { haptic.impactOccurred() }
+        wasReady = steady
+
+        let centred = latestFace.map { abs($0.centreX - 0.5) <= 0.06 } ?? false
+        midline.backgroundColor = centred ? Self.gold : UIColor(white: 1, alpha: 0.35)
+        if let g = gravity {
+            let level = CaptureGuidance.deviceLevel(gravity: g)
+            levelLine.transform = CGAffineTransform(rotationAngle: CGFloat(-level.sideDegrees * .pi / 180))
+            levelLine.backgroundColor = abs(level.sideDegrees) <= 3 ? Self.gold : UIColor(white: 1, alpha: 0.35)
+        }
+    }
+
+    private func setHint(_ text: String, ready: Bool) {
+        hint.text = text
+        hint.textColor = ready ? .black : .white
+        hintPill.backgroundColor = ready ? Self.gold : UIColor(white: 0, alpha: 0.55)
+        guideView.layer.borderColor = (ready ? Self.gold : UIColor.white).cgColor
+        guideView.layer.borderWidth = ready ? 3 : 2
+        view.viewWithTag(42)?.layer.borderColor = (ready ? Self.gold : UIColor.white).cgColor
+        view.setNeedsLayout()
+    }
+
+    // MARK: Zoom, flip, capture
 
     private func setZoom(_ factor: CGFloat) {
         guard let device = device else { return }
@@ -359,6 +603,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
 
     @objc private func flip() {
         front.toggle()
+        latestFace = nil
         configureSession()
     }
 
@@ -367,12 +612,20 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
     @objc private func capture() {
         shutter.isEnabled = false
         let orientation = currentOrientation()
+        var captureAngle: CGFloat?
+        if #available(iOS 17.0, *), let coordinator = rotationCoordinator as? AVCaptureDevice.RotationCoordinator {
+            captureAngle = coordinator.videoRotationAngleForHorizonLevelCapture
+        }
         let mirrored = front
         sessionQueue.async {
             let settings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
             settings.photoQualityPrioritization = .quality
             if let connection = self.photoOutput.connection(with: .video) {
-                if connection.isVideoOrientationSupported { connection.videoOrientation = orientation }
+                if #available(iOS 17.0, *), let angle = captureAngle {
+                    if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
+                } else if connection.isVideoOrientationSupported {
+                    connection.videoOrientation = orientation
+                }
                 // The front camera's photo matches its mirrored live view, as the web capture does.
                 if connection.isVideoMirroringSupported {
                     connection.automaticallyAdjustsVideoMirroring = false
@@ -390,7 +643,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         guard error == nil, let data = photo.fileDataRepresentation() else {
             DispatchQueue.main.async {
                 self.shutter.isEnabled = true
-                self.hint.text = "That photo didn’t work. Please try again."
+                self.setHint("That photo didn’t work. Please try again.", ready: false)
             }
             return
         }
@@ -400,6 +653,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
     private func finish(_ result: Result) {
         guard !finished else { return }
         finished = true
+        motion.stopDeviceMotionUpdates()
         sessionQueue.async { if self.session.isRunning { self.session.stopRunning() } }
         dismiss(animated: true) { self.completion(result) }
     }
