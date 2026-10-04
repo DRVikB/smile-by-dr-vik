@@ -50,7 +50,10 @@ export function ProfileHeader() {
       <button type="button" className="profile-card-edit" onClick={() => nav.openPage({ kind: "editProfile" })}>
         Edit profile<ChevronRight size={16} strokeWidth={1.8} aria-hidden="true" />
       </button>
-      {configured && !user && <button className="primary-button profile-card-action" onClick={() => openAuth("signIn")}>Sign in or create account</button>}
+      {configured && !user && <>
+        <button className="primary-button profile-card-action" onClick={() => openAuth("signIn")}>Sign in or create account</button>
+        <p className="profile-card-hint">Your cases sync privately, and your plan follows you to every device.</p>
+      </>}
       {editingPhoto && <ProfilePhotoEditor onClose={() => setEditingPhoto(false)} onSaved={nav.say} />}
     </div>
   );
