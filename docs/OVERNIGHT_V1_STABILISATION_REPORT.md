@@ -1,3 +1,64 @@
+# CURRENT — FINAL OWNER ACCEPTANCE CANDIDATE, 4 October 2026
+
+**HOLD — nothing uploaded to Apple.** This section supersedes older runtime/readiness statements below; historical failures and their evidence are retained. Full handover: [TESTFLIGHT_READINESS.md](TESTFLIGHT_READINESS.md).
+
+## 1. WHAT WAS ACTUALLY FIXED
+
+- **PASS:** `2ba93ec` removed the automatic Gemini no-image retry. At most one provider invocation per single accepted Generate; no fallback.
+- **PASS:** `9421c05` restored Include alignment while retaining bonding/veneer settings, and routes source-face preflight failure into existing reviewed Protect edit area before a paid call. No new segmentation engine or weakened protection.
+- **PASS:** `7ed728c` fixed a demonstrated double-tap race before asynchronous consent checks. Actual handlers admitted two preflights; synchronous locking now admits one, releases on failure and ignores cancelled preflight results.
+- **PASS:** `3fbe614` removed an unverified static three-day trial promise. Native App Store reads show no trial offer. Store-returned offer wording is preserved; no products/prices/allowances changed.
+- **PASS:** `fef9a17` adds actual native preview/report sharing tests on iPhone/iPad simulator. Factual provider/storage documentation now reflects current Gemini staging rather than inactive Sunburst.
+
+## 2. WHAT WAS TESTED — environment, commit and evidence
+
+Application/archive/deployment source **fef9a17ad3a215294990585d483d329eb9b1c53b**, branch `release/v1-device-test`. Existing local Xcode project/scheme work remains preserved, uncommitted and included as local build inputs. Later handover-only commits do not change application inputs.
+
+- **PASS:** full **703/703** Node suite; no failures/skips, TypeScript, ESLint, production-style web/native build, Capacitor sync, copied-bundle verifier, Cloudflare packaging.
+- **PASS:** iPhone/iPad iOS27 Release simulator fixture journeys, treatment controls, protected local result replay, comparison and relaunch. Temporary simulator fixtures block external requests and never falsely acknowledge cloud sync. They are absent from the real archive/physical app.
+- **PASS:** native JPEG preview and PDF report activity sheets on both simulators, then cancel with no recipient. Actual two-page synthetic A4 PDF captured locally, both pages rendered and inspected; before/concept, treatment/settings, disclaimers visible.
+- **PASS:** normal authenticated staging refresh/status; three existing authorised disposable QA cases; **12/12 actual media downloads HTTP200, exact checksum matches**. Case and webhook without auth return401. No original owner case was deleted/reset.
+- **PASS:** Release archive compilation / local development signature verification. Final archive `output/testflight-final-2026-10-03/SmileCompose-fef9a17.xcarchive`; bundle `uk.co.drvik.smilecompose`, widget `.widget`, version1.0/build1, existing team7TPF7LT884.
+- Final matched staging Worker **81b45bde-c3de-4359-b4d3-14018438b136**, tagfef9a17,100%. Gemini `gemini-3.1-flash-image`, provider guidanceOFF; segmentation/compositing/geometry guards remain ON. Sunburst retained inactive. Alignment/FullArch1, SingleTooth0. No production write: deployment43a6731b-c891-4859-8ec0-83832b72e3a3/versiona513bd76-a5b1-44cc-a7fd-22a5df0ab365 equal before/after.
+- RevenueCat read-only: correct App Store app/bundle, `pro`, current `default`, monthly/annual packages/SKUs; credential validationsVALID. UK prices29.99/299.99 and allowances50/600 match. Sandbox webhook staging endpoint configured; unit/idempotency/grant-isolation coverage passes. **Real purchase/restore/delivery NOT TESTED.**
+
+Evidence: `output/testflight-final-2026-10-03/` (private/git-ignored), archive receipts/manifests, app-store reads, release logs, simulator xcresults/screenshots and synthetic PDF. Security assessment for the immutable admission-lock patch is retained privately in Codex Security artifact storage, with human review recommended; not a complete penetration test.
+
+## 3. WHAT STILL FAILS
+
+- **FAIL distribution legal gate:** privacy23 +terms17 unresolved owner/legal items. Guard retained.
+- **FAIL distribution signing export:** no local Apple Distribution certificate/private key and no App Store app/widget profiles. Development archive is not a distributable TestFlight archive.
+- **FAIL product metadata completeness:** both products reportMISSING_METADATA; no trial offer, absent review information/privacy-policy URL in the native read. Owner App Store Connect review required, no configuration altered.
+- **DEFERRED durable charged-result recovery:** valid server output can commit allowance before client processing/save fails. No completed durable redelivery/refund transaction. Provider-failure release passes but does not solve that window; no fake client or manual refund.
+
+## 4. WHAT WAS NOT TESTED / BLOCKED
+
+Final physical iPhone end-to-end generation/save/reopen, real Apple/email delivery/linking, real Apple sandbox purchase/restore, physical iPad, current App Store build uniqueness, provider legal/retention settings and owner Apple agreements are **NOT TESTED / OWNER REVIEW REQUIRED**. Installation and simulator replay are not promoted to physical generation acceptance. Same source's earlier physical rejection remains unresolved as a universal reliability claim.
+
+No new paid calls in this final overnight continuation: previously authorised comparison already used. Recent Gemini photo batch used3 paid calls/0 retries, then stopped on mouth-only source preflight with0 fourth paid calls. Four QA credits remained untouched during the exact account's previously authorised one-hour extension. That override has now expired: final statusPro=false/balance0, with all twelve saved assets still accessible; no four additional charges or further extension. Earlier entire-thread requests remain historical; no invented lifetime count.
+
+## 5. WHAT NEEDS VISUAL REVIEW
+
+**HUMAN REVIEW REQUIRED:** `output/gemini-test-folder-2026-10-03/visual-review.html`, originals/raw/final/mouth comparisons. Three recent Porcelain samples technically delivered/saved/reopened; cosmetic quality and correct gingival/tooth boundaries are not guaranteed. No fresh final treatment quality proof for Whitening, Composite, Alignment or FullArch. FullArch retains the owner's simple Both/Zirconia scope with Preserve/Include gingiva; generic older arch/material controls were not silently restored.
+
+Simulator screenshots under final private evidence cover comparison, treatment scope, iPad landscape and native sharing. Before/after images dominate the report. No design-service upload of identifiable images.
+
+## 6. EXACT NEXT ACTION FOR THE OWNER
+
+Test the installed normal-mode staging Release using approved QA content: Composite6 → one generation → visual inspection → save → force-close → reopen → preview/PDF share. Stop on first failure and collect private request/path/count/dimensions/status/stage/allowance diagnostics; no repeated generation. Then complete legal items and Xcode distribution signing, owner treatment acceptance and sandbox purchase/restore before approving a new archive/upload. Exact Xcode and short iPhone/iPad acceptance steps are in TESTFLIGHT_READINESS.md. No approval questions were sent during this pass.
+
+## Failure / regression history retained
+
+Actual-handler double-tap RED:4 failures; cancellation RED:2 failures. Focused56 and final703 pass after lock. Trial render RED:2 failures; GREEN after static-copy removal. Native export harness had obscured-background Share, ambiguous web/native Copy, one Swift query compile error and incorrect native Button query; accessibility established ActivityListView/cell selectors, then iPhone/iPad passed. These are not hidden or counted as successful first attempts.
+
+Historical conflict test: forced scheduled refresh reproduced the fixture race after12 passing reruns; existing fixtures disconnect for stale edit/reconnect and explicitly assert conflict.12 post-fix reruns and subsequent full suites pass; production conflict logic unchanged. Original failure/evidence remains below. Local archive export stillFAIL; reruns do not erase it.
+
+Selective fix commits/rollback:2ba93ec,9421c05,7ed728c,3fbe614; native-test-onlyfef9a17. No reset/push/merge/schema migration. Remaining upstream native optional/unused-variable and Node module-type warnings documented, not solved with unrelated dependency churn.
+
+**INTERNAL TESTFLIGHT:** HOLD until legal/signing and representative physical acceptance. Small owner-only approved-content test may then be considered with explicit limitations. Sunburst, SingleTooth, ToothMap/Precision stay unavailable in normalV1. **External/paying users:** also require durable charged-result recovery, all-treatment cosmetic/device acceptance, actual account/purchase delivery and professional privacy review. No upload or deployment to production.
+
+---
+
 ## LATEST — GEMINI STAGING ACTIVATION / STRICT ONE-CALL GATE, 3 October 2026
 
 ### WHAT WAS ACTUALLY COMPLETED
