@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  MessageSquareText,
   Maximize2,
   Pencil,
   Plus,
@@ -24,6 +25,7 @@ export function PreviewCompactMenu({
   onEdit,
   onShare,
   onNew,
+  onGoals,
   anotherCost,
   busy,
 }: {
@@ -38,6 +40,8 @@ export function PreviewCompactMenu({
   /** Share with patient. */
   onShare: () => void;
   onNew: () => void;
+  /** Reopens the patient goals without leaving the result. */
+  onGoals?: () => void;
   anotherCost?: string;
   busy: boolean;
 }) {
@@ -123,6 +127,10 @@ export function PreviewCompactMenu({
                 <SlidersHorizontal size={19} />
                 <span>Review &amp; refine</span>
               </button>
+              {onGoals && <button className="compact-option-row" type="button" onClick={() => choose(onGoals)}>
+                <MessageSquareText size={19} />
+                <span>Patient goals</span>
+              </button>}
               <button className="compact-option-row" type="button" disabled={busy} onClick={() => choose(onAnother)}>
                 <VisualiseSymbol size={20} />
                 <span>Three more options{anotherCost && <small>{anotherCost}</small>}</span>

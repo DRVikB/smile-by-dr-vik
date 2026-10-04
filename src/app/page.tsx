@@ -64,6 +64,8 @@ import type { ShortcutAction } from "@/native/shortcuts";
 
 import { thumbnail } from "@/lib/thumb";
 import { ensurePhotoDimensions, preparePhoto } from "@/lib/photos";
+import { goalsSummary, normaliseConsultation, type CaseConsultation } from "@/lib/caseConsultation";
+import { PatientGoalsCard, PatientGoalsSheet } from "@/components/consultation/PatientGoals";
 import { assessResultScaleFromDataUrls } from "@/lib/resultCheck";
 import { getReportPreferences } from "@/lib/report";
 import { useSmileTools } from "@/lib/useSmileTools";
@@ -266,6 +268,9 @@ export default function Smile() {
   const [testMode, setTestMode] = useState(false);
   const [testPreview, setTestPreview] = useState<string | null>(null);
   const [patientName, setPatientName] = useState("");
+  // Patient goals and words: case consultation data, never a generation input.
+  const [consultation, setConsultation] = useState<CaseConsultation | undefined>(undefined);
+  const [goalsOpen, setGoalsOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [logEntry, setLogEntry] = useState<string | undefined>();
   const [presenting, setPresenting] = useState(false);
@@ -467,6 +472,7 @@ export default function Smile() {
           setTestMode(Boolean(c.testMode));
           setTestPreview(c.testPreview ?? null);
           setPatientName(c.patientName ?? "");
+          setConsultation(normaliseConsultation(c.consultation));
           setAiConsent(c.aiConsent ?? null);
           // Specific target shades (A1, B1, BL3–BL1) are chosen in the Studio's Shade step, so they are kept as saved.
           setSettings(normalizeTreatmentScope(c.settings));
@@ -515,6 +521,7 @@ export default function Smile() {
             requestLimit,
             resolution,
             patientName,
+            consultation,
             aiConsent,
             validationCaseId,
             testMode,
@@ -527,7 +534,7 @@ export default function Smile() {
           }
         : null,
     ).catch(() => setStorageError(true));
-  }, [caseId, uploadAuthority, photo, settings, result, screen, ready, testMode, testPreview, reference, variants, patientName, aiConsent, costs, resolution, validationCaseId, requestLimit]);
+  }, [caseId, uploadAuthority, photo, settings, result, screen, ready, testMode, testPreview, reference, variants, patientName, consultation, aiConsent, costs, resolution, validationCaseId, requestLimit]);
 
   useEffect(() => {
     document.body.classList.toggle("consult-open", fullscreen);
@@ -579,6 +586,7 @@ export default function Smile() {
       setReference(null);
       setPinnedCases([]);
       setPatientName("");
+      setConsultation(undefined);
     }
     setPhoto(p);
     setResult(null);
@@ -589,6 +597,7 @@ export default function Smile() {
     // Commit the selection immediately, even while still on the start screen.
     try {
       await persistCase({ caseId: nextCaseId, uploadAuthority, photo: p, settings: nextSettings, reference: nextReference, result: null, aiConsent: null,
+        consultation: testMode ? undefined : consultation,
         screen: screen === "start" || screen === "photo" ? "photo" : "design", testMode: false, testPreview: null });
     } catch {
       setStorageError(true);
@@ -987,6 +996,7 @@ export default function Smile() {
         requestLimit,
         resolution,
         patientName,
+        consultation,
         aiConsent: consent,
         validationCaseId,
         testMode: false,
@@ -1255,6 +1265,8 @@ export default function Smile() {
     resetCaseCosts();
     setRequestLimit(0);
     setPatientName("");
+    setConsultation(undefined);
+    setGoalsOpen(false);
     setPinnedCases([]);
     setPhoto(null);
     setResult(null);
@@ -1435,6 +1447,7 @@ export default function Smile() {
                 authorityConfirmed={Boolean(uploadAuthority)}
                 onConfirmAuthority={confirmUploadAuthority}
                 onLearnMore={account.openPrivacy}
+                details={photo && !testMode ? <PatientGoalsCard consultation={consultation} onChange={setConsultation} /> : undefined}
               />
             </section>
           )}
@@ -1494,6 +1507,7 @@ export default function Smile() {
               </h1>
               <DesignStudio
                 toothMap={toothMap}
+                goals={testMode ? undefined : { summary: goalsSummary(consultation), onEdit: () => setGoalsOpen(true) }}
                 stage={(teethStep) => result && !(INTERNAL_SINGLE_TOOTH && teethStep && settings.treatmentMode !== "full_arch" && (toothMap.picking || toothMap.editing || toothMap.adding || toothMap.mode !== "hidden")) ? (
                   <div className="preview-stage">
                     <BeforeAfterSlider
@@ -1710,6 +1724,7 @@ export default function Smile() {
                 onEdit={() => { setReviewOpen(false); setScreen("design"); setError(""); }}
                 onShare={() => setShareOpen(true)}
                 onNew={startNewSmile}
+                onGoals={testMode ? undefined : () => { setReviewOpen(false); setGoalsOpen(true); }}
                 anotherCost={costsOpen ? allowanceLabel(3, testMode) : undefined}
                 busy={busy}
               />
@@ -1879,6 +1894,7 @@ export default function Smile() {
           This device could not save all case data. Keep this preview open and save any images you need before closing the app.
         </p>
       )}
+      {goalsOpen && photo && <PatientGoalsSheet consultation={consultation} onChange={setConsultation} onClose={() => setGoalsOpen(false)} />}
       {logOpen && <CaseLog onSignIn={() => { setLogOpen(false); account.openAuth("signIn"); }} initialEntryId={logEntry} onReopen={async id=>{const draft=await repository.reopenCase(id);repository.scope.assert();caseSession.current++;request.current?.abort();restoreWorkingCase(draft);setLogOpen(false);setLogEntry(undefined);}} onClose={() => { setLogOpen(false); setLogEntry(undefined); }} />}
       {libraryOpen && (
         <CaseLibrary

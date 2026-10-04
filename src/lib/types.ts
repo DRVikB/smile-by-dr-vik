@@ -299,6 +299,8 @@ export interface UploadAuthority {
 }
 export interface SmileCase {
   preferredDesignId?: string | null;
+  /** Patient goals and words for this case; never part of a generation request. */
+  consultation?: import("./caseConsultation").CaseConsultation;
   /** Stable ID for the working case; see SmileComposeCase in src/models/case.ts. */
   caseId?: string;
   uploadAuthority?: UploadAuthority | null;

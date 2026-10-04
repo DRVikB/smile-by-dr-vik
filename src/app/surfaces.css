@@ -511,3 +511,36 @@ body { background: var(--background); }
 }
 
 .desktop-concept-note { grid-column: 1 / -1; margin: 2px 0 0; text-align: center; font-size: 11px; line-height: 1.5; color: var(--text-secondary); }
+
+/* ============================================================
+   Patient goals: optional card on the photo step, sheet elsewhere
+   ============================================================ */
+.patient-goals > summary small { display: block; color: var(--text-secondary); font-size: 13px; }
+.patient-goals-editor { display: grid; gap: 10px; padding: 0 0 18px; }
+.patient-goals[open] > .patient-goals-editor { margin-left: 60px; }
+.patient-goals-question { margin: 0; font-size: 15px; font-weight: 500; }
+.patient-goals-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.patient-goals-chips button {
+  min-height: 40px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--card-border); background: var(--background); color: var(--text-primary);
+  font-size: 14px;
+}
+.patient-goals-chips button[aria-pressed="true"] { background: var(--accent-soft, var(--selected-fill)); color: var(--text-primary); border-color: var(--accent); }
+.patient-goals-words { font-size: 14px; font-weight: 500; }
+.patient-goals-words span { color: var(--text-tertiary); font-weight: 400; margin-left: 4px; }
+.patient-goals-editor textarea {
+  width: 100%; box-sizing: border-box; min-height: 64px; padding: 10px 12px; resize: vertical;
+  border-radius: 14px; border: 1px solid var(--card-border); background: var(--background); color: var(--text-primary);
+  font: inherit; font-size: 16px; line-height: 1.4;
+}
+.patient-goals-editor .control-hint { margin: 0; }
+.patient-goals-sheet { display: grid; gap: 14px; }
+.patient-goals-sheet h2 { margin: 0; }
+.patient-goals-sheet .patient-goals-editor { padding: 0; }
+@media (max-width: 520px) { .patient-goals[open] > .patient-goals-editor { margin-left: 0; } }
+
+/* The quiet goals row on the Review step: context, never a generation input. */
+.studio-goals { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 0 12px; font-size: 14px; color: var(--text-secondary); }
+.studio-goals-label { font-weight: 500; color: var(--text-primary); }
+.studio-goals-value { flex: 1 1 auto; min-width: 0; }
+.studio-goals .text-button { min-height: 44px; }

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowRight,
   Camera,
@@ -76,6 +76,7 @@ export function PhotoUploader({
   authorityConfirmed,
   onConfirmAuthority,
   onLearnMore,
+  details,
 }: {
   photo: Photo | null;
   onPhoto: (photo: Photo) => void | Promise<void>;
@@ -89,6 +90,8 @@ export function PhotoUploader({
   authorityConfirmed: boolean;
   onConfirmAuthority: () => void;
   onLearnMore: () => void;
+  /** Optional case details beside the selected photo (patient goals). */
+  details?: ReactNode;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -204,6 +207,7 @@ export function PhotoUploader({
               </button>
             </div>
             <p className="photo-filename">{photo.isSample ? "Sample photograph" : photo.name}</p>
+            {details}
             <PhotoTips />
             {errorMessage}
           </div>

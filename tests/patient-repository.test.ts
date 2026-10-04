@@ -196,3 +196,21 @@ test("legacy single-tooth case survives sync and reopen with its original result
  assert.equal(generationUnavailable(reopened.settings),"Single-tooth design is not available in this version.");
  b.disconnect();
 });
+test("patient goals saved before any generation survive sync, a relaunch and reopening on another device",async()=>{
+ const factory=new IDBFactory(),a=repo(factory),f=fixture();
+ f.draft.result=null;f.draft.screen="design";
+ f.draft.consultation={schemaVersion:1,patientGoals:["Colour","Gaps"],patientWords:"A little brighter, but still me.",updatedAt:1};
+ await a.persistCase(f.draft);await a.refreshSync();a.disconnect();
+ const relaunched=repo(factory);relaunched.disconnect();
+ assert.deepEqual((await relaunched.readCase())?.consultation,f.draft.consultation,"a failed or absent generation never discards the goals");
+ const b=repo();await b.refreshSync();
+ assert.deepEqual((await b.reopenCase(f.id)).consultation,f.draft.consultation);
+ b.disconnect();
+});
+test("a case saved before consultation data existed reopens unchanged, with no goals invented",async()=>{
+ const a=repo(),f=fixture();f.draft.result=null;f.draft.screen="design";
+ await a.persistCase(f.draft);await a.refreshSync();
+ const b=repo();await b.refreshSync();const reopened=await b.reopenCase(f.id);
+ assert.equal(reopened.consultation,undefined);assert.deepEqual(reopened.settings,defaultSettings);
+ a.disconnect();b.disconnect();
+});

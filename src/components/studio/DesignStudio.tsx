@@ -142,7 +142,7 @@ export function TreatmentOptions({ settings, onChange }: { settings: SmileSettin
 
 export function DesignStudio({
   stage, caseBar, costs, onEditArea, hasEditArea, settings, onChange, onGenerate, onCompare, onCompareMaterials, onHarmonise,
-  busy, reference, onAddReference, onClearReference, toothMap,
+  busy, reference, onAddReference, onClearReference, toothMap, goals,
 }: {
   /** The photograph (or before/after) shown in the studio frame; told when the Teeth step is open. */
   stage: React.ReactNode | ((teethStep: boolean) => React.ReactNode);
@@ -163,6 +163,8 @@ export function DesignStudio({
   reference: Photo | null;
   onAddReference: () => void;
   onClearReference: () => void;
+  /** Recorded patient goals: context for the clinician, not a generation input. */
+  goals?: { summary: string | null; onEdit: () => void };
 }) {
   const [tab, setTab] = useState<StudioTab>("teeth");
   const [direction, setDirection] = useState<"forward" | "back">("forward");
@@ -442,6 +444,8 @@ export function DesignStudio({
               <p>Check the design, then generate. Tap a step to change it.</p>
             </header>
             {!costs.testMode && <AllowanceBanner />}
+            {goals && <p className="studio-goals"><span className="studio-goals-label">Patient goals</span><span className="studio-goals-value">{goals.summary ?? "None recorded"}</span>
+              <button type="button" className="text-button" onClick={goals.onEdit}>{goals.summary ? "Edit" : "Add"}</button></p>}
             <div className="studio-review" role="list">
               {summary.map(({ id, value }) => {
                 const step = TABS.find(t => t.id === id)!;
