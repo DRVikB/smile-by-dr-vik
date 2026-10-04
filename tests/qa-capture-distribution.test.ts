@@ -19,12 +19,12 @@ test("distribution packaging independently refuses the physical QA harness", () 
   assert.match(result.stderr, /physical generation harness is QA-only/);
 });
 
-test("distribution packaging rejects compiled QA controls even if shell flags say capture is off", () => {
+for (const marker of ["QA one authorised generation", "View unvalidated output"]) test(`distribution packaging rejects compiled ${marker} even if shell flags say capture is off`, () => {
   const dir = mkdtempSync(join(tmpdir(), "smile-qa-exclusion-"));
   try {
     for (const folder of ["dist/client/_next/static", ".next/server/app", "public"]) mkdirSync(join(dir, folder), { recursive: true });
     writeFileSync(join(dir, ".next/server/app/index.html"), "<!doctype html><html><head></head><body>SmileCompose</body></html>");
-    writeFileSync(join(dir, "dist/client/_next/static/fixture.js"), 'const button = "QA one authorised generation";');
+    writeFileSync(join(dir, "dist/client/_next/static/fixture.js"), `const button = ${JSON.stringify(marker)};`);
     for (const page of ["privacy.html", "terms.html"]) writeFileSync(join(dir, "public", page), "Reviewed fixture");
     const result = spawnSync(process.execPath, [resolve("scripts/build-native.mjs")], { cwd: dir, encoding: "utf8", env: {
       ...process.env, SMILE_RELEASE_BUILD: "1", NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE: "0", NEXT_PUBLIC_SMILE_QA_PHYSICAL_HARNESS: "0",

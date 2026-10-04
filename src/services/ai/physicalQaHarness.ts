@@ -194,6 +194,7 @@ export async function installPhysicalQaHarness(adapters: PhysicalQaAdapters): Pr
   });
   button("QA replay retained output", "replay", async () => adapters.replay(config, source.file, await retained()));
   button("QA verify saved result", "saved-reopen", async () => adapters.verifySaved(config));
+  const stopViewing = (await import("./unvalidatedOutput")).installUnvalidatedOutputControls(panel);
   document.body.append(panel);
-  return () => panel.remove();
+  return () => { stopViewing(); panel.remove(); };
 }

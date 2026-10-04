@@ -49,7 +49,7 @@ if (!(await exists("dist/client/_next/static")) || !(await exists(".next/server/
 // Next inlines public flags at compile time. Shell flags alone cannot establish
 // that a previously built QA bundle is safe to package for distribution.
 if (release) {
-  const qaMarkers = ["QA capture self-test", "QA one authorised generation", "qa_fixture_not_ready", "smile-qa-capture-runs/"];
+  const qaMarkers = ["QA capture self-test", "QA one authorised generation", "qa_fixture_not_ready", "smile-qa-capture-runs/", "View unvalidated output", "Unvalidated output — debugging only"];
   for await (const path of files("dist/client")) {
     const content = await readFile(path, "utf8");
     if (qaMarkers.some(marker => content.includes(marker))) throw new Error(`Distribution blocked: ${path} contains compiled private QA controls. Rebuild with capture and harness disabled.`);
