@@ -64,7 +64,8 @@ import type { ShortcutAction } from "@/native/shortcuts";
 
 import { thumbnail } from "@/lib/thumb";
 import { ensurePhotoDimensions, preparePhoto } from "@/lib/photos";
-import { goalsSummary, normaliseConsultation, type CaseConsultation } from "@/lib/caseConsultation";
+import { useCaseRecord } from "@/components/useCaseRecord";
+import { adoptLegacyPriorities, goalsSummary, normaliseConsultation, type CaseConsultation } from "@/lib/caseConsultation";
 import { PatientGoalsCard, PatientGoalsSheet } from "@/components/consultation/PatientGoals";
 import { assessResultScaleFromDataUrls } from "@/lib/resultCheck";
 import { getReportPreferences } from "@/lib/report";
@@ -458,6 +459,17 @@ export default function Smile() {
   useEffect(() => onWorkspaceDetach(() => { caseSession.current++; request.current?.abort(); logWrites.current.clear(); }), []);
   const heading = useRef<HTMLHeadingElement>(null);
   const firstScreen = useRef(true);
+  // The patient's preferred version for this case: changed only by the clinician's deliberate action.
+  const caseRecord = useCaseRecord(testMode ? undefined : caseId);
+  const preferredHere = Boolean(result && caseRecord.preferredDesignId === result.variationId);
+  async function togglePreferred() {
+    if (!result || testMode) return;
+    try {
+      await repository.setPreferredDesign(caseId, preferredHere ? null : result.variationId);
+    } catch {
+      setError("This version isn’t saved to the case yet. Try again in a moment.");
+    }
+  }
 
   function restoreWorkingCase(c:import("@/lib/types").SmileCase) {
           setCaseId(c.caseId ?? crypto.randomUUID());
@@ -472,10 +484,12 @@ export default function Smile() {
           setTestMode(Boolean(c.testMode));
           setTestPreview(c.testPreview ?? null);
           setPatientName(c.patientName ?? "");
-          setConsultation(normaliseConsultation(c.consultation));
+          // Older cases kept priorities in the design's clinical data; they move into Patient goals.
+          const adopted = adoptLegacyPriorities(normaliseConsultation(c.consultation), normalizeTreatmentScope(c.settings));
+          setConsultation(adopted.consultation);
           setAiConsent(c.aiConsent ?? null);
           // Specific target shades (A1, B1, BL3–BL1) are chosen in the Studio's Shade step, so they are kept as saved.
-          setSettings(normalizeTreatmentScope(c.settings));
+          setSettings(adopted.settings);
           setResult(c.result);
           setScreen(c.screen);
   }
@@ -1598,6 +1612,7 @@ export default function Smile() {
                   onModeChange={setPreviewMode}
                   analysis={analysisOn}
                   onHideAnalysis={() => setAnalysisOn(false)}
+                  previewLabel={preferredHere ? "Patient preferred · AI concept" : undefined}
                   fill={photo}
                 />
                 <button
@@ -1726,6 +1741,8 @@ export default function Smile() {
                 onShare={() => setShareOpen(true)}
                 onNew={startNewSmile}
                 onGoals={testMode ? undefined : () => { setReviewOpen(false); setGoalsOpen(true); }}
+                preferred={preferredHere}
+                onPreferred={testMode ? undefined : () => void togglePreferred()}
                 anotherCost={costsOpen ? allowanceLabel(3, testMode) : undefined}
                 busy={busy}
               />
@@ -1835,6 +1852,8 @@ export default function Smile() {
             settings: reportPreferences?.settings,
             referenceUsed: reportPreferences?.referenceUsed,
             isDemo: result.mode === "mock" || testMode,
+            consultation: testMode ? undefined : consultation,
+            preferred: preferredHere,
             patientLabel: patientName,
           }}
           entryId={result.variationId}
@@ -1895,7 +1914,7 @@ export default function Smile() {
           This device could not save all case data. Keep this preview open and save any images you need before closing the app.
         </p>
       )}
-      {goalsOpen && photo && <PatientGoalsSheet consultation={consultation} onChange={setConsultation} onClose={() => setGoalsOpen(false)} />}
+      {goalsOpen && photo && <PatientGoalsSheet consultation={consultation} onChange={setConsultation} onClose={() => setGoalsOpen(false)} hasPreferred={Boolean(caseRecord.preferredDesignId)} />}
       {logOpen && <CaseLog onSignIn={() => { setLogOpen(false); account.openAuth("signIn"); }} initialEntryId={logEntry} onReopen={async id=>{const draft=await repository.reopenCase(id);repository.scope.assert();caseSession.current++;request.current?.abort();restoreWorkingCase(draft);setLogOpen(false);setLogEntry(undefined);}} onClose={() => { setLogOpen(false); setLogEntry(undefined); }} />}
       {libraryOpen && (
         <CaseLibrary

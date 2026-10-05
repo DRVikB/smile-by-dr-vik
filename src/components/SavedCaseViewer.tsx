@@ -7,6 +7,7 @@ import { AnalysisSymbol } from "@/components/icons/SmileIcons";
 import { AI_CONCEPT_SUMMARY } from "@/lib/brand";
 import { savedCaseExport } from "@/lib/savedCaseExport";
 import { ShareSheet } from "./share/ShareSheet";
+import { useCaseRecord } from "./useCaseRecord";
 import { RevealVideoSheet } from "./RevealVideoSheet";
 import type { CaseLogEntry, CaseLogMedia } from "@/lib/types";
 
@@ -19,6 +20,7 @@ export function SavedCaseViewer({ entry, media, analysis: startWithAnalysis = fa
   const [sharing, setSharing] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
   const isDemo = Boolean(entry.testMode) || entry.mode === "mock";
+  const record = useCaseRecord(entry.caseId ?? entry.id);
   useEffect(() => {
     const el = dialog.current;
     el?.showModal();
@@ -41,7 +43,7 @@ export function SavedCaseViewer({ entry, media, analysis: startWithAnalysis = fa
         {!analysis && <button type="button" className="text-button" onClick={() => setAnalysis(true)}><AnalysisSymbol size={16} />Smile analysis</button>}</div>
       </footer>
     </div>
-    {sharing && <ShareSheet input={savedCaseExport(entry, media)} entryId={entry.id}
+    {sharing && <ShareSheet input={savedCaseExport(entry, media, record)} entryId={entry.id}
       onClose={() => { setSharing(false); onExported?.(); }}
       onRevealVideo={() => { setSharing(false); setVideoOpen(true); onExported?.(); }} />}
     {videoOpen && <RevealVideoSheet before={media.originalImage} after={media.image} isDemo={isDemo}

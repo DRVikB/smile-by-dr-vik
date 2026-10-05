@@ -103,6 +103,8 @@ export function createCaseRepository(scope: WorkspaceLease) {
   async setFavourite(...args:Parameters<typeof log.setFavourite>){return editEntry(args[0],()=>log.setFavourite(...args));},
   async recordExport(...args:Parameters<typeof log.recordExport>){return editEntry(args[0],()=>log.recordExport(...args));},
   async renameCase(id:string,name:string){return write(async()=>{const count=await log.renameCase(id,name);await snapshot(id);change();return count;});},
+  /** The case's consultation record and the patient's preferred version, for exports and the case view. */
+  async caseRecord(id:string){const c=await local.getCase(id);const draft=c?.state.draft as {consultation?:unknown}|null|undefined;const {normaliseConsultation}=await import("@/lib/caseConsultation");return {consultation:normaliseConsultation(draft?.consultation),preferredDesignId:c?.state.preferredDesignId??null};},
   async setPreferredDesign(id:string,designId:string|null){return write(async()=>{await snapshot(id);const c=await local.getCase(id);if(!c)return;if(designId&&!c.state.entries.some(e=>e&&typeof e==="object"&&!Array.isArray(e)&&e.id===designId))throw new Error("Choose a version from this case.");await sync.enqueue(id,{...c.state,preferredDesignId:designId},c.summary);});},
   async deleteCase(id:string){return write(async()=>{
    await snapshot(id);const c=await local.getCase(id);if(c&&!c.deletedAt)await sync.enqueue(id,c.state,c.summary,[],true);

@@ -286,6 +286,9 @@ export async function composeConsultationReport(input: PatientExportInput, conte
 
   const build = (technical: "figure" | "rows" | "none") => {
     const blocks: Block[] = [];
+    // What mattered to you, and which direction you preferred, before the design detail.
+    if (content.wishes) blocks.push(textBlock(m, "What matters to you", content.wishes));
+    if (content.preferred) blocks.push(textBlock(m, "Your preferred direction", content.preferred));
     if (content.design?.length) blocks.push(designBlock(m, content.design));
     if (content.glance.length) blocks.push(listBlock(m, "Your smile at a glance", content.glance));
     if (content.priorities.length) blocks.push(prioritiesBlock(m, content.priorities));

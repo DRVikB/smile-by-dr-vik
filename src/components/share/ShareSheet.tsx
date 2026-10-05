@@ -35,6 +35,7 @@ interface Made {
 const SHADES: CurrentShade[] = ["A3", "A2", "A1", "B1"];
 
 const SECTION_LABELS: { key: keyof ReportSections; label: string; hint?: string }[] = [
+  { key: "consultation", label: "What matters to the patient", hint: "Their goals and words, their preferred direction and the agreed next step" },
   { key: "observations", label: "Smile observations" },
   { key: "design", label: "Proposed smile design" },
   { key: "treatment", label: "Treatment overview" },
@@ -149,7 +150,7 @@ export function ShareSheet({
     setStatus("");
     try {
       const [{ composeConsultationReport }, { stackPages }] = await Promise.all([import("@/lib/consultationReport"), import("@/lib/exportCanvas")]);
-      const content = reportContent(draft, { settings: input.settings, referenceUsed: input.referenceUsed, analysis: analysis?.face ?? null, isDemo: input.isDemo });
+      const content = reportContent(draft, { settings: input.settings, referenceUsed: input.referenceUsed, analysis: analysis?.face ?? null, isDemo: input.isDemo, consultation: input.consultation, preferred: input.preferred });
       const { pages, omitted } = await composeConsultationReport(input, content, analysis);
       const image = pages.length > 1 ? await stackPages(pages, 36) : pages[0];
       repository.scope.assert();
@@ -354,7 +355,7 @@ function Review({ draft, onChange, reading, analysis, hasDesign, onCreate }: {
           const needsDesign = key === "design" || key === "treatment" || key === "comparison";
           return (
             <label key={key} className="review-check">
-              <input type="checkbox" checked={draft.sections[key]} disabled={needsDesign && !hasDesign}
+              <input type="checkbox" checked={draft.sections[key] !== false} disabled={needsDesign && !hasDesign}
                 onChange={e => set({ sections: { ...draft.sections, [key]: e.target.checked } })} />
               <span>{label}{hint && <small>{hint}</small>}{needsDesign && !hasDesign && <small>Not recorded for this older preview</small>}</span>
             </label>

@@ -42,3 +42,36 @@ test("consultation data never reaches the image service request", () => {
   const request = page.slice(page.indexOf("await generateSmileImage({"), page.indexOf("}, {", page.indexOf("await generateSmileImage({")));
   assert.doesNotMatch(request, /consultation/, "the app never adds it to the generation request");
 });
+
+import { adoptLegacyPriorities, NEXT_STEP_OPTIONS } from "../src/lib/caseConsultation";
+import { initialReportDraft, nextStepText, reportContent, NEXT_STEPS } from "../src/lib/consultation";
+
+test("next step and preferred reason are kept, validated and cleared like the goals", () => {
+  const c = updateConsultation(undefined, { nextStep: "Review appointment", nextStepNote: "After hygiene", preferredReason: "Brighter but natural" }, 5)!;
+  assert.equal(c.nextStep, "Review appointment");
+  assert.equal(normaliseConsultation({ ...c, nextStep: "Book treatment" })?.nextStep, undefined, "only the offered next steps");
+  assert.equal(updateConsultation(c, { nextStep: undefined, nextStepNote: "", preferredReason: "" }), undefined, "clearing everything removes the record");
+  assert.ok(NEXT_STEP_OPTIONS.includes("Considering options"));
+});
+test("legacy patient priorities move from the design into Patient goals", () => {
+  const settings = { clinicalData: { patientPriorities: "Natural, not too white", constraints: "Keep edges" } };
+  const moved = adoptLegacyPriorities(undefined, settings, 7);
+  assert.equal(moved.consultation?.patientWords, "Natural, not too white");
+  assert.equal("patientPriorities" in (moved.settings.clinicalData ?? {}), false);
+  assert.equal(moved.settings.clinicalData?.constraints, "Keep edges");
+  const kept = adoptLegacyPriorities(updateConsultation(undefined, { patientWords: "Their own words" }, 1), settings, 7);
+  assert.equal(kept.consultation?.patientWords, "Their own words", "recorded words are never overwritten");
+});
+test("the report says what mattered, the preferred direction and the agreed next step", () => {
+  const consultation = updateConsultation(undefined, { patientGoals: ["Colour", "Gaps"], patientWords: "A little brighter", preferredReason: "Still looks like me", nextStep: "Records / scan" }, 9);
+  const draft = initialReportDraft({ analysis: null });
+  const content = reportContent(draft, { analysis: null, consultation, preferred: true });
+  assert.match(content.wishes ?? "", /Colour · Gaps/);
+  assert.match(content.wishes ?? "", /A little brighter/);
+  assert.match(content.preferred ?? "", /Still looks like me\./);
+  assert.match(content.nextSteps, /scan/);
+  assert.equal(reportContent(draft, { analysis: null, consultation, preferred: false }).preferred, null, "only on the preferred version");
+  assert.equal(reportContent({ ...draft, sections: { ...draft.sections, consultation: false } }, { analysis: null, consultation }).wishes, null);
+  assert.equal(reportContent(draft, { analysis: null, consultation, isDemo: true }).wishes, null, "never in a demo");
+  assert.equal(nextStepText(undefined), NEXT_STEPS, "no chosen step keeps the general wording");
+});

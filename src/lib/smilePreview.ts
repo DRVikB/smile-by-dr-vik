@@ -15,6 +15,10 @@ export interface PatientExportInput {
   isDemo: boolean;
   /** Case reference or first name, for file names and the report header. */
   patientLabel?: string;
+  /** The case's consultation record: goals, preferred reason and next step (report only). */
+  consultation?: import("./caseConsultation").CaseConsultation;
+  /** True when this is the version the patient chose as their preferred direction. */
+  preferred?: boolean;
 }
 
 /** Ivory, as PDF RGB. */

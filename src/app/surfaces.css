@@ -601,6 +601,8 @@ body { background: var(--background); }
 .patient-goals-sheet { display: grid; gap: 14px; }
 .patient-goals-sheet h2 { margin: 0; }
 .patient-goals-sheet .patient-goals-editor { padding: 0; }
+.patient-goals-sheet { max-height: calc(100dvh - var(--app-safe-top, 0px) - var(--app-safe-bottom, 0px) - 32px); overflow-y: auto; }
+.patient-goals-section { margin: 6px 0 -4px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary); }
 @media (max-width: 520px) { .patient-goals[open] > .patient-goals-editor { margin-left: 0; } }
 
 /* The quiet goals row on the Review step: context, never a generation input. */

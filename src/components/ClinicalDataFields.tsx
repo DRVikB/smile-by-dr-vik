@@ -30,7 +30,6 @@ export function ClinicalDataFields({ settings, onChange }: { settings: SmileSett
       <option>Not assessed</option><option>Limited / uncertain</option><option>Assessed for planned changes</option>
     </select></label>
     <label>Visual constraints<textarea className="notes-field" rows={3} maxLength={1000} value={data.constraints ?? ""} placeholder="e.g. preserve upper incisal edges; no posterior additions" onChange={e => update({ constraints: e.target.value })} /></label>
-    <label>Patient priorities · case notes<textarea className="notes-field" rows={2} maxLength={300} value={data.patientPriorities ?? ""} placeholder="e.g. discuss a natural appearance and retain character" onChange={e => update({ patientPriorities: e.target.value })} /></label>
-    <p className="control-hint">Measurements and patient priorities are kept with the case; they do not direct image generation. Use the design controls for the intended appearance. Visual constraints and a limited-space restriction can guide the concept, without validating movement, clearance or an achievable outcome. Visual constraints are sent with the photo for AI processing: don’t include identifying details.</p>
+    <p className="control-hint">Measurements are kept with the case; they do not direct image generation. Use the design controls for the intended appearance, and Patient goals for what the patient would like. Visual constraints and a limited-space restriction can guide the concept, without validating movement, clearance or an achievable outcome. Visual constraints are sent with the photo for AI processing: don’t include identifying details.</p>
   </div>;
 }

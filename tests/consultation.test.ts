@@ -60,7 +60,7 @@ test("the clinician's review: high included, medium offered, low left out, and e
   assert.deepEqual([balance.band, balance.include], ["medium", false]);
   assert.equal(draft.observations.find(o => o.metric === "smile_centre")!.include, true);
   assert.equal(draft.patientLabel, "AB");
-  assert.deepEqual(draft.sections, { observations: true, design: true, treatment: true, comparison: true, technical: false });
+  assert.deepEqual(draft.sections, { consultation: true, observations: true, design: true, treatment: true, comparison: true, technical: false });
   const low = initialReportDraft({ settings: composite6, analysis: face({ cantDeg: 5, midlineOffsetPx: 30, headTiltDeg: 8, mmPerPx: null }) });
   assert.equal(low.observations.length, 0, "low confidence is not offered at all");
   const edited = editObservation(balance, "We agreed the smile looks balanced.");

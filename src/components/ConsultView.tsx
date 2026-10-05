@@ -134,7 +134,7 @@ export function ConsultView({
           {phase === "before"
             ? "Your smile today"
             : phase === "after"
-              ? "Your preview"
+              ? "Illustrative smile concept"
               : "Tap and hold to see original"}
         </span>
         <span className="consult-meta">

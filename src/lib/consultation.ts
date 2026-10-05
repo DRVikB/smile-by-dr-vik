@@ -1,4 +1,5 @@
 import { AI_CONCEPT_DISCLAIMER } from "./brand";
+import { displayText, displayWords, type CaseConsultation, type NextStep } from "./caseConsultation";
 import { analysisRows, type AnalysisRow, type SmileAnalysis } from "./face/analysis";
 import { impliesWhitening } from "./implications";
 import { canGuideSmileArc } from "./smilePrinciples";
@@ -315,6 +316,8 @@ export const DEMO_DISCLAIMER = "Demo preview — sample imagery, not a patient r
 // ---------- The clinician's review ----------
 
 export interface ReportSections {
+  /** What the patient said matters, their preferred direction and the agreed next step. */
+  consultation: boolean;
   observations: boolean;
   design: boolean;
   treatment: boolean;
@@ -360,7 +363,7 @@ export function initialReportDraft(input: {
     .filter(o => o.band !== "low")
     .map(o => ({ ...o, include: o.band === "high" }));
   return {
-    sections: { observations: true, design: Boolean(settings), treatment: Boolean(settings), comparison: Boolean(settings), technical: false },
+    sections: { consultation: true, observations: true, design: Boolean(settings), treatment: Boolean(settings), comparison: Boolean(settings), technical: false },
     observations,
     priorities: settings ? designPriorities(settings).map(p => ({ ...p, include: true })) : [],
     // An estimate from the design settings is medium confidence: offered, not included.
@@ -381,6 +384,10 @@ export function editObservation(o: ReviewedObservation, text: string): ReviewedO
 export interface ReportContent {
   patientLabel: string;
   date: string;
+  /** "What matters to you": the patient's goals and words. */
+  wishes: string | null;
+  /** Present only when this report is of the version the patient preferred. */
+  preferred: string | null;
   design: [string, string][] | null;
   glance: { title: string; text: string }[];
   priorities: Priority[];
@@ -397,11 +404,34 @@ export function reportDate(iso: string): string {
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 }
 
+/** The agreed next step, in the patient's terms. The clinician chooses it; nothing is inferred from the images. */
+const NEXT_STEP_TEXT: Record<NextStep, string> = {
+  "Further assessment": "A further clinical assessment, to confirm what is suitable for you.",
+  "Records / scan": "Records such as photographs, a scan or X-rays, so a treatment plan can be prepared.",
+  "Review appointment": "A review appointment to talk through your options.",
+  "Considering options": "Time to consider your options. There is no need to decide today.",
+  "No further treatment planned": "No further treatment is planned at this stage.",
+  Other: "Your clinician will talk you through the next step.",
+};
+
+export function nextStepText(c: CaseConsultation | undefined): string {
+  if (!c?.nextStep) return NEXT_STEPS;
+  const note = displayText(c.nextStepNote).trim();
+  return [NEXT_STEP_TEXT[c.nextStep], note ? `Your clinician’s note: “${note}”` : "", c.nextStep === "No further treatment planned" ? "" : "Nothing begins until you have agreed a treatment plan with your clinician."].filter(Boolean).join(" ");
+}
+
 export function reportContent(
   draft: ReportDraft,
-  input: { settings?: SmileSettings; referenceUsed?: boolean; analysis: SmileAnalysis | null; isDemo?: boolean },
+  input: { settings?: SmileSettings; referenceUsed?: boolean; analysis: SmileAnalysis | null; isDemo?: boolean; consultation?: CaseConsultation; preferred?: boolean },
 ): ReportContent {
-  const { settings } = input;
+  const { settings, consultation } = input;
+  // Reports saved before this section existed include it, as new ones do by default.
+  const withConsultation = draft.sections.consultation !== false && !input.isDemo;
+  const words = displayWords(consultation).trim();
+  const goals = consultation?.patientGoals.filter(g => g !== "Other").join(" · ") ?? "";
+  const wishes = withConsultation && (goals || words) ? [goals ? `You would like to change: ${goals}.` : "", words ? `In your words: “${words}”` : ""].filter(Boolean).join(" ") : null;
+  const reason = displayText(consultation?.preferredReason).trim();
+  const preferred = withConsultation && input.preferred ? `This is the direction you preferred.${reason ? ` ${reason.replace(/\.?$/, ".")}` : ""}` : null;
   const shade = draft.shade.value && draft.shade.include ? shadeObservation(draft.shade.value, draft.shade.confirmed) : null;
   const glance = draft.sections.observations
     ? [...draft.observations.filter(o => o.include && o.text.trim()), ...(shade ? [shade] : [])].map(o => ({ title: o.title, text: o.text.trim() }))
@@ -409,6 +439,8 @@ export function reportContent(
   return {
     patientLabel: draft.patientLabel.trim(),
     date: reportDate(draft.date),
+    wishes,
+    preferred,
     design: settings && draft.sections.design ? proposedSmileRows(settings, input.referenceUsed) : null,
     glance,
     priorities: draft.priorities.filter(p => p.include && p.title.trim()).slice(0, 3),
@@ -417,7 +449,7 @@ export function reportContent(
       : null,
     overview: settings && draft.sections.treatment ? treatmentOverview(settings) : null,
     note: draft.note.trim() ? draft.note.trim().slice(0, NOTE_MAX) : null,
-    nextSteps: NEXT_STEPS,
+    nextSteps: withConsultation ? nextStepText(consultation) : NEXT_STEPS,
     technical: draft.sections.technical && input.analysis ? analysisRows(input.analysis) : null,
     disclaimer: input.isDemo ? `${DEMO_DISCLAIMER} ${REPORT_DISCLAIMER}` : REPORT_DISCLAIMER,
   };

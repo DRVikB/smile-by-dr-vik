@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  CircleCheck,
   MessageSquareText,
   Maximize2,
   Pencil,
@@ -26,6 +27,8 @@ export function PreviewCompactMenu({
   onShare,
   onNew,
   onGoals,
+  preferred = false,
+  onPreferred,
   anotherCost,
   busy,
 }: {
@@ -40,8 +43,12 @@ export function PreviewCompactMenu({
   /** Share with patient. */
   onShare: () => void;
   onNew: () => void;
-  /** Reopens the patient goals without leaving the result. */
+  /** Reopens the consultation (goals, preferred reason, next step) without leaving the result. */
   onGoals?: () => void;
+  /** This version is the patient's preferred direction. */
+  preferred?: boolean;
+  /** Marks or unmarks this version as the patient's preferred: only ever by this deliberate action. */
+  onPreferred?: () => void;
   anotherCost?: string;
   busy: boolean;
 }) {
@@ -121,16 +128,23 @@ export function PreviewCompactMenu({
                 <span>{analysisOn ? "Hide smile analysis" : "Show smile analysis"}</span>
               </button>
             </div>
+            {(onPreferred || onGoals) && <div className="compact-options-group">
+              <span className="compact-options-label">Consultation</span>
+              {onPreferred && <button className="compact-option-row" type="button" aria-pressed={preferred} onClick={() => choose(onPreferred)}>
+                <CircleCheck size={19} />
+                <span>{preferred ? "Patient’s preferred version" : "Patient prefers this version"}<small>{preferred ? "Tap to clear" : "Records their preferred direction for the report"}</small></span>
+              </button>}
+              {onGoals && <button className="compact-option-row" type="button" onClick={() => choose(onGoals)}>
+                <MessageSquareText size={19} />
+                <span>Goals &amp; next step</span>
+              </button>}
+            </div>}
             <div className="compact-options-group">
               <span className="compact-options-label">Refine &amp; continue</span>
               <button className="compact-option-row" type="button" onClick={() => choose(onReview)}>
                 <SlidersHorizontal size={19} />
                 <span>Review &amp; refine</span>
               </button>
-              {onGoals && <button className="compact-option-row" type="button" onClick={() => choose(onGoals)}>
-                <MessageSquareText size={19} />
-                <span>Patient goals</span>
-              </button>}
               <button className="compact-option-row" type="button" disabled={busy} onClick={() => choose(onAnother)}>
                 <VisualiseSymbol size={20} />
                 <span>Three more options{anotherCost && <small>{anotherCost}</small>}</span>

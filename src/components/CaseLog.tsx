@@ -3,7 +3,7 @@ import { PatientSyncStatus } from "./PatientSyncStatus";
 import { CaseMediaStatus } from "./CaseMediaStatus";
 import { useCaseMedia } from "./useCaseMedia";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, Check, ChevronLeft, ChevronRight, Pencil, ScanEye, Search, Share2, Star, Trash2, X } from "lucide-react";
+import { Archive, Check, ChevronLeft, ChevronRight, CircleCheck, Pencil, ScanEye, Search, Share2, Star, Trash2, X } from "lucide-react";
 import { AnalysisSymbol, IconTile, SmileSymbol } from "@/components/icons/SmileIcons";
 import { AI_CONCEPT_DISCLAIMER } from "@/lib/brand";
 import { savedCaseExport } from "@/lib/savedCaseExport";
@@ -18,6 +18,7 @@ import {
 } from "@/lib/caseLog";
 import { getCaseRepository } from "@/services/cases/caseRepository";
 import { caseIdOf } from "@/models/case";
+import { useCaseRecord } from "./useCaseRecord";
 import { RECENTLY_DELETED_DAYS } from "@/config/cases";
 
 /** One patient case: every version made for it, newest first. */
@@ -64,6 +65,14 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
   const [detail, setOpen] = useState<{ entry: CaseLogEntry; media: CaseLogMedia | null } | null>(null);
   const { media, status: mediaStatus, retry: retryMedia } = useCaseMedia(repository, detail?.entry.id);
   const open = detail ? { ...detail, media } : null;
+  const openRecord = useCaseRecord(detail ? caseIdOf(detail.entry) : undefined);
+  const pageRecord = useCaseRecord(openCase ?? undefined);
+  const [preferredError, setPreferredError] = useState("");
+  async function togglePreferred(entry: CaseLogEntry) {
+    setPreferredError("");
+    try { await repository.setPreferredDesign(caseIdOf(entry), openRecord.preferredDesignId === entry.id ? null : entry.id); }
+    catch { setPreferredError("The preferred version couldn’t be saved. Please try again."); }
+  }
   const [syncIndicators, setSyncIndicators] = useState<Record<string, string>>({});
   const [reopening, setReopening] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -278,6 +287,7 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
                       <span className="version-text">
                         <strong>{versionTitle(entry, index, current.versions.length)}</strong>
                         <span>{timeOf(entry.createdAt)}{(entry.testMode || entry.mode === "mock") ? " · Test" : ""}</span>
+                        {pageRecord.preferredDesignId === entry.id && <span className="version-preferred">Patient preferred</span>}
                       </span>
                     </button>
                     <button
@@ -419,6 +429,13 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
                 <p className="log-date">{formatLogDate(open.entry.createdAt)} · {open.entry.summary}</p>
               </div>
               <span className="log-detail-head-actions">
+                {!open.entry.testMode && open.entry.mode !== "mock" && (
+                  <button type="button" className={`preferred-toggle${openRecord.preferredDesignId === open.entry.id ? " on" : ""}`}
+                    aria-pressed={openRecord.preferredDesignId === open.entry.id} onClick={() => void togglePreferred(open.entry)}>
+                    <CircleCheck size={16} strokeWidth={1.9} aria-hidden="true" />
+                    {openRecord.preferredDesignId === open.entry.id ? "Patient preferred" : "Mark preferred"}
+                  </button>
+                )}
                 <button
                   type="button"
                   className={`version-star${open.entry.favourite ? " on" : ""}`}
@@ -432,6 +449,7 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
               </span>
             </div>
             {errorBanner}
+            {preferredError && <p className="error-message" role="alert">{preferredError}</p>}
             <CaseMediaStatus status={mediaStatus} onRetry={retryMedia} onSignIn={onSignIn} />
             {open.media ? (
               <div className="log-pair">
@@ -489,7 +507,7 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
       {viewing && open?.media && <SavedCaseViewer entry={open.entry} media={open.media} analysis={viewing === "analysis"} onExported={() => void refreshExports()} onClose={() => setViewing(false)} />}
       {sharing && open?.media && (
         <ShareSheet
-          input={savedCaseExport(open.entry, open.media)}
+          input={savedCaseExport(open.entry, open.media, openRecord)}
           entryId={open.entry.id}
           initial={sharing.kind ? { kind: sharing.kind, draft: sharing.draft } : undefined}
           onClose={() => void closeSharing()}
