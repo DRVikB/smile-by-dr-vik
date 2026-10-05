@@ -70,13 +70,15 @@ export function BeforeAfterSlider({
         if (!moved.current) setPosition(50);
         return;
       }
-      const source = { ...fill, width: fill?.width || nw, height: fill?.height || nh };
+      // The displayed image's own shape decides portrait or close-up: stored photo
+      // dimensions can predate a rotation, and landmarks from another shape are ignored.
+      const source = { ...fill, width: nw, height: nh };
       const smile = smileRegion(source);
       const rect = focusedPhotoRect(w, h, nw, nh, {
         region: analysis ? analysisRegion(source) : smile,
-        // Portrait screens keep the smile a little above the actions; analysis keeps more of the face.
-        anchor: { x: 0.5, y: h > w ? 0.46 : 0.5 },
-        maxCrop: analysis ? 0.2 : 0.4,
+        // Portrait screens keep the smile a little above the actions; analysis keeps the eye line in view.
+        anchor: { x: 0.5, y: h > w ? (analysis ? 0.42 : 0.46) : 0.5 },
+        maxCrop: analysis ? 0.32 : 0.42,
       });
       setViewport(rect);
       // Where the filled photograph still stops short of the screen, its edges fade into the blurred copy.

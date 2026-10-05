@@ -94,3 +94,11 @@
 }
 .preferred-toggle.on { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: var(--accent-soft); color: var(--accent-text); }
 .version-preferred { justify-self: start; margin-top: 2px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-text); font-size: 11px; font-weight: 600; }
+
+/* The case view never scrolls sideways: the title wraps beside its two buttons, and the
+   preferred-version control has its own row. */
+.log-detail { overflow-x: hidden; }
+.log-detail > * { min-width: 0; }
+.log-detail .log-head > div:first-child { flex: 1 1 auto; min-width: 0; }
+.log-detail .log-head h2, .log-detail .log-date { overflow-wrap: break-word; }
+.log-detail-preferred { display: flex; margin-top: -6px; }

@@ -702,3 +702,12 @@ button.settings-stat:focus-visible { outline: 2px solid var(--focus-ring); outli
   padding: 4px 10px; border-radius: 9px; font-size: 12px; color: var(--text-secondary);
 }
 .settings-panel .appearance-option[aria-checked="true"] { background: var(--card); color: var(--accent-text); font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), var(--shadow-sm); }
+
+/* ============================================================
+   No sideways scrolling anywhere: the page and every sheet or panel
+   clip anything wider than the screen (clip, not hidden, so sticky
+   headers and vertical scrolling are unaffected).
+   ============================================================ */
+html, body { overflow-x: clip; max-width: 100%; }
+:is(.sheet, .log-panel, .log-detail, .library-panel, .camera-sheet, .settings-scroll, .settings-detail-body, .studio-dock, .floating-panel-body) { overflow-x: hidden; }
+:is(.sheet, .log-panel, .log-detail, .library-panel, .settings-scroll) img { max-width: 100%; }

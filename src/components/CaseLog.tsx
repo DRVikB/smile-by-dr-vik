@@ -429,13 +429,6 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
                 <p className="log-date">{formatLogDate(open.entry.createdAt)} · {open.entry.summary}</p>
               </div>
               <span className="log-detail-head-actions">
-                {!open.entry.testMode && open.entry.mode !== "mock" && (
-                  <button type="button" className={`preferred-toggle${openRecord.preferredDesignId === open.entry.id ? " on" : ""}`}
-                    aria-pressed={openRecord.preferredDesignId === open.entry.id} onClick={() => void togglePreferred(open.entry)}>
-                    <CircleCheck size={16} strokeWidth={1.9} aria-hidden="true" />
-                    {openRecord.preferredDesignId === open.entry.id ? "Patient preferred" : "Mark preferred"}
-                  </button>
-                )}
                 <button
                   type="button"
                   className={`version-star${open.entry.favourite ? " on" : ""}`}
@@ -448,6 +441,15 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
                 <button className="icon-button" onClick={() => setOpen(null)} aria-label="Close"><X size={16} /></button>
               </span>
             </div>
+            {!open.entry.testMode && open.entry.mode !== "mock" && (
+              <div className="log-detail-preferred">
+                <button type="button" className={`preferred-toggle${openRecord.preferredDesignId === open.entry.id ? " on" : ""}`}
+                  aria-pressed={openRecord.preferredDesignId === open.entry.id} onClick={() => void togglePreferred(open.entry)}>
+                  <CircleCheck size={16} strokeWidth={1.9} aria-hidden="true" />
+                  {openRecord.preferredDesignId === open.entry.id ? "Patient’s preferred version" : "Mark as patient’s preferred"}
+                </button>
+              </div>
+            )}
             {errorBanner}
             {preferredError && <p className="error-message" role="alert">{preferredError}</p>}
             <CaseMediaStatus status={mediaStatus} onRetry={retryMedia} onSignIn={onSignIn} />

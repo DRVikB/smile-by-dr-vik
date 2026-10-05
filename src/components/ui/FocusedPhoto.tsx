@@ -28,7 +28,7 @@ export function FocusedPhoto({ src, focus, layout, className = "" }: {
     const measure = () => {
       const w = box.clientWidth, h = box.clientHeight, nw = img.naturalWidth, nh = img.naturalHeight;
       const { focus: source, layout: layoutFor } = latest.current;
-      const sized = { ...source, width: source?.width || nw, height: source?.height || nh };
+      const sized = { ...source, width: nw, height: nh };
       const region = smileRegion(sized);
       const options = layoutFor(w, h);
       // Enlarge towards the smile only when the photo says where it is; a guess stays at cover.
