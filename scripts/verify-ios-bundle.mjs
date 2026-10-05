@@ -8,7 +8,7 @@ import { configuredSecrets, clientSecretIssue } from "./client-secrets.mjs";
 //  - checks app ID / name, the entry page, no placeholder config, no private
 //    secrets, and (release builds) the production account configuration.
 const PUBLIC = "ios/App/App/public";
-const release = process.env.SMILE_RELEASE_BUILD === "1";
+const release = process.env.SMILE_RELEASE_BUILD === "1" || process.env.SMILE_TESTFLIGHT_INTERNAL === "1";
 const problems = [];
 
 async function walk(dir) {

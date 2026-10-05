@@ -16,6 +16,8 @@
     "build:native": "npm run build && node scripts/build-native.mjs",
     "ios:sync": "npm run build:native && cap sync ios && node scripts/verify-ios-bundle.mjs",
     "ios:release": "SMILE_RELEASE_BUILD=1 npm run ios:sync",
+    "ios:testflight-internal": "SMILE_TESTFLIGHT_INTERNAL=1 NEXT_PUBLIC_DISTRIBUTION=internal-testflight npm run ios:sync",
+    "ios:bump-build": "node scripts/bump-ios-build.mjs",
     "ios:open": "cap open ios",
     "check:app-store": "npm run legal && node scripts/check-app-store.mjs",
     "lint": "eslint src tests scripts --max-warnings=0",

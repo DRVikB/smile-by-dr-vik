@@ -51,6 +51,7 @@ export function AboutPage() {
         <p className="settings-about-name">SmileCompose</p>
         <p className="settings-about-tagline">Smile design, visualised.</p>
         <p className="settings-about-meta">Version {versionLabel(info)}</p>
+        {process.env.NEXT_PUBLIC_DISTRIBUTION === "internal-testflight" && <p className="settings-about-meta">Internal TestFlight build · legal pages are drafts</p>}
         <p className="settings-about-meta">Designed by Dr Vik</p>
       </div>
       <Row label="Apple Licensed Application EULA" onClick={() => openExternal(LEGAL_LINKS.appleEula)} />

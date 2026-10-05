@@ -24,7 +24,11 @@ for (const file of [".env.local", ".env"]) {
 }
 
 const OUT = "dist/native";
-const release = process.env.SMILE_RELEASE_BUILD === "1";
+// Internal TestFlight is a release build for the team's own testers only (Xcode:
+// Distribute App › TestFlight Internal Only). It carries every release check except
+// the legal sign-off, whose draft pages stay visibly marked as drafts.
+const internalTestFlight = process.env.SMILE_TESTFLIGHT_INTERNAL === "1";
+const release = process.env.SMILE_RELEASE_BUILD === "1" || internalTestFlight;
 
 // Release builds must carry production purchase/account configuration.
 if (release) {
@@ -38,8 +42,12 @@ if (release) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) problems.push("NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set.");
   for (const page of ["public/privacy.html", "public/terms.html"]) {
     const pending = (await readFile(page, "utf8").catch(() => "data-required")).match(/data-required/g)?.length ?? 0;
-    if (pending) problems.push(`${page} has ${pending} unresolved owner/legal items (see docs/PROFESSIONAL_REVIEW_REQUIRED.md).`);
+    if (!pending) continue;
+    if (internalTestFlight) console.warn(`Internal TestFlight: ${page} still has ${pending} owner/legal items, shown as drafts. Not for external testing or App Store review.`);
+    else problems.push(`${page} has ${pending} unresolved owner/legal items (see docs/PROFESSIONAL_REVIEW_REQUIRED.md).`);
   }
+  if (internalTestFlight && process.env.NEXT_PUBLIC_DISTRIBUTION !== "internal-testflight")
+    problems.push("Internal TestFlight builds must be made with `npm run ios:testflight-internal`, so the app is labelled as an internal build.");
   if (problems.length) throw new Error(`Release build blocked:\n- ${problems.join("\n- ")}`);
 }
 const exists = (path) => stat(path).then(() => true, () => false);

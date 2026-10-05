@@ -14,7 +14,8 @@ const qaEnv = Object.fromEntries(QA_FLAGS.map(flag => [`NEXT_PUBLIC_SMILE_QA_${f
 const config: NextConfig = {
   poweredByHeader: false,
   devIndicators: false,
-  env: { NEXT_PUBLIC_APP_VERSION: version, ...qaEnv },
+  // "internal-testflight" labels a build for the team's own TestFlight testers (Settings › About).
+  env: { NEXT_PUBLIC_APP_VERSION: version, NEXT_PUBLIC_DISTRIBUTION: process.env.NEXT_PUBLIC_DISTRIBUTION ?? "", ...qaEnv },
   experimental: { serverActions: { bodySizeLimit: "10mb" } },
 };
 export default config;
