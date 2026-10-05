@@ -179,6 +179,13 @@ async function lockFace(
     toothProtection = outcome.protection;
   }
   scope.assert();
+  // Veneers and bonding keep the patient's edge positions: trim any extra length the image service added.
+  const edges = await import("@/lib/edgeGuardImage");
+  if (edges.shouldGuardEdges(settings) && !r.lipsMoved) {
+    const guarded = await edges.guardEdgesOnImages(photo, imageOut).catch(() => null);
+    scope.assert();
+    if (guarded) imageOut = guarded.image;
+  }
   return { image: imageOut, editAreaProtected: Boolean(photo.editMask), faceLocked: r.locked, lipsMoved: r.lipsMoved, ...(toothProtection ? { toothProtection } : {}) };
 }
 
