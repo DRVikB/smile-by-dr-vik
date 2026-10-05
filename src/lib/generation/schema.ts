@@ -63,7 +63,7 @@ export const settingsSchema = z
     currentShade: z.enum(["A3", "A2", "A1", "B1"]).optional(),
     currentShadeSource: z.enum(["clinician", "estimated"]).optional(),
     targetShade: z.enum(["The same", "Whiten", "Bleach", "A1", "B1", "BL3", "BL2", "BL1"]),
-    shape: z.enum(["Square", "Rounded", "Triangular"]),
+    shape: z.enum(["Square", "Rounded", "Triangular", "Rectangular"]),
     texture: z.enum(["Smooth", "Natural", "Textured"]),
     shotType: z.enum(["Full face", "Close-up"]),
     faceShape: z.enum(["Auto", "Square", "Ovoid", "Tapering"]),

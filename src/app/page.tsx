@@ -1249,7 +1249,7 @@ export default function Smile() {
     if (testMode && settings.alignment?.only && settings.treatmentMode !== "full_arch") { setError("The alignment-only demo preserves tooth shape. Turn off Alignment only to compare the three restorative shapes."); return; }
     void generateVariants([
       { label: "Square", note: "Defined, confident edges.", patch: { shape: "Square" } },
-      { label: "Rounded", note: "Soft and natural.", patch: { shape: "Rounded" } },
+      { label: "Oval", note: "Soft and natural.", patch: { shape: "Rounded" } },
       { label: "Triangular", note: "Tapered, delicate form.", patch: { shape: "Triangular" } },
     ]);
   };

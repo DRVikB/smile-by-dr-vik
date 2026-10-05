@@ -107,7 +107,7 @@ export function familyFor(settings: Pick<SmileSettings, "shape" | "toothPlans">,
   if (plan?.shape === "Soft square") return "soft-square";
   if (plan?.shape === "Square") return "square";
   if (plan?.shape === "Rounded") return "rounded";
-  return settings.shape === "Square" ? "square" : settings.shape === "Rounded" ? "rounded" : settings.shape === "Triangular" ? "tapered" : "natural";
+  return settings.shape === "Square" ? "square" : settings.shape === "Rectangular" ? "soft-square" : settings.shape === "Rounded" ? "rounded" : settings.shape === "Triangular" ? "tapered" : "natural";
 }
 
 /* ---------- Fitting ---------- */

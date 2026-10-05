@@ -1,6 +1,7 @@
 import type { SmileSettings, ToothShape } from "./types";
 
-const FORM: Record<ToothShape, string> = { Square: "square", Rounded: "rounded", Triangular: "tapered" };
+// No prepared demo exists for Rectangle: the square demo is the closest.
+const FORM: Record<ToothShape, string> = { Square: "square", Rounded: "rounded", Triangular: "tapered", Rectangular: "square" };
 const MATERIAL = {
   Composite: "single",
   "Single-shade composite": "single",

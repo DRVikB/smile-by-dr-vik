@@ -19,7 +19,7 @@ export function preferenceRows(settings: SmileSettings): [string, string][] {
       ["Treatment", l.treatment], ["Arch", l.arch], ["Restoration concept", l.restoration],
       ["Prosthetic gingiva", { auto: "Preserve (legacy Auto)", include: "Include", exclude: "Preserve" }[settings.fullArch.prostheticGingiva]],
       ["Shade", settings.targetShade],
-      ["Tooth shape", { Square: "Square", Rounded: "Round", Triangular: "Triangle" }[settings.shape]],
+      ["Tooth shape", { Square: "Square", Rounded: "Oval", Triangular: "Triangle", Rectangular: "Rectangle" }[settings.shape]],
       ["Texture", settings.texture],
       ["Result intensity", `${settings.intensity}% · subtle to enhanced`],
       ["Photo type", settings.shotType],
@@ -28,7 +28,7 @@ export function preferenceRows(settings: SmileSettings): [string, string][] {
   const colourOnly = activeToothPlans(settings).every(p => resolvedToothIntent(settings, p) === "Shade only");
   return [
     ["Shade", settings.targetShade],
-    ["Tooth shape", colourOnly ? "Unchanged (shade only)" : { Square: "Square", Rounded: "Round", Triangular: "Triangle" }[settings.shape]],
+    ["Tooth shape", colourOnly ? "Unchanged (shade only)" : { Square: "Square", Rounded: "Oval", Triangular: "Triangle", Rectangular: "Rectangle" }[settings.shape]],
     [colourOnly && settings.treatment !== "Whitening" ? "Material reference" : "Treatment", standardTreatmentSummary(settings)],
     ["Design goal", settings.treatment === "Whitening" ? "Shade only" : settings.designIntent ?? "Auto"],
     ...(settings.alignment ? [["Alignment concept", `${settings.alignment.arches === "Both" ? "Both arches" : `${settings.alignment.arches} arch`}${settings.alignment.only ? " · alignment only" : ""} · orthodontic suitability not assessed`] as [string, string]] : []),

@@ -24,7 +24,7 @@ const NEGATIVE = /\b(defective|abnormal|bad|unattractive|problematic|problem|fla
 
 test("the Smile Preview summary: two lines about the design, in patient words", () => {
   assert.deepEqual(designSummary(composite6), { headline: "Composite bonding · 6 upper teeth", detail: "Soft square · B1 · Natural texture" });
-  assert.deepEqual(designSummary(porcelain10), { headline: "Porcelain veneers · 10 upper teeth", detail: "Round · BL2 · Natural texture" });
+  assert.deepEqual(designSummary(porcelain10), { headline: "Porcelain veneers · 10 upper teeth", detail: "Oval · BL2 · Natural texture" });
   assert.deepEqual(designSummary(whitening), { headline: "Whitening · 8 upper teeth", detail: "A brighter shade" });
 });
 

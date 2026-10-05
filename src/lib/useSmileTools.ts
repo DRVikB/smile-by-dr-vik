@@ -61,7 +61,7 @@ export function useSmileTools(
             designIntent: { enum: ["Auto", "Shade only", "Repair edges", "Close gaps", "Reshape"] },
             currentShade: { enum: ["A3", "A2", "A1", "B1"] },
             targetShade: { enum: ["The same", "Whiten", "Bleach", "A1", "B1", "BL3", "BL2", "BL1"] },
-            shape: { enum: ["Square", "Rounded", "Triangular"] },
+            shape: { enum: ["Square", "Rounded", "Triangular", "Rectangular"] },
             texture: { enum: ["Smooth", "Natural", "Textured"] },
             shotType: { enum: ["Full face", "Close-up"] },
             faceShape: { enum: ["Auto", "Square", "Ovoid", "Tapering"] },

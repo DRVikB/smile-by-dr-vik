@@ -148,9 +148,6 @@ export function pixelLockPlan(original: Point[], dx: number, dy: number): LockPl
   };
 }
 
-/** Avoid slicing crowns at the approximate inner-lip landmarks. Where the
- * provider lip geometry remains stable, blend within the source outer lip
- * contour. Never expand beyond it. Moved lips retain the strict opening. */
 /** The editable area sent with a masked edit: the source mouth opening (the
  * teeth) with a narrow margin. Lips and jaw stay outside it, so the image
  * service has no licence to open the mouth or move the lips. */
@@ -158,7 +155,29 @@ export function mouthOpeningMask(plan: LockPlan, width: number, height: number):
   return polygonMask(plan.polygon, width, height, plan.feather * 3, plan.feather);
 }
 
+/**
+ * Where the edit is used: the patient's own mouth opening. The lips are always the
+ * patient's: an image service that thins or lifts the upper lip to show more tooth
+ * would otherwise make the new teeth look larger than they would be. A narrow
+ * margin (2% of the mouth's width) beyond the inner-lip landmarks, which sit a
+ * little inside the true lip edge, avoids leaving a sliver of the old teeth at the
+ * lip line; it never reaches past the outer lip contour. Lips that clearly moved
+ * keep the strict opening with no margin.
+ */
 export function mouthTransitionMask(plan: LockPlan, width: number, height: number): Mask {
-  return polygonMask(plan.lipsMoved ? plan.polygon : plan.outerBoundary,
-    width, height, 0, plan.feather, true);
+  if (plan.lipsMoved) return polygonMask(plan.polygon, width, height, 0, plan.feather, true);
+  const opening = polygonMask(plan.polygon, width, height, plan.feather * 4, plan.feather);
+  const strict = polygonMask(plan.polygon, width, height, 0, plan.feather, true);
+  const outer = polygonMask(plan.outerBoundary, width, height, 0, plan.feather, true);
+  const sample = (m: Mask, x: number, y: number) => {
+    const mx = x - m.x0, my = y - m.y0;
+    return mx >= 0 && my >= 0 && mx < m.width && my < m.height ? m.alpha[my * m.width + mx] : 0;
+  };
+  const alpha = new Float32Array(opening.alpha.length);
+  for (let y = 0; y < opening.height; y++) for (let x = 0; x < opening.width; x++) {
+    const px = opening.x0 + x, py = opening.y0 + y;
+    // The opening itself always; the margin only where it stays inside the outer lip.
+    alpha[y * opening.width + x] = Math.max(sample(strict, px, py), Math.min(opening.alpha[y * opening.width + x], sample(outer, px, py)));
+  }
+  return { ...opening, alpha };
 }

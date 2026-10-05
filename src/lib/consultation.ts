@@ -21,7 +21,7 @@ import { FULL_ARCH_DISCLAIMER, fullArchLabel, isFullArch } from "./types";
 // ---------- The design, in patient words ----------
 
 /** The app's own names (the Shape step), so the patient reads what the clinician chose. */
-const SHAPE_NAMES: Record<ToothShape, string> = { Square: "Square", Rounded: "Round", Triangular: "Triangle" };
+const SHAPE_NAMES: Record<ToothShape, string> = { Square: "Square", Rounded: "Oval", Triangular: "Triangle", Rectangular: "Rectangle" };
 
 const TREATMENT_NAMES: Record<Treatment, string> = {
   Whitening: "Whitening",

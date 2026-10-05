@@ -74,7 +74,7 @@ export function isFullArch(s: Pick<SmileSettings, "treatmentMode" | "fullArch">)
   return s.treatmentMode === "full_arch" && Boolean(s.fullArch);
 }
 export type TargetShade = "The same" | "Whiten" | "Bleach" | "A1" | "B1" | "BL3" | "BL2" | "BL1";
-export type ToothShape = "Square" | "Rounded" | "Triangular";
+export type ToothShape = "Square" | "Rounded" | "Triangular" | "Rectangular";
 export type TextureLevel = "Smooth" | "Natural" | "Textured";
 export type ShotType = "Full face" | "Close-up";
 export type FaceShape = "Auto" | "Square" | "Ovoid" | "Tapering";

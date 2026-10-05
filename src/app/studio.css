@@ -341,7 +341,8 @@ input[type="checkbox"][role="switch"],
 .studio-count button, .studio-mode button { min-height: 40px; }
 
 /* Shape: tooth-form tiles */
-.studio-shapes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.studio-shapes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 420px) { .studio-shapes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .studio-shape {
   display: grid; justify-items: center; gap: 6px; padding: 12px 6px 10px;
   border-radius: 16px; background: var(--background); border: 1px solid var(--border);

@@ -1,31 +1,30 @@
 "use client";
 import type { ToothShape } from "@/lib/types";
+import { DESIGN_SHAPES } from "@/lib/smileDesign/shapes";
+import { SHAPE_STYLE, smoothPath } from "@/lib/smileDesign/frame";
 
 export const SHAPES: { name: string; shape: ToothShape; description: string }[] = [
-  { name: "Square", shape: "Square", description: "Straight sides, flat edge" },
-  { name: "Triangle", shape: "Triangular", description: "Tapered towards the gum" },
-  { name: "Round", shape: "Rounded", description: "Curved sides, soft edge" },
+  { name: "Oval", shape: "Rounded", description: "Curved sides, soft edges" },
+  { name: "Square", shape: "Square", description: "Straight sides, broad edge" },
+  { name: "Rectangle", shape: "Rectangular", description: "Longer than wide, straight sides" },
+  { name: "Triangle", shape: "Triangular", description: "Narrower towards the gum" },
 ];
 
-/** One tooth, drawn around x=0 so it can be placed and mirrored freely. */
-const TOOTH_PATHS: Record<ToothShape, string> = {
-  Square: "M-15 3 Q0 0 15 3 L15 55 Q15 60 10 60 L-10 60 Q-15 60 -15 55 Z",
-  Rounded: "M-14 3 Q0 -1 14 3 L16 32 Q16 60 0 60 Q-16 60 -16 32 Z",
-  Triangular: "M-9 2 Q0 -1 9 2 L16 54 Q16 60 12 60 L-12 60 Q-16 60 -16 54 Z",
-};
-
-/** Two central incisors with their neighbours, so the tooth form reads at a glance. */
+/** The four front teeth in the owner's drawn style, so each tooth form reads at a glance. */
 export function ToothForm({ shape }: { shape: ToothShape }) {
-  const d = TOOTH_PATHS[shape];
+  const style = DESIGN_SHAPES[SHAPE_STYLE[shape]];
+  // x0 is the tooth's left edge; on the image's left the mesial side (s = 0) faces right, towards the midline.
+  const tooth = (kind: "central" | "lateral", x0: number, w: number, h: number, y0: number, left: boolean) =>
+    smoothPath(style[kind].map(([s, t]) => [left ? x0 + w - s * w : x0 + s * w, y0 + t * h] as [number, number]), true);
   return (
     <svg className="tooth-form" viewBox="0 0 120 76" aria-hidden="true">
       <g className="tooth-form-side">
-        <path d={d} transform="translate(16 13) scale(0.8 0.85)" />
-        <path d={d} transform="translate(104 13) scale(0.8 0.85)" />
+        <path d={tooth("lateral", 6, 22, 50, 10, true)} />
+        <path d={tooth("lateral", 92, 22, 50, 10, false)} />
       </g>
       <g className="tooth-form-main">
-        <path d={d} transform="translate(43 8)" />
-        <path d={d} transform="translate(77 8)" />
+        <path d={tooth("central", 30, 29, 60, 8, true)} />
+        <path d={tooth("central", 61, 29, 60, 8, false)} />
       </g>
     </svg>
   );
