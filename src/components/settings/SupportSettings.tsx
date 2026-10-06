@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { CircleHelp, FileText, Info, Mail, MessageCircleWarning } from "lucide-react";
+import { CircleHelp, FileText, Info, Mail, MessageCircleWarning, PlayCircle } from "lucide-react";
+import { replayOnboarding } from "@/lib/onboarding";
 import { useAccount } from "@/components/account/AccountProvider";
 import { LEGAL_LINKS } from "@/config/accounts";
 import { RECENTLY_DELETED_DAYS } from "@/config/cases";
@@ -38,6 +39,8 @@ export function HelpAboutSection() {
       <Row icon={<Info size={17} strokeWidth={1.6} />} label="About SmileCompose" onClick={() => nav.openPage({ kind: "about" })} />
       <Row icon={<FileText size={17} strokeWidth={1.6} />} label="Privacy Policy" onClick={() => account.openPrivacy("privacy")} />
       <Row icon={<FileText size={17} strokeWidth={1.6} />} label="Terms of Service" onClick={() => account.openPrivacy("terms")} />
+      {/* TEMPORARY (testing): remove before release. */}
+      <Row icon={<PlayCircle size={17} strokeWidth={1.6} />} label="Replay onboarding" detail="Temporary · for testing" onClick={() => { account.closeSheet(); replayOnboarding(); }} />
     </Group>
   );
 }

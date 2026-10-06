@@ -12,6 +12,8 @@ export interface PatientExportInput {
   /** The settings this concept was generated with; absent on older saved cases. */
   settings?: SmileSettings;
   referenceUsed?: boolean;
+  /** The design was guided by the clinician's own finished cases (Case Library). */
+  styleUsed?: boolean;
   isDemo: boolean;
   /** Case reference or first name, for file names and the report header. */
   patientLabel?: string;

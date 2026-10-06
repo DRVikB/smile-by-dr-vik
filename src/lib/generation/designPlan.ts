@@ -49,6 +49,7 @@ export function resolveDesignPlan(settings: SmileSettings) {
 
 export function isNoChangeDesign(s: SmileSettings): boolean {
   if (s.alignment) return false; // straightening is a change in its own right
+  if (s.toothMatch) return false; // the tooth is rebuilt from its partner
   if (s.treatmentMode === "full_arch" && s.fullArch) return false; // a whole-arch restoration always changes the teeth
   return activeToothPlans(s).every(p => resolvedToothIntent(s, p) === "Shade only" && (p.targetShade ?? s.targetShade) === "The same");
 }

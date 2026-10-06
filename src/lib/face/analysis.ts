@@ -1,4 +1,5 @@
 import {
+  ALAE,
   COMMISSURES,
   GLABELLA,
   IRIS_LEFT,
@@ -38,6 +39,10 @@ export interface SmileAnalysis {
   midline: { through: Point; direction: Point };
   /** Mouth corners, photo-left first. */
   commissures: [Point, Point];
+  /** Outer edges of the nose wings, photo-left first: the nasal width lines pass through them. Absent from older saved analyses. */
+  alae?: [Point, Point];
+  /** Distance between the nasal width lines, across the face. */
+  alarWidthPx?: number;
   /** Upper edge of the lower lip, corner to corner (smile-arc reference). */
   lowerLipCurve: Point[];
   /** Tilt of the interpupillary line from horizontal, degrees. */
@@ -120,6 +125,13 @@ export function analyseSmile(
     (irisDiameter(points, IRIS_RIGHT.ring) + irisDiameter(points, IRIS_LEFT.ring)) / 2;
   const mmPerPx = irisPx > 6 ? IRIS_DIAMETER_MM / irisPx : null;
 
+  // The outer edge of each nose wing: its most lateral point, measured across the face.
+  const across = (p: Point) => (p[0] - through[0]) * Math.cos(ipAngle) + (p[1] - through[1]) * Math.sin(ipAngle);
+  const outermost = (ids: readonly number[], sign: 1 | -1) => pick(points, ids).reduce((best, p) => (sign * across(p) > sign * across(best) ? p : best));
+  const sideA = outermost(ALAE.right, -1), sideB = outermost(ALAE.left, 1);
+  const alae = (across(sideA) <= across(sideB) ? [sideA, sideB] : [outermost(ALAE.left, -1), outermost(ALAE.right, 1)]) as [Point, Point];
+  const alarWidthPx = Math.abs(across(alae[1]) - across(alae[0]));
+
   const lowerLip = pick(points, LOWER_LIP_CURVE);
   const lowerLipCurve = lowerLip[0][0] <= lowerLip[lowerLip.length - 1][0] ? lowerLip : [...lowerLip].reverse();
 
@@ -142,6 +154,8 @@ export function analyseSmile(
     pupils,
     midline: { through, direction },
     commissures,
+    alae,
+    alarWidthPx,
     lowerLipCurve,
     headTiltDeg: degrees(ipAngle),
     cantDeg,
@@ -195,5 +209,15 @@ export function analysisRows(a: SmileAnalysis): AnalysisRow[] {
     shortLabel: "Smile centre",
     shortValue: centred ? "Centred" : `${round1(offset)}% ${side}`,
   });
+  if (a.alarWidthPx && a.smileWidthPx > 0) {
+    const share = Math.round((a.alarWidthPx / a.smileWidthPx) * 100);
+    rows.push({
+      label: "Nasal width",
+      value: `${share}% of smile width`,
+      note: "Lines through the outer edges of the nose, a common reference for where the canines sit.",
+      shortLabel: "Nasal width",
+      shortValue: `${share}% of smile`,
+    });
+  }
   return rows;
 }

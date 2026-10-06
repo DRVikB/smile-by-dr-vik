@@ -84,7 +84,7 @@ export function CaseLibraryView({ startWithAdd, onClose }: { startWithAdd: boole
             : <button type="button" className="cl-nav-button" onClick={() => setPage({ kind: "list" })}><ChevronLeft size={20} strokeWidth={2} aria-hidden="true" />Case Library</button>}
           <div className="cl-head-title">
             <h2 id="cl-title">{title}</h2>
-            {page.kind === "list" && <p>Your style references</p>}
+            {page.kind === "list" && <p>Your style, their smile</p>}
           </div>
           <button type="button" className="cl-nav-button cl-done" onClick={onClose}>Done</button>
         </header>
@@ -175,8 +175,8 @@ export function LibraryEmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="cl-empty">
       <IconTile icon={LibrarySymbol} size="lg" />
-      <h3>Build your style library</h3>
-      <p>Add examples of your finished bonding and porcelain cases. SmileCompose can use them as private visual references when creating new designs, helping results reflect your preferred contour, texture and finish.</p>
+      <h3>Your style, their smile</h3>
+      <p>Add your finished bonding and porcelain cases. New designs then follow your contour, texture and finish, so each patient sees your work in their own smile. Your cases stay private references; patients never see them.</p>
       <button type="button" className="primary-button" onClick={onAdd}><Plus size={17} strokeWidth={2} aria-hidden="true" />Add Finished Case</button>
       <p className="cl-guidance">{QUALITY_GUIDANCE}</p>
     </div>

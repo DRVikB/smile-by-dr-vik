@@ -69,6 +69,7 @@ export function PhotoUploader({
   photo,
   onPhoto,
   onContinue,
+  quick,
   onCamera,
   onRemove,
   onSample,
@@ -81,6 +82,8 @@ export function PhotoUploader({
   photo: Photo | null;
   onPhoto: (photo: Photo) => void | Promise<void>;
   onContinue: () => void;
+  /** Quick Smile goals: one tap to a result. Continue then opens the full studio. */
+  quick?: ReactNode;
   onCamera: () => void;
   onRemove: () => void;
   /** Opens the sample case in test mode (no patient photo, no AI credits). */
@@ -181,10 +184,11 @@ export function PhotoUploader({
           </div>
 
           <div className="photo-aside">
-            <h1 className="photo-heading">Looks good?</h1>
-            <p className="photo-sub">Check the smile is sharp and well lit, then continue to the design.</p>
-            <button className="photo-primary" disabled={busy} onClick={onContinue}>
-              Continue <ArrowRight size={18} strokeWidth={1.7} />
+            <h1 className="photo-heading">{quick ? "What would they like?" : "Looks good?"}</h1>
+            <p className="photo-sub">{quick ? "Choose a goal for an instant design, or build it step by step." : "Check the smile is sharp and well lit, then continue to the design."}</p>
+            {quick}
+            <button className={quick ? "photo-step-by-step" : "photo-primary"} disabled={busy} onClick={onContinue}>
+              {quick ? "Design step by step" : "Continue"} <ArrowRight size={18} strokeWidth={1.7} />
             </button>
             {photo.quality && (photo.quality.blurry || photo.quality.tooDark || photo.quality.tooBright) && (
               <p className="photo-quality-notice" role="status">

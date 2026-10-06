@@ -397,3 +397,45 @@
 .recent-case span { display: grid; min-width: 0; padding: 0 2px 2px; }
 .recent-case strong { overflow: hidden; font-size: 12px; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
 .recent-case small { font-size: 11px; color: rgba(250, 249, 246, .7); }
+
+/* iPhone: the card never scrolls. It takes the height its content needs (sized by the screen's height
+   as well as its width) and the picture fills whatever is left above it. */
+@media (max-width: 699px) {
+  /* The photo always keeps a generous share of the screen; a shorter phone scrolls rather than losing it. */
+  .has-hero:not([data-step="subscription"]) .ob-visual { flex: 1 1 auto; height: auto; min-height: max(220px, 34dvh); max-height: 62dvh; }
+  /* Safety net: a phone too short for the content scrolls the page rather than clipping it. */
+  .onboarding.has-hero { overflow-y: auto; }
+  .has-hero .ob-sheet { flex: none; overflow: visible; gap: clamp(10px, 2dvh, 20px); padding-top: clamp(16px, 2.4dvh, 22px);
+    /* The last action sits just above the home indicator; the photo takes the space back. */
+    padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  .has-hero .ob-head { gap: clamp(6px, 1.2dvh, 12px); }
+  .has-hero .ob-body { gap: clamp(8px, 1.4dvh, 14px); }
+  .has-hero .ob-title { font-size: clamp(25px, min(8vw, 4.2dvh), 40px); }
+  .has-hero .ob-copy { font-size: clamp(14px, 1.8dvh, 16px); line-height: 1.42; }
+  .has-hero .ob-hero-caption { bottom: clamp(36px, 6dvh, 58px); gap: 4px; }
+  .has-hero .ob-hero-caption::before { margin-bottom: 6px; }
+  .has-hero .ob-hero-title { font-size: clamp(24px, min(8.8vw, 4.6dvh), 46px); }
+  .has-hero .ob-hero-title::after { margin-top: 10px; }
+  /* Your style: the whole flow scales with the screen's height, so it fits the shrunken picture. */
+  .ob-frame[data-step="styleLibrary"] .ob-visual .style-stage { --card-w: min(100%, 36dvh); padding-bottom: 40px; padding-top: calc(env(safe-area-inset-top) + 8px); }
+  .ob-frame[data-step="styleLibrary"] .style-flow { gap: 4px; }
+  .ob-frame[data-step="styleLibrary"] .style-flow-label { margin-bottom: 4px; }
+  .ob-frame[data-step="styleLibrary"] .style-engine-line { height: 10px; }
+  .ob-frame[data-step="styleLibrary"] .style-result { width: 100%; }
+  .ob-frame[data-step="styleLibrary"] .style-result figcaption { margin-top: 6px; }
+}
+
+
+/* Wherever a page scrolls (the plans, or any page on a short screen), the picture stays put and the
+   card slides up over it. Pages that fit don't move at all. */
+@media (max-width: 699px), (orientation: portrait) {
+  .onboarding.has-hero .ob-visual { position: sticky; top: 0; z-index: 0; }
+  .onboarding.has-hero .ob-sheet { z-index: 1; }
+}
+/* iPhone: the welcome page is a card rising over the picture, like every other page. */
+@media (max-width: 699px) {
+  .ob-frame.ob-welcome.has-hero .ob-sheet { margin-top: -28px; border-radius: 28px 28px 0 0; box-shadow: 0 -14px 30px -22px rgba(0, 0, 0, .5); padding-top: clamp(18px, 2.6dvh, 26px); }
+  /* Before and Concept sit clear of the card's rounded edge. */
+  .ob-welcome .ob-visual .reveal-tag { bottom: 46px; }
+}
+.ob-centred { justify-self: center; text-align: center; }

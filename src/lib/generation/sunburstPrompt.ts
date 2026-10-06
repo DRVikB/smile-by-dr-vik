@@ -97,6 +97,7 @@ export function renderSunburstPrompt(c: GenerationContract): string {
   // WHAT TO CHANGE
   if (fullArch) {
     change.push("Treatment: full-arch zirconia restoration of the visible upper and lower teeth. Replace the visible teeth with a new, coherent set of fixed zirconia teeth: individual crowns with natural proportions, contacts and small gaps between the edges, and a recognisable canine on each side. Natural depth, slight translucency at the biting edges and a polished glaze; not a flat denture look and never one solid block.");
+    change.push("Length: keep the new upper teeth a natural, slightly conservative length, the centrals as tall as the patient's longest intact front tooth (restore only lost edge on worn or broken teeth). Leave a clear space between the upper edges and the lower lip, as in the photo; the edges never touch or cover the lip, and teeth are never lengthened to fill dark space. When unsure, choose the shorter option. Keep the photographed split between upper and lower teeth: new upper teeth only where the upper teeth were, new lower teeth wherever lower teeth showed, at the same height. Show gum above the upper teeth only where the photo shows it; no new band of gum. Remove any braces.");
     if (c.shape) change.push(`Design: ${design(c)}.`);
     change.push(`Shade: ${shade(c.targetShade)}.`);
     change.push(includeGingiva

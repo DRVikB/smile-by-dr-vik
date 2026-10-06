@@ -129,6 +129,8 @@ export interface SmileSettings {
   teeth: TeethCount;
   selectedTeeth: number[];
   toothPlans?: ToothPlan[];
+  /** One upper front tooth rebuilt on the device as a mirror of its partner (chipped, worn or missing). */
+  toothMatch?: import("./smileDesign/toothMatch").ToothMatch;
   caseFeatures?: CaseFeature[];
   treatment: Treatment;
   /** Explicit Whitening alongside veneers; uses the same selected teeth and target shade. */
@@ -181,6 +183,8 @@ export interface Photo {
   editMask?: string;
   /** Every visible tooth as its own region (on-device); only selected teeth may change. */
   toothMap?: import("./toothMap/types").ToothMap;
+  /** The smile guide fitted to this photo and the clinician's adjustments (on-device). */
+  smileGuide?: import("./smileDesign/frame").SmileGuide;
   dataUrl: string;
   name: string;
   width: number;

@@ -35,6 +35,8 @@ export const COMMISSURES = [61, 291] as const;
 /** The inner lip contour (the mouth opening), clockwise from the right corner. */
 export const INNER_LIP = [78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95] as const;
 export const GLABELLA = 168;
+/** Outer edges of the nose wings (alae), patient's right then left: the most lateral of each set is used. */
+export const ALAE = { right: [48, 64, 98], left: [278, 294, 327] } as const;
 export const CHIN = 152;
 /** Iris centres (patient's right, patient's left) and their ring points. */
 export const IRIS_RIGHT = { centre: 468, ring: [469, 470, 471, 472] } as const;

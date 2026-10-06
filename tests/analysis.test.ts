@@ -89,6 +89,27 @@ test("all four guides land on one photo: eye line through the pupils, midline th
   assert.ok(Math.abs(eye[0] * mid[0] + eye[1] * mid[1]) / (Math.hypot(eye[0], eye[1]) * Math.hypot(mid[0], mid[1])) < 1e-9);
 });
 
+test("nasal width lines run through the outer edges of the nose, parallel to the midline", () => {
+  const pts = face();
+  // Nose wings: the most lateral point on each side is the one used.
+  pts[48] = [462, 640]; pts[64] = [455, 650]; pts[98] = [465, 655];
+  pts[278] = [538, 640]; pts[294] = [547, 650]; pts[327] = [536, 655];
+  const a = analyseSmile(pts, 1000, 1200)!;
+  assert.deepEqual(a.alae, [[455, 650], [547, 650]]);
+  assert.equal(a.alarWidthPx, 92);
+  assert.equal(analysisRows(a).find((r) => r.label === "Nasal width")!.value, "35% of smile width");
+  const g = smileGuides(a, 1000, 1200);
+  const [left, right] = g.nasalLines!;
+  assert.ok(left.from[0] === 455 && left.to[0] === 455 && right.from[0] === 547);
+  // From above the eyes to below the lower lip.
+  assert.ok(left.from[1] < 500 && left.to[1] > 795);
+  assert.deepEqual(scaleGuides(g, 500, 600).nasalLines![1].from, [right.from[0] / 2, right.from[1] / 2]);
+  // Tilted heads keep them parallel to the midline.
+  const t = smileGuides(analyseSmile(face({ tilt: 8 }), 1000, 1200)!, 1000, 1200);
+  const dir = (s: { from: Point; to: Point }) => Math.atan2(s.to[1] - s.from[1], s.to[0] - s.from[0]);
+  assert.ok(Math.abs(dir(t.nasalLines![0]) - dir(t.midline!)) < 1e-9);
+});
+
 test("guides move with the photo's size, and each line has its own colour", () => {
   const g = smileGuides(analyseSmile(face(), 1000, 1200)!, 1000, 1200);
   const half = scaleGuides(g, 500, 600);

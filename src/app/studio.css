@@ -779,3 +779,67 @@ input[type="checkbox"][role="switch"],
   outline-offset: 2px; border-radius: 6px;
 }
 .photo-start .upload-authority:not(.confirmed) .ai-consent-check .photo-row-icon { color: var(--accent-text); }
+
+/* Smile guide (Shape step): the owner's overlay colours, drawn over the photo in
+   its own pixels. Strokes keep a constant on-screen width at any zoom. */
+.smile-guide-overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 1; }
+.smile-guide-overlay :is(path, line) { fill: none; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; }
+.smile-guide-halo :is(path, line) { stroke: rgb(0 0 0 / .38); stroke-width: calc(4.5px / var(--guide-zoom, 1)); }
+.smile-guide-gum { stroke: #2b4dff; stroke-width: calc(2px / var(--guide-zoom, 1)); }
+.smile-guide-edge { stroke: #f39a3b; stroke-width: calc(2px / var(--guide-zoom, 1)); }
+.smile-guide-midline, .smile-guide-division { stroke: #74e35e; stroke-width: calc(1.6px / var(--guide-zoom, 1)); }
+.smile-guide-midline { stroke-width: calc(1.8px / var(--guide-zoom, 1)); }
+.smile-guide-overlay .smile-guide-tooth { stroke: rgb(255 255 255 / .92); stroke-width: calc(1.4px / var(--guide-zoom, 1)); fill: rgb(255 255 255 / .07); filter: drop-shadow(0 0 1px rgb(0 0 0 / .55)); }
+.smile-guide-handle { pointer-events: all; cursor: grab; touch-action: none; }
+.smile-guide-overlay.is-moving .smile-guide-handle { cursor: grabbing; }
+.smile-guide-handle-hit { fill: transparent; }
+.smile-guide-handle-dot { fill: #74e35e; stroke: rgb(255 255 255 / .95); stroke-width: calc(2px / var(--guide-zoom, 1)); vector-effect: non-scaling-stroke; filter: drop-shadow(0 1px 2px rgb(0 0 0 / .5)); }
+.smile-guide-controls { display: grid; gap: 10px; }
+.smile-guide-slider { display: grid; gap: 4px; }
+.smile-guide-nudge { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.smile-guide-nudge .icon-button { width: 44px; height: 44px; }
+.smile-guide-reset { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+.smile-guide-reset:disabled { opacity: .45; }
+@media (max-width: 600px), (max-height: 500px) {
+  .smile-guide-halo :is(path, line) { stroke-width: calc(3px / var(--guide-zoom, 1)); }
+  .smile-guide-gum, .smile-guide-edge { stroke-width: calc(1.5px / var(--guide-zoom, 1)); }
+  .smile-guide-midline, .smile-guide-division { stroke-width: calc(1.2px / var(--guide-zoom, 1)); }
+  .smile-guide-overlay .smile-guide-tooth { stroke-width: calc(1px / var(--guide-zoom, 1)); }
+}
+.smile-guide-overlay .smile-guide-nasal { stroke: #c7b6f2; stroke-width: calc(1.4px / var(--guide-zoom, 1)); stroke-dasharray: calc(7px / var(--guide-zoom, 1)) calc(6px / var(--guide-zoom, 1)); filter: drop-shadow(0 0 1px rgb(0 0 0 / .6)); }
+
+/* One tooth: choosing the tooth on the photo and on the chart. */
+.smile-guide-overlay.is-picking .smile-guide-pick { fill: rgb(255 255 255 / .06); stroke: rgb(255 255 255 / .75); stroke-width: calc(1.2px / var(--guide-zoom, 1)); vector-effect: non-scaling-stroke; pointer-events: all; cursor: pointer; filter: drop-shadow(0 0 1px rgb(0 0 0 / .6)); }
+.smile-guide-overlay.is-picking .smile-guide-pick.is-selected { fill: color-mix(in srgb, var(--accent) 34%, transparent); stroke: var(--accent); stroke-width: calc(2.2px / var(--guide-zoom, 1)); }
+.smile-guide-overlay.is-picking .smile-guide-pick.is-partner { stroke: #fff; stroke-dasharray: calc(5px / var(--guide-zoom, 1)) calc(4px / var(--guide-zoom, 1)); stroke-width: calc(1.6px / var(--guide-zoom, 1)); }
+.smile-guide-label { fill: #fff; font-weight: 600; paint-order: stroke; stroke: rgb(0 0 0 / .55); stroke-width: 2px; }
+.smile-guide-label.is-selected { fill: var(--accent); }
+.one-tooth { display: grid; gap: 12px; }
+.one-tooth-chart { display: flex; justify-content: center; align-items: flex-end; gap: 4px; padding: 4px 0 2px; }
+.one-tooth-key { display: grid; justify-items: center; gap: 6px; padding: 4px 2px; border-radius: 10px; background: none; border: 0; color: var(--text-secondary); min-width: 44px; }
+.one-tooth-key.after-midline { margin-left: 6px; }
+.one-tooth-shape { display: block; border-radius: 42% 42% 46% 46% / 30% 30% 62% 62%; background: #e8e2d6; border: 1.5px solid #a8a39b; }
+.one-tooth-key.on .one-tooth-shape { background: #fff; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.one-tooth-key.source .one-tooth-shape { border-style: dashed; border-color: var(--text-primary); }
+.one-tooth-key.on .one-tooth-name { color: var(--accent-text); font-weight: 600; }
+.one-tooth-name { font-size: 12px; letter-spacing: .02em; }
+
+/* Quick Smile: goal tiles on the photo step, then the full studio as a quieter option. */
+.quick-smile { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.quick-smile-goal { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 64px; padding: 12px 14px; border-radius: 14px; text-align: left;
+  background: var(--card); border: 1px solid var(--border); color: var(--text-primary); transition: border-color var(--fast), background var(--fast); }
+.quick-smile-goal span { display: grid; gap: 2px; min-width: 0; }
+.quick-smile-goal strong { font-size: 15px; font-weight: 600; }
+.quick-smile-goal small { font-size: 12px; color: var(--text-secondary); }
+.quick-smile-goal svg { flex: none; color: var(--accent-text); }
+.quick-smile-goal:hover:not(:disabled) { border-color: var(--accent); }
+.quick-smile-goal:active:not(:disabled) { transform: scale(0.985); }
+.quick-smile-goal:disabled { opacity: .55; }
+.quick-smile-goal:first-child { grid-column: 1 / -1; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 14%, var(--card)), var(--card)); border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.photo-step-by-step { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; width: 100%; border-radius: 14px;
+  background: none; border: 1px solid var(--border); color: var(--text-primary); font-weight: 500; }
+.photo-step-by-step:disabled { opacity: .55; }
+.studio-variations:has(> :only-child) { grid-template-columns: 1fr; }
+.studio-variations:has(> :only-child) .studio-variation { flex-direction: row; justify-content: center; gap: 10px; min-height: 52px; }
+.studio-more .studio-variations { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.smile-guide-overlay.is-highlight .smile-guide-pick { pointer-events: none; cursor: default; }

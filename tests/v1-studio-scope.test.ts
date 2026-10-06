@@ -46,7 +46,9 @@ function clickTreatment(settings: SmileSettings, title: string) {
   function visit(node: ReactNode): void {
     Children.forEach(node, child => {
       if (!isValidElement<{ children?: ReactNode; onClick?: () => void; role?: string }>(child)) return;
-      if (child.type === "button" && ["radio", "checkbox"].includes(child.props.role ?? "") && renderToStaticMarkup(child).includes(`<strong>${title}</strong>`)) child.props.onClick?.();
+      const markup = child.type === "button" ? renderToStaticMarkup(child) : "";
+      // Treatments are cards with a bold title; the material is a compact switch of short names.
+      if ((child.props.role === "checkbox" && markup.includes(`<strong>${title}</strong>`)) || (child.props.role === "radio" && markup.endsWith(`>${title}</button>`))) child.props.onClick?.();
       else visit(child.props.children);
     });
   }
@@ -81,7 +83,7 @@ test("Veneers restores material controls and combines with Alignment while leavi
     assert.equal(selected.treatment, settings.treatment);
     assert.equal(normalizeGenerationContract(selected).mode, "restorative");
     const html = renderToStaticMarkup(createElement(TreatmentOptions, { settings: selected, onChange() {} }));
-    for (const label of ["Composite bonding", "Layered composite", "Porcelain veneers"]) assert.ok(html.includes(`<strong>${label}</strong>`));
+    for (const label of ["Bonding", "Layered", "Porcelain"]) assert.ok(html.includes(`>${label}</button>`));
   }
 });
 
@@ -137,7 +139,7 @@ test("bonding plus Alignment keeps the selected dental design and remains restor
 
 test("changing composite to porcelain retains the separately selected alignment add-on", () => {
   const combined = toggleAlignment({ ...defaultSettings, treatment: "Single-shade composite" });
-  const porcelain = clickTreatment(combined, "Porcelain veneers");
+  const porcelain = clickTreatment(combined, "Porcelain");
   assert.deepEqual(porcelain.alignment, { arches: "Both" });
   assert.equal(porcelain.treatment, "Porcelain");
   assert.equal(normalizeGenerationContract(porcelain).mode, "restorative");
@@ -185,7 +187,7 @@ test("All-on-X clears combined treatment permissions and each standard choice le
 });
 test("material change and deselecting Alignment retain Whitening and veneer choices", () => {
   const combined = clickTreatment(clickTreatment(defaultSettings, "Whitening"), "Alignment");
-  const porcelain = clickTreatment(combined, "Porcelain veneers");
+  const porcelain = clickTreatment(combined, "Porcelain");
   assert.deepEqual(checkedTreatments(porcelain), ["Whitening", "Veneers", "Alignment"]);
   assert.equal(porcelain.treatment, "Porcelain");
   assert.equal(porcelain.targetShade, defaultSettings.targetShade);

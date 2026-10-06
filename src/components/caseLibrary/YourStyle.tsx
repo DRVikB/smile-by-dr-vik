@@ -42,13 +42,13 @@ export function YourStyle({ settings, onChange }: { settings: SmileSettings; onC
         <div className="style-card-head">
           <span className="style-card-icon" aria-hidden="true"><BookMarked size={16} strokeWidth={1.8} /></span>
           <span className="style-card-text">
-            <strong>Case Library</strong>
+            <strong>{on && matches.length ? "Designing in your style" : "Case Library"}</strong>
             <span>{matches.length ? `${matches.length} matching ${matches.length === 1 ? "reference" : "references"}` : "No close style match found"}</span>
           </span>
           <button type="button" className="text-button" onClick={() => lib.open()}>View</button>
         </div>
         <label className="style-toggle ios-switch-row">
-          <span>Use my Case Library</span>
+          <span>Design in my style</span>
           <input type="checkbox" role="switch" checked={on} onChange={e => onChange({ ...settings, libraryStyle: e.target.checked })} />
         </label>
         <p className="control-hint">
@@ -64,11 +64,47 @@ export function YourStyle({ settings, onChange }: { settings: SmileSettings; onC
 
   return (
     <div className="control-group your-style">
-      <div className="control-label"><span>Your style</span></div>
+      <div className="control-label"><span>Your style</span><span className="muted">Your Case Library</span></div>
       {body}
+    </div>
+  );
+}
+
+/** Optional starting conditions that sharpen Case Library matching (kept under More). */
+export function StartingConditions({ settings, onChange }: { settings: SmileSettings; onChange: (s: SmileSettings) => void }) {
+  return (
+    <div className="control-group">
       <div className="control-label style-conditions-label"><span>Starting conditions</span><span className="muted">Optional</span></div>
       <CaseFeatures value={settings.caseFeatures ?? []} onChange={v => onChange({ ...settings, caseFeatures: v })} />
       <p className="control-hint">Starting conditions help match your Case Library; they do not authorise treatment or diagnose the photograph.</p>
+    </div>
+  );
+}
+
+/**
+ * The photo step: one line saying whether designs will follow the clinician's own
+ * finished cases, with the switch, or an invitation to add some.
+ */
+export function StyleLine({ settings, onChange }: { settings: SmileSettings; onChange: (s: SmileSettings) => void }) {
+  const lib = useCaseLibrary();
+  const account = useAccount();
+  const cases = lib.cases;
+  if (cases === null && lib.mode !== "signedOut") return null;
+  const empty = lib.mode === "signedOut" || !cases?.length;
+  return (
+    <div className={`style-line${!empty && settings.libraryStyle ? " is-on" : ""}`}>
+      <span className="style-line-icon" aria-hidden="true"><BookMarked size={16} strokeWidth={1.8} /></span>
+      {empty ? <>
+        <span className="style-line-text"><strong>Design in your style</strong><span>Add your finished cases so results follow your work.</span></span>
+        <button type="button" className="text-button" onClick={() => (lib.mode === "signedOut" ? account.openAuth("signIn") : lib.open({ add: true }))}>{lib.mode === "signedOut" ? "Sign in" : "Add"}</button>
+      </> : <>
+        <span className="style-line-text">
+          <strong>{settings.libraryStyle ? "In your style" : "Your style is off"}</strong>
+          <span>{settings.libraryStyle ? `Guided by your ${cases!.length} finished ${cases!.length === 1 ? "case" : "cases"}` : "Designs won’t use your Case Library"}</span>
+        </span>
+        <input type="checkbox" role="switch" className="studio-switch" aria-label="Design in your style" checked={settings.libraryStyle}
+          onChange={e => onChange({ ...settings, libraryStyle: e.target.checked })} />
+      </>}
     </div>
   );
 }

@@ -111,7 +111,7 @@ export function designSummary(s: SmileSettings): DesignSummary {
 }
 
 /** "Your proposed smile": each chosen setting, leaving out anything that doesn't apply to this design. */
-export function proposedSmileRows(s: SmileSettings, referenceUsed?: boolean): [string, string][] {
+export function proposedSmileRows(s: SmileSettings, referenceUsed?: boolean, styleUsed?: boolean): [string, string][] {
   const rows: [string, string][] = [["Treatment", designHeadline(s)]];
   if (isFullArch(s)) {
     const l = fullArchLabel(s.fullArch);
@@ -132,6 +132,7 @@ export function proposedSmileRows(s: SmileSettings, referenceUsed?: boolean): [s
     }
   }
   if (referenceUsed) rows.push(["Reference smile", "Included"]);
+  if (styleUsed) rows.push(["Style", "Your dentist’s own style, guided by their finished cases"]);
   return rows;
 }
 
@@ -422,7 +423,7 @@ export function nextStepText(c: CaseConsultation | undefined): string {
 
 export function reportContent(
   draft: ReportDraft,
-  input: { settings?: SmileSettings; referenceUsed?: boolean; analysis: SmileAnalysis | null; isDemo?: boolean; consultation?: CaseConsultation; preferred?: boolean },
+  input: { settings?: SmileSettings; referenceUsed?: boolean; styleUsed?: boolean; analysis: SmileAnalysis | null; isDemo?: boolean; consultation?: CaseConsultation; preferred?: boolean },
 ): ReportContent {
   const { settings, consultation } = input;
   // Reports saved before this section existed include it, as new ones do by default.
@@ -441,7 +442,7 @@ export function reportContent(
     date: reportDate(draft.date),
     wishes,
     preferred,
-    design: settings && draft.sections.design ? proposedSmileRows(settings, input.referenceUsed) : null,
+    design: settings && draft.sections.design ? proposedSmileRows(settings, input.referenceUsed, input.styleUsed && !input.isDemo) : null,
     glance,
     priorities: draft.priorities.filter(p => p.include && p.title.trim()).slice(0, 3),
     comparison: settings && draft.sections.comparison

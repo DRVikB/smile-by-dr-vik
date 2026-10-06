@@ -150,7 +150,7 @@ export function ShareSheet({
     setStatus("");
     try {
       const [{ composeConsultationReport }, { stackPages }] = await Promise.all([import("@/lib/consultationReport"), import("@/lib/exportCanvas")]);
-      const content = reportContent(draft, { settings: input.settings, referenceUsed: input.referenceUsed, analysis: analysis?.face ?? null, isDemo: input.isDemo, consultation: input.consultation, preferred: input.preferred });
+      const content = reportContent(draft, { settings: input.settings, referenceUsed: input.referenceUsed, styleUsed: input.styleUsed, analysis: analysis?.face ?? null, isDemo: input.isDemo, consultation: input.consultation, preferred: input.preferred });
       const { pages, omitted } = await composeConsultationReport(input, content, analysis);
       const image = pages.length > 1 ? await stackPages(pages, 36) : pages[0];
       repository.scope.assert();

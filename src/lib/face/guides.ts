@@ -18,23 +18,26 @@ export interface SmileGuides {
   eyeLine: GuideSegment | null;
   midline: GuideSegment | null;
   mouthLine: GuideSegment;
+  /** Through the outer edges of the nose, parallel to the facial midline, photo-left first. */
+  nasalLines: [GuideSegment, GuideSegment] | null;
   pupils: [Point, Point];
   commissures: [Point, Point];
   /** The upper edge of the lower lip, corner to corner: the smile-arc guide. */
   smileArc: Point[];
 }
 
-export type GuideKey = "eyeLine" | "midline" | "mouthLine" | "smileArc";
+export type GuideKey = "eyeLine" | "midline" | "nasalLines" | "mouthLine" | "smileArc";
 
 /** One colour per line, so a single image stays legible. */
 export const GUIDE_STYLES: Record<GuideKey, { label: string; colour: string; dashed: boolean }> = {
   eyeLine: { label: "Eye line", colour: "#D8B872", dashed: false },
   midline: { label: "Facial midline", colour: "rgba(255, 255, 255, 0.95)", dashed: true },
+  nasalLines: { label: "Nasal width", colour: "#C7B6F2", dashed: true },
   mouthLine: { label: "Mouth corners", colour: "#7CCBDF", dashed: false },
   smileArc: { label: "Smile arc", colour: "#86E0AE", dashed: false },
 };
 
-export const GUIDE_ORDER: GuideKey[] = ["eyeLine", "midline", "mouthLine", "smileArc"];
+export const GUIDE_ORDER: GuideKey[] = ["eyeLine", "midline", "nasalLines", "mouthLine", "smileArc"];
 
 /** Mouth-corner line reach beyond each corner, as a share of the smile width. */
 const MOUTH_REACH = 0.22;
@@ -68,12 +71,23 @@ export function smileGuides(a: SmileAnalysis, width: number, height: number): Sm
   const span = Math.hypot(c1[0] - c0[0], c1[1] - c0[1]) || 1;
   const ux = (c1[0] - c0[0]) / span, uy = (c1[1] - c0[1]) / span;
   const reach = span * MOUTH_REACH;
+  // Nasal width lines: from above the eyes to below the lower lip, parallel to the midline.
+  const d = a.midline.direction, eye = (a.pupils[0][1] + a.pupils[1][1]) / 2;
+  const lip = Math.max(...a.lowerLipCurve.map(p => p[1]));
+  const above = (lip - eye) * 0.45, below = (lip - eye) * 0.55;
+  const nasal = (p: Point): GuideSegment => {
+    // Distances along the midline direction from this point to the eye level and below the lip.
+    const toY = (y: number) => (Math.abs(d[1]) > 1e-6 ? (y - p[1]) / d[1] : 0);
+    const t0 = toY(eye - above), t1 = toY(lip + below);
+    return { from: [p[0] + d[0] * t0, p[1] + d[1] * t0], to: [p[0] + d[0] * t1, p[1] + d[1] * t1] };
+  };
   return {
     width,
     height,
     eyeLine: clipLine(a.pupils[0], ipDir, width, height),
     midline: clipLine(a.midline.through, a.midline.direction, width, height),
     mouthLine: { from: [c0[0] - ux * reach, c0[1] - uy * reach], to: [c1[0] + ux * reach, c1[1] + uy * reach] },
+    nasalLines: a.alae ? [nasal(a.alae[0]), nasal(a.alae[1])] : null,
     pupils: a.pupils,
     commissures: a.commissures,
     smileArc: a.lowerLipCurve,
@@ -91,6 +105,7 @@ export function scaleGuides(g: SmileGuides, width: number, height: number): Smil
     eyeLine: seg(g.eyeLine),
     midline: seg(g.midline),
     mouthLine: seg(g.mouthLine)!,
+    nasalLines: g.nasalLines ? [seg(g.nasalLines[0])!, seg(g.nasalLines[1])!] : null,
     pupils: [p(g.pupils[0]), p(g.pupils[1])],
     commissures: [p(g.commissures[0]), p(g.commissures[1])],
     smileArc: g.smileArc.map(p),

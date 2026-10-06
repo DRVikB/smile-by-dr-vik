@@ -74,6 +74,7 @@ export function GuideLines({ guides, scale = 1, advanced = true }: { guides: Smi
       <g clipPath={`url(#${clip})`}>
         {line("eyeLine", guides.eyeLine)}
         {line("midline", guides.midline)}
+        {guides.nasalLines?.map((seg, i) => <g key={i}>{line("nasalLines", seg)}</g>)}
         {advanced && line("mouthLine", guides.mouthLine)}
         <path {...common} d={smoothCurvePath(guides.smileArc)} stroke={GUIDE_STYLES.smileArc.colour} strokeWidth={2.6 / s} />
         {guides.pupils.map((p, i) => dot(p, GUIDE_STYLES.eyeLine.colour, i))}

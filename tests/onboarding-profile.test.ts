@@ -65,14 +65,15 @@ test("a cold launch restarts incomplete onboarding while preserving names and co
   assert.equal(stepOf({ ...base, local: readLocalOnboarding(storage, { forLaunch: true }) }), "none");
 });
 
-test("a new user goes welcome → account → personalise → how it works → your style → subscription → ready", () => {
+test("a new user goes welcome → account → how it works → your style → subscription → personalise → ready", () => {
   assert.equal(stepOf(base), "welcome");
   assert.equal(stepOf({ ...base, local: { welcomeSeen: true } }), "account");
-  assert.equal(stepOf(signedIn({ local: { welcomeSeen: true } })), "personalise");
+  assert.equal(stepOf(signedIn({ local: { welcomeSeen: true } })), "howItWorks");
+  assert.equal(stepOf(signedIn({ local: { howItWorksSeen: true } })), "styleLibrary");
+  assert.equal(stepOf(signedIn({ local: { howItWorksSeen: true, styleLibrarySeen: true } })), "subscription");
+  // The name comes last, just before "You're all set".
+  assert.equal(stepOf(signedIn({ local: { howItWorksSeen: true, styleLibrarySeen: true }, hasPro: true })), "personalise");
   const named = { preferredName: "Dr Vik", onboardingCompletedAt: null, hasGenerationHistory: false };
-  assert.equal(stepOf(signedIn({ profile: named })), "howItWorks");
-  assert.equal(stepOf(signedIn({ profile: named, local: { howItWorksSeen: true } })), "styleLibrary");
-  assert.equal(stepOf(signedIn({ profile: named, local: { howItWorksSeen: true, styleLibrarySeen: true } })), "subscription");
   assert.equal(stepOf(signedIn({ profile: named, local: { howItWorksSeen: true, styleLibrarySeen: true }, hasPro: true })), "ready");
 });
 
@@ -129,16 +130,16 @@ test("onboarding waits for the account, but never traps an offline user", () => 
   assert.equal(stepOf(signedIn({ profile: null })), "none");
 });
 
-test("without accounts the flow is welcome → personalise → how it works → your style → ready, stored on the device", () => {
+test("without accounts the flow is welcome → how it works → your style → personalise → ready, stored on the device", () => {
   const local = { accountsConfigured: false } as const;
   assert.equal(stepOf({ ...base, ...local }), "welcome");
-  assert.equal(stepOf({ ...base, ...local, local: { welcomeSeen: true } }), "personalise");
-  assert.equal(stepOf({ ...base, ...local, local: { welcomeSeen: true, nameSkipped: true } }), "howItWorks");
-  assert.equal(stepOf({ ...base, ...local, local: { welcomeSeen: true, preferredName: "Dr Vik", howItWorksSeen: true } }), "styleLibrary");
+  assert.equal(stepOf({ ...base, ...local, local: { welcomeSeen: true } }), "howItWorks");
+  assert.equal(stepOf({ ...base, ...local, local: { welcomeSeen: true, howItWorksSeen: true } }), "styleLibrary");
+  assert.equal(stepOf({ ...base, ...local, local: { welcomeSeen: true, howItWorksSeen: true, styleLibrarySeen: true } }), "personalise");
   assert.equal(stepOf({ ...base, ...local, local: { welcomeSeen: true, preferredName: "Dr Vik", howItWorksSeen: true, styleLibrarySeen: true } }), "ready");
   assert.equal(stepOf({ ...base, ...local, local: { completedAt: 1 } }), "none");
   // Exploring without an account keeps the account step from returning.
-  assert.equal(stepOf({ ...base, local: { welcomeSeen: true, accountDeferred: true } }), "personalise");
+  assert.equal(stepOf({ ...base, local: { welcomeSeen: true, accountDeferred: true } }), "howItWorks");
 });
 
 test("device onboarding state round-trips and tolerates corrupt storage", () => {

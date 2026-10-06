@@ -10,7 +10,7 @@ import { BrandLockup, CreatorSignature, SmileMark } from "@/components/Brand";
 import { SMILECOMPOSE } from "@/lib/brand";
 import { NAME_LIMITS, greeting, initials as initialsOf, normaliseName } from "@/lib/profile";
 import {
-  ONBOARDING_PROGRESS, onboardingDecision, readLocalOnboarding, updateAccountFlags, writeLocalOnboarding,
+  ONBOARDING_PROGRESS, ONBOARDING_REPLAY_EVENT, onboardingDecision, readLocalOnboarding, updateAccountFlags, writeLocalOnboarding,
   type AccountOnboardingFlags, type LocalOnboarding, type OnboardingStep,
 } from "@/lib/onboarding";
 import { AuthMessage, signInWithApple } from "@/services/auth/authService";
@@ -37,6 +37,13 @@ export function Onboarding({ appReady, onCreateFirst }: {
   const [deviceHasCases, setDeviceHasCases] = useState<boolean | null>(null);
   const [showingReady, setShowingReady] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  // TEMPORARY (testing): Settings › Replay onboarding plays every step in order and saves nothing.
+  const [replay, setReplay] = useState<OnboardingStep | null>(null);
+  useEffect(() => {
+    const start = () => setReplay("welcome");
+    window.addEventListener(ONBOARDING_REPLAY_EVENT, start);
+    return () => window.removeEventListener(ONBOARDING_REPLAY_EVENT, start);
+  }, []);
   const completing = useRef(false);
 
   useEffect(() => {
@@ -84,6 +91,20 @@ export function Onboarding({ appReady, onCreateFirst }: {
     if (decision.kind === "step" && decision.step === "ready" && !showingReady) { setShowingReady(true); void complete(); }
   }, [decision, local, userId, save, complete, showingReady]);
 
+  if (replay) {
+    const order: OnboardingStep[] = ["welcome", ...ONBOARDING_PROGRESS.filter(s => configured || (s !== "account" && s !== "subscription"))];
+    const next = () => setReplay(order[order.indexOf(replay) + 1] ?? null);
+    switch (replay) {
+      case "welcome": return <WelcomeStep onStart={next} />;
+      case "account": return <AccountStep configured={configured} name={account.displayName} onDefer={next} />;
+      case "personalise": return <PersonaliseStep configured={configured} returning={false} initial={account.names.preferredName ?? local?.preferredName ?? ""}
+        accountName={account.names.fullName} onSkip={next} onSaved={next} />;
+      case "howItWorks": return <HowItWorksStep configured={configured} onContinue={next} />;
+      case "styleLibrary": return <StyleLibraryStep configured={configured} onContinue={next} />;
+      case "subscription": return <SubscriptionStep configured={configured} onDefer={next} />;
+      case "ready": return <ReadyStep configured={configured} name={account.displayName} onCreate={() => setReplay(null)} onLibrary={() => setReplay(null)} />;
+    }
+  }
   if (dismissed) return null;
   if (showingReady) return <ReadyStep configured={configured} name={account.displayName} onCreate={() => { setDismissed(true); onCreateFirst(); }} onLibrary={() => setDismissed(true)} />;
   if (!ready) return local && !local.completedAt ? <Loading /> : null;
@@ -228,7 +249,7 @@ function AccountStep({ configured, name, onDefer }: { configured: boolean; name:
       <div className="ob-actions">
         <AppleSignInButton onClick={() => void apple()} disabled={busy} label="Continue with Apple" />
         <button className="secondary-button ob-button" disabled={busy} onClick={() => openAuth("signIn")}>Sign in with email</button>
-        <button className="text-button" disabled={busy} onClick={() => openAuth("signUp")}>Create an account</button>
+        <button className="text-button ob-centred" disabled={busy} onClick={() => openAuth("signUp")}>Create an account</button>
         {error && <p className="error-message" role="alert">{error}</p>}
         <p className="ob-legal">By continuing you agree to the <TermsLink /> and acknowledge the <PrivacyLink />.</p>
         <button className="text-button ob-quiet" onClick={onDefer}>Explore without an account</button>
@@ -350,8 +371,8 @@ function StyleLibraryStep({ configured, onContinue }: { configured: boolean; onC
   return (
     <Frame step="styleLibrary" configured={configured} hero={<StyleLibraryVisual />} head={<>
       <p className="ob-eyebrow">Your style · Case Library</p>
-      <h1 ref={heading} tabIndex={-1} className="ob-title">Make SmileCompose look like you.</h1>
-      <p className="ob-copy">Add examples of your finished bonding and porcelain cases. SmileCompose can use them as private visual references when creating new designs, helping results reflect your preferred contour, texture and finish.</p>
+      <h1 ref={heading} tabIndex={-1} className="ob-title">Your style, their smile.</h1>
+      <p className="ob-copy">Add your finished bonding and porcelain cases. New designs then follow your contour, texture and finish, so every patient sees your work in their own smile.</p>
     </>}>
       <div className="ob-actions">
         <button className="primary-button ob-button" onClick={() => setAdding(true)}>Add My Finished Cases</button>

@@ -10,6 +10,7 @@ export function savedCaseExport(entry: CaseLogEntry, media: CaseLogMedia, record
     after: media.image,
     settings: media.preferences?.settings,
     referenceUsed: media.preferences?.referenceUsed,
+    ...(media.preferences?.styleReferenceStatus === "used" ? { styleUsed: true } : {}),
     isDemo: Boolean(entry.testMode) || entry.mode === "mock",
     patientLabel: entry.patientName,
   };

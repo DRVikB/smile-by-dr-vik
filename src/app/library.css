@@ -294,3 +294,12 @@
 }
 
 @keyframes sheet-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* Photo step: whether designs follow the clinician's own finished cases. */
+.style-line { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 12px; border-radius: 14px; background: var(--card); border: 1px solid var(--border); }
+.style-line.is-on { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 10%, var(--card)), var(--card)); }
+.style-line-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 50%; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.style-line-text { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.style-line-text strong { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.style-line-text span { font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.style-line .text-button { flex: none; }

@@ -3,7 +3,7 @@
  * stored state machine. Progress continues within the session; a cold launch
  * restarts unfinished onboarding from Welcome, preserving names and completion.
  *
- *   WELCOME → ACCOUNT → PERSONALISE → HOW IT WORKS → YOUR STYLE → SUBSCRIPTION → READY
+ *   WELCOME → ACCOUNT → HOW IT WORKS → YOUR STYLE → SUBSCRIPTION → PERSONALISE → READY
  *
  * SUBSCRIPTION shows the Pro plans to everyone while accounts are on. Signed
  * in, it offers the App Store plans (skipped for Pro or complimentary users).
@@ -80,10 +80,11 @@ export function onboardingDecision(input: OnboardingInput): OnboardingDecision {
     if (input.deviceHasCases) return { kind: "completeSilently" };
     if (!local.welcomeSeen) return step("welcome");
     if (input.accountsConfigured && !local.accountDeferred) return step("account");
-    if (!local.preferredName && !local.nameSkipped) return step("personalise");
     if (!local.howItWorksSeen) return step("howItWorks");
     if (!input.accountsConfigured && !local.styleLibrarySeen) return step("styleLibrary");
     if (input.accountsConfigured && !local.subscriptionSeen) return step("subscription");
+    // The name comes last, just before "You're all set".
+    if (!local.preferredName && !local.nameSkipped) return step("personalise");
     return step("ready");
   }
 
@@ -100,17 +101,24 @@ export function onboardingDecision(input: OnboardingInput): OnboardingDecision {
     return needsName ? step("personalise", true) : { kind: "completeSilently" };
 
   if (local.welcomeSeen === false) return step("welcome");
-  if (needsName) return step("personalise");
   if (!local.howItWorksSeen) return step("howItWorks");
   if (!local.styleLibrarySeen) return step("styleLibrary");
   if (!input.hasPro && !flags.subscriptionDeferred) return step("subscription");
+  // The name comes last, just before "You're all set".
+  if (needsName) return step("personalise");
   return step("ready");
 }
 
 /** Visible progress (the welcome screen is not counted). */
-export const ONBOARDING_PROGRESS: OnboardingStep[] = ["account", "personalise", "howItWorks", "styleLibrary", "subscription", "ready"];
+export const ONBOARDING_PROGRESS: OnboardingStep[] = ["account", "howItWorks", "styleLibrary", "subscription", "personalise", "ready"];
 
 const KEY = "smile.onboarding";
+
+/** TEMPORARY (testing): ask the onboarding to play every step again, saving nothing. */
+export const ONBOARDING_REPLAY_EVENT = "smile:onboarding-replay";
+export function replayOnboarding(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(ONBOARDING_REPLAY_EVENT));
+}
 
 export function readLocalOnboarding(storage: Pick<Storage, "getItem"> | null = safeStorage(), { forLaunch = false }: { forLaunch?: boolean } = {}): LocalOnboarding {
   try {

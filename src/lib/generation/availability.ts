@@ -12,6 +12,8 @@ const clientFeatures: GenerationFeatures = { singleTooth: INTERNAL_SINGLE_TOOTH,
 
 /** Read-only: legacy cases remain viewable/exportable with their original settings. */
 export function generationUnavailable(settings: SmileSettings, features: GenerationFeatures = clientFeatures): string | null {
+  // Matching one tooth to its partner runs on the device.
+  if (settings.toothMatch) return settings.alignment || settings.treatmentMode === "full_arch" ? "One-tooth matching can’t be combined with alignment or full arch. Choose 4, 6, 8 or 10 teeth instead." : null;
   if (!features.fullArch && settings.treatmentMode === "full_arch") return "Full-arch design is not available in this version.";
   if (!features.alignment && settings.alignment) return "Alignment design is not available in this version.";
   if (!features.singleTooth && settings.treatmentMode !== "full_arch" && !settings.alignment?.only && activeToothPlans(settings).length === 1)

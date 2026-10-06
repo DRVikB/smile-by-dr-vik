@@ -48,6 +48,7 @@ export const settingsSchema = z
       width: z.union([z.literal(-1), z.literal(0), z.literal(1)]).optional(),
       edge: z.enum(toothEdges).optional(),
     })).max(28).optional(),
+    toothMatch: z.object({ tooth: z.union([z.literal(11), z.literal(12), z.literal(13), z.literal(21), z.literal(22), z.literal(23)]), missing: z.boolean() }).optional(),
     treatment: z.enum(["Whitening", "Composite", "Single-shade composite", "Layered composite", "Porcelain"]),
     whitening: z.boolean().optional(),
     alignment: z.object({ arches: z.enum(["Upper", "Lower", "Both"]), only: z.boolean().optional() }).optional(),

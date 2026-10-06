@@ -4,6 +4,7 @@ import type { SmileCase } from "./types";
 import { imageSchema, settingsSchema } from "./generation/schema";
 import { AI_CONSENT_VERSION } from "./aiConsent";
 import { isValidToothMap } from "./toothMap/types";
+import { normaliseGuide } from "./smileDesign/frame";
 // Serialize transactions so a late save cannot undo New Smile.
 const pending = new Map<string, Promise<void>>();
 
@@ -60,6 +61,7 @@ export function createDraftStore(scope: WorkspaceLease, factory:IDBFactory=globa
           if (c.photo.editMask && !imageSchema.safeParse(c.photo.editMask).success) { resolve(null); return; }
           // A damaged tooth map is dropped (it is found again), never trusted.
           if (c.photo.toothMap && !isValidToothMap(c.photo.toothMap)) delete c.photo.toothMap;
+          if (c.photo.smileGuide !== undefined) { const guide = normaliseGuide(c.photo.smileGuide); if (guide) c.photo.smileGuide = guide; else delete c.photo.smileGuide; }
           if (c.reference && !imageSchema.safeParse(c.reference.dataUrl).success) c.reference = null;
           if (c.testMode && !imageSchema.safeParse(c.testPreview).success) {
             // Never silently turn an incomplete test case into a paid request.

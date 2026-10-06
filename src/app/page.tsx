@@ -33,6 +33,10 @@ import { ConsultView } from "@/components/ConsultView";
 import { Presentation } from "@/components/Presentation";
 import { ShareSheet } from "@/components/share/ShareSheet";
 import { ToothMapOverlay } from "@/components/toothMap/ToothMapOverlay";
+import { SmileGuideOverlay } from "@/components/studio/SmileGuideOverlay";
+import { QuickSmile } from "@/components/studio/QuickSmile";
+import { StyleLine } from "@/components/caseLibrary/YourStyle";
+import { goalNeedsStudio, quickSmileSettings, type QuickGoal } from "@/lib/quickSmile";
 import { useToothMap } from "@/components/toothMap/useToothMap";
 import { ToothMapDebug } from "@/components/toothMap/ToothMapDebug";
 import { BottomActionBar, Disclaimer } from "@/components/PreviewActions";
@@ -82,6 +86,7 @@ import { startGenerationDiagnostic, type GenerationStage } from "@/services/ai/g
 import { earliestGenerationStage } from "@/lib/generation/progress";
 import { EditAreaRequiredError, sourceProtectionPoints } from "@/lib/generation/sourceProtection";
 import { isOnDeviceWhitening, ON_DEVICE_WHITENING_VERSION, whitenOnDevice } from "@/lib/whiteningDevice";
+import { isMatchTooth, isToothMatch, matchWhitens, partnerOf, toothLabel, withToothMatch } from "@/lib/smileDesign/toothMatch";
 import { onWorkspaceDetach, type WorkspaceLease } from "@/lib/workspace";
 import { createLibraryStore } from "@/lib/caseLibrary";
 import { getCaseRepository } from "@/services/cases/caseRepository";
@@ -179,6 +184,16 @@ async function lockFace(
     toothProtection = outcome.protection;
   }
   scope.assert();
+  if (isToothMatch(settings) && photo.smileGuide) {
+    // One tooth: only its measured region comes from the result. A whiter shade
+    // then whitens every visible tooth on the device, so the pair still match.
+    stage("tooth_composite");
+    const points = await (await import("@/lib/face/landmarks")).detectFace(photo.dataUrl).catch(() => null);
+    imageOut = await (await import("@/lib/smileDesign/toothMatchImage")).keepToothOnImages(photo, imageOut, photo.smileGuide, settings.toothMatch, points);
+    scope.assert();
+    if (matchWhitens(settings)) imageOut = (await whitenOnDevice({ dataUrl: imageOut }, settings, points, null)).image;
+    scope.assert();
+  }
   // Veneers and bonding keep the patient's edge positions: trim any extra length the image service added.
   const edges = await import("@/lib/edgeGuardImage");
   if (edges.shouldGuardEdges(settings) && !r.lipsMoved) {
@@ -201,6 +216,15 @@ function toothFocus(map: Photo["toothMap"]): { x: number; y: number; width: numb
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   const mx = (x1 - x0) * 0.12, my = (y1 - y0) * 0.8;
   return { x: Math.max(0, x0 - mx), y: Math.max(0, y0 - my), width: Math.min(1, x1 - x0 + mx * 2), height: Math.min(1, y1 - y0 + my * 2) };
+}
+
+/** The mouth, with room around it, for the smile guide. From the fitted frame only, so adjusting the guide doesn't re-zoom. */
+function guideFocus(guide: Photo["smileGuide"], width: number, height: number): { x: number; y: number; width: number; height: number } | null {
+  if (!guide || !width || !height) return null;
+  const { cx, cy, halfWidth: hw } = guide.fit;
+  const x0 = Math.max(0, (cx - hw * 1.3) / width), x1 = Math.min(1, (cx + hw * 1.3) / width);
+  const y0 = Math.max(0, (cy - hw * 0.6) / height), y1 = Math.min(1, (cy + hw * 0.7) / height);
+  return x1 > x0 && y1 > y0 ? { x: x0, y: y0, width: x1 - x0, height: y1 - y0 } : null;
 }
 
 export default function Smile() {
@@ -580,6 +604,31 @@ export default function Smile() {
     return ()=>analysis.abort();
   }, [screen, photoUrl, repository.scope]);
 
+  // Fit the smile guide to the photo once, on the device; adjustments are saved with the photo.
+  const [guideFailed, setGuideFailed] = useState<string | null>(null);
+  const hasGuide = Boolean(photo?.smileGuide);
+  const photoWidth = photo?.width, photoHeight = photo?.height;
+  useEffect(() => {
+    if (screen !== "design" || !photoUrl || !photoWidth || !photoHeight || hasGuide) return;
+    const run = new AbortController();
+    void import("@/lib/smileDesign/fitPhoto")
+      .then(async (m) => {
+        const fitted = await m.fitGuideToPhoto({ dataUrl: photoUrl, width: photoWidth, height: photoHeight }, run.signal);
+        if (run.signal.aborted) return;
+        repository.scope.assert();
+        if (!fitted) { setGuideFailed(photoUrl); return; }
+        const { newGuide } = await import("@/lib/smileDesign/frame");
+        setPhoto(current => current?.dataUrl === photoUrl && !current.smileGuide ? { ...current, smileGuide: { ...newGuide(fitted.fit, fitted.shape), ...(fitted.nasal ? { nasal: fitted.nasal } : {}) } } : current);
+      })
+      .catch(() => { if (!run.signal.aborted) setGuideFailed(photoUrl); });
+    return () => run.abort();
+  }, [screen, photoUrl, photoWidth, photoHeight, hasGuide, repository.scope]);
+  const guide = photo ? {
+    value: photo.smileGuide ?? null,
+    status: photo.smileGuide ? "ready" as const : guideFailed === photo.dataUrl ? "unavailable" as const : "fitting" as const,
+    onChange: (smileGuide: import("@/lib/smileDesign/frame").SmileGuide) => setPhoto(current => current ? { ...current, smileGuide } : current),
+  } : undefined;
+
   useEffect(() => {
     if (firstScreen.current) {
       firstScreen.current = false;
@@ -672,7 +721,9 @@ export default function Smile() {
       const taken = await takeNativePhoto(SMILE_GUIDE);
       if (!taken) return;
       const prepared = await preparePhoto(taken.file);
-      await selectPhoto({ ...prepared, framing: taken.framing });
+      // Every capture in the iPhone selfie camera's 3:4 portrait shape (an iPad's front camera is landscape).
+      const { toSelfieAspect } = await import("@/lib/photoAspect");
+      await selectPhoto(await toSelfieAspect({ ...prepared, framing: taken.framing }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "The camera couldn’t be opened.");
     }
@@ -743,6 +794,14 @@ export default function Smile() {
     // require map confirmation for a quick concept. Mouth/face protection remains.
     const toothPlan = (await import("@/lib/toothMap/protect")).generationProtectionPlan(photoIn.toothMap, photoIn.dataUrl, settingsIn);
     const preferences: PreviewPreferences = { styleReferenceStatus: "off", styleReferenceCount: 0, settings: structuredClone(settingsIn), referenceUsed: Boolean(reference), testMode };
+    if (isToothMatch(settingsIn) && !photoIn.smileGuide) {
+      // One tooth is limited to its measured region: fit the guide now if it isn't ready.
+      const fitted = await (await import("@/lib/smileDesign/fitPhoto")).fitGuideToPhoto(photoIn, controller.signal);
+      repository.scope.assert();
+      if (!fitted) throw new SmileGenerationError("The teeth couldn’t be found clearly enough to design one tooth. Try a clearer, front-facing smile, or choose 4, 6, 8 or 10 teeth.", "mode_unavailable");
+      const { newGuide } = await import("@/lib/smileDesign/frame");
+      photoIn = { ...photoIn, smileGuide: { ...newGuide(fitted.fit, fitted.shape), ...(fitted.nasal ? { nasal: fitted.nasal } : {}) } };
+    }
     if (testMode) {
       onStage("request");
       const demoImage = await loadDemoPreview(settingsIn, controller.signal);
@@ -841,7 +900,7 @@ export default function Smile() {
       const currentPricing = livePricing && typeof livePricing.model === "string" && typeof livePricing.supportsDraft === "boolean" ? livePricing : pricing;
       if (currentPricing?.model !== pricing?.model) setPricing(currentPricing);
       if (controller.signal.aborted) throw controller.signal.reason;
-      const fingerprint = await previewFingerprint({ image: photoIn.dataUrl, editMask: photoIn.editMask, toothMap: toothMapKey, settings: settingsIn, resolution: effectiveResolution, provider: currentPricing?.model, reference: reference?.dataUrl, styleReferences, protectionVersion, toothLimit: automaticMap ? "automatic-v1" : null });
+      const fingerprint = await previewFingerprint({ image: photoIn.dataUrl, editMask: photoIn.editMask, toothMap: toothMapKey, settings: settingsIn, resolution: effectiveResolution, provider: currentPricing?.model, reference: reference?.dataUrl, styleReferences, protectionVersion, toothLimit: automaticMap ? "automatic-v1" : isToothMatch(settingsIn) && photoIn.smileGuide ? { toothMatch: "region-v1", guide: photoIn.smileGuide } : null });
       const reusable = [result, ...variants.map(v => v.result)].find(r => r?.requestFingerprint === fingerprint);
       if (reusable && !privateQa) { diagnostic.finish("reused"); onStage("complete"); return reusable; }
       if (!privateQa?.retainedResult && exceedsRequestLimit(costs.requested, 1, requestLimit)) throw new Error("This case has reached its generation limit. Change the case limit under Allowance to create more.");
@@ -854,7 +913,10 @@ export default function Smile() {
       const editMask = toothPlan.ok && photoIn.toothMap
         ? (await import("@/lib/toothMap/protect")).guidanceMask(photoIn.toothMap, photoIn.dataUrl, settingsIn, requestCanvas.photo, requestCanvas.sourceBounds)
         : automaticMap ? (await import("@/lib/toothMap/protect")).guidanceMask(automaticMap, photoIn.dataUrl, settingsIn, requestCanvas.photo, requestCanvas.sourceBounds, { automatic: true })
-          : undefined;
+          : isToothMatch(settingsIn) && photoIn.smileGuide
+            ? (await import("@/lib/smileDesign/toothMatchImage")).toothMatchMask(photoIn, photoIn.smileGuide, settingsIn.toothMatch,
+              await (await import("@/lib/face/landmarks")).detectFace(photoIn.dataUrl, controller.signal).catch(() => null), requestCanvas.photo, requestCanvas.sourceBounds)
+            : undefined;
       const buildInput = async () => currentPricing?.model.startsWith("gpt-image-")
         ? await (await import("@/lib/generation/openaiEditInput")).prepareOpenAIEditInput(photoIn, requestCanvas, editMask, sourcePoints)
         : { originalImage: requestCanvas.photo.dataUrl, editMask };
@@ -1268,6 +1330,15 @@ export default function Smile() {
   }
 
   /** New Smile always starts clean: the previous patient's photo never carries over. */
+  /** Quick Smile: the goal's design, generated straight away (one tooth opens the Teeth step to choose it). */
+  function quickSmile(goal: QuickGoal) {
+    const next = quickSmileSettings(goal, settings);
+    setScreen("design");
+    setError("");
+    if (goalNeedsStudio(goal)) { changeSettings(next); return; }
+    void generate(next);
+  }
+
   function startNewSmile() {
     setValidationCaseId(undefined);
     newSmile();
@@ -1462,6 +1533,7 @@ export default function Smile() {
                 onPhoto={selectPhoto}
                 onRemove={startNewSmile}
                 onContinue={() => setScreen("design")}
+                quick={photo ? <><QuickSmile busy={busy} onGoal={quickSmile} /><StyleLine settings={settings} onChange={changeSettings} /></> : undefined}
                 onCamera={() => void openCamera()}
                 onSample={() => void openTestMode()}
                 sampleBusy={sampleBusy}
@@ -1529,7 +1601,24 @@ export default function Smile() {
               <DesignStudio
                 toothMap={toothMap}
                 goals={testMode ? undefined : { summary: goalsSummary(consultation), onEdit: () => setGoalsOpen(true) }}
-                stage={(teethStep) => result && !(INTERNAL_SINGLE_TOOTH && teethStep && settings.treatmentMode !== "full_arch" && (toothMap.picking || toothMap.editing || toothMap.adding || toothMap.mode !== "hidden")) ? (
+                guide={guide}
+                stage={(teethStep, guideStep) => teethStep && settings.toothMatch && photo.smileGuide ? (
+                  <PatientPhoto photo={photo} focus={guideFocus(photo.smileGuide, photo.width, photo.height)} overlay={(zoom) => (
+                    <SmileGuideOverlay guide={photo.smileGuide!} shape={settings.shape} width={photo.width} height={photo.height} scale={zoom}
+                      pick={{ selected: settings.toothMatch!.tooth, partner: partnerOf(settings.toothMatch!.tooth), label: toothLabel,
+                        onPick: fdi => { if (isMatchTooth(fdi)) changeSettings(withToothMatch(settings, { ...settings.toothMatch!, tooth: fdi })); } }} />
+                  )} />
+                ) : teethStep && photo.smileGuide && settings.treatmentMode !== "full_arch" && !(INTERNAL_SINGLE_TOOTH && (toothMap.picking || toothMap.editing || toothMap.adding || toothMap.mode !== "hidden")) ? (
+                  // Teeth step: the patient's front teeth outlined, the ones being designed highlighted.
+                  <PatientPhoto photo={photo} focus={guideFocus(photo.smileGuide, photo.width, photo.height)} overlay={(zoom) => (
+                    <SmileGuideOverlay guide={photo.smileGuide!} shape={settings.shape} width={photo.width} height={photo.height} scale={zoom}
+                      highlight={settings.treatment === "Whitening" || settings.alignment?.only ? [11, 12, 13, 21, 22, 23] : settings.selectedTeeth} />
+                  )} />
+                ) : guideStep && photo.smileGuide ? (
+                  <PatientPhoto photo={photo} focus={guideFocus(photo.smileGuide, photo.width, photo.height)} overlay={(zoom) => (
+                    <SmileGuideOverlay guide={photo.smileGuide!} shape={settings.shape} width={photo.width} height={photo.height} scale={zoom} onChange={guide!.onChange} />
+                  )} />
+                ) : result && !(INTERNAL_SINGLE_TOOTH && teethStep && settings.treatmentMode !== "full_arch" && (toothMap.picking || toothMap.editing || toothMap.adding || toothMap.mode !== "hidden")) ? (
                   <div className="preview-stage">
                     <BeforeAfterSlider
                       original={photo.dataUrl}
@@ -1619,7 +1708,7 @@ export default function Smile() {
                   onModeChange={setPreviewMode}
                   analysis={analysisOn}
                   onHideAnalysis={() => setAnalysisOn(false)}
-                  previewLabel={preferredHere ? "Patient preferred · AI concept" : undefined}
+                  previewLabel={preferredHere ? "Patient preferred · AI concept" : result.preferences?.styleReferenceStatus === "used" ? "In your style · AI concept" : undefined}
                   fill={photo}
                 />
                 <button
@@ -1762,7 +1851,7 @@ export default function Smile() {
         onShotTypeChange={shotType => setSettings(s => ({ ...s, shotType }))}
         onClose={() => setEditAreaOpen(false)} onSave={(mask) => { setPhoto({ ...photo, editMask: mask }); setEditAreaOpen(false); }} />}
       {camera && (
-        <CameraSheet onCapture={selectPhoto} onClose={() => setCamera(false)} />
+        <CameraSheet onCapture={async (p) => selectPhoto(await (await import("@/lib/photoAspect")).toSelfieAspect(p))} onClose={() => setCamera(false)} />
       )}
 
       {options && (
@@ -1858,6 +1947,7 @@ export default function Smile() {
             after: result.image,
             settings: reportPreferences?.settings,
             referenceUsed: reportPreferences?.referenceUsed,
+            styleUsed: reportPreferences?.styleReferenceStatus === "used",
             isDemo: result.mode === "mock" || testMode,
             consultation: testMode ? undefined : consultation,
             preferred: preferredHere,

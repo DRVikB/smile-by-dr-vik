@@ -105,6 +105,7 @@ export function drawGuides(
   };
   segment("eyeLine", g.eyeLine);
   segment("midline", g.midline);
+  g.nasalLines?.forEach((s) => segment("nasalLines", s));
   segment("mouthLine", g.mouthLine);
   stroke("smileArc", 3);
   const { start, segments } = smoothCurve(g.smileArc.map(map));

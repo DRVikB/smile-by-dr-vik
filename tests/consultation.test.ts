@@ -144,3 +144,11 @@ test("a two-page report PDF: one A4 page per JPEG, all objects reachable", () =>
   assert.equal(Number(/startxref\n(\d+)/.exec(s)![1]), s.indexOf("xref\n0 "));
   assert.throws(() => jpegPagesToPdf([]), /no image/i);
 });
+
+test("a design guided by the clinician's Case Library says so in the patient report", async () => {
+  const { proposedSmileRows } = await import("../src/lib/consultation");
+  const { defaultSettings } = await import("../src/lib/types");
+  const rows = proposedSmileRows(defaultSettings, false, true);
+  assert.deepEqual(rows.at(-1), ["Style", "Your dentist’s own style, guided by their finished cases"]);
+  assert.equal(proposedSmileRows(defaultSettings, false, false).some(([k]) => k === "Style"), false);
+});

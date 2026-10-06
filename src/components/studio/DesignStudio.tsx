@@ -14,12 +14,15 @@ import { isOnDeviceWhitening } from "@/lib/whiteningDevice";
 import { SegmentedControl, SHAPES, ToothForm } from "./StudioParts";
 import { ToothChart } from "@/components/ToothChart";
 import { ClinicalDataFields } from "@/components/ClinicalDataFields";
-import { YourStyle } from "@/components/caseLibrary/YourStyle";
+import { StartingConditions, YourStyle } from "@/components/caseLibrary/YourStyle";
 import { CompareSymbol, ComposeSymbol, ShadeSymbol, ToothSymbol, TreatmentSymbol, VisualiseSymbol, type SmileIcon } from "@/components/icons/SmileIcons";
 import { SelectedTeethSummary, SingleToothEdit, ToothControls, ToothMapStatus, ToothMapView, ToothPicking } from "@/components/toothMap/ToothMapPanel";
 import type { ToothMapController } from "@/components/toothMap/useToothMap";
 import { mappedTeeth, teethToReview } from "@/lib/toothMap/types";
 import { ToothMapDebug } from "@/components/toothMap/ToothMapDebug";
+import { SmileGuideControls, type SmileGuideState } from "./SmileGuideControls";
+import { OneToothPlan } from "./OneTooth";
+import { matchSummary, partnerOf, toothLabel, withToothMatch } from "@/lib/smileDesign/toothMatch";
 import {generationProtectionPlan} from "@/lib/toothMap/protect";
 
 /**
@@ -68,6 +71,9 @@ const TREATMENTS: { value: Treatment; title: string; detail: string }[] = [
   { value: "Layered composite", title: "Layered composite", detail: "Natural translucency and depth" },
   { value: "Porcelain", title: "Porcelain veneers", detail: "Uniform, high-lustre finish" },
 ];
+
+/** Short names for the material switch. */
+const MATERIAL_SHORT: Partial<Record<Treatment, string>> = { "Single-shade composite": "Bonding", "Layered composite": "Layered", Porcelain: "Porcelain", Composite: "Composite" };
 
 const PROSTHETIC_GINGIVA: { value: FullArchPlan["prostheticGingiva"]; label: string }[] = [
   { value: "exclude", label: "Preserve" }, { value: "include", label: "Include" },
@@ -128,13 +134,11 @@ export function TreatmentOptions({ settings, onChange }: { settings: SmileSettin
       </button>}
     </div>
     {veneers && <div className="control-group">
-      <div className="control-label">Veneer material</div>
-      <div className="studio-treatments" role="radiogroup" aria-label="Veneer material">
-        {materials.map(t => <button key={t.value} type="button" role="radio" aria-checked={settings.treatment === t.value} className="studio-treatment" onClick={() => standard(t.value)}>
-          <span className="studio-treatment-text"><strong>{t.title}</strong><small>{t.detail}</small></span>
-          <span className="studio-check" aria-hidden="true">{settings.treatment === t.value && <Check size={14} strokeWidth={2.6} />}</span>
-        </button>)}
+      <div className="control-label">Material</div>
+      <div className="segmented" role="radiogroup" aria-label="Veneer material">
+        {materials.map(t => <button key={t.value} type="button" role="radio" aria-checked={settings.treatment === t.value} className={settings.treatment === t.value ? "selected" : ""} onClick={() => standard(t.value)}>{MATERIAL_SHORT[t.value] ?? t.title}</button>)}
       </div>
+      <p className="control-hint">{materials.find(t => t.value === settings.treatment)?.detail}</p>
     </div>}
     {alignment && <p className="control-hint">A straighter-smile visualisation, not orthodontic planning. Root movement, bite, attachments and treatment staging are not simulated. Clinical assessment is required.</p>}
   </>;
@@ -142,10 +146,10 @@ export function TreatmentOptions({ settings, onChange }: { settings: SmileSettin
 
 export function DesignStudio({
   stage, caseBar, costs, onEditArea, hasEditArea, settings, onChange, onGenerate, onCompare, onCompareMaterials, onHarmonise,
-  busy, reference, onAddReference, onClearReference, toothMap, goals,
+  busy, reference, onAddReference, onClearReference, toothMap, goals, guide,
 }: {
-  /** The photograph (or before/after) shown in the studio frame; told when the Teeth step is open. */
-  stage: React.ReactNode | ((teethStep: boolean) => React.ReactNode);
+  /** The photograph (or before/after) shown in the studio frame; told when the Teeth step is open and when the smile guide should be drawn. */
+  stage: React.ReactNode | ((teethStep: boolean, guideStep: boolean) => React.ReactNode);
   /** The photo's tooth map: outlines on the photo, confirmation and corrections. */
   toothMap?: ToothMapController;
   /** Case reference, photo actions and notices, shown on the Review step. */
@@ -165,12 +169,15 @@ export function DesignStudio({
   onClearReference: () => void;
   /** Recorded patient goals: context for the clinician, not a generation input. */
   goals?: { summary: string | null; onEdit: () => void };
+  /** The smile guide fitted to this photo: shown and adjusted on the Shape step. */
+  guide?: SmileGuideState;
 }) {
   const [tab, setTab] = useState<StudioTab>("teeth");
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [individual, setIndividual] = useState(INTERNAL_SINGLE_TOOTH && Boolean(settings.toothPlans));
   const change = <K extends keyof SmileSettings>(key: K, value: SmileSettings[K]) => onChange({ ...settings, [key]: value });
-  const setTeeth = (teeth: TeethCount) => onChange({ ...settings, teeth, toothPlans: undefined, selectedTeeth: upperTeeth[teeth] });
+  const setTeeth = (teeth: TeethCount) => onChange({ ...settings, teeth, toothPlans: undefined, toothMatch: undefined, selectedTeeth: upperTeeth[teeth] });
+  const match = settings.toothMatch;
   const noChange = isNoChangeDesign(settings);
   const unavailable = generationUnavailable(settings);
   const fullArch = isFullArch(settings) ? settings.fullArch : null;
@@ -203,6 +210,8 @@ export function DesignStudio({
   const alignment = normalizeTreatmentScope(settings).alignment;
   const precisionReady = Boolean(toothMap?.photoUrl&&generationProtectionPlan(toothMap.map,toothMap.photoUrl,settings).ok&&toothMap.status!=="refining");
   const suggestBoundaryReview = INTERNAL_SINGLE_TOOTH && !costs.testMode && !fullArch && !alignment && activeToothPlans(settings).length===1 && !precisionReady;
+  const guideAvailable = Boolean(guide) && !(alignment?.only && !fullArch) && !(settings.treatment === "Whitening" && !fullArch);
+  const guideStep = tab === "shape" && guideAvailable && Boolean(guide?.value?.visible);
   const restoration = treatments.find(t => t.value === settings.treatment)?.title ?? settings.treatment;
   const summary: { id: StudioTab; value: string }[] = fullArch ? [
     { id: "teeth", value: archLabel(fullArch.arch) },
@@ -210,15 +219,15 @@ export function DesignStudio({
     { id: "shade", value: QUICK_SHADES.find(q => q.value === settings.targetShade)?.label ?? settings.targetShade },
     { id: "treatment", value: `Full-arch restoration · ${restorationLabel(fullArch.restorationType)}${fullArch.prostheticGingiva === "auto" ? "" : ` · ${fullArch.prostheticGingiva === "include" ? "with" : "no"} prosthetic gingiva`}` },
   ] : [
-    { id: "teeth", value: alignment?.only ? `${alignment.arches === "Both" ? "Both arches" : `${alignment.arches} arch`} · positions only` : `${settings.treatment === "Whitening" ? "Upper and lower teeth · Colour only" : `${toothSummary(settings)}${ settings.designIntent && settings.designIntent !== "Auto" ? ` · ${settings.designIntent}` : ""}`}` },
-    { id: "shape", value: alignment?.only ? "Unchanged (alignment only)" : settings.treatment === "Whitening" ? "Unchanged (whitening)" : `${shape?.name ?? settings.shape} · ${settings.character}` },
+    { id: "teeth", value: alignment?.only ? `${alignment.arches === "Both" ? "Both arches" : `${alignment.arches} arch`} · positions only` : match && settings.treatment !== "Whitening" ? matchSummary(match) : `${settings.treatment === "Whitening" ? "Upper and lower teeth · Colour only" : `${toothSummary(settings)}${ settings.designIntent && settings.designIntent !== "Auto" ? ` · ${settings.designIntent}` : ""}`}` },
+    { id: "shape", value: alignment?.only ? "Unchanged (alignment only)" : settings.treatment === "Whitening" ? "Unchanged (whitening)" : match ? `Matches ${toothLabel(partnerOf(match.tooth))}` : `${shape?.name ?? settings.shape} · ${settings.character}` },
     { id: "shade", value: alignment?.only ? "Kept (alignment only)" : QUICK_SHADES.find(q => q.value === settings.targetShade)?.label ?? settings.targetShade },
     { id: "treatment", value: standardTreatmentSummary(settings, restoration) },
   ];
 
   return (
     <div className="studio">
-      <div className="studio-stage">{typeof stage === "function" ? stage(tab === "teeth") : stage}</div>
+      <div className="studio-stage">{typeof stage === "function" ? stage(tab === "teeth", guideStep) : stage}</div>
 
       <div className="studio-dock">
         <div className="studio-tabs" role="tablist" aria-label="Design steps">
@@ -244,9 +253,9 @@ export function DesignStudio({
           </> : <>
             <header className="studio-card-head">
               <h3>Teeth</h3>
-              <p>{INTERNAL_SINGLE_TOOTH ? "Choose how many upper teeth to design, or choose Custom for individual teeth." : "Choose how many upper teeth to design."}</p>
+              <p>{match ? "Match one tooth to its partner on the other side, or add a missing one." : INTERNAL_SINGLE_TOOTH ? "Choose how many upper teeth to design, or choose Custom for individual teeth." : "Choose how many upper teeth to design, or one tooth to match."}</p>
             </header>
-            {!individual && <div className="studio-arch" role="group" aria-label="Upper teeth to design">
+            {!individual && !match && <div className="studio-arch" role="group" aria-label="Upper teeth to design">
               {ARCH.map(({ tooth, w, h }) => {
                 const on = settings.selectedTeeth.includes(tooth);
                 const count = TEETH_COUNTS.find(n => upperTeeth[n].includes(tooth)) ?? 10;
@@ -262,10 +271,13 @@ export function DesignStudio({
                   className={!individual && !settings.toothPlans && settings.teeth === n ? "selected" : ""}
                   onClick={() => { setIndividual(false); toothMap?.setPicking(false); setTeeth(n); }}>{n}</button>
               ))}
+              <button type="button" aria-pressed={Boolean(match)} className={match ? "selected" : ""}
+                onClick={() => { setIndividual(false); toothMap?.setPicking(false); onChange(withToothMatch(settings, match ?? { tooth: 21, missing: false })); }}>One tooth</button>
               {INTERNAL_SINGLE_TOOTH && <button type="button" aria-pressed={individual || Boolean(settings.toothPlans)} className={individual || settings.toothPlans ? "selected" : ""}
                 onClick={() => { setIndividual(true); toothMap?.setPicking(true); }}>Custom</button>}
             </div>
-            <SelectedTeethSummary settings={settings} notFound={INTERNAL_SINGLE_TOOTH && toothMap?.map ? settings.selectedTeeth.filter(t => !mappedTeeth(toothMap.map).includes(t)) : []} />
+            {match ? <OneToothPlan settings={settings} onChange={onChange} guideStatus={guide?.status} onAdjust={() => go("shape")} />
+              : <SelectedTeethSummary settings={settings} notFound={INTERNAL_SINGLE_TOOTH && toothMap?.map ? settings.selectedTeeth.filter(t => !mappedTeeth(toothMap.map).includes(t)) : []} />}
             {INTERNAL_SINGLE_TOOTH && toothMap?.map && <ToothPicking controller={toothMap} />}
             {INTERNAL_SINGLE_TOOTH && toothMap?.map && toothMap.mode === "single" && singleTooth !== null && <SingleToothEdit controller={toothMap} fdi={singleTooth} />}
             {INTERNAL_SINGLE_TOOTH && toothMap?.map && <p className="control-hint">{
@@ -309,7 +321,7 @@ export function DesignStudio({
             <header className="studio-card-head">
               <h3>Shape</h3>
               {settings.treatment === "Whitening" && !fullArch && <p>Whitening keeps tooth shape, edges and texture. These choices are retained for restorative treatments.</p>}
-              <p>Choose a tooth form that suits the patient’s features.</p>
+              <p>{match ? `${toothLabel(match.tooth)} is designed to match ${toothLabel(partnerOf(match.tooth))} and the teeth beside it. The tooth form here only changes the guide outlines.` : "Choose a tooth form that suits the patient’s features."}</p>
             </header>
             <div className="studio-shapes" role="group" aria-label="Tooth shape">
               {SHAPES.map(s => (
@@ -320,8 +332,10 @@ export function DesignStudio({
               ))}
             </div>
             {shape && <p className="studio-summary"><strong>{shape.name}</strong><span>{shape.description}</span></p>}
-            <SegmentedControl<SmileCharacter> label="Character" options={["Soft", "Balanced", "Defined"]} value={settings.character} onChange={v => change("character", v)} />
-            <More>
+            {!match && !(alignment?.only && !fullArch) && settings.treatment !== "Whitening" && <YourStyle settings={settings} onChange={onChange} />}
+            {guide && guideAvailable && <SmileGuideControls guide={guide} />}
+            <More label="Character, texture and facial style">
+              <SegmentedControl<SmileCharacter> label="Character" options={["Soft", "Balanced", "Defined"]} value={settings.character} onChange={v => change("character", v)} />
               <div className="control-group">
                 <div className="control-label"><span>Facial style reference</span><span className="muted">Harmony</span></div>
                 <div className="segmented" role="group" aria-label="Face shape">
@@ -340,23 +354,26 @@ export function DesignStudio({
           </> : <>
             <header className="studio-card-head">
               <h3>Shade</h3>
-              <p>Keep the current shade, brighten it, or aim for a specific shade.</p>
+              <p>{match ? "The new tooth matches the patient’s current shade. A whiter shade then whitens every visible tooth, so the pair still match." : "Keep the current shade, brighten it, or aim for a specific shade."}</p>
             </header>
             <div className="segmented" role="group" aria-label="Shade approach">
               {QUICK_SHADES.map(s => (
                 <button key={s.value} type="button" aria-pressed={settings.targetShade === s.value} className={settings.targetShade === s.value ? "selected" : ""} onClick={() => change("targetShade", s.value)}>{s.label}</button>
               ))}
             </div>
-            <div className="studio-swatches" role="group" aria-label="Target shade">
-              {SHADES.map(s => (
-                <button key={s.value} type="button" className="studio-swatch" aria-pressed={settings.targetShade === s.value} onClick={() => change("targetShade", s.value)}>
-                  <span className="studio-swatch-chip" style={{ background: `radial-gradient(circle at 35% 30%, #fff 0%, ${s.swatch} 55%, color-mix(in srgb, ${s.swatch} 82%, #b89c74) 100%)` }} />
-                  <span>{s.label}</span>
-                </button>
-              ))}
-            </div>
             <p className="studio-summary"><strong>{QUICK_SHADES.find(s => s.value === settings.targetShade)?.label ?? settings.targetShade}</strong><span>{shadeDescription(settings.targetShade)}</span></p>
             <More>
+              <div className="control-group">
+                <div className="control-label"><span>Specific shade</span><span className="muted">Shade guide</span></div>
+                <div className="studio-swatches" role="group" aria-label="Target shade">
+                  {SHADES.map(s => (
+                    <button key={s.value} type="button" className="studio-swatch" aria-pressed={settings.targetShade === s.value} onClick={() => change("targetShade", s.value)}>
+                      <span className="studio-swatch-chip" style={{ background: `radial-gradient(circle at 35% 30%, #fff 0%, ${s.swatch} 55%, color-mix(in srgb, ${s.swatch} 82%, #b89c74) 100%)` }} />
+                      <span>{s.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="control-group">
                 <div className="control-label"><span>Current shade</span><span className="muted">{settings.currentShadeSource === "clinician" ? "Clinician confirmed" : settings.currentShadeSource === "estimated" ? "Visual estimate" : "Not confirmed"}</span></div>
                 <div className="segmented" role="group" aria-label="Current shade">
@@ -419,7 +436,7 @@ export function DesignStudio({
                   <button type="button" className="reference-add" onClick={onAddReference}><ImagePlus size={17} strokeWidth={1.6} />Add a smile they like</button>
                 )}
               </div>
-              <YourStyle settings={settings} onChange={onChange} />
+              <StartingConditions settings={settings} onChange={onChange} />
               <div className="control-group">
                 <label className="control-label" htmlFor="smile-arc">Smile arc</label>
                 <select id="smile-arc" className="design-select" value={settings.smileArc ?? "Preserve existing"} onChange={e => change("smileArc", e.target.value as SmileSettings["smileArc"])}>
@@ -457,20 +474,24 @@ export function DesignStudio({
               })}
             </div>
             <div className="studio-case">{caseBar}</div>
-            <div className="studio-variations" role="group" aria-label="Or compare three options">
-              <button type="button" className="studio-variation" disabled={Boolean(unavailable) || busy || settings.designIntent === "Shade only" || (!fullArch && settings.treatment === "Whitening")} onClick={onHarmonise}>
-                <VisualiseSymbol size={20} /><span>3 harmonised</span>
-                {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
-              </button>
-              <button type="button" className="studio-variation" disabled={Boolean(unavailable) || busy || noChange || Boolean(fullArch)} onClick={onCompareMaterials}>
-                <CompareSymbol size={20} /><span>3 materials</span>
-                {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
-              </button>
+            {!match && <div className="studio-variations" role="group" aria-label="Or compare three shapes">
               <button type="button" className="studio-variation" disabled={Boolean(unavailable) || busy || settings.designIntent === "Shade only" || (!fullArch && settings.treatment === "Whitening")} onClick={onCompare}>
-                <ComposeSymbol size={20} /><span>3 shapes</span>
+                <ComposeSymbol size={20} /><span>Compare 3 shapes</span>
                 {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
               </button>
-            </div>
+            </div>}
+            {!match && <More label="More comparisons">
+              <div className="studio-variations" role="group" aria-label="Or compare three options">
+                <button type="button" className="studio-variation" disabled={Boolean(unavailable) || busy || settings.designIntent === "Shade only" || (!fullArch && settings.treatment === "Whitening")} onClick={onHarmonise}>
+                  <VisualiseSymbol size={20} /><span>3 harmonised</span>
+                  {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
+                </button>
+                <button type="button" className="studio-variation" disabled={Boolean(unavailable) || busy || noChange || Boolean(fullArch)} onClick={onCompareMaterials}>
+                  <CompareSymbol size={20} /><span>3 materials</span>
+                  {costs.open && <small className="action-cost">{allowanceLabel(3, costs.testMode)}</small>}
+                </button>
+              </div>
+            </More>}
             {!fullArch && settings.treatment === "Whitening" && <p className="control-hint">Whitening changes colour only: each tooth keeps its exact shape. Shape and harmonised-design comparisons are unavailable for this treatment.</p>}
             <GenerationCosts {...costs} />
           </>)}

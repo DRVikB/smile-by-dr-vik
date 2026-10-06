@@ -4,6 +4,7 @@ import { canGuideSmileArc } from "../smilePrinciples";
 import { DEFAULT_FULL_ARCH, type Framing, type SmileSettings, type TargetShade, type ToothPlan } from "../types";
 import { resolveDesignPlan, toothLengthPolicy } from "./designPlan";
 import { renderSunburstPrompt } from "./sunburstPrompt";
+import { isToothMatch, neighboursOf, partnerOf, toothKind, toothLabel } from "../smileDesign/toothMatch";
 
 export { SMILE_PROMPT_VERSION } from "./version";
 export interface RenderContext { hasReference?: boolean; framing?: Framing; styleReferenceCount?: number; sourceBounds?: Framing; hasEditMask?: boolean }
@@ -28,6 +29,7 @@ export function normalizeGenerationContract(s: SmileSettings, context: RenderCon
   const contour = mode === "full_arch" || (mode === "restorative" && teeth.some(p => p.intent !== "Shade only"));
   const arcActive = contour && s.shotType === "Full face" && (fullArch ? true : canGuideSmileArc(s));
   return {
+    toothMatch: mode === "restorative" && isToothMatch(s) ? { ...s.toothMatch, partner: partnerOf(s.toothMatch.tooth), neighbours: neighboursOf(s.toothMatch.tooth) } : undefined,
     mode, fullArch, teeth, preservedTeeth: fullArch || mode === "alignment" ? [] : (s.toothPlans ?? []).filter(p => p.intent === "Preserve" || p.condition === "Missing").map(p => ({ ...p })),
     alignment: fullArch ? undefined : s.alignment ? { ...s.alignment, arches: "Both" as const } : undefined,
     treatment: mode === "restorative" ? s.treatment : undefined,
@@ -66,9 +68,31 @@ export function alignmentInstruction(alignment: NonNullable<SmileSettings["align
   return `ORTHODONTIC ALIGNMENT CONCEPT (${scope}): ${alignment.only ? "ALIGNMENT ONLY: no restorative change is planned. " : "Separate visual positioning permission. "}Reposition whole visible teeth within the selected scope to illustrate reduced crowding, overlaps, rotations, tipping and small spaces. Keep the upper dental midline close to its original position; do not recentre it to the face. Keep every tooth present and identifiable; do not add, remove, merge or duplicate teeth, or close a missing-tooth space by drifting neighbours. Each tooth keeps its crown shape, size, incisal edge, wear, texture and shade${alignment.only ? "." : ", except for separately permitted restorative/colour changes on the selected teeth only."} ${alignment.arches === "Upper" ? "Keep the lower teeth exactly as photographed." : alignment.arches === "Lower" ? "Keep the upper teeth in their photographed positions." : "Both visible arches may be repositioned within the photographed bite relationship."} If movement cannot be shown while retaining the visible natural gingival margins and original smile envelope, retain that feature. This is a visual alignment concept, not a prediction of orthodontic biomechanics, achievable movement, root position, duration or stability.`;
 }
 
+/**
+ * One tooth, redrawn to match its partner across the midline and the teeth
+ * beside it. Replaces the multi-tooth region, goal, length and design rules,
+ * which forbid adding a tooth or changing an edge. The device then keeps only
+ * this tooth's region from the result.
+ */
+function toothMatchInstructions(c: GenerationContract & { toothMatch: NonNullable<GenerationContract["toothMatch"]> }): string[] {
+  const { tooth, partner, missing, neighbours } = c.toothMatch;
+  const name = (fdi: number) => `FDI ${fdi} (${toothLabel(fdi)})`;
+  const side = tooth < 20 ? "upper right" : "upper left", kind = toothKind(tooth);
+  return [
+    `ONE-TOOTH DESIGN: ${name(tooth)}, the patient's ${side} ${kind}, is the only tooth to change. ${missing
+      ? `It is missing: add one natural ${kind} in its empty space, emerging from the existing gum line or from beneath the upper lip, filling the space between ${neighbours.map(name).join(" and ")} without moving them.`
+      : `It is chipped, worn or misshapen: rebuild it to a complete, natural ${kind} within its own space, restoring any lost length at the biting edge.`}`,
+    `MATCH ITS PARTNER: design it as the mirror image of ${name(partner)} across the dental midline: the same width, the same length from gum line to biting edge, the same outline and corner shape, the same biting-edge position and curve, and the same surface texture, translucency, lustre and shade, so the two read as a natural matching pair. Blend it with the neighbouring teeth (${neighbours.map(name).join(", ")}): natural contacts, embrasures and shadows, following the existing smile line.`,
+    `KEEP: every other tooth exactly as photographed, including ${name(partner)}: position, shape, length, edges, shade and texture. Do not move, close or narrow any space; do not reshape, whiten or straighten any other tooth. Shape, character and texture preferences do not apply: the partner tooth defines this design.`,
+    `Shade: match ${name(partner)}'s photographed shade. Do not whiten or brighten.`,
+    `Material: ${c.treatment}, for its surface appearance only; it never changes the match to the partner.`,
+  ];
+}
+
 /** One renderer for every image adapter, in the documented priority order. */
 export function renderGenerationContract(c: GenerationContract, format: "canonical" | "sunburst" = "canonical"): string {
   const { context, fullArch, mode } = c;
+  if (c.toothMatch) return renderToothMatch({ ...c, toothMatch: c.toothMatch });
   const includeGingiva = fullArch?.prostheticGingiva === "include";
   const instructions = [
     `PRESERVATION: Preserve facial identity, facial expression, head position, lip position, mouth width, mouth opening and non-treatment facial anatomy. Keep eyes, nose, skin, hair, beard and facial hair, background, camera perspective, framing and lighting unchanged. Do not widen the mouth. Do not open the lips further. Keep the same visible upper/lower tooth exposure. If only upper teeth are visible, keep the lower teeth hidden; if lower teeth are partly visible, do not reveal more of them. Changing the treatment or design never authorises revealing concealed teeth.${c.shotType === "Close-up" ? " Retain retractors." : ""} Work inside the original smile envelope.`,
@@ -125,9 +149,10 @@ export function renderGenerationContract(c: GenerationContract, format: "canonic
   }
   if (c.shape && mode === "restorative") instructions.push(`CONTOUR AND TEXTURE SCOPE: apply only to FDI ${c.teeth.filter(p => p.intent !== "Shade only").map(p => p.tooth).join(", ")}, within each tooth's goal.`);
   if (c.shape && fullArch) instructions.push(`FULL-ARCH DESIGN: design the visible upper and lower teeth as a natural, individual smile, not a uniform row. Design: shape ${c.shape}; character ${c.character}; surface ${c.texture}. Upper: central incisors are the dominant teeth (about 75–80% as wide as they are long); lateral incisors are clearly narrower and slightly shorter, with softer corners; canines have a defined cusp tip and a visible shoulder; premolars and molars step back progressively into the corners of the mouth, so the smile darkens naturally towards the sides. Small gaps at the biting-edge corners (incisal embrasures) open wider from the centre outwards. Lower: incisors are narrow and small, shorter than the uppers, sitting behind and below the upper edges, showing only as much as in the photo. Each tooth has its own slight variation in size, angle and edge; nothing mirrored or copied. Teeth emerge from the existing gum line, following its scalloped margins and the existing papillae${includeGingiva ? " (or the permitted prosthetic gum below)" : ""}. Keep the overall size of the smile in proportion to the face and within the existing mouth opening.`);
+  if (c.shape && fullArch) instructions.push("FULL-ARCH LENGTH: build each new upper tooth to a natural, slightly conservative length. The central incisors match the height of the patient's longest intact upper front tooth; where the front teeth are worn, broken or missing, restore only the lost edge to a natural height, never more. Keep a clear, natural space between the new upper biting edges and the lower lip and lower teeth, as wide as in the photographed smile; the upper edges never touch, rest on or cover the lower lip. Never lengthen teeth to fill dark space or to reach the lip. The new teeth must not look larger than natural teeth for this face: when unsure, choose the shorter option. UPPER AND LOWER: keep the photographed split between the arches. The new upper teeth occupy only the space the photographed upper teeth occupy, ending where those upper teeth end; wherever lower teeth show in the photo, show new lower teeth in that same space at the same height. Never let the upper teeth grow down over the lower teeth's space, and never hide the lower teeth to make the upper teeth longer. GUM: show gum above the upper teeth only where the photo shows gum there; the new upper teeth start exactly where the photographed upper teeth start (at the lip or existing gum line), never lower, so no new band of gum appears. Braces, brackets and wires are removed and never copied.");
   else if (c.shape) instructions.push(`DESIGN: shape ${c.shape}; character ${c.character}; surface ${c.texture}${c.texture === "Textured" ? " with restrained secondary anatomy" : c.texture === "Smooth" ? " with smooth polished reflections" : " with natural surface character"}. Apply only to teeth whose goals permit contour changes. Shade-only and preserved teeth retain their own outlines and texture. Retain photographed central-to-lateral proportions, width progression, natural incisal embrasures, canine cusps and individual asymmetry; keep each canine recognisable with a natural cusp and mesial/distal shoulders; never identical copied teeth or a chiclet row.`);
   instructions.push(`Intensity: ${c.intensity}/100 controls only the degree of already permitted change, never a new type of edit.`);
-  if (c.shape && fullArch) instructions.push(`Smile arc preference: ${c.smileArc}. ${c.smileArc === "Preserve existing" ? "Place the new upper biting edges along the patient's existing smile line." : "Place the new upper biting edges along a curve that follows the lower lip (flatter lip, flatter arc; fuller curve, more curved), staying inside the mouth opening."} If the lip curve is unclear, use a gentle natural curve.`);
+  if (c.shape && fullArch) instructions.push(`Smile arc preference: ${c.smileArc}. ${c.smileArc === "Preserve existing" ? "Place the new upper biting edges along the patient's existing smile line." : "Place the new upper biting edges along a gentle curve parallel to the lower lip (flatter lip, flatter arc; fuller curve, more curved), with a visible gap above the lip; the curve sets the shape of the edge line, not its height."} If the lip curve is unclear, use a gentle natural curve. The length rule above always applies.`);
   else if (c.shape) instructions.push(`Smile arc preference: ${c.smileArc}. ${c.smileArc === "Preserve existing" ? "Retain the existing arc except for expressly permitted local changes." : "Use the visible lower-lip curvature as qualitative context: a flatter lip supports a flatter arc. Apply only within permitted edge changes; if matching the arc requires an unapproved edge change, preserve that edge. Never lengthen premolars merely to fill dark space. If the lip curve is obscured or ambiguous, preserve the original arc."}`);
   if (c.faceShape) instructions.push(`Optional facial style reference: ${c.faceShape}. A low-priority style preference, not a biological tooth-size rule.`);
   instructions.push(c.shotType === "Close-up" ? "Close-up/retracted view: use only visible dental anatomy. Do not infer a face shape, eye line, hidden lip curve or lip-rest position outside this crop; do not infer facial proportions or lip curvature beyond this crop." : "Use photographed facial proportions and perspective as context only. A face shape does not prescribe one ideal tooth length; do not rotate the incisal plane to match the eyes.");
@@ -156,8 +181,28 @@ export function renderGenerationContract(c: GenerationContract, format: "canonic
   return renderSunburstPrompt(c);
 }
 
+/** The one-tooth contract: shared preservation and output rules around the one-tooth instructions. Same text for every adapter. */
+function renderToothMatch(c: GenerationContract & { toothMatch: NonNullable<GenerationContract["toothMatch"]> }): string {
+  const { context } = c;
+  const instructions = [
+    `PRESERVATION: Preserve facial identity, facial expression, head position, lip position, mouth width, mouth opening and all facial anatomy. Keep eyes, nose, skin, hair, beard and facial hair, background, camera perspective, framing and lighting unchanged. Do not widen the mouth or open the lips further. Keep the same visible upper/lower tooth exposure.${c.shotType === "Close-up" ? " Retain retractors." : ""}`,
+    "NATURAL SOFT TISSUE IS PROTECTED: Do not edit the gingiva. Retain natural gingival margins, papillae and pigmentation; the tooth emerges from the existing gum line.",
+    ...toothMatchInstructions(c),
+  ];
+  if (c.constraints) instructions.push(`Explicit clinician visual restrictions: ${JSON.stringify(c.constraints)}. Apply only prohibitions that can be shown visually.`);
+  if (c.notes) instructions.push(`Clinician design notes: ${JSON.stringify(c.notes)}. Honour negations. Subordinate design requests; they never permit changing another tooth.`);
+  if (context.sourceBounds) { const b = context.sourceBounds; instructions.push(`SOURCE CANVAS: the photograph occupies x=${b.x}, y=${b.y}, width=${b.width}, height=${b.height} of the first image. Neutral padding outside that rectangle must remain exactly unchanged.`); }
+  if (context.hasReference || context.styleReferenceCount) instructions.push("REFERENCES: the first image is the SOURCE PATIENT to edit; edit only the first image. Any further images are style guides only, never people to edit. The partner tooth, not a reference, defines this tooth's design.");
+  if (context.hasEditMask) instructions.push(`EDIT MASK: the final image is an aligned black-and-white guidance mask. White marks ${toothLabel(c.toothMatch.tooth)}'s space, where the new tooth goes; black protects original pixels. Never return the mask.`);
+  instructions.push(`OUTPUT: Return ONE complete edited source photograph at the requested output resolution with the original aspect ratio, framing, scale, rotation and crop. Never return an enlarged mouth, isolated teeth, a close-up crop, collage, mask or reference image. Match natural light, white balance, the shadow the upper lip casts, grain and sharpness with no visible seam. Avoid duplicate crowns, floating enamel, sharp cut-offs or dark slivers. This is an AI visual concept for clinician discussion, not a diagnosis, predicted or guaranteed clinical result. Respond with the edited photograph itself; a text-only reply is not a result.`);
+  const task = c.shotType === "Close-up"
+    ? `TASK: Edit the first image, a dental close-up photograph, so that only ${toothLabel(c.toothMatch.tooth)} changes. Return that same complete photograph, framed and scaled exactly as supplied.`
+    : `TASK: Edit the first image, a full-face photograph, so that only ${toothLabel(c.toothMatch.tooth)} changes. Return that same complete photograph: the entire face, head, hair, clothing and background, framed and scaled exactly as supplied. Do not crop to or enlarge the mouth or teeth.`;
+  return [task, ...instructions].join("\n\n");
+}
+
 export const SUNBURST_PIPELINE_VERSION = "SC-SUNBURST-V1";
-export const SUNBURST_PROMPT_VERSION = "2026-10-04-sunburst-v3";
+export const SUNBURST_PROMPT_VERSION = "2026-10-06-sunburst-v5";
 export function sunburstTreatmentVersion(s: SmileSettings): string {
   const mode = normalizeGenerationContract(s).mode;
   return ({ whitening: "WHITENING-V1", restorative: "VENEERS-V1", alignment: "ALIGNMENT-V1", full_arch: "FULLARCH-V1" })[mode];

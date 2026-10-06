@@ -11,7 +11,8 @@ import { guardUpperEdges, type EdgeGuardResult } from "./edgeGuard";
  * clinician asked to lengthen is allowed its extra length.
  */
 export function shouldGuardEdges(settings: SmileSettings): boolean {
-  if (settings.treatmentMode === "full_arch" || settings.alignment || settings.treatment === "Whitening") return false;
+  // A one-tooth design may restore a chipped edge to its partner's length.
+  if (settings.treatmentMode === "full_arch" || settings.alignment || settings.treatment === "Whitening" || settings.toothMatch) return false;
   return !activeToothPlans(settings).some(p => p.length === 1);
 }
 
