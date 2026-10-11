@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { CenteredBrandHeader } from "./ui/Surface";
 import { ChevronLeft, Ellipsis } from "lucide-react";
 import type { Screen } from "@/lib/types";
+import { RailButton, RailItems, SideRailLayer, useSideRail } from "./sideRail/SideRail";
 export function AppShell({
   screen,
   testMode = false,
@@ -23,6 +24,8 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const menu=useRef<HTMLDetailsElement>(null);
+  // iPhone Duo: Back, the screen's tools and the menu sit in the side bar, in the system's order.
+  const rail=useSideRail();
   useEffect(()=>{
     const close=(event:PointerEvent)=>{if(menu.current?.open&&!menu.current.contains(event.target as Node))menu.current.open=false;};
     const escape=(event:KeyboardEvent)=>{if(event.key==="Escape"&&menu.current?.open){menu.current.open=false;menu.current.querySelector("summary")?.focus();}};
@@ -30,12 +33,23 @@ export function AppShell({
     return()=>{document.removeEventListener("pointerdown",close);document.removeEventListener("keydown",escape);};
   },[screen]);
   return (
+    <SideRailLayer>
     <div className="app-shell" data-screen={screen}>
+      {rail && screen !== "start" && <>
+        {onBack && <RailItems order={0}><RailButton label="Back" onClick={onBack}><ChevronLeft size={22} strokeWidth={1.8} /></RailButton></RailItems>}
+        {tools && <RailItems order={2}>{tools}</RailItems>}
+        {action && <RailItems order={3}>
+          <details ref={menu} className="rail-menu" key={screen}>
+            <summary className="rail-button" aria-label="More options"><Ellipsis size={22} /></summary>
+            {action}
+          </details>
+        </RailItems>}
+      </>}
       {screen !== "start" && <CenteredBrandHeader
         className="app-header"
         inverse={screen === "preview"}
         left={<>
-          {onBack && (
+          {onBack && !rail && (
             <button className="nav-back" onClick={onBack} aria-label="Back">
               <ChevronLeft size={21} strokeWidth={1.7} />
             </button>
@@ -59,7 +73,7 @@ export function AppShell({
           ) : null}
         </>}
         below={testMode && <span className="test-mode-pill">Test mode</span>}
-        right={<>
+        right={rail ? null : <>
           {tools}
           {screen === "photo" ? <>
             <div className="photo-desktop-actions">{action}</div>
@@ -75,5 +89,6 @@ export function AppShell({
       />}
       <main>{children}</main>
     </div>
+    </SideRailLayer>
   );
 }

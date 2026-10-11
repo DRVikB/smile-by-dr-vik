@@ -41,6 +41,11 @@ before(async () => {
   await db.exec(readFileSync("supabase/migrations/20261002093305_patient_case_sync.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261002153000_trigger_privilege_hardening.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261002154000_identity_deletion_audit.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261007120000_web_portal_labs.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261007150000_website_leads.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261008120000_lab_share_replies.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261008150000_admin_dashboard.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261011100000_access_codes.sql", "utf8"));
   await db.exec(`grant all on all tables in schema public to service_role;`);
 });
 
@@ -324,9 +329,9 @@ async function asUser<T>(user: string, run: () => Promise<T>): Promise<T> {
   try { return await run(); } finally { await db.exec(`reset role; reset request.jwt.claim.sub;`); }
 }
 
-test("storage buckets for avatars and the Case Library are private", async () => {
+test("storage buckets for avatars, the Case Library, patient cases and lab packs are private", async () => {
   const { rows } = await db.query<{ id: string; public: boolean }>(`select id, public from storage.buckets order by id`);
-  assert.deepEqual(rows, [{ id: "case-library", public: false }, { id: "patient-cases", public: false }, { id: "profile-avatars", public: false }]);
+  assert.deepEqual(rows, [{ id: "case-library", public: false }, { id: "lab-shares", public: false }, { id: "patient-cases", public: false }, { id: "profile-avatars", public: false }]);
 });
 
 test("profile photos: users can upload, read, replace and remove only their own avatar objects", async () => {
@@ -398,13 +403,119 @@ test("generation records only the owner's reference IDs; consent and export cove
     assert.equal((await db.query(`select 1 from ${table} where user_id = $1`, [jon])).rows.length, 0, table);
 });
 
+test("labs and lab links: owner-only, server-written, tokens never readable, links capped at 31 days", async () => {
+  const lab = (await db.query<{ id: string }>(`insert into labs (owner_user_id, name, email) values ($1, 'Ceramic Studio', 'orders@lab.example') returning id`, [alice])).rows[0].id;
+  await db.query(`insert into labs (owner_user_id, name, email) values ($1, 'Bob Lab', 'bob@lab.example')`, [bob]);
+  const hash = "a".repeat(64);
+  await db.query(`insert into lab_shares (owner_user_id, lab_id, case_id, case_label, token_hash, consent_confirmed_at, expires_at) values ($1, $2, gen_random_uuid(), 'SR-1024', $3, now(), now() + interval '14 days')`, [alice, lab, hash]);
+  await assert.rejects(db.query(`insert into lab_shares (owner_user_id, lab_id, case_id, case_label, token_hash, consent_confirmed_at, expires_at) values ($1, $2, gen_random_uuid(), 'X', $3, now(), now() + interval '60 days')`, [alice, lab, "b".repeat(64)]), /check/);
+  await assert.rejects(db.query(`insert into labs (owner_user_id, name, email) values ($1, 'No email', 'not-an-email')`, [alice]), /check/);
+  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${alice}';`);
+  try {
+    assert.deepEqual((await db.query<{ name: string }>(`select name from labs`)).rows.map(r => r.name), ["Ceramic Studio"]);
+    assert.equal((await db.query(`select id, case_label from lab_shares`)).rows.length, 1);
+    await assert.rejects(db.query(`select token_hash from lab_shares`), /permission denied/);
+    await assert.rejects(db.query(`insert into labs (owner_user_id, name, email) values ('${alice}', 'Self', 'a@b.co')`), /permission denied/);
+    await assert.rejects(db.query(`update lab_shares set revoked_at = null`), /permission denied/);
+  } finally {
+    await db.exec(`reset role; reset request.jwt.claim.sub;`);
+  }
+  const bucket = (await db.query<{ public: boolean }>(`select public from storage.buckets where id = 'lab-shares'`)).rows[0];
+  assert.equal(bucket.public, false);
+  await db.query(`insert into patient_cases (id, owner_user_id) values (gen_random_uuid(), $1)`, [bob]);
+  const kinds = await db.query(`select pg_get_constraintdef(oid) as def from pg_constraint where conname = 'patient_case_assets_kind_check'`);
+  assert.match(String((kinds.rows[0] as { def: string }).def), /CLINICAL_PHOTO/);
+});
+
+test("lab replies belong to the share's clinician and need a message or a file", async () => {
+  const lab = (await db.query<{ id: string }>(`insert into labs (owner_user_id, name, email) values ($1, 'Reply Lab', 'r@lab.example') returning id`, [alice])).rows[0].id;
+  const share = (await db.query<{ id: string }>(`insert into lab_shares (owner_user_id, lab_id, case_id, case_label, token_hash, consent_confirmed_at, expires_at) values ($1, $2, gen_random_uuid(), 'RL-1', $3, now(), now() + interval '7 days') returning id`, [alice, lab, "c".repeat(64)])).rows[0].id;
+  await db.query(`insert into lab_share_replies (share_id, owner_user_id, message) values ($1, $2, 'Shade agreed, try-in Friday')`, [share, alice]);
+  await assert.rejects(db.query(`insert into lab_share_replies (share_id, owner_user_id) values ($1, $2)`, [share, alice]), /check/);
+  await db.exec(`set role authenticated; set request.jwt.claim.sub = '${bob}';`);
+  try {
+    assert.equal((await db.query(`select * from lab_share_replies`)).rows.length, 0);
+    await assert.rejects(db.query(`insert into lab_share_replies (share_id, owner_user_id, message) values ('${share}', '${bob}', 'x')`), /permission denied/);
+  } finally { await db.exec(`reset role; reset request.jwt.claim.sub;`); }
+});
+
+test("website enquiries are server-only and validated", async () => {
+  await db.query(`insert into website_leads (name, email, role, interest) values ('Dr A', 'a@practice.example', 'dentist', 'demo')`);
+  await assert.rejects(db.query(`insert into website_leads (name, email, role, interest) values ('X', 'bad', 'dentist', 'demo')`), /check/);
+  await assert.rejects(db.query(`insert into website_leads (name, email, role, interest) values ('X', 'x@y.co', 'patient', 'demo')`), /check/);
+  for (const role of ["anon", "authenticated"]) {
+    await db.exec(`set role ${role};`);
+    try {
+      await assert.rejects(db.query(`select * from website_leads`), /permission denied/);
+      await assert.rejects(db.query(`insert into website_leads (name, email, role, interest) values ('Y', 'y@z.co', 'lab', 'demo')`), /permission denied/);
+    } finally { await db.exec(`reset role;`); }
+  }
+});
+
 test("deleting an auth user removes their data", async () => {
   await db.query(`delete from auth.users where id = $1`, [alice]);
-  for (const table of ["profiles", "allowance_periods", "generation_reservations", "generation_ledger", "access_overrides", "consent_records"]) {
-    const column = table === "profiles" ? "id" : "user_id";
+  for (const table of ["profiles", "allowance_periods", "generation_reservations", "generation_ledger", "access_overrides", "consent_records", "labs", "lab_shares"]) {
+    const column = table === "profiles" ? "id" : table.startsWith("lab") ? "owner_user_id" : "user_id";
     assert.equal((await db.query(`select 1 from ${table} where ${column} = $1`, [alice])).rows.length, 0, table);
   }
   // The security trail survives, pseudonymised (no user link).
   const orphaned = await db.query(`select 1 from security_audit_log where user_id is null and event_type = 'complimentary_access_granted'`);
   assert.ok(orphaned.rows.length >= 1);
+});
+
+test("admin functions are server-only, and unlimited access turns on and off cleanly", async () => {
+  await db.query(`insert into allowance_periods (user_id, source, period_start, period_end, included_allowance) values ($1, 'override', now() - interval '1 day', now() + interval '29 days', 50)`, [bob]);
+  await db.query(`select admin_set_unlimited($1, true, 'Team account')`, [bob]);
+  let row = (await db.query<{ unlimited: boolean; remaining: number }>(`select unlimited, remaining from admin_accounts('bob@', 10)`)).rows[0];
+  assert.equal(row.unlimited, true);
+  assert.ok(row.remaining >= 100000 - 1);
+  await db.query(`select admin_set_unlimited($1, true, 'again')`, [bob]);
+  assert.equal((await db.query(`select * from access_overrides where user_id = $1 and revoked_at is null and monthly_generation_allowance >= 10000`, [bob])).rows.length, 1, "turning it on twice adds one override");
+  await db.query(`select admin_set_unlimited($1, false, 'Left the team')`, [bob]);
+  row = (await db.query<{ unlimited: boolean; remaining: number }>(`select unlimited, remaining from admin_accounts('bob@', 10)`)).rows[0];
+  assert.equal(row.unlimited, false);
+  assert.ok(row.remaining < 10000);
+  const audit = await db.query(`select event_type from security_audit_log where user_id = $1 and event_type like 'unlimited_access_%'`, [bob]);
+  assert.equal(audit.rows.length, 3);
+  const overview = (await db.query<{ o: { accounts: number; by_day: unknown[] } }>(`select admin_overview(7) as o`)).rows[0].o;
+  assert.ok(overview.accounts >= 2);
+  assert.equal(overview.by_day.length, 7);
+  assert.ok((await db.query(`select * from admin_events(10)`)).rows.length > 0);
+  for (const role of ["anon", "authenticated"]) {
+    await db.exec(`set role ${role};`);
+    try {
+      await assert.rejects(db.query(`select admin_overview(30)`), /permission denied/);
+      await assert.rejects(db.query(`select admin_set_unlimited('${alice}', true, 'x')`), /permission denied/);
+      await assert.rejects(db.query(`select * from admin_users`), /permission denied/);
+    } finally { await db.exec(`reset role;`); }
+  }
+});
+
+test("an access code works once, for one account, and wrong guesses are limited", async () => {
+  const tester = "00000000-0000-4000-8000-0000000000c1", other = "00000000-0000-4000-8000-0000000000c2";
+  await db.query(`insert into auth.users (id, email) values ($1, 'tester@example.test'), ($2, 'other@example.test')`, [tester, other]);
+  const hash = (c: string) => c.repeat(64);
+  await db.query(`insert into access_codes (code_hash, hint, label, monthly_generations, access_days) values ($1, 'AAAA', 'Beta', 25, 14), ($2, 'BBBB', null, 50, 30), ($3, 'CCCC', null, 50, 30)`, [hash("a"), hash("b"), hash("c")]);
+  await db.query(`update access_codes set revoked_at = now() where code_hash = $1`, [hash("b")]);
+  await db.query(`update access_codes set expires_at = now() - interval '1 day' where code_hash = $1`, [hash("c")]);
+  const redeem = async (user: string, code: string) => (await db.query<{ ok: boolean; monthly_generations: number; access_expires_at: string }>(`select * from redeem_access_code($1, $2)`, [user, code])).rows[0];
+  const ok = await redeem(tester, hash("a"));
+  assert.equal(ok.ok, true);
+  assert.equal(ok.monthly_generations, 25);
+  assert.ok(Date.parse(ok.access_expires_at) > Date.now() + 13 * 86400000);
+  const override = (await db.query<{ monthly_generation_allowance: number; reason: string }>(`select monthly_generation_allowance, reason from access_overrides where user_id = $1 and created_by = 'access_code'`, [tester])).rows[0];
+  assert.equal(override.monthly_generation_allowance, 25);
+  assert.match(override.reason, /Beta/);
+  // Used, revoked, expired and unknown codes are all refused the same way, and each try is counted.
+  for (const code of [hash("a"), hash("b"), hash("c"), hash("d")]) assert.equal((await redeem(other, code)).ok, false);
+  assert.equal((await db.query(`select * from access_overrides where user_id = $1`, [other])).rows.length, 0);
+  for (let i = 0; i < 6; i++) await redeem(other, hash("e"));
+  await assert.rejects(redeem(other, hash("e")), /rate_limited/, "ten wrong guesses in an hour, then refused");
+  for (const role of ["anon", "authenticated"]) {
+    await db.exec(`set role ${role};`);
+    try {
+      await assert.rejects(db.query(`select * from redeem_access_code('${tester}', '${hash("a")}')`), /permission denied/);
+      await assert.rejects(db.query(`select * from access_codes`), /permission denied/);
+    } finally { await db.exec(`reset role;`); }
+  }
 });

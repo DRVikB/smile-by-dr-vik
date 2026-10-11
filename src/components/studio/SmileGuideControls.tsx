@@ -19,7 +19,7 @@ const NUDGE = 0.01;
 export function SmileGuideControls({ guide }: { guide: SmileGuideState }) {
   const g = guide.value;
   const set = (patch: Partial<SmileGuide>) => { if (g) { const next = normaliseGuide({ ...g, ...patch }); if (next) guide.onChange(next); } };
-  const adjusted = g && (g.width !== 1 || g.length !== 1 || g.curve !== 1 || g.dx !== 0 || g.dy !== 0);
+  const adjusted = g && (g.width !== 1 || g.length !== 1 || g.curve !== 1 || g.dx !== 0 || g.dy !== 0 || Boolean(g.original));
   return (
     <div className="control-group smile-guide-controls">
       <label className="studio-switch-row">
@@ -48,14 +48,14 @@ export function SmileGuideControls({ guide }: { guide: SmileGuideState }) {
           <button type="button" className="icon-button" aria-label="Move up" onClick={() => set({ dy: g.dy - NUDGE })}><ArrowUp size={18} /></button>
           <button type="button" className="icon-button" aria-label="Move down" onClick={() => set({ dy: g.dy + NUDGE })}><ArrowDown size={18} /></button>
           <button type="button" className="icon-button" aria-label="Move right" onClick={() => set({ dx: g.dx + NUDGE })}><ArrowRight size={18} /></button>
-          <button type="button" className="text-button smile-guide-reset" disabled={!adjusted} onClick={() => set({ width: 1, length: 1, curve: 1, dx: 0, dy: 0 })}>
+          <button type="button" className="text-button smile-guide-reset" disabled={!adjusted} onClick={() => g.original ? guide.onChange({ ...g, fit: g.original.fit, shape: g.original.shape, width: 1, length: 1, curve: 1, dx: 0, dy: 0, original: undefined }) : set({ width: 1, length: 1, curve: 1, dx: 0, dy: 0 })}>
             <RotateCcw size={15} aria-hidden="true" />Reset
           </button>
         </div>
         <p className="control-hint">{g.shape.measured
           ? "Fitted to this patient’s teeth: the dental midline, each tooth’s width, the gum line and the biting edges. "
           : "The teeth couldn’t be measured clearly, so the guide is placed from the lips. Adjust it to the teeth. "}
-          The outlines use the tooth form chosen above.{g.nasal ? " The dashed lines mark the width of the nose, a common reference for the canines." : ""} Drag the dot below the midline to move the guide. A planning guide for you and the patient; the visualisation doesn’t use it.</p>
+          The outlines use the tooth form chosen above.{g.nasal ? " The dashed lines mark the width of the nose, a common reference for the canines." : ""} Drag the points on the guide to match this smile: blue for the gum line, orange for the biting edges, green for each tooth’s width. The dot below the midline moves the whole guide. A planning guide for you and the patient; the visualisation doesn’t use it.</p>
       </>}
     </div>
   );

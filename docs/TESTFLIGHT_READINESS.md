@@ -132,7 +132,7 @@ On failure collect only time/build, request ID, treatment/path/count, source/pre
 
 ### Xcode install / subsequent owner-led upload
 
-1. Open `ios/App/App.xcodeproj`; select **App** scheme. App and widget target → Signing & Capabilities → Automatically manage signing; existing team **7TPF7LT884**. Select connected unlocked iPhone. Edit Scheme → Run → **Release** → Product → Run. Trust/developer-mode prompts only if iOS requests them.
+1. Open `ios/App/SmileCompose.xcodeproj`; select **App** scheme. App and widget target → Signing & Capabilities → Automatically manage signing; existing team **7TPF7LT884**. Select connected unlocked iPhone. Edit Scheme → Run → **Release** → Product → Run. Trust/developer-mode prompts only if iOS requests them.
 2. Before distribution, resolve `docs/PROFESSIONAL_REVIEW_REQUIRED.md` and the forty legal markers, then run `npm run ios:release`. This command must pass normally; do not bypass its guard.
 3. In Xcode Accounts/Signing, establish the existing team's Apple Distribution certificate/private key and App Store profiles for app and widget. Do not revoke existing certificates. Check Apple agreements and app/product metadata personally.
 4. Verify version1.0/build1 is unused in App Store Connect. If used, increment the build and rebuild/archive the accepted source; uniqueness was not verified remotely in this pass.

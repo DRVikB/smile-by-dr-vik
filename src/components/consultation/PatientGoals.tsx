@@ -1,5 +1,6 @@
 "use client";
 
+import { SideRailLayer } from "@/components/sideRail/SideRail";
 import { useState } from "react";
 import { ChevronDown, MessageSquareText } from "lucide-react";
 import {
@@ -90,7 +91,7 @@ function PreferredReasonEditor({ consultation, onChange, hasPreferred }: Props &
  */
 export function PatientGoalsSheet({ consultation, onChange, onClose, hasPreferred = false }: Props & { onClose: () => void; hasPreferred?: boolean }) {
   return (
-    <div className="sheet-backdrop" role="presentation" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="sheet-backdrop" role="presentation" onClick={e => { if (e.target === e.currentTarget) onClose(); }}><SideRailLayer />
       <section className="sheet patient-goals-sheet" role="dialog" aria-modal="true" aria-labelledby="patient-goals-title">
         <h2 id="patient-goals-title">Consultation</h2>
         <h3 className="patient-goals-section">Patient goals</h3>

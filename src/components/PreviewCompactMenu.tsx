@@ -1,5 +1,6 @@
 "use client";
 
+import { SheetClose } from "@/components/sideRail/SideRail";
 import { useEffect, useRef, useState } from "react";
 import {
   CircleCheck,
@@ -9,7 +10,6 @@ import {
   Plus,
   Share2,
   SlidersHorizontal,
-  X,
 } from "lucide-react";
 import { AnalysisSymbol, VisualiseSymbol } from "@/components/icons/SmileIcons";
 import { AI_CONCEPT_SUMMARY } from "@/lib/brand";
@@ -105,9 +105,8 @@ export function PreviewCompactMenu({
           >
             <div className="compact-options-heading">
               <h2>Preview options</h2>
-              <button ref={closeButton} type="button" aria-label="Close options" onClick={closeMenu}>
-                <X size={18} />
-              </button>
+              {/* iPhone Duo: while the options are up, the side bar holds their Close in place of the screen's Back and More. */}
+              <SheetClose onClose={closeMenu} label="Close options" className="" size={18} buttonRef={closeButton} />
             </div>
             <div className="compact-options-group">
               <span className="compact-options-label">Compare</span>

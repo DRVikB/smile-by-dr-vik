@@ -51,7 +51,7 @@ input[type="range"] { accent-color: var(--accent); }
 .report-summary .sc-lockup { gap: 7px; }
 .report-summary .sc-symbol { width: 23px; height: 23px; }
 .report-summary .sc-wordmark { font-size: 13px; letter-spacing: 0; }
-.compare-label { font-size: 10px; letter-spacing: 0; }
+.compare-label { font-size: 11px; letter-spacing: 0; }
 .photo-heading { font-family: var(--font-sans); font-size: clamp(29px, 4vw, 42px); font-weight: 400; letter-spacing: -.025em; }
 .generation-splash .sc-wordmark { font-size: 17px; }
 .sc-composing-symbol { width: 56px; height: 56px; margin-bottom: 22px; animation: sc-compose-breathe 3.2s ease-in-out infinite; }
@@ -69,7 +69,7 @@ input[type="range"] { accent-color: var(--accent); }
   .portrait-top .sc-symbol { width: 28px; height: 28px; }
   .portrait-top .sc-wordmark { font-size: 19px; }
   .portrait-top { flex-wrap: wrap; gap: 12px; }
-  .sc-home-signature { font-size: 10px; }
+  .sc-home-signature { font-size: 11px; }
   .consult-top .sc-wordmark { font-size: 15px; }
   .consult-top .sc-symbol { width: 23px; height: 23px; }
   .consult-top { padding-inline: 14px; }
@@ -83,7 +83,7 @@ input[type="range"] { accent-color: var(--accent); }
   .generation-splash-footer { font-size: 8px; letter-spacing: 0; }
 }
 @media (max-width: 370px) {
-  .app-shell .test-mode-pill { position: absolute; left: 66px; top: calc(53px + env(safe-area-inset-top)); font-size: 8px; min-height: 14px; }
+  .app-shell .test-mode-pill { position: absolute; left: 66px; top: calc(53px + var(--safe-top)); font-size: 8px; min-height: 14px; }
   .app-shell[data-screen="photo"] .test-mode-pill { position: static; font-size: 7px; }
   .app-header .sc-wordmark { font-size: 14px; }
   .consult-top .sc-symbol { display: none; }
@@ -100,11 +100,11 @@ input[type="range"] { accent-color: var(--accent); }
 .saved-case-viewer { position: fixed; inset: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; overflow: hidden; background: #191816; color: white; }
 .saved-case-viewer::backdrop { background: #191816; }
 .saved-case-viewer .comparison { width: 100%; height: 100%; min-height: 0; border-radius: 0; }
-.saved-case-header { position: absolute; inset: 0 0 auto; z-index: 10; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: calc(env(safe-area-inset-top, 0px) + 16px) max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px)); background: linear-gradient(#0009, transparent); }
+.saved-case-header { position: absolute; inset: 0 0 auto; z-index: 10; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: calc(var(--safe-top) + 16px) max(16px, var(--safe-right)) 12px max(16px, var(--safe-left)); background: linear-gradient(#0009, transparent); }
 .saved-case-header .icon-button { flex-shrink: 0; color: white; background: #2229; }
-.saved-case-viewer .compare-mode { top: calc(env(safe-area-inset-top, 0px) + 82px); left: max(16px, env(safe-area-inset-left, 0px)); }
-.saved-case-caption { position: absolute; bottom: 0; left: 0; right: 0; padding: 12px 20px calc(env(safe-area-inset-bottom, 0px) + 12px); text-align: center; font-size: 13px; background: linear-gradient(transparent, #000b); pointer-events: none; }
-.saved-case-viewer .compare-label, .saved-case-viewer .guide-key { bottom: calc(env(safe-area-inset-bottom, 0px) + 52px); }
+.saved-case-viewer .compare-mode { top: calc(var(--safe-top) + 82px); left: max(16px, var(--safe-left)); }
+.saved-case-caption { position: absolute; bottom: 0; left: 0; right: 0; padding: 12px 20px calc(var(--safe-bottom) + 12px); text-align: center; font-size: 13px; background: linear-gradient(transparent, #000b); pointer-events: none; }
+.saved-case-viewer .compare-label, .saved-case-viewer .guide-key { bottom: calc(var(--safe-bottom) + 52px); }
 .clinical-data-fields { display: grid; gap: 12px; }
 .clinical-data-fields label { display: grid; gap: 6px; font-size: 13px; }
 .clinical-data-fields input { width: 100%; min-height: 44px; font-size: 16px; }

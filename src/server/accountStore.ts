@@ -3,7 +3,7 @@ import type { PeriodKind } from "@/config/subscriptions";
 
 /** A failure that the API reports with a stable code. */
 export type AccountErrorCode = "auth_required" | "mfa_required" | "subscription_required" | "allowance_exhausted" | "no_active_allowance"
-  | "duplicate_request" | "account_not_found" | "rate_limited" | "account_service_unavailable";
+  | "duplicate_request" | "account_not_found" | "rate_limited" | "account_service_unavailable" | "forbidden";
 
 export class AccountError extends Error {
   constructor(readonly code: AccountErrorCode, message: string = code) {
@@ -448,7 +448,7 @@ export function createSupabaseMediaStore(url: string, serviceRoleKey: string): M
       return new Uint8Array(await data!.arrayBuffer());
     },
     async removeAllFor(userId) {
-      for (const bucket of [AVATAR_BUCKET, CASE_LIBRARY_BUCKET, "patient-cases"]) {
+      for (const bucket of [AVATAR_BUCKET, CASE_LIBRARY_BUCKET, "patient-cases", "lab-shares"]) {
         // Objects are "<user id>/<file>" (avatars) or "<user id>/<case id>/<file>" (Case Library).
         const pending = [userId];
         while (pending.length) {

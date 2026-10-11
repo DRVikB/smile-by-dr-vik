@@ -11,9 +11,9 @@ const check = (ok, label, detail = "") => results.push({ ok, label, detail });
 const action = (done, label) => results.push({ ok: done, label, action: true });
 
 const plist = await read("ios/App/App/Info.plist");
-const pbx = await read("ios/App/App.xcodeproj/project.pbxproj");
+const pbx = await read("ios/App/SmileCompose.xcodeproj/project.pbxproj");
 const manifest = await read("ios/App/App/PrivacyInfo.xcprivacy");
-const entitlements = await read("ios/App/App/App.entitlements");
+const entitlements = await read("ios/App/App/SmileCompose.entitlements");
 const pkg = JSON.parse(await read("package.json"));
 const subscriptions = await read("src/config/subscriptions.ts");
 const paywall = await read("src/components/account/ProPlans.tsx");
@@ -34,7 +34,7 @@ check(!plist.includes("NSPhotoLibraryUsageDescription"), "No full Photo Library 
 check(/ITSAppUsesNonExemptEncryption<\/key>\s*<false\/>/.test(plist), "Export compliance declared (HTTPS only)");
 check(plist.includes("<string>uk.co.drvik.smilecompose</string>"), "Auth deep-link URL scheme registered");
 check(entitlements.includes("com.apple.developer.applesignin"), "Sign in with Apple entitlement (4.8)");
-check(pbx.includes("CODE_SIGN_ENTITLEMENTS = App/App.entitlements;"), "Entitlements file linked to the App target");
+check(pbx.includes("CODE_SIGN_ENTITLEMENTS = App/SmileCompose.entitlements;"), "Entitlements file linked to the App target");
 check(pbx.includes("PrivacyInfo.xcprivacy in Resources"), "Privacy manifest bundled");
 check(manifest.includes("NSPrivacyAccessedAPICategoryFileTimestamp") && manifest.includes("C617.1"), "Required-reason API declared: file timestamps");
 check(/NSPrivacyTracking<\/key>\s*<false\/>/.test(manifest), "No tracking declared");

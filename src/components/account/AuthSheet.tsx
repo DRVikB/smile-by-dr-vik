@@ -1,6 +1,6 @@
 "use client";
+import { SheetClose } from "@/components/sideRail/SideRail";
 import { useState } from "react";
-import { X } from "lucide-react";
 import {
   AuthMessage, PASSWORD_MIN_LENGTH, requestPasswordReset, resendVerification, signInWithApple,
   signInWithEmail, signUpWithEmail, updatePassword,
@@ -10,7 +10,7 @@ import { PrivacyLink, TermsLink } from "./LegalLinks";
 
 export type AuthMode = "signIn" | "signUp" | "forgot" | "checkEmail" | "setPassword";
 
-const TITLES: Record<AuthMode, string> = {
+export const AUTH_TITLES: Record<AuthMode, string> = {
   signIn: "Sign in",
   signUp: "Create your account",
   forgot: "Reset your password",
@@ -18,13 +18,13 @@ const TITLES: Record<AuthMode, string> = {
   setPassword: "Choose a new password",
 };
 
-export function AuthSheet({ initialMode, reason, onClose, onSignedIn }: {
-  initialMode: AuthMode;
+/** The sign-in and account forms, shared by the in-app sheet and the website's sign-in page. */
+export function AuthForm({ mode, setMode, reason, onSignedIn }: {
+  mode: AuthMode;
+  setMode: (mode: AuthMode) => void;
   reason?: string;
-  onClose: () => void;
   onSignedIn: () => void;
 }) {
-  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -67,86 +67,100 @@ export function AuthSheet({ initialMode, reason, onClose, onSignedIn }: {
   const showApple = mode === "signIn" || mode === "signUp";
 
   return (
+    <>
+      {reason === "generate" && (mode === "signIn" || mode === "signUp") && (
+        <p className="sheet-sub">Sign in to create AI smile visualisations. Test mode works without an account.</p>
+      )}
+
+      {mode === "checkEmail" ? (
+        <div className="account-stack">
+          <p className="sheet-sub">
+            {sentFor === "signUp"
+              ? `If ${email || "your email address"} needs confirmation, look for a confirmation link in your inbox or junk folder. Open it on this device to finish creating your account.`
+              : `If an account exists for ${email || "that address"}, we’ve sent a link to reset your password. Open it on this device.`}
+          </p>
+          {sentFor === "signUp" && <>
+            <p className="sheet-sub">Already confirmed your account? Sign in with your existing password. You don’t need another confirmation email.</p>
+            <button className="secondary-button" disabled={busy} onClick={() => void run(async () => { await resendVerification(email); setInfo("Confirmation requested. If this address needs confirmation, check your inbox and junk folder."); })}>Resend confirmation link</button>
+          </>}
+          <button className="text-button" disabled={busy} onClick={() => changeMode("signIn")}>Back to sign in</button>
+        </div>
+      ) : (
+        <form className="account-stack" onSubmit={submit}>
+          {showApple && (
+            <>
+              <AppleSignInButton onClick={apple} disabled={busy} label={mode === "signUp" ? "Sign up with Apple" : "Sign in with Apple"} />
+              <p className="account-divider"><span>or use email</span></p>
+            </>
+          )}
+          {mode !== "setPassword" && (
+            <label className="account-field">
+              <span>Email</span>
+              <input type="email" autoComplete="email" inputMode="email" autoCapitalize="none" required value={email} onChange={e => setEmail(e.target.value)} />
+            </label>
+          )}
+          {mode !== "forgot" && (
+            <label className="account-field">
+              <span>{mode === "setPassword" ? "New password" : "Password"}</span>
+              <input
+                type="password"
+                required
+                minLength={mode === "signIn" ? undefined : PASSWORD_MIN_LENGTH}
+                autoComplete={mode === "signIn" ? "current-password" : "new-password"}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+              />
+              {mode !== "signIn" && <small>At least {PASSWORD_MIN_LENGTH} characters.</small>}
+            </label>
+          )}
+          <button className="primary-button" type="submit" disabled={busy}>
+            {busy ? "Please wait…" : mode === "signIn" ? "Sign in" : mode === "signUp" ? "Create account" : mode === "forgot" ? "Send reset link" : "Update password"}
+          </button>
+          {mode === "signIn" && (
+            <div className="account-links">
+              <button type="button" className="text-button" disabled={busy} onClick={() => changeMode("forgot")}>Forgot password?</button>
+              <button type="button" className="text-button" disabled={busy} onClick={() => changeMode("signUp")}>Create an account</button>
+            </div>
+          )}
+          {(mode === "signUp" || mode === "forgot") && <button type="button" className="text-button" disabled={busy} onClick={() => changeMode("signIn")}>I already have an account</button>}
+          {mode === "signUp" && (
+            <p className="control-hint">
+              By creating an account you agree to the <TermsLink /> and acknowledge the <PrivacyLink />.
+            </p>
+          )}
+        </form>
+      )}
+      {error && <p className="error-message" role="alert">{error}</p>}
+      {mode === "signIn" && unconfirmedEmail === email.trim() && unconfirmedEmail && (
+        <button className="secondary-button" disabled={busy} onClick={() => void run(async () => {
+          await resendVerification(unconfirmedEmail);
+          setSentFor("signUp");
+          setMode("checkEmail");
+        })}>Send confirmation link</button>
+      )}
+      {info && <p className="save-status" role="status">{info}</p>}
+    </>
+  );
+}
+
+export function AuthSheet({ initialMode, reason, onClose, onSignedIn }: {
+  initialMode: AuthMode;
+  reason?: string;
+  onClose: () => void;
+  onSignedIn: () => void;
+}) {
+  const [mode, setMode] = useState<AuthMode>(initialMode);
+  return (
     <div className="sheet-backdrop account-backdrop" role="dialog" aria-modal="true" aria-labelledby="auth-title" onClick={onClose}>
       <div className="sheet account-sheet" onClick={e => e.stopPropagation()}>
         <div className="sheet-heading">
           <div>
             <p className="eyebrow">SmileCompose account</p>
-            <h2 id="auth-title">{TITLES[mode]}</h2>
+            <h2 id="auth-title">{AUTH_TITLES[mode]}</h2>
           </div>
-          <button className="icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>
+          <SheetClose onClose={onClose} />
         </div>
-        {reason === "generate" && (mode === "signIn" || mode === "signUp") && (
-          <p className="sheet-sub">Sign in to create AI smile visualisations. Test mode works without an account.</p>
-        )}
-
-        {mode === "checkEmail" ? (
-          <div className="account-stack">
-            <p className="sheet-sub">
-              {sentFor === "signUp"
-                ? `If ${email || "your email address"} needs confirmation, look for a confirmation link in your inbox or junk folder. Open it on this device to finish creating your account.`
-                : `If an account exists for ${email || "that address"}, we’ve sent a link to reset your password. Open it on this device.`}
-            </p>
-            {sentFor === "signUp" && <>
-              <p className="sheet-sub">Already confirmed your account? Sign in with your existing password. You don’t need another confirmation email.</p>
-              <button className="secondary-button" disabled={busy} onClick={() => void run(async () => { await resendVerification(email); setInfo("Confirmation requested. If this address needs confirmation, check your inbox and junk folder."); })}>Resend confirmation link</button>
-            </>}
-            <button className="text-button" disabled={busy} onClick={() => changeMode("signIn")}>Back to sign in</button>
-          </div>
-        ) : (
-          <form className="account-stack" onSubmit={submit}>
-            {showApple && (
-              <>
-                <AppleSignInButton onClick={apple} disabled={busy} label={mode === "signUp" ? "Sign up with Apple" : "Sign in with Apple"} />
-                <p className="account-divider"><span>or use email</span></p>
-              </>
-            )}
-            {mode !== "setPassword" && (
-              <label className="account-field">
-                <span>Email</span>
-                <input type="email" autoComplete="email" inputMode="email" autoCapitalize="none" required value={email} onChange={e => setEmail(e.target.value)} />
-              </label>
-            )}
-            {mode !== "forgot" && (
-              <label className="account-field">
-                <span>{mode === "setPassword" ? "New password" : "Password"}</span>
-                <input
-                  type="password"
-                  required
-                  minLength={mode === "signIn" ? undefined : PASSWORD_MIN_LENGTH}
-                  autoComplete={mode === "signIn" ? "current-password" : "new-password"}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                />
-                {mode !== "signIn" && <small>At least {PASSWORD_MIN_LENGTH} characters.</small>}
-              </label>
-            )}
-            <button className="primary-button" type="submit" disabled={busy}>
-              {busy ? "Please wait…" : mode === "signIn" ? "Sign in" : mode === "signUp" ? "Create account" : mode === "forgot" ? "Send reset link" : "Update password"}
-            </button>
-            {mode === "signIn" && (
-              <div className="account-links">
-                <button type="button" className="text-button" disabled={busy} onClick={() => changeMode("forgot")}>Forgot password?</button>
-                <button type="button" className="text-button" disabled={busy} onClick={() => changeMode("signUp")}>Create an account</button>
-              </div>
-            )}
-            {(mode === "signUp" || mode === "forgot") && <button type="button" className="text-button" disabled={busy} onClick={() => changeMode("signIn")}>I already have an account</button>}
-            {mode === "signUp" && (
-              <p className="control-hint">
-                By creating an account you agree to the <TermsLink /> and acknowledge the <PrivacyLink />.
-              </p>
-            )}
-          </form>
-        )}
-        {error && <p className="error-message" role="alert">{error}</p>}
-        {mode === "signIn" && unconfirmedEmail === email.trim() && unconfirmedEmail && (
-          <button className="secondary-button" disabled={busy} onClick={() => void run(async () => {
-            await resendVerification(unconfirmedEmail);
-            setSentFor("signUp");
-            setMode("checkEmail");
-          })}>Send confirmation link</button>
-        )}
-        {info && <p className="save-status" role="status">{info}</p>}
+        <AuthForm mode={mode} setMode={setMode} reason={reason} onSignedIn={onSignedIn} />
       </div>
     </div>
   );

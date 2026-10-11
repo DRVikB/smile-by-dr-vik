@@ -1,4 +1,5 @@
 "use client";
+import { RailButton, RailItems, SideRailLayer, useSideRail } from "@/components/sideRail/SideRail";
 import { getCaseRepository } from "@/services/cases/caseRepository";
 import { AI_CONCEPT_DISCLAIMER } from "@/lib/brand";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -65,6 +66,8 @@ export function ShareSheet({
 }) {
   const [repository] = useState(getCaseRepository);
   const [step, setStep] = useState<Step>("choose");
+  const rail = useSideRail();
+  const goBack = () => setStep(step === "ready" && made?.kind === "report" ? "review" : "choose");
   const [making, setMaking] = useState<ExportKind>("preview");
   const [made, setMade] = useState<Made | null>(null);
   const [draft, setDraft] = useState<ReportDraft>(() => initial?.draft ?? initialReportDraft({ settings: input.settings, analysis: null, patientLabel: input.patientLabel }));
@@ -224,6 +227,7 @@ export function ShareSheet({
   };
 
   return (
+    <SideRailLayer>
     <div className="sheet-backdrop share-backdrop" role="dialog" aria-modal="true" aria-label="Share with patient" onClick={onClose}>
       <div className={`sheet share-sheet is-${step}`} onClick={e => e.stopPropagation()}
         onKeyDown={e => {
@@ -235,8 +239,9 @@ export function ShareSheet({
           else if (!e.shiftKey && document.activeElement === controls.at(-1)) { e.preventDefault(); controls[0]?.focus(); }
         }}>
         <div className="share-head">
-          {(step === "review" || step === "ready") && (
-            <button type="button" className="icon-button share-back" aria-label="Back" onClick={() => setStep(step === "ready" && made?.kind === "report" ? "review" : "choose")}>
+          {(step === "review" || step === "ready") && (rail
+            ? <RailItems order={0}><RailButton label="Back" onClick={goBack}><ArrowLeft size={20} /></RailButton></RailItems>
+            : <button type="button" className="icon-button share-back" aria-label="Back" onClick={goBack}>
               <ArrowLeft size={17} />
             </button>
           )}
@@ -247,7 +252,8 @@ export function ShareSheet({
               : step === "ready" ? (made?.kind === "report" ? "Send it now, or save it for the patient record." : "Ready to send: it looks good in Messages, WhatsApp, email and Photos.")
                 : "Choose what you’d like to send."}</p>
           </div>
-          <button ref={closeButton} type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>
+          {rail ? <RailItems order={1}><RailButton label="Close" onClick={onClose} buttonRef={closeButton}><X size={21} strokeWidth={1.9} /></RailButton></RailItems>
+            : <button ref={closeButton} type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>}
         </div>
 
         <p className="share-concept-note">{AI_CONCEPT_DISCLAIMER}</p>
@@ -325,6 +331,7 @@ export function ShareSheet({
         )}
       </div>
     </div>
+    </SideRailLayer>
   );
 }
 

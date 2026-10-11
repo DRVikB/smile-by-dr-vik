@@ -114,12 +114,6 @@ export const ONBOARDING_PROGRESS: OnboardingStep[] = ["account", "howItWorks", "
 
 const KEY = "smile.onboarding";
 
-/** TEMPORARY (testing): ask the onboarding to play every step again, saving nothing. */
-export const ONBOARDING_REPLAY_EVENT = "smile:onboarding-replay";
-export function replayOnboarding(): void {
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(ONBOARDING_REPLAY_EVENT));
-}
-
 export function readLocalOnboarding(storage: Pick<Storage, "getItem"> | null = safeStorage(), { forLaunch = false }: { forLaunch?: boolean } = {}): LocalOnboarding {
   try {
     const parsed = JSON.parse(storage?.getItem(KEY) ?? "{}") as unknown;
@@ -146,4 +140,10 @@ export function updateAccountFlags(local: LocalOnboarding, userId: string, flags
 
 function safeStorage(): Storage | null {
   try { return globalThis.localStorage ?? null; } catch { return null; }
+}
+
+/** Administrators only (Settings › Admin): play every onboarding step again from Welcome. Completion and progress aren't touched. */
+export const ONBOARDING_REPLAY_EVENT = "smile:onboarding-replay";
+export function replayOnboarding(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(ONBOARDING_REPLAY_EVENT));
 }

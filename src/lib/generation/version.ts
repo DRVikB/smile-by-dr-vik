@@ -1,2 +1,2 @@
 /** Shared by provider receipts and local result-reuse keys. */
-export const SMILE_PROMPT_VERSION = "2026-10-06-treatment-contract-v15";
+export const SMILE_PROMPT_VERSION = "2026-10-07-treatment-contract-v16";

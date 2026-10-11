@@ -1,4 +1,5 @@
 "use client";
+import { SheetClose } from "@/components/sideRail/SideRail";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Download, ImagePlus, Trash2, Upload, X } from "lucide-react";
 import { IconTile, LibrarySymbol } from "@/components/icons/SmileIcons";
@@ -174,9 +175,7 @@ export function CaseLibrary({
               Your own finished work, matched by material, starting conditions and teeth treated.
             </p>
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Close">
-            <X size={16} />
-          </button>
+          <SheetClose onClose={onClose} />
         </div>
 
         <p className="library-tip">

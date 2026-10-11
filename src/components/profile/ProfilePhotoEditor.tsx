@@ -1,4 +1,5 @@
 "use client";
+import { SideRailLayer } from "@/components/sideRail/SideRail";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Camera, ImageIcon, Trash2 } from "lucide-react";
@@ -51,7 +52,7 @@ export function ProfilePhotoEditor({ onClose, onSaved }: { onClose: () => void; 
 
   // Portalled: an animated ancestor (onboarding, Settings) would otherwise contain the fixed backdrop.
   return createPortal(
-    <div className="action-sheet-backdrop" onClick={() => !busy && onClose()}>
+    <div className="action-sheet-backdrop" onClick={() => !busy && onClose()}><SideRailLayer />
       {source ? (
         <AvatarCropper image={source} busy={busy} error={error} onCancel={() => setSource(null)}
           onDone={image => void save(image, "Profile photo updated.")} />

@@ -268,9 +268,15 @@ input[type="checkbox"][role="switch"],
   display: flex; flex-direction: column; gap: 14px;
   padding: 14px max(16px, var(--app-safe-right)) 0 max(16px, var(--app-safe-left));
 }
-.studio-case { display: grid; gap: 6px; }
+/* Short portrait (iPhone SE, the folded iPhone Duo): a smaller photo so the step's controls show without scrolling. */
+@media (max-width: 700px) and (max-height: 720px) and (orientation: portrait) {
+  .studio-stage { height: 30dvh; min-height: 170px; }
+  .studio-dock { gap: 10px; padding-top: 10px; }
+}
+.studio-case { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; }
 .studio-case .control-hint { margin: 0 4px; }
-.studio-case-row { display: flex; align-items: center; gap: 8px; }
+.studio-case-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.studio-case-row .patient-field input { min-width: 0; width: 100%; }
 .app-shell .design-screen .studio-case-row .patient-field {
   flex: 1; min-width: 0; margin: 0; padding: 0 16px; min-height: 46px;
   border-radius: 999px; background: var(--surface-elevated); border: 1px solid var(--border);
@@ -341,7 +347,9 @@ input[type="checkbox"][role="switch"],
 .studio-count button, .studio-mode button { min-height: 40px; }
 
 /* Shape: tooth-form tiles */
-.studio-shapes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+/* Sized by the card they sit in, so the four tiles and their labels fit a narrow column as well as a wide one. */
+.studio-shapes { container: studio-shapes / inline-size; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@container studio-shapes (max-width: 300px) { .studio-shape { padding-inline: 2px; font-size: 12.5px; letter-spacing: -.01em; } }
 @media (max-width: 420px) { .studio-shapes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .studio-shape {
   display: grid; justify-items: center; gap: 6px; padding: 12px 6px 10px;
@@ -445,7 +453,7 @@ input[type="checkbox"][role="switch"],
   .studio-stage { height: 46dvh; }
 }
 /* iPad landscape and wider: portrait patient photos fill a full-height frame on the left, the steps sit on the right. */
-@media (min-width: 1000px) and (orientation: landscape) {
+@media (min-width: 1000px) and (orientation: landscape), (min-width: 900px) and (min-height: 600px) and (orientation: landscape) {
   .studio { flex-direction: row; gap: 20px; }
   .studio-stage { flex: 1 1 auto; height: auto; min-height: 0; margin: 0 0 max(20px, var(--app-safe-bottom)) max(20px, var(--app-safe-left)); }
   .studio-dock { flex: 0 0 min(480px, 42%); padding: 0 max(20px, var(--app-safe-right)) 0 0; }
@@ -548,11 +556,11 @@ input[type="checkbox"][role="switch"],
 /* Landscape: a column beside the face, under the Slide / Overlay switch. */
 @media (orientation: landscape) {
   :is(.app-shell, .saved-case-viewer) .comparison.has-guides > .guide-key {
-    left: max(20px, env(safe-area-inset-left, 0px)); right: auto; bottom: auto;
+    left: max(20px, var(--safe-left)); right: auto; bottom: auto;
     top: calc(var(--photo-header) + 64px);
     transform: none; width: min(272px, 30vw);
   }
-  .saved-case-viewer .comparison.has-guides > .guide-key { top: calc(env(safe-area-inset-top, 0px) + 138px); }
+  .saved-case-viewer .comparison.has-guides > .guide-key { top: calc(var(--safe-top) + 138px); }
   .guide-key-lines { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .guide-key-readings { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .guide-key-readings > div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
@@ -793,6 +801,14 @@ input[type="checkbox"][role="switch"],
 .smile-guide-handle { pointer-events: all; cursor: grab; touch-action: none; }
 .smile-guide-overlay.is-moving .smile-guide-handle { cursor: grabbing; }
 .smile-guide-handle-hit { fill: transparent; }
+.smile-guide-point { pointer-events: all; cursor: grab; touch-action: none; }
+.smile-guide-point.is-division { cursor: ew-resize; }
+.smile-guide-point.is-gum, .smile-guide-point.is-edge { cursor: ns-resize; }
+.smile-guide-point-dot { fill: #fff; stroke-width: calc(2.4px / var(--guide-zoom, 1)); vector-effect: non-scaling-stroke; filter: drop-shadow(0 1px 2px rgb(0 0 0 / .45)); transition: r .15s; }
+.smile-guide-point.is-gum .smile-guide-point-dot { stroke: #2b4dff; }
+.smile-guide-point.is-edge .smile-guide-point-dot { stroke: #f39a3b; }
+.smile-guide-point.is-division .smile-guide-point-dot { stroke: #74e35e; }
+.smile-guide-point:hover .smile-guide-point-dot, .smile-guide-overlay.is-moving .smile-guide-point-dot { fill: #fff8e8; }
 .smile-guide-handle-dot { fill: #74e35e; stroke: rgb(255 255 255 / .95); stroke-width: calc(2px / var(--guide-zoom, 1)); vector-effect: non-scaling-stroke; filter: drop-shadow(0 1px 2px rgb(0 0 0 / .5)); }
 .smile-guide-controls { display: grid; gap: 10px; }
 .smile-guide-slider { display: grid; gap: 4px; }
@@ -843,3 +859,11 @@ input[type="checkbox"][role="switch"],
 .studio-variations:has(> :only-child) .studio-variation { flex-direction: row; justify-content: center; gap: 10px; min-height: 52px; }
 .studio-more .studio-variations { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .smile-guide-overlay.is-highlight .smile-guide-pick { pointer-events: none; cursor: default; }
+
+/* The tooth chart is drawn larger on wide screens; where its card is narrow (iPhone Duo's open
+   display beside the photo) it steps down so every tooth stays inside the card. */
+.studio-arch-fit { container: studio-arch / inline-size; }
+@media (min-width: 700px) {
+  @container studio-arch (max-width: 358px) { .studio-arch { zoom: 1.15; } }
+  @container studio-arch (max-width: 294px) { .studio-arch { zoom: 1; } }
+}

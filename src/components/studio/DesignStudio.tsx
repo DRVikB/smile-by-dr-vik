@@ -1,4 +1,5 @@
 "use client";
+import { RailItems, useSideRail } from "@/components/sideRail/SideRail";
 import { generationUnavailable, INTERNAL_SINGLE_TOOTH, INTERNAL_ALIGNMENT, INTERNAL_FULL_ARCH } from "@/lib/generation/availability";
 import { useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, ImagePlus, X } from "lucide-react";
@@ -225,20 +226,25 @@ export function DesignStudio({
     { id: "treatment", value: standardTreatmentSummary(settings, restoration) },
   ];
 
+  const rail = useSideRail();
+  const steps = (
+    <div className="studio-tabs" role="tablist" aria-label="Design steps" aria-orientation={rail ? "vertical" : undefined}>
+      {TABS.map(({ id, label: base, Icon }, i) => { const label = id === "teeth" && fullArch ? "Arch" : base; return (
+        <button key={id} id={`studio-tab-${id}`} type="button" role="tab" aria-selected={tab === id} aria-controls={`studio-page-${id}`}
+          className={`${tab === id ? "is-active" : ""}${i < index ? " is-done" : ""}`} title={rail ? label : undefined} onClick={() => go(id)}>
+          <Icon size={20} />
+          <span>{label}</span>
+        </button>
+      ); })}
+    </div>
+  );
   return (
     <div className="studio">
       <div className="studio-stage">{typeof stage === "function" ? stage(tab === "teeth", guideStep) : stage}</div>
 
       <div className="studio-dock">
-        <div className="studio-tabs" role="tablist" aria-label="Design steps">
-          {TABS.map(({ id, label: base, Icon }, i) => { const label = id === "teeth" && fullArch ? "Arch" : base; return (
-            <button key={id} id={`studio-tab-${id}`} type="button" role="tab" aria-selected={tab === id} aria-controls={`studio-page-${id}`}
-              className={`${tab === id ? "is-active" : ""}${i < index ? " is-done" : ""}`} onClick={() => go(id)}>
-              <Icon size={20} />
-              <span>{label}</span>
-            </button>
-          ); })}
-        </div>
+        {/* iPhone Duo: the steps are the rail's tab bar, beside the camera, so the card gets the height. */}
+        {rail ? <RailItems order={4}>{steps}</RailItems> : steps}
 
         <fieldset disabled={busy} className="studio-cards" aria-label="Smile design controls">
           {page("teeth", alignment?.only && !fullArch ? <>
@@ -255,7 +261,7 @@ export function DesignStudio({
               <h3>Teeth</h3>
               <p>{match ? "Match one tooth to its partner on the other side, or add a missing one." : INTERNAL_SINGLE_TOOTH ? "Choose how many upper teeth to design, or choose Custom for individual teeth." : "Choose how many upper teeth to design, or one tooth to match."}</p>
             </header>
-            {!individual && !match && <div className="studio-arch" role="group" aria-label="Upper teeth to design">
+            {!individual && !match && <div className="studio-arch-fit"><div className="studio-arch" role="group" aria-label="Upper teeth to design">
               {ARCH.map(({ tooth, w, h }) => {
                 const on = settings.selectedTeeth.includes(tooth);
                 const count = TEETH_COUNTS.find(n => upperTeeth[n].includes(tooth)) ?? 10;
@@ -263,7 +269,7 @@ export function DesignStudio({
                   aria-label={`Tooth ${tooth}${on ? ", included" : ""}. Design ${count} upper teeth`} aria-pressed={on}
                   disabled={individual} onClick={() => setTeeth(count)} />;
               })}
-            </div>}
+            </div></div>}
             {/* Presets keep the existing generation baseline independent of detection. */}
             <div className="segmented studio-count" role="group" aria-label="Upper teeth">
               {TEETH_COUNTS.map(n => (

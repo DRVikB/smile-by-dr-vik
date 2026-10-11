@@ -321,12 +321,12 @@ body { background: var(--background); }
 /* iPad landscape: the wide screen in use. The two photo sources sit side by side as
    matching cards (the library as a mosaic the height of the camera preview); the
    sample case and photo tips share the row beneath. */
-@media (min-width: 960px) and (min-height: 600px) and (orientation: landscape) {
+@media (min-width: 900px) and (min-height: 600px) and (orientation: landscape) {
   .photo-start { width: min(1180px, 100%); grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--card-gap); }
   .photo-start > * { grid-column: 1 / -1; }
   .photo-start > .photo-sample { grid-column: 1; }
   .photo-start > .photo-tips-disclosure { grid-column: 2; align-self: start; }
-  .photo-start > .photo-file-link { justify-self: end; }
+  .photo-start > .sc-or { margin-block: calc(var(--card-gap) * -.35); }
   .photo-options { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
   .photo-option { grid-template-rows: auto minmax(0, 1fr); align-content: stretch; }
   .photo-option-visual { align-self: stretch; }
@@ -444,7 +444,7 @@ body { background: var(--background); }
 .consult-top.sc-brand-header .consult-top-actions { width: auto; flex-wrap: nowrap; justify-content: flex-end; }
 .consult-top .sc-brand-header-start .consult-close { display: inline-flex; align-items: center; gap: 7px; }
 :is(.consult-top, .generation-splash-header, .saved-case-header) .sc-lockup { color: #FFFFFF; }
-.saved-case-viewer .saved-analysis-chip { top: calc(env(safe-area-inset-top, 0px) + 84px); }
+.saved-case-viewer .saved-analysis-chip { top: calc(var(--safe-top) + 84px); }
 
 /* ============================================================
    iPad and desktop: comfortable containers, more outer whitespace
@@ -478,29 +478,29 @@ body { background: var(--background); }
 .recent-case-pages:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .share-concept-note { font-size: 12px; line-height: 1.6; color: var(--text-secondary); margin: 12px 0 18px; }
 .compact-preview-dock { flex-wrap: wrap; }
-.compact-concept-note { flex: 0 0 100%; margin: 0; padding: 1px 5px 2px; text-align: center; font-size: 10px; line-height: 1.4; color: var(--text-secondary); }
-.app-shell .preview-screen .compare-label, .app-shell .preview-screen .guide-key { bottom: calc(132px + env(safe-area-inset-bottom)); }
-.saved-case-footer { position: absolute; z-index: 15; bottom: 0; left: 0; right: 0; display: grid; justify-items: center; gap: 6px; padding: 16px max(16px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, #000d); text-align: center; font-size: 12px; }
+.compact-concept-note { flex: 0 0 100%; margin: 0; padding: 1px 5px 2px; text-align: center; font-size: 11px; line-height: 1.4; color: var(--text-secondary); }
+.app-shell .preview-screen .compare-label, .app-shell .preview-screen .guide-key { bottom: calc(132px + var(--safe-bottom)); }
+.saved-case-footer { position: absolute; z-index: 15; bottom: 0; left: 0; right: 0; display: grid; justify-items: center; gap: 6px; padding: 16px max(16px, var(--safe-right)) calc(12px + var(--safe-bottom)); background: linear-gradient(transparent, #000d); text-align: center; font-size: 12px; }
 .saved-case-footer > p { margin: 0; max-width: 400px; font-size: 11px; line-height: 1.5; }
 .saved-case-footer > button { min-height: 44px; min-width: 180px; }
-.saved-case-viewer .compare-label, .saved-case-viewer .guide-key { bottom: calc(152px + env(safe-area-inset-bottom)); }
-.saved-case-viewer .overlay-controls { bottom: calc(152px + env(safe-area-inset-bottom)); }
+.saved-case-viewer .compare-label, .saved-case-viewer .guide-key { bottom: calc(152px + var(--safe-bottom)); }
+.saved-case-viewer .overlay-controls { bottom: calc(152px + var(--safe-bottom)); }
 .consult-meta small { max-width: 290px; line-height: 1.5; }
 @media (orientation: landscape) and (max-height: 500px) {
   /* iPhone landscape: the caption and actions share one low row, keeping the height for the photograph. */
   .saved-case-footer {
     grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title actions" "note actions";
     justify-items: start; align-items: center; column-gap: 20px; row-gap: 2px; text-align: left;
-    padding: 30px max(20px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+    padding: 30px max(20px, var(--safe-right)) max(12px, var(--safe-bottom)) max(20px, var(--safe-left));
   }
   .saved-case-footer > span { grid-area: title; }
   .saved-case-footer > p { grid-area: note; max-width: 52ch; }
   .saved-case-footer .saved-case-actions { grid-area: actions; width: auto; }
-  .saved-case-viewer .compare-label { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 80px); }
-  .saved-case-viewer .overlay-controls { left: 50%; right: auto; transform: translateX(-50%); width: min(330px, 46%); bottom: calc(max(12px, env(safe-area-inset-bottom)) + 76px); }
-  .saved-case-viewer .compare-mode { top: calc(env(safe-area-inset-top, 0px) + 66px); left: max(16px, env(safe-area-inset-left, 0px)); }
-  .saved-case-viewer .compare-fit { top: calc(env(safe-area-inset-top, 0px) + 66px); }
-  .saved-case-header { padding-top: max(10px, env(safe-area-inset-top, 0px)); padding-bottom: 22px; }
+  .saved-case-viewer .compare-label { bottom: calc(max(12px, var(--safe-bottom)) + 80px); }
+  .saved-case-viewer .overlay-controls { left: 50%; right: auto; transform: translateX(-50%); width: min(330px, 46%); bottom: calc(max(12px, var(--safe-bottom)) + 76px); }
+  .saved-case-viewer .compare-mode { top: calc(var(--safe-top) + 66px); left: max(16px, var(--safe-left)); }
+  .saved-case-viewer .compare-fit { top: calc(var(--safe-top) + 66px); }
+  .saved-case-header { padding-top: max(10px, var(--safe-top)); padding-bottom: 22px; }
 }
 
 .saved-case-content { width: 100%; height: 100%; }
@@ -525,7 +525,7 @@ body { background: var(--background); }
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); touch-action: manipulation;
 }
 .compare-fit:focus-visible { outline: 2px solid var(--sc-gold); outline-offset: 2px; }
-.saved-case-viewer .compare-fit { top: calc(env(safe-area-inset-top, 0px) + 82px); right: max(16px, env(safe-area-inset-right, 0px)); }
+.saved-case-viewer .compare-fit { top: calc(var(--safe-top) + 82px); right: max(16px, var(--safe-right)); }
 .comparison.has-guides .compare-fit { top: 12px; }
 /* The live result: level with the version picker, under the header. */
 .app-shell .preview-screen .compare-fit { top: calc(var(--photo-header) + 9px); right: max(16px, var(--app-safe-right, 0px)); }
@@ -533,14 +533,14 @@ body { background: var(--background); }
 /* Portrait analysis: the photograph runs up behind the header too; the details stay below it. */
 @media (orientation: portrait) {
   .saved-case-viewer .saved-case-content .comparison.has-guides { padding-top: 0; }
-  .saved-case-viewer .comparison.has-guides :is(.compare-mode, .compare-fit) { top: calc(env(safe-area-inset-top, 0px) + 82px); }
+  .saved-case-viewer .comparison.has-guides :is(.compare-mode, .compare-fit) { top: calc(var(--safe-top) + 82px); }
 }
 
 /* V1: analysis is a deliberate workspace, with details below the photograph. */
 .comparison { display: flex; flex-direction: column; }
 .compare-canvas { position: relative; flex: 1 1 0; min-height: 0; width: 100%; overflow: hidden; }
-.comparison.has-guides { padding-top: calc(var(--photo-header, 84px) + 12px); padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px)); }
-.saved-case-viewer .comparison.has-guides { padding-top: calc(84px + env(safe-area-inset-top, 0px)); padding-bottom: calc(152px + env(safe-area-inset-bottom, 0px)); }
+.comparison.has-guides { padding-top: calc(var(--photo-header, 84px) + 12px); padding-bottom: calc(132px + var(--safe-bottom)); }
+.saved-case-viewer .comparison.has-guides { padding-top: calc(84px + var(--safe-top)); padding-bottom: calc(152px + var(--safe-bottom)); }
 .app-shell .preview-screen .comparison.has-guides .compare-label,
 .saved-case-viewer .comparison.has-guides .compare-label { bottom: 12px; }
 .comparison.has-guides .compare-mode { top: 12px; }
@@ -565,7 +565,7 @@ body { background: var(--background); }
 @keyframes media-sync-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .media-sync-spinner { animation: none; } }
 @media (orientation: landscape) and (max-height: 600px) {
-  .comparison.has-guides, .saved-case-viewer .comparison.has-guides { flex-direction: row; padding-top: calc(60px + env(safe-area-inset-top, 0px)); padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  .comparison.has-guides, .saved-case-viewer .comparison.has-guides { flex-direction: row; padding-top: calc(60px + var(--safe-top)); padding-bottom: calc(96px + var(--safe-bottom)); }
   .analysis-details { width: 32%; max-height: 100%; border-top: 0; border-left: 1px solid var(--border); padding: 4px 12px; }
   .analysis-details-head { flex-wrap: wrap; gap: 0; }
   .saved-case-viewer .comparison.has-guides { padding-bottom: 0; }
@@ -614,12 +614,12 @@ body { background: var(--background); }
 /* ============================================================
    Settings: calm and scannable. An account summary, a membership
    card, compact grouped rows, and detail one level down. Quiet
-   brand touches: a warm ivory canvas (Light), champagne icon discs
-   and selections, serif only for the account name and plan.
+   brand touches: champagne icon discs and selections, serif only
+   for the account name and plan. The page itself is white, like
+   the rest of the app (the owner's choice, 2026-10-11).
    ============================================================ */
-:root:not([data-theme="dark"]) .settings-panel { --settings-canvas: #FAF7F2; }
-.settings-panel { background: var(--settings-canvas, var(--background)); }
-.settings-panel .settings-top { background: color-mix(in srgb, var(--settings-canvas, var(--background)) 88%, transparent); }
+.settings-panel { background: var(--background); }
+.settings-panel .settings-top { background: color-mix(in srgb, var(--background) 88%, transparent); }
 .settings-panel .settings-group { margin-bottom: 22px; }
 .settings-panel .settings-group-title { margin: 0 0 7px 14px; font-size: 12px; letter-spacing: .06em; }
 .settings-panel .settings-list { border-radius: 18px; }
@@ -649,6 +649,9 @@ body { background: var(--background); }
 }
 .profile-card-edit:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 8px; }
 .settings-panel .profile-card .profile-card-action { grid-column: 1 / -1; width: 100%; margin: 4px 0 0; min-height: 46px; }
+/* Signed out: the name gets the full row, and Edit profile sits under the sign-in button and its note. */
+.settings-panel .profile-card.signed-out { grid-template-columns: auto minmax(0, 1fr); }
+.settings-panel .profile-card.signed-out .profile-card-edit { grid-column: 1 / -1; order: 9; justify-self: center; min-height: 44px; margin: -6px 0 -8px; }
 .settings-panel .profile-card-hint { grid-column: 1 / -1; margin: -4px 0 0; text-align: center; font-size: 12.5px; color: var(--text-secondary); }
 @media (max-width: 380px) {
   .settings-panel .profile-card { grid-template-columns: auto minmax(0, 1fr); }
@@ -695,7 +698,7 @@ button.settings-stat:focus-visible { outline: 2px solid var(--focus-ring); outli
 /* Preferences: one compact System | Light | Dark control */
 .settings-panel .appearance-row { flex-wrap: wrap; row-gap: 8px; }
 .settings-panel .appearance-row .settings-row-label { overflow-wrap: normal; white-space: nowrap; }
-.settings-panel .settings-group-footer .inline-link { min-height: 0; padding: 0; vertical-align: baseline; }
+.settings-panel .settings-group-footer .inline-link { min-height: 0; padding-inline: 0; vertical-align: baseline; }
 .settings-panel .appearance-picker { display: inline-grid; grid-template-columns: repeat(3, auto); gap: 2px; margin-left: auto; padding: 3px; border-radius: 12px; background: var(--control-background); }
 .settings-panel .appearance-option {
   display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 56px; min-height: 44px;
@@ -711,3 +714,11 @@ button.settings-stat:focus-visible { outline: 2px solid var(--focus-ring); outli
 html, body { overflow-x: clip; max-width: 100%; }
 :is(.sheet, .log-panel, .log-detail, .library-panel, .camera-sheet, .settings-scroll, .settings-detail-body, .studio-dock, .floating-panel-body) { overflow-x: hidden; }
 :is(.sheet, .log-panel, .log-detail, .library-panel, .settings-scroll) img { max-width: 100%; }
+
+/* Photo step: small print on the left, "Choose a file instead" on the same row at the right, and a
+   tight "or" before the sample case, so the lower part of the page isn't mostly empty space. */
+.photo-start .photo-notes { display: flex; align-items: flex-end; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; margin-top: calc(var(--card-gap) * -.4); padding-inline: 4px; }
+.photo-start .photo-notes-text { display: grid; gap: 4px; min-width: 0; }
+.photo-start .photo-notes-text > p { margin: 0; }
+.photo-start .photo-notes .photo-file-link { display: inline-flex; align-items: center; width: auto; min-height: 44px; margin: -12px 0 -12px auto; justify-self: auto; }
+.photo-start > .sc-or { margin-block: calc(var(--card-gap) * -.35); }

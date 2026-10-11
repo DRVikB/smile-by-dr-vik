@@ -1,6 +1,7 @@
 "use client";
+import { SheetClose } from "@/components/sideRail/SideRail";
 import { useEffect, useRef, useState } from "react";
-import { Share2, X } from "lucide-react";
+import { Share2 } from "lucide-react";
 import { BeforeAfterSlider } from "./BeforeAfterSlider";
 import { CenteredBrandHeader } from "./ui/Surface";
 import { AnalysisSymbol } from "@/components/icons/SmileIcons";
@@ -31,7 +32,7 @@ export function SavedCaseViewer({ entry, media, analysis: startWithAnalysis = fa
       <CenteredBrandHeader
         className="saved-case-header"
         inverse
-        right={<button className="icon-button" onClick={onClose} aria-label="Close saved comparison"><X size={22} /></button>}
+        right={<SheetClose onClose={onClose} label="Close saved comparison" size={22} />}
       />
       <BeforeAfterSlider original={media.originalImage} preview={media.image} isMock={isDemo}
         previewLabel={isDemo ? "Demo preview" : "Saved · AI concept"} analysis={analysis} onHideAnalysis={() => setAnalysis(false)}

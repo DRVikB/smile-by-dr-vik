@@ -10,13 +10,13 @@ export function dataUrlBlob(value:string):Blob {
 export async function blobDataUrl(blob:Blob):Promise<string>{
  const bytes=new Uint8Array(await blob.arrayBuffer());let text="";for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));return `data:${blob.type};base64,${btoa(text)}`;
 }
-const kindFor=(path:string):AssetKind=>/(\.thumb|\.draftThumb)$/.test(path)?"THUMBNAIL":/editMask$/.test(path)?"EDIT_MASK":/reference\./.test(path)?"REFERENCE_PHOTO":/originalDataUrl$/.test(path)?"ORIGINAL_PHOTO":/originalImage$/.test(path)?"PREPARED_PHOTO":/photo\.dataUrl$/.test(path)?"PREPARED_PHOTO":/report/i.test(path)?"REPORT":"GENERATED_CONCEPT";
+const kindFor=(path:string):AssetKind=>/^\.portal\.photos\./.test(path)?"CLINICAL_PHOTO":/^\.portal\.thumbs\./.test(path)?"THUMBNAIL":/^\.portal\.consent\./.test(path)?"CLINICAL_PHOTO":/(\.thumb|\.draftThumb)$/.test(path)?"THUMBNAIL":/editMask$/.test(path)?"EDIT_MASK":/reference\./.test(path)?"REFERENCE_PHOTO":/originalDataUrl$/.test(path)?"ORIGINAL_PHOTO":/originalImage$/.test(path)?"PREPARED_PHOTO":/photo\.dataUrl$/.test(path)?"PREPARED_PHOTO":/report/i.test(path)?"REPORT":"GENERATED_CONCEPT";
 async function dimensions(blob:Blob):Promise<{width:number|null;height:number|null}>{
  if(typeof createImageBitmap!=="function"||!blob.type.startsWith("image/"))return {width:null,height:null};
  try{const image=await createImageBitmap(blob);const size={width:image.width,height:image.height};image.close();return size;}catch{return {width:null,height:null};}
 }
 /** Converts every media leaf, retaining all existing clinical fields without a second settings model. */
-export async function encodePatientState(scope:WorkspaceLease,store:PatientLocalStore,caseId:string,input:{entries:CaseLogEntry[];media:CaseLogMedia[];draft:SmileCase|null;preferredDesignId?:string|null;draftThumb?:Json;caseStatus?:PatientState["caseStatus"]}) {
+export async function encodePatientState(scope:WorkspaceLease,store:PatientLocalStore,caseId:string,input:{entries:CaseLogEntry[];media:CaseLogMedia[];draft:SmileCase|null;preferredDesignId?:string|null;draftThumb?:Json;caseStatus?:PatientState["caseStatus"];portal?:Json}) {
  if(scope.owner.kind!=="account")throw new Error("Patient sync needs an account.");
  const existing=(await store.assets()).filter(a=>a.meta.caseId===caseId),assets:LocalAsset[]=[];
  async function encode(value:unknown,path:string):Promise<Json>{
@@ -26,7 +26,7 @@ export async function encodePatientState(scope:WorkspaceLease,store:PatientLocal
    let a=[...existing,...assets].find(a=>a.meta.checksum===hash&&a.meta.kind===kind);
    if(!a){const id=crypto.randomUUID();const size=await dimensions(blob);scope.assert();
     a={id,blob,pending:true,lastAccess:Date.now(),meta:{id,ownerUserId:scope.owner.kind==="account"?scope.owner.userId:"",caseId,kind,objectPath:assetPath(scope.owner.kind==="account"?scope.owner.userId:"",caseId,id,kind),mimeType:blob.type,...size,byteSize:blob.size,checksum:hash,
-      provenance:kind==="ORIGINAL_PHOTO"?"original":kind==="PREPARED_PHOTO"?(input.draft?.photo.sourceProvenance==="prepared"||input.media.some(m=>m.photoMetadata?.sourceProvenance==="prepared")?"prepared":"legacy-prepared-original"):kind==="EDIT_MASK"?"mask":kind==="REFERENCE_PHOTO"?"reference":kind==="REPORT"?"report":"generated",createdAt:new Date().toISOString(),uploadStatus:"pending"}};assets.push(a);
+      provenance:kind==="ORIGINAL_PHOTO"?"original":kind==="PREPARED_PHOTO"?(input.draft?.photo.sourceProvenance==="prepared"||input.media.some(m=>m.photoMetadata?.sourceProvenance==="prepared")?"prepared":"legacy-prepared-original"):kind==="EDIT_MASK"?"mask":kind==="REFERENCE_PHOTO"?"reference":kind==="CLINICAL_PHOTO"?"clinical":kind==="REPORT"?"report":"generated",createdAt:new Date().toISOString(),uploadStatus:"pending"}};assets.push(a);
    }else if(!a.blob){a={...a,blob,lastAccess:Date.now()};assets.push(a);}
    return {$asset:a.id};
   }
@@ -40,7 +40,7 @@ export async function encodePatientState(scope:WorkspaceLease,store:PatientLocal
  const encoded=await encode({...input,schemaVersion:1,preferredDesignId:input.preferredDesignId??null},"") as unknown as PatientState;
  const entries=encoded.entries,first=entries[0] as Record<string,Json>|undefined;
  const smallEntries=entries.map(e=>{const value=e as Record<string,Json>;return Object.fromEntries(Object.entries(value).filter(([key])=>["id","caseId","patientName","createdAt","mode","testMode","label","summary","thumb","archivedAt","deletedAt","favourite","draftOnly"].includes(key)));});
- const summary:PatientSummary={entries:smallEntries,patientName:input.entries.find(e=>e.patientName)?.patientName??input.draft?.patientName??"",visualisationCount:entries.length,thumbnail:first?.thumb??encoded.draftThumb??null};
+ const summary:PatientSummary={entries:smallEntries,patientName:input.entries.find(e=>e.patientName)?.patientName||input.draft?.patientName||(input.portal&&typeof input.portal==="object"&&!Array.isArray(input.portal)&&typeof input.portal.name==="string"?input.portal.name:""),visualisationCount:entries.length,thumbnail:first?.thumb??encoded.draftThumb??null};
  return {state:encoded,summary,assets};
 }
 export async function hydrate<T>(value:Json,load:(id:string)=>Promise<Blob>,scope:WorkspaceLease):Promise<T>{

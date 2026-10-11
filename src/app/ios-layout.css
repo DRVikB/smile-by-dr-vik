@@ -1,10 +1,10 @@
 /* Keep controls inside the usable viewport. Insets stay dynamic on rotation,
    in Safari and in existing Home Screen installs with translucent status bars. */
 :root {
-  --app-safe-top: env(safe-area-inset-top, 0px);
-  --app-safe-right: env(safe-area-inset-right, 0px);
-  --app-safe-bottom: env(safe-area-inset-bottom, 0px);
-  --app-safe-left: env(safe-area-inset-left, 0px);
+  --app-safe-top: var(--safe-top);
+  --app-safe-right: var(--safe-right);
+  --app-safe-bottom: var(--safe-bottom);
+  --app-safe-left: var(--safe-left);
   --app-top-space: calc(var(--app-safe-top) + 16px);
   --photo-header: calc(var(--app-top-space) + 60px);
 }
@@ -57,6 +57,8 @@ body:has(.app-shell[data-screen="photo"]) { overflow: hidden; }
 }
 .app-shell[data-screen="photo"] > main { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
 .app-shell[data-screen="photo"] .photo-screen { padding-bottom: calc(24px + var(--app-safe-bottom)); }
+/* The photo and goal steps keep clear of a side inset too (iPhone Duo's strip, a landscape notch). */
+.app-shell .photo-screen { padding-left: max(clamp(16px, 3vw, 34px), var(--app-safe-left)); padding-right: max(clamp(16px, 3vw, 34px), var(--app-safe-right)); }
 .app-shell .app-header .nav-group { min-width: 0; }
 .app-shell .app-header .nav-back,
 .app-shell .app-header .app-menu { flex: none; }
@@ -106,7 +108,7 @@ body:has(.app-shell[data-screen="photo"]) { overflow: hidden; }
 @media (max-width: 700px) {
   .portrait-top .sc-wordmark { font-size: clamp(17px, 4.8vw, 20px); }
   .portrait-top .sc-symbol { width: 28px; height: 28px; }
-  .sc-creator { font-size: 10px; }
+  .sc-creator { font-size: 11px; }
   .sc-creator img { width: 59px; height: 24px; }
   .app-shell .app-header .sc-wordmark { font-size: clamp(14px, 4.2vw, 17px); }
   .app-shell .app-header .sc-symbol { width: 23px; height: 23px; }

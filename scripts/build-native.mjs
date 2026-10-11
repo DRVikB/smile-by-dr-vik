@@ -70,6 +70,10 @@ await cp(".next/server/app/index.html", `${OUT}/index.html`);
 // The app bundles its files, so the website's offline service worker is not needed.
 await rm(`${OUT}/sw.js`, { force: true });
 await rm(`${OUT}/_headers`, { force: true }); // web hosting config, not app content
+// The website's landing page and its images; the app opens straight into SmileCompose.
+await rm(`${OUT}/welcome.html`, { force: true });
+await rm(`${OUT}/portal.html`, { force: true });
+await rm(`${OUT}/site`, { recursive: true, force: true });
 
 let html = await readFile(`${OUT}/index.html`, "utf8");
 if (!/SmileCompose/i.test(html)) throw new Error("Prerendered page is invalid.");

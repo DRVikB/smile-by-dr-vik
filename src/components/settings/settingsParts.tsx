@@ -1,15 +1,16 @@
 "use client";
+import { SideRailLayer } from "@/components/sideRail/SideRail";
 import { createContext, useContext, useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { CaseState } from "@/lib/caseLog";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 
 /** Account, Plan & Usage, Cases & Storage, Preferences, Privacy & Data, Help & About. */
-export type SettingsSection = "profile" | "subscription" | "cases" | "appearance" | "privacy" | "about";
+export type SettingsSection = "profile" | "subscription" | "cases" | "appearance" | "privacy" | "about" | "admin";
 /** Second-level pages: detail, explanations and destructive controls live here, not on the main list. */
 export type SettingsPage =
   | { kind: "editProfile" } | { kind: "signIn" } | { kind: "plan" } | { kind: "cases"; filter: CaseState }
-  | { kind: "dataPrivacy" } | { kind: "manageData" } | { kind: "help" } | { kind: "about" };
+  | { kind: "dataPrivacy" } | { kind: "manageData" } | { kind: "help" } | { kind: "about" } | { kind: "admin" };
 
 export interface ConfirmRequest {
   title: string;
@@ -151,7 +152,7 @@ export function ConfirmDialog({ request, onDone }: { request: ConfirmRequest; on
     }
   }
   return (
-    <div className="settings-confirm-backdrop" onClick={() => !busy && onDone()}>
+    <div className="settings-confirm-backdrop" onClick={() => !busy && onDone()}><SideRailLayer />
       <div className="settings-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="settings-confirm-title" onClick={e => e.stopPropagation()}>
         <h3 id="settings-confirm-title">{request.title}</h3>
         <div className="settings-confirm-body">{request.body}</div>

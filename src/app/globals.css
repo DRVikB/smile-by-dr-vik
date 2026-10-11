@@ -12,6 +12,14 @@
    SmileCompose — design system
    Apple product interface · luxury cosmetic clinic · editorial
    ============================================================ */
+/* The device's safe areas. Everything reads them through these, so the app can also be laid out for a
+   device it isn't running on (see src/native/sideBar.ts for iPhone Duo). */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
 :root {
   /* Brand constants. Theme-aware semantic tokens live in theme.css. */
   --sc-ivory: #FAF9F6;
@@ -1609,9 +1617,9 @@ button.option-card:hover {
 }
 .global-error {
   position: fixed;
-  left: max(18px, env(safe-area-inset-left));
-  right: max(18px, env(safe-area-inset-right));
-  bottom: max(26px, env(safe-area-inset-bottom));
+  left: max(18px, var(--safe-left));
+  right: max(18px, var(--safe-right));
+  bottom: max(26px, var(--safe-bottom));
   z-index: 90;
   width: auto;
   max-width: 520px;
@@ -1701,20 +1709,20 @@ button.option-card:hover {
 }
 
 /* Persistent display control, including camera, generation and consultation. */
-:root { --display-toolbar-height: calc(60px + env(safe-area-inset-bottom, 0px)); }
+:root { --display-toolbar-height: calc(60px + var(--safe-bottom)); }
 .app-shell { min-height: 100dvh; padding-bottom: var(--display-toolbar-height); }
 .app-shell > main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .start-screen { min-height: calc(100dvh - var(--display-toolbar-height)); }
-.display-toolbar { position: fixed; inset: auto 0 0; z-index: 200; min-height: var(--display-toolbar-height); padding: 8px max(16px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); display: flex; align-items: center; justify-content: flex-start; gap: 12px; background: #171615; color: white; border-top: 1px solid rgba(255,255,255,.12); }
+.display-toolbar { position: fixed; inset: auto 0 0; z-index: 200; min-height: var(--display-toolbar-height); padding: 8px max(16px, var(--safe-right)) calc(8px + var(--safe-bottom)) max(16px, var(--safe-left)); display: flex; align-items: center; justify-content: flex-start; gap: 12px; background: #171615; color: white; border-top: 1px solid rgba(255,255,255,.12); }
 /* Netlify's own site badge lives in the bottom-right corner, pinned at a
    fixed ~202x64px footprint regardless of viewport size (measured on the
    live site) — keep the toggle clear of it rather than sharing the space. */
-.display-toolbar { padding-right: max(220px, env(safe-area-inset-right)); }
+.display-toolbar { padding-right: max(220px, var(--safe-right)); }
 .display-toggle { flex-shrink: 0; min-height: 44px; padding: 10px 16px; display: inline-flex; align-items: center; gap: 9px; border-radius: 100px; color: white; background: rgba(255,255,255,.12); font-size: 14px; touch-action: manipulation; }
 .display-status { font-size: 12px; line-height: 1.4; color: #d7d5d2; }
 .expanded-view, .expanded-view body { height: 100%; overflow: hidden; }
 .expanded-view .app-shell { position: fixed; inset: 0; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; }
-.app-header, .consult-top { padding-top: max(16px, env(safe-area-inset-top)); padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+.app-header, .consult-top { padding-top: max(16px, var(--safe-top)); padding-left: max(20px, var(--safe-left)); padding-right: max(20px, var(--safe-right)); }
 /* On iOS, launching from the home screen (appleWebApp statusBarStyle
    "black-translucent") draws the status bar as a translucent blur material
    over the page rather than reserving solid space for it, and that blur
@@ -1722,7 +1730,7 @@ button.option-card:hover {
    enough to soften the wordmark and logo when they sit right at the edge.
    Give this bar a bit of extra clearance beyond the raw inset so both sit
    clearly below where the blur has faded out. */
-.portrait-top { padding-top: max(16px, calc(env(safe-area-inset-top) + 14px)); padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+.portrait-top { padding-top: max(16px, calc(var(--safe-top) + 14px)); padding-left: max(20px, var(--safe-left)); padding-right: max(20px, var(--safe-right)); }
 .consult, .sheet-backdrop { bottom: var(--display-toolbar-height); }
 .sheet { max-height: min(760px, calc(100dvh - var(--display-toolbar-height) - 44px)); }
 .global-error { bottom: calc(var(--display-toolbar-height) + 12px); }
@@ -1733,9 +1741,9 @@ button.option-card:hover {
   .tooth-card-description { font-size: 12px; }
   .tooth-card-title { font-size: 22px; }
 }
-@media (min-width: 960px) and (orientation: landscape) {
+@media (min-width: 960px) and (orientation: landscape), (min-width: 900px) and (min-height: 600px) and (orientation: landscape) {
   .design-layout { grid-template-columns: minmax(0, 1fr) minmax(340px, 380px); align-items: start; }
-  .design-panel { position: sticky; top: calc(80px + env(safe-area-inset-top)); max-height: calc(100dvh - 100px - var(--display-toolbar-height) - env(safe-area-inset-top)); }
+  .design-panel { position: sticky; top: calc(80px + var(--safe-top)); max-height: calc(100dvh - 100px - var(--display-toolbar-height) - var(--safe-top)); }
   .design-scroll { overflow-y: auto; overscroll-behavior: contain; }
   .design-layout { align-items: stretch; }
   .photo-column { min-height: 0; }
@@ -1759,7 +1767,7 @@ button.option-card:hover {
 .variant-tabs { display: flex; gap: 8px; padding: 6px; margin-bottom: 12px; border-radius: 18px; background: rgba(128,128,128,.12); }
 .variant-tabs button { flex: 1; min-height: 44px; padding: 10px 14px; border-radius: 13px; background: transparent; color: inherit; font-size: 14px; }
 .variant-tabs button[aria-pressed="true"] { background: var(--surface-elevated); color: var(--text-primary); box-shadow: var(--shadow-sm); }
-.consult-variants { position: absolute; z-index: 4; top: calc(85px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(420px, calc(100% - 32px)); color: #fff; }
+.consult-variants { position: absolute; z-index: 4; top: calc(85px + var(--safe-top)); left: 50%; transform: translateX(-50%); width: min(420px, calc(100% - 32px)); color: #fff; }
 .consult-variants .variant-tabs { background: rgba(0,0,0,.5); backdrop-filter: blur(16px); }
 
 /* Patient report preview. */
@@ -2280,6 +2288,11 @@ button.option-card:hover {
   .photo-step { grid-template-columns: 1fr; }
   .photo-stage { aspect-ratio: 1 / 1; }
 }
+/* Short landscape (iPhone on its side, the folded iPhone Duo): photo beside the choices, not above them. */
+@media (max-width: 860px) and (min-width: 560px) and (orientation: landscape) and (max-height: 600px) {
+  .photo-step { grid-template-columns: minmax(0, 1fr) minmax(250px, .95fr); gap: 16px; align-items: start; }
+  .photo-stage { aspect-ratio: auto; position: sticky; top: 4px; height: calc(100dvh - 104px); min-height: 180px; }
+}
 
 /* Smile Variations — a gallery big enough to show the patient */
 .variation-sheet {
@@ -2416,14 +2429,14 @@ button.option-card:hover {
 .fullscreen-view .app-header,
 .fullscreen-view .portrait-top,
 .fullscreen-view .consult-top {
-  padding-top: max(var(--status-bar), env(safe-area-inset-top, 0px));
+  padding-top: max(var(--status-bar), var(--safe-top));
 }
 .fullscreen-view .consult-variants {
-  top: calc(85px + max(var(--status-bar), env(safe-area-inset-top, 0px)));
+  top: calc(85px + max(var(--status-bar), var(--safe-top)));
 }
-.fullscreen-view .present { padding-top: max(var(--status-bar), env(safe-area-inset-top, 0px)); }
+.fullscreen-view .present { padding-top: max(var(--status-bar), var(--safe-top)); }
 .fullscreen-view .design-panel {
-  top: calc(80px + max(var(--status-bar), env(safe-area-inset-top, 0px)));
+  top: calc(80px + max(var(--status-bar), var(--safe-top)));
 }
 
 /*
@@ -2504,7 +2517,7 @@ button.option-card:hover {
 .consult-media .zoompan-reset {
   left: 50%;
   top: auto;
-  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(76px + var(--safe-bottom));
   transform: translateX(-50%);
 }
 
@@ -2521,7 +2534,7 @@ button.option-card:hover {
 /* Preview: the photograph takes the room, the controls sit beside it */
 .preview-layout { display: flex; flex-direction: column; gap: 14px; min-height: 0; flex: 1; }
 .preview-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-@media (min-width: 960px) and (orientation: landscape) {
+@media (min-width: 960px) and (orientation: landscape), (min-width: 900px) and (min-height: 600px) and (orientation: landscape) {
   /* Landscape iPad: same full-bleed stage as the design screen — the
      photograph fills the viewport and the compare controls float on it. */
   .preview-screen {
@@ -2638,7 +2651,7 @@ button.option-card:hover {
 .comparison .comparison-zoom { z-index: 1; }
 
 /* Landscape iPad: the photograph is the screen, the panel floats on it */
-@media (min-width: 960px) and (orientation: landscape) {
+@media (min-width: 960px) and (orientation: landscape), (min-width: 900px) and (min-height: 600px) and (orientation: landscape) {
   .design-screen {
     position: relative;
     padding: 0;
@@ -2906,7 +2919,7 @@ fieldset.clinical-form { border: 0; padding: 0; min-width: 0; }
 .display-toggle { order: -1; }
 .display-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 600px) {
-  .display-toolbar { padding-right: max(16px, env(safe-area-inset-right)); }
+  .display-toolbar { padding-right: max(16px, var(--safe-right)); }
 }
 
 /* Keep choices below the face, with the footer following their actual height. */
@@ -2958,7 +2971,7 @@ fieldset.clinical-form { border: 0; padding: 0; min-width: 0; }
 }
 
 /* The full-bleed photograph used to cover these controls in landscape. */
-@media (min-width: 960px) and (orientation: landscape) {
+@media (min-width: 960px) and (orientation: landscape), (min-width: 900px) and (min-height: 600px) and (orientation: landscape) {
   /* Variant tabs and the patient field occupy the top-left photo corner. */
   .preview-screen:has(.variant-tabs) .compare-mode { top: 110px; }
   .design-screen .compare-mode { top: 100px; }
@@ -2982,7 +2995,7 @@ fieldset.clinical-form { border: 0; padding: 0; min-width: 0; }
 /* Photo-led layouts for phones, portrait tablets and narrow app windows. */
 @media (max-width: 959px), (orientation: portrait) {
   .design-screen, .preview-screen { padding: 0 0 20px; }
-  .design-screen .patient-field { margin: 12px max(14px, env(safe-area-inset-left)); }
+  .design-screen .patient-field { margin: 12px max(14px, var(--safe-left)); }
   .design-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .patient-photo {
     position: relative;
@@ -3009,7 +3022,7 @@ fieldset.clinical-form { border: 0; padding: 0; min-width: 0; }
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 2px 8px;
-    padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left));
+    padding: max(8px, var(--safe-top)) max(12px, var(--safe-right)) 6px max(12px, var(--safe-left));
   }
   .nav-group { gap: 6px; }
   .nav-step { justify-self: end; }
@@ -3019,7 +3032,7 @@ fieldset.clinical-form { border: 0; padding: 0; min-width: 0; }
   .preview-stage .fullscreen-button { top: 74px; right: 12px; }
   .variant-tabs { gap: 4px; }
   .variant-tabs button { min-width: 0; padding: 8px 6px; font-size: 12px; overflow-wrap: anywhere; }
-  .sheet-backdrop { padding: 10px max(10px, env(safe-area-inset-right)) 10px max(10px, env(safe-area-inset-left)); }
+  .sheet-backdrop { padding: 10px max(10px, var(--safe-right)) 10px max(10px, var(--safe-left)); }
   .sheet { max-width: 100%; padding: 16px; }
   .edit-area-sheet { width: 100%; }
   .consult-top { flex-wrap: wrap; gap: 8px; padding-bottom: 10px; }
@@ -3031,7 +3044,7 @@ fieldset.clinical-form { border: 0; padding: 0; min-width: 0; }
 }
 
 .sheet-backdrop > :is(.sheet, .camera-sheet) {
-  max-height: calc(100dvh - var(--display-toolbar-height) - max(44px, env(safe-area-inset-top)));
+  max-height: calc(100dvh - var(--display-toolbar-height) - max(44px, var(--safe-top)));
 }
 .camera-sheet { overflow-y: auto; }
 .camera-view { flex-shrink: 0; }
@@ -3042,7 +3055,7 @@ fieldset.clinical-form { border: 0; padding: 0; min-width: 0; }
     height: calc(100dvh - var(--display-toolbar-height) - 12px);
     min-height: 180px;
   }
-  .app-header { position: relative; padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: 8px; }
+  .app-header { position: relative; padding-top: max(8px, var(--safe-top)); padding-bottom: 8px; }
   .start-copy { padding-top: 20px; padding-bottom: 24px; }
   .splash-actions { margin-top: 18px; }
   .sheet-backdrop { padding-block: 10px; }

@@ -1,5 +1,6 @@
 "use client";
 
+import { SideRailLayer } from "@/components/sideRail/SideRail";
 import { useEffect, useRef, useState } from "react";
 import { SmileMark } from "./Brand";
 import { CenteredBrandHeader } from "./ui/Surface";
@@ -66,6 +67,7 @@ export function GenerationState({
         }
       }}
     >
+      <SideRailLayer />
       <img className="photo-backdrop generation-backdrop" src={photo} alt="" aria-hidden="true" />
       <FocusedPhoto className="generation-splash-image" src={photo} focus={focus} layout={composingLayout} />
       <CenteredBrandHeader

@@ -17,7 +17,9 @@
 .case-chevron { flex: none; margin-left: auto; color: var(--text-tertiary); }
 
 /* Case page */
-.case-page { display: flex; flex-direction: column; gap: 10px; min-height: 0; animation: case-in var(--mid) both; }
+/* The whole case page scrolls (not just its thumbnails), so an open photo set can never trap the page. */
+.case-page { display: flex; flex: 1 1 auto; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; margin-inline: -4px; padding-inline: 4px; animation: case-in var(--mid) both; }
+.case-page > * { flex: none; }
 .case-page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .case-back {
   display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 2px;
@@ -46,7 +48,7 @@
 /* Versions */
 .version-grid {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
-  margin: 4px 0 0; padding: 0; list-style: none; overflow-y: auto; min-height: 0;
+  margin: 4px 0 0; padding: 0; list-style: none; overflow: visible;
 }
 .version-tile { position: relative; animation: case-in var(--mid) both; }
 .version-open {
@@ -55,7 +57,8 @@
   transition: transform var(--fast), box-shadow var(--fast);
 }
 .version-open:active { transform: scale(.98); }
-.version-open img { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; background: #141312; }
+.version-open img, .version-thumb-empty { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; background: #141312; }
+.version-thumb-empty { background: var(--surface-subtle, rgba(127, 127, 127, .14)); }
 .version-text { display: grid; gap: 2px; padding: 9px 11px 11px; }
 .version-text strong { overflow: hidden; font-size: 14px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
 .version-text span { font-size: 12px; color: var(--text-secondary); }
@@ -102,3 +105,12 @@
 .log-detail .log-head > div:first-child { flex: 1 1 auto; min-width: 0; }
 .log-detail .log-head h2, .log-detail .log-date { overflow-wrap: break-word; }
 .log-detail-preferred { display: flex; margin-top: -6px; }
+
+/* Sync conflicts: the message on top, the two choices below, however narrow the sheet. */
+.sync-conflict { display: grid; gap: 10px; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--card-border, var(--border)); background: var(--surface-subtle, rgba(127, 127, 127, .08)); font-size: 14px; line-height: 1.45; }
+.sync-conflict p { margin: 0; }
+.sync-conflict-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.sync-conflict-actions .secondary-button { flex: 1 1 160px; min-height: 44px; font-size: 14px; }
+.sync-conflict-busy { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--text-secondary); }
+.sync-spinner { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent); animation: ob-spin 0.9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .sync-spinner { animation-duration: 2.4s; } }

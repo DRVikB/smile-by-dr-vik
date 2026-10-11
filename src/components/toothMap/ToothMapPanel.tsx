@@ -1,4 +1,5 @@
 "use client";
+import { SheetClose } from "@/components/sideRail/SideRail";
 import { createPortal } from "react-dom";
 import { Check, Eye, Plus, RotateCcw, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { updateToothPlan, activeToothPlans } from "@/lib/teeth";
@@ -140,7 +141,7 @@ export function ToothControls({ fdi, settings, onChange, onClose }: {
       <div className="sheet tooth-controls" onClick={e => e.stopPropagation()}>
         <div className="sheet-heading">
           <h2>Tooth {fdi}</h2>
-          <button type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>
+          <SheetClose onClose={onClose} />
         </div>
         <label className="studio-switch-row">
           <span className="studio-treatment-text"><strong>Include in the design</strong><small>{included ? "This tooth may change; no other tooth is affected by these settings." : "Unchanged: it stays exactly as photographed."}</small></span>

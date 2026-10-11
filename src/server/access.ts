@@ -1,3 +1,4 @@
+import { createSupabaseLabStore, type LabStore } from "./labStore";
 import { periodAllowance, periodKind } from "@/config/subscriptions";
 import { styleReferenceLimit } from "@/lib/styleMatching";
 import { AccountError, createSupabaseAccountStore, createSupabaseMediaStore, type AccountStore, type AuthenticatedUser, type MediaStore } from "./accountStore";
@@ -8,6 +9,8 @@ import { createSupabasePatientCaseStore, type PatientCaseStore } from "./patient
 
 export interface AccountServices {
   patients?: PatientCaseStore;
+  /** Labs and secure lab links (web portal). */
+  labs?: LabStore;
   store: AccountStore;
   media: MediaStore;
   revenuecat: RevenueCatClient;
@@ -21,6 +24,7 @@ export function accountServicesFromEnv(env: ServerEnvironment): AccountServices 
   if (accountsMode(env) !== "required") return null;
   return {
     patients: createSupabasePatientCaseStore(env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!),
+    labs: createSupabaseLabStore(env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!),
     store: createSupabaseAccountStore(env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!),
     media: createSupabaseMediaStore(env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!),
     revenuecat: createRevenueCatClient(env.REVENUECAT_SECRET_API_KEY!),

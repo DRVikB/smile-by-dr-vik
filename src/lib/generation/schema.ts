@@ -67,6 +67,7 @@ export const settingsSchema = z
     shape: z.enum(["Square", "Rounded", "Triangular", "Rectangular"]),
     texture: z.enum(["Smooth", "Natural", "Textured"]),
     shotType: z.enum(["Full face", "Close-up"]),
+    lipDisplay: z.enum(["narrow", "open"]).optional(),
     faceShape: z.enum(["Auto", "Square", "Ovoid", "Tapering"]),
     character: z.enum(["Soft", "Balanced", "Defined"]),
     // Off unless the clinician switches it on: other patients' photos are sent only then.

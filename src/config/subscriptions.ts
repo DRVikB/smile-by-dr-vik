@@ -33,6 +33,14 @@ export type PlanKey = keyof typeof SUBSCRIPTION_PRODUCTS;
  */
 export const TRIAL_GENERATIONS = 3;
 
+/**
+ * A complimentary override with this monthly allowance is unlimited (team and owner accounts):
+ * the server still counts each generation, and the app shows ∞ instead of a number.
+ */
+export const UNLIMITED_GENERATIONS = 100_000;
+/** At or above this balance, complimentary access reads as unlimited. */
+export const UNLIMITED_THRESHOLD = 10_000;
+
 /** Monthly generations for a server-side complimentary override without its own value. */
 export const OVERRIDE_DEFAULT_MONTHLY_GENERATIONS = 50;
 
@@ -86,3 +94,9 @@ export const PRO_FEATURES = [
   "Branded reports, reveal videos and case history",
   "One subscription across iPhone, iPad and the web",
 ] as const;
+
+/**
+ * Roughly what one smile generation costs us, in pounds, for the admin dashboard's cost figure.
+ * An estimate only (image generation is billed in dollars per image); update it when the price changes.
+ */
+export const ESTIMATED_GENERATION_COST_GBP = 0.03;

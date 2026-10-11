@@ -1,6 +1,7 @@
 "use client";
+import { RailButton, RailItems, SideRailLayer, useSideRail } from "@/components/sideRail/SideRail";
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, ImagePlus, Plus, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ImagePlus, Plus, X } from "lucide-react";
 import { IconTile, LibrarySymbol } from "@/components/icons/SmileIcons";
 import { CaseFeatures } from "@/components/CaseFeatures";
 import { CASE_LIBRARY_AUTHORITY_TEXT } from "@/config/legal";
@@ -51,6 +52,7 @@ export function CaseLibraryView({ startWithAdd, onClose }: { startWithAdd: boole
   const [filter, setFilter] = useState<Filter>("all");
   const [notice, setNotice] = useState<{ title: string; body?: string } | null>(null);
   const sheet = useRef<HTMLDivElement>(null);
+  const rail = useSideRail();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -77,16 +79,20 @@ export function CaseLibraryView({ startWithAdd, onClose }: { startWithAdd: boole
 
   return (
     <div className="cl-backdrop" role="dialog" aria-modal="true" aria-labelledby="cl-title" onClick={onClose}>
+      <SideRailLayer>
+        {page.kind !== "list" && <RailItems order={0}><RailButton label="Back to Case Library" onClick={() => setPage({ kind: "list" })}><ChevronLeft size={22} strokeWidth={1.8} /></RailButton></RailItems>}
+        <RailItems order={1}><RailButton label="Done" prominent onClick={onClose}><Check size={21} strokeWidth={2} /></RailButton></RailItems>
+      </SideRailLayer>
       <div className="cl-sheet" ref={sheet} tabIndex={-1} onClick={e => e.stopPropagation()}>
         <header className="cl-head">
-          {page.kind === "list"
+          {rail ? null : page.kind === "list"
             ? <span className="cl-head-side" />
             : <button type="button" className="cl-nav-button" onClick={() => setPage({ kind: "list" })}><ChevronLeft size={20} strokeWidth={2} aria-hidden="true" />Case Library</button>}
           <div className="cl-head-title">
             <h2 id="cl-title">{title}</h2>
             {page.kind === "list" && <p>Your style, their smile</p>}
           </div>
-          <button type="button" className="cl-nav-button cl-done" onClick={onClose}>Done</button>
+          {!rail && <button type="button" className="cl-nav-button cl-done" onClick={onClose}>Done</button>}
         </header>
 
         <div className={`cl-body${page.kind === "list" ? " with-sidebar" : ""}`}>

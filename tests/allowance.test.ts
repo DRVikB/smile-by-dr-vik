@@ -83,7 +83,7 @@ test("an older server's status is read into the same entitlement, for display on
 
 test("the widget shows the app's own wording and a ring filled by one period's allowance", () => {
   const w = widgetAllowance(monthly(38));
-  assert.deepEqual(w, { remaining: 38, summary: "38 generations remaining", renewal: "Renews 14 October", plan: "Pro Monthly", fraction: 0.76, periodEnd: "2026-10-14T09:00:00Z" });
+  assert.deepEqual(w, { remaining: 38, unlimited: false, summary: "38 generations remaining", renewal: "Renews 14 October", plan: "Pro Monthly", fraction: 0.76, periodEnd: "2026-10-14T09:00:00Z" });
   assert.equal(widgetAllowance(monthly(72)).fraction, 1, "a rolled-over balance shows full");
   assert.equal(widgetAllowance(monthly(0)).fraction, 0);
   const annual = widgetAllowance(monthly(487, { plan: "annual", allowance: 600, rolloverCap: null, periodEnd: "2027-09-14T09:00:00Z" }));
@@ -92,4 +92,20 @@ test("the widget shows the app's own wording and a ring filled by one period's a
   assert.deepEqual([trial.plan, trial.summary], ["Pro free trial", "2 generations remaining in your trial"]);
   const comp = widgetAllowance(monthly(25, { subscriptionStatus: "complimentary", plan: "complimentary", allowance: null, rolloverCap: null }));
   assert.deepEqual([comp.plan, comp.fraction], ["Complimentary access", 1]);
+});
+
+test("complimentary unlimited access shows ∞ and never warns", async () => {
+  const { describeAllowance, isUnlimited, widgetAllowance } = await import("../src/lib/allowance");
+  const { UNLIMITED_GENERATIONS } = await import("../src/config/subscriptions");
+  const e = { subscriptionStatus: "complimentary" as const, plan: "complimentary" as const, balance: UNLIMITED_GENERATIONS - 3, allowance: null, rolloverCap: null, periodStart: null, periodEnd: null, cancelAtPeriodEnd: false, canGenerate: true };
+  assert.equal(isUnlimited(e), true);
+  const view = describeAllowance(e);
+  assert.equal(view.unlimited, true);
+  assert.equal(view.summary, "∞ Unlimited generations");
+  assert.equal(view.announcement, null);
+  assert.equal(widgetAllowance(e).unlimited, true);
+  assert.equal(widgetAllowance(e).fraction, 1);
+  // An ordinary complimentary allowance still counts down.
+  assert.equal(isUnlimited({ ...e, balance: 18 }), false);
+  assert.equal(describeAllowance({ ...e, balance: 18 }).summary, "18 generations remaining");
 });

@@ -155,6 +155,11 @@ export interface SmileSettings {
   shape: ToothShape;
   texture: TextureLevel;
   shotType: ShotType;
+  /**
+   * How far apart the lips are in this photo (measured on the device at each full-arch request,
+   * never chosen by the clinician): "narrow" when little of the teeth shows, e.g. a worn or overclosed bite.
+   */
+  lipDisplay?: "narrow" | "open";
   faceShape: FaceShape;
   character: SmileCharacter;
   /** Use the clinician's own finished cases as a style reference. */

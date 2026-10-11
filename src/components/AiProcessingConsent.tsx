@@ -1,5 +1,6 @@
 "use client";
 
+import { SideRailLayer } from "@/components/sideRail/SideRail";
 import { useState } from "react";
 import { AI_CONSENT_VERSION, type AiProcessingConsent } from "@/lib/aiConsent";
 
@@ -13,7 +14,7 @@ export function AiProcessingConsentDialog({ photoFingerprint, onCancel, onConfir
   const [confirmed, setConfirmed] = useState(false);
 
   return (
-    <div className="sheet-backdrop ai-consent-backdrop" role="presentation">
+    <div className="sheet-backdrop ai-consent-backdrop" role="presentation"><SideRailLayer />
       <section className="sheet ai-consent-sheet" role="dialog" aria-modal="true" aria-labelledby="ai-consent-title" aria-describedby="ai-consent-description">
         <p className="eyebrow">Privacy before generation</p>
         <h2 id="ai-consent-title">Before using AI with this patient</h2>

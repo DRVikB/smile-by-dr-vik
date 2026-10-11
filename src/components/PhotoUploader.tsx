@@ -277,13 +277,18 @@ export function PhotoUploader({
             </button>
           </div>
 
-          <p className="photo-examples-note">Illustrative sample photographs</p>
-          {!authorityConfirmed && <p className="control-hint photo-start-note">Confirm the statement above to add a patient photo.</p>}
-          {native && (
-            <button type="button" className="text-button photo-file-link" disabled={busy || !authorityConfirmed} onClick={() => input.current?.click()}>
-              Choose a file instead
-            </button>
-          )}
+          {/* The small print on the left; "Choose a file instead" shares its row on the right. */}
+          <div className="photo-notes">
+            <div className="photo-notes-text">
+              <p className="photo-examples-note">Illustrative sample photographs</p>
+              {!authorityConfirmed && <p className="control-hint photo-start-note">Confirm the statement above to add a patient photo.</p>}
+            </div>
+            {native && (
+              <button type="button" className="text-button photo-file-link" disabled={busy || !authorityConfirmed} onClick={() => input.current?.click()}>
+                Choose a file instead
+              </button>
+            )}
+          </div>
 
           {onSample && <div className="sc-or" role="separator" aria-label="or">OR</div>}
           {onSample && (

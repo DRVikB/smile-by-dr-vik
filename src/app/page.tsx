@@ -1,4 +1,5 @@
 "use client";
+import { SheetClose, SideRailLayer } from "@/components/sideRail/SideRail";
 import type { MouthAlignmentDiagnostic } from "@/lib/face/alignmentDiagnostic";
 import { normalizeTreatmentScope, standardTreatmentSummary } from "@/lib/fullArch";
 import { generationUnavailable, INTERNAL_SINGLE_TOOTH } from "@/lib/generation/availability";
@@ -100,6 +101,7 @@ import { Onboarding } from "@/components/onboarding/Onboarding";
 import { HomeHeadline, ProfileButton, RecentCases } from "@/components/home/HomeWorkspace";
 import { AllowanceBanner, AllowancePill } from "@/components/account/Allowance";
 import { DOCUMENT_VERSIONS } from "@/config/legal";
+import { WebPortal, type PortalStart } from "@/components/portal/WebPortal";
 import { DEMO_PREVIEW_NOTICE, loadDemoPreview } from "@/lib/demoPreviews";
 import type { SyntheticQaCapture } from "@/services/ai/syntheticQaCapture";
 import type { PhysicalQaBindings } from "@/services/ai/physicalQaAdapters";
@@ -281,6 +283,16 @@ export default function Smile() {
     return () => { active = false; };
   }, []);
   const [ready, setReady] = useState(false);
+  // Signed in on a computer-sized browser: the web portal replaces the app's Home screen.
+  const [wideWeb, setWideWeb] = useState(false);
+  useEffect(() => {
+    if (isNativeApp()) return;
+    const query = window.matchMedia("(min-width: 1024px)");
+    const update = () => setWideWeb(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
   const [busy, setBusy] = useState(false);
   const [previewMode, setPreviewMode] = useState<CompareMode>("slide");
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -381,6 +393,7 @@ export default function Smile() {
   });
   useSmileTools({ screen, hasPhoto: !!photo, settings, busy }, setSettings);
   const account = useAccount();
+  const portalMode = wideWeb && Boolean(account.user);
   const caseLibrary = useCaseLibrary();
   const qaBindings = useRef<PhysicalQaBindings | null>(null);
   if (process.env.NEXT_PUBLIC_SMILE_QA_PHYSICAL_HARNESS === "1") qaBindings.current = {
@@ -785,6 +798,12 @@ export default function Smile() {
     if (privateQa && process.env.NEXT_PUBLIC_SMILE_QA_PHYSICAL_HARNESS !== "1") throw new Error("qa_disabled");
     photoIn = await ensurePhotoDimensions(photoIn);
     settingsIn = normalizeTreatmentScope(settingsIn);
+    // Full arch: how far apart the lips are in this photo shapes how much of each arch the design shows.
+    if (settingsIn.treatmentMode === "full_arch" && settingsIn.shotType === "Full face" && !testMode) {
+      const [{ detectFace }, { lipDisplay }] = await Promise.all([import("@/lib/face/landmarks"), import("@/lib/face/lipDisplay")]);
+      const points = await detectFace(photoIn.dataUrl, controller.signal).catch(() => null);
+      settingsIn = { ...settingsIn, lipDisplay: lipDisplay(points) };
+    } else if (settingsIn.lipDisplay) settingsIn = { ...settingsIn, lipDisplay: undefined };
     const unavailable = generationUnavailable(settingsIn);
     if (unavailable) throw new SmileGenerationError(unavailable, "mode_unavailable");
     onStage("preflight");
@@ -1339,6 +1358,31 @@ export default function Smile() {
     void generate(next);
   }
 
+  /** Web portal: open a case's design, or start one from its smile front photo. */
+  async function openFromPortal(id: string, start: PortalStart) {
+    setError("");
+    try {
+      if (start.hasDraft) {
+        const draft = await repository.reopenCase(id);
+        repository.scope.assert();
+        caseSession.current++;
+        request.current?.abort();
+        restoreWorkingCase(draft);
+        return;
+      }
+      if (!start.front) return;
+      const blob = await (await fetch(start.front)).blob();
+      const prepared = await preparePhoto(new File([blob], "Smile front.jpg", { type: blob.type || "image/jpeg" }));
+      newSmile();
+      // Authority was confirmed when the photos were added in the portal.
+      const authority = { version: DOCUMENT_VERSIONS.upload_authority, confirmedAt: Date.now() };
+      restoreWorkingCase({ caseId: id, uploadAuthority: authority, photo: { ...prepared, sourceProvenance: prepared.sourceProvenance ?? "prepared" },
+        settings, variants: [], result: null, screen: "design", patientName: start.name, reference: null, testMode: false, testPreview: null });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That case couldn’t be opened.");
+    }
+  }
+
   function startNewSmile() {
     setValidationCaseId(undefined);
     newSmile();
@@ -1479,7 +1523,10 @@ export default function Smile() {
         <BrandLaunch />
       ) : (
         <>
-          {screen === "start" && (
+          {screen === "start" && portalMode && (
+            <div className="pt-layer"><WebPortal onOpenStudio={(id, start) => void openFromPortal(id, start)} /></div>
+          )}
+          {screen === "start" && !portalMode && (
             <section className="start-screen">
               <div className="start-visual">
                 <div
@@ -1868,13 +1915,7 @@ export default function Smile() {
           >
             <div className="sheet-heading">
               <h2>Smile Variations</h2>
-              <button
-                className="icon-button"
-                aria-label="Close"
-                onClick={() => setOptions(null)}
-              >
-                <X size={16} />
-              </button>
+              <SheetClose onClose={() => setOptions(null)} />
             </div>
             <p className="sheet-sub">Tap the one they prefer.</p>
             <div
@@ -1939,7 +1980,7 @@ export default function Smile() {
           }}
         />
       )}
-      {batchPending && <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-label="Confirm generation batch"><div className="sheet"><h2>Create {batchPending.length} options?</h2><p className="sheet-sub">{allowanceLabel(batchPending.length, testMode)}. {testMode ? "Test mode uses prepared examples." : "Each option uses your allowance. If interrupted, check your allowance before retrying."} Existing identical results may be reused without using a design.</p><p className="control-hint">Options are generated independently. Compare tooth contours and protected anatomy; geometry is not guaranteed to be identical.</p><button className="primary-button" onClick={() => { const wanted = batchPending; setBatchPending(null); void generateVariants(wanted, true); }}>Create {batchPending.length} options</button><button className="secondary-button" onClick={() => setBatchPending(null)}>Cancel</button></div></div>}
+      {batchPending && <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-label="Confirm generation batch"><SideRailLayer /><div className="sheet"><h2>Create {batchPending.length} options?</h2><p className="sheet-sub">{allowanceLabel(batchPending.length, testMode)}. {testMode ? "Test mode uses prepared examples." : "Each option uses your allowance. If interrupted, check your allowance before retrying."} Existing identical results may be reused without using a design.</p><p className="control-hint">Options are generated independently. Compare tooth contours and protected anatomy; geometry is not guaranteed to be identical.</p><button className="primary-button" onClick={() => { const wanted = batchPending; setBatchPending(null); void generateVariants(wanted, true); }}>Create {batchPending.length} options</button><button className="secondary-button" onClick={() => setBatchPending(null)}>Cancel</button></div></div>}
       {shareOpen && result && photo && (
         <ShareSheet
           input={{

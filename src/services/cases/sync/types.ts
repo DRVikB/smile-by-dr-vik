@@ -1,13 +1,13 @@
 /** Cloud state contains structured metadata and immutable asset references, never image bytes/URLs. */
 export const PATIENT_BUCKET = "patient-cases";
-export const ASSET_KINDS = ["ORIGINAL_PHOTO", "PREPARED_PHOTO", "PRESENTATION_PHOTO", "THUMBNAIL", "GENERATED_CONCEPT", "REPORT", "EDIT_MASK", "REFERENCE_PHOTO"] as const;
+export const ASSET_KINDS = ["ORIGINAL_PHOTO", "PREPARED_PHOTO", "PRESENTATION_PHOTO", "THUMBNAIL", "GENERATED_CONCEPT", "REPORT", "EDIT_MASK", "REFERENCE_PHOTO", "CLINICAL_PHOTO"] as const;
 export type AssetKind = typeof ASSET_KINDS[number];
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export interface AssetRef { $asset: string }
 export interface PatientAsset {
   id: string; ownerUserId: string; caseId: string; kind: AssetKind; objectPath: string;
   mimeType: string; width: number | null; height: number | null; byteSize: number; checksum: string;
-  provenance: "original" | "legacy-prepared-original" | "prepared" | "generated" | "report" | "mask" | "reference";
+  provenance: "original" | "legacy-prepared-original" | "prepared" | "generated" | "report" | "mask" | "reference" | "clinical";
   createdAt: string; uploadStatus: "pending" | "confirmed" | "deleted";
 }
 export interface PatientState {
@@ -18,6 +18,8 @@ export interface PatientState {
   preferredDesignId: string | null;
   draftThumb?: Json;
   caseStatus?: { archivedAt:number|null; deletedAt:number|null };
+  /** Web portal details: reference, status, notes and the clinical photo set (photos are asset refs). */
+  portal?: Json;
   /** Analysis snapshots and confirmed Tooth Maps live in media/draft, unchanged. */
 }
 export interface PatientSummary { entries: Json[]; patientName: string; visualisationCount: number; thumbnail: Json | null }
@@ -43,3 +45,8 @@ export const EMPTY_STATE = (): PatientState => ({ schemaVersion:1, entries:[], m
 export const EMPTY_SUMMARY = (): PatientSummary => ({ entries:[], patientName:"", visualisationCount:0, thumbnail:null });
 export const uuidValid = (id: unknown): id is string => typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 export function assetPath(owner: string, caseId: string, id: string, kind: AssetKind) { return `${owner}/${caseId}/${id}/${kind.toLowerCase()}`; }
+
+/** JSON text with object keys sorted, so equal content compares equal however its keys happen to be ordered. */
+export function stableJson(value:unknown):string{
+ return JSON.stringify(value,(_k,v)=>v&&typeof v==="object"&&!Array.isArray(v)?Object.fromEntries(Object.entries(v as Record<string,unknown>).sort(([a],[b])=>a<b?-1:a>b?1:0)):v);
+}

@@ -1,6 +1,6 @@
 "use client";
 import { useAccount } from "@/components/account/AccountProvider";
-import { entitlementOf } from "@/lib/allowance";
+import { entitlementOf, isUnlimited } from "@/lib/allowance";
 import type { CaseCosts, GenerationPricing, ImageResolution } from "@/lib/generation/cost";
 
 /**
@@ -40,7 +40,7 @@ export function GenerationCosts({ pricing, resolution, onResolution, costs, test
         <div><dt>One preview or adjustment</dt><dd>{allowanceLabel(1, testMode)}</dd></div>
         <div><dt>Three options</dt><dd>{allowanceLabel(3, testMode)}</dd></div>
         <div><dt>Used in this case</dt><dd>{used} generation{used === 1 ? "" : "s"}</dd></div>
-        {entitlement && entitlement.subscriptionStatus !== "none" && <div><dt>Generations remaining</dt><dd>{entitlement.balance}</dd></div>}
+        {entitlement && entitlement.subscriptionStatus !== "none" && <div><dt>Generations remaining</dt><dd>{isUnlimited(entitlement) ? "∞ Unlimited" : entitlement.balance}</dd></div>}
       </dl>
       {!testMode && pricing?.supportsDraft && <div className="segmented" role="group" aria-label="Generation detail">
         <button type="button" disabled={busy} aria-pressed={resolution === "1K"} className={resolution === "1K" ? "selected" : ""} onClick={() => onResolution("1K")}>Standard detail</button>

@@ -1,6 +1,6 @@
 import type { WorkspaceLease } from "@/lib/workspace";
 import type { LocalAsset, LocalPatientCase, OutboxOperation, PatientLocalStore } from "./localStore";
-import { EMPTY_STATE, EMPTY_SUMMARY, PatientSyncError, uuidValid, type PatientApi, type PatientCase, type PatientState, type PatientSummary } from "./types";
+import { EMPTY_STATE, EMPTY_SUMMARY, PatientSyncError, stableJson, uuidValid, type PatientApi, type PatientCase, type PatientState, type PatientSummary } from "./types";
 import { checksum, referencedAssets } from "./media";
 import type { MediaTransfers } from "./mediaStatus";
 export function createSyncCoordinator(scope:WorkspaceLease,store:PatientLocalStore,onChange:()=>void,onCloud:(c:LocalPatientCase)=>Promise<void>) {
@@ -34,6 +34,10 @@ export function createSyncCoordinator(scope:WorkspaceLease,store:PatientLocalSto
    const a=assets.find(x=>x.id===assetId)??knownAssets.find(x=>x.id===assetId);
    if(a?.pending){const op=operation("UPLOAD_ASSET",0,dependencies);op.assetId=assetId;newOps.push(op);dependencies=[op.id];}
   }
+  // Saving a case that hasn't changed (the app re-saves every case on launch) must not create a new cloud revision:
+  // it would make every other device think the case changed and report a conflict.
+  const archivedIso=state.caseStatus?.archivedAt?new Date(state.caseStatus.archivedAt).toISOString():null;
+  if(!deleted&&old&&old.revision>0&&!newOps.length&&stableJson(old.state)===stableJson(state)&&stableJson(old.summary)===stableJson(summary)&&(old.archivedAt??null)===archivedIso)return old;
   const expected=(old?.revision??0)+[...operations,...newOps].filter(o=>["CREATE_CASE","UPDATE_CASE","DELETE_CASE"].includes(o.type)).length;
   const op=operation(deleted?"DELETE_CASE":"UPDATE_CASE",expected,dependencies);
   op.mutation={id,operationId:op.id,type:deleted?"DELETE_CASE":"UPDATE_CASE",expectedRevision:expected,state:deleted?EMPTY_STATE():state,summary:deleted?EMPTY_SUMMARY():summary,archivedAt:state.caseStatus?.archivedAt?new Date(state.caseStatus.archivedAt).toISOString():null};newOps.push(op);

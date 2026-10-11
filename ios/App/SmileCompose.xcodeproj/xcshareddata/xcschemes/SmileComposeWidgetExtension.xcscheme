@@ -17,7 +17,7 @@
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "5C33C000000000000000000A"
                BuildableName = "SmileComposeWidgetExtension.appex"
-               ReferencedContainer = "container:App.xcodeproj">
+               ReferencedContainer = "container:SmileCompose.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
          <BuildActionEntry
@@ -30,7 +30,7 @@
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "504EC3031FED79650016851F"
                BuildableName = "App.app"
-               ReferencedContainer = "container:App.xcodeproj">
+               ReferencedContainer = "container:SmileCompose.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -61,7 +61,7 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "504EC3031FED79650016851F"
             BuildableName = "App.app"
-            ReferencedContainer = "container:App.xcodeproj">
+            ReferencedContainer = "container:SmileCompose.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <EnvironmentVariables>
@@ -96,7 +96,7 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "504EC3031FED79650016851F"
             BuildableName = "App.app"
-            ReferencedContainer = "container:App.xcodeproj">
+            ReferencedContainer = "container:SmileCompose.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

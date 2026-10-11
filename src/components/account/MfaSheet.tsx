@@ -1,6 +1,6 @@
 "use client";
+import { SheetClose } from "@/components/sideRail/SideRail";
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
 import { supabase } from "@/services/auth/supabaseClient";
 
 export type MfaMode = "challenge" | "enroll";
@@ -61,7 +61,7 @@ export function MfaSheet({ mode, onDone, onClose }: { mode: MfaMode; onDone: () 
             <p className="eyebrow">Account security</p>
             <h2 id="mfa-title">{mode === "enroll" ? "Set up two-factor authentication" : "Two-factor code"}</h2>
           </div>
-          <button className="icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>
+          <SheetClose onClose={onClose} />
         </div>
         {mode === "enroll" ? (
           <>

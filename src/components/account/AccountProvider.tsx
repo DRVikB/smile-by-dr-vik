@@ -19,6 +19,8 @@ import { readLocalOnboarding, writeLocalOnboarding } from "@/lib/onboarding";
 import { customerHasPro, identifyPurchaser, onCustomerInfo, refreshCustomerInfo, resetPurchaser } from "@/services/purchases/purchases";
 import { developmentEntitlements, setEntitlementProvider } from "@/services/entitlements/entitlements";
 import { AuthSheet, type AuthMode } from "./AuthSheet";
+import { WebAuthPage, requestedWebAuthMode } from "./WebAuthPage";
+import { rememberWebAccount } from "@/lib/webEntry";
 import { Paywall } from "./Paywall";
 import { SettingsView, type SettingsSection } from "@/components/settings/SettingsView";
 import { PrivacyNoticeSheet, type LegalDocument } from "./PrivacyNoticeSheet";
@@ -106,6 +108,9 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
   const [cachedNames, setCachedNames] = useState<CachedNames | null>(null);
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
+  // The website's full-page sign-in, asked for in the address (/?signin or /?signup).
+  const [webAuth, setWebAuth] = useState<AuthMode | null>(null);
+  useEffect(() => { if (configured && !isNativeApp()) setWebAuth(requestedWebAuthMode(window.location.search)); }, [configured]);
   const [notice, setNotice] = useState<string | null>(null);
   const [workspaceKey, setWorkspaceKey] = useState(() => captureWorkspace().epoch);
   useEffect(() => onWorkspaceDetach(() => setWorkspaceKey(captureWorkspace().epoch)), []);
@@ -126,6 +131,15 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
     } else setUser(next);
   }, []);
   const userId = user?.id ?? null;
+  // Website: a signed-in browser opens straight into the app; signed out, "/" shows the landing page.
+  useEffect(() => {
+    if (!ready || isNativeApp()) return;
+    rememberWebAccount(Boolean(userId));
+    if (!userId) return;
+    setWebAuth(null);
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("signin") || params.has("signup")) window.history.replaceState(null, "", window.location.pathname);
+  }, [ready, userId]);
   const sessionLease = useMemo(captureWorkspace, [workspaceKey]);
   const hasProAccess = customerHasPro(customerInfo) || Boolean(status?.pro);
 
@@ -469,6 +483,7 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
       <Inner key={workspaceKey}>
       <PatientSyncLifecycle />
       {children}
+      {webAuth && ready && !user && <WebAuthPage initialMode={webAuth} onSignedIn={() => setWebAuth(null)} />}
       {sheet?.kind === "auth" && <AuthSheet initialMode={sheet.mode} reason={sheet.reason} onClose={() => setSheet(null)} onSignedIn={() => setSheet(null)} />}
       {sheet?.kind === "paywall" && <Paywall onClose={() => setSheet(null)} />}
       {sheet?.kind === "settings" && (

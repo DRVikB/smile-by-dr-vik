@@ -2,8 +2,9 @@
 import { ChevronRight, Crown } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { planForProduct } from "@/config/subscriptions";
-import { describeAllowance, entitlementOf, widgetAllowance } from "@/lib/allowance";
+import { describeAllowance, entitlementOf, isUnlimited, widgetAllowance } from "@/lib/allowance";
 import { isNativeApp } from "@/native/platform";
+import { AccessCodeForm, accessCodesShown } from "@/components/account/AccessCodeForm";
 import { openManageSubscriptions, purchasesAvailable, redeemOfferCode, restorePurchases } from "@/services/purchases/purchases";
 import { Group, Row, UsageBar, formatBytes, formatDate, useSettingsNav } from "./settingsParts";
 
@@ -74,7 +75,9 @@ export function PlanCard() {
             <p className="plan-card-sub">{sub}</p>
           </div>
           {showBalance && entitlement && (
-            <p className="plan-card-balance"><strong>{entitlement.balance}</strong><span>generations<br />remaining</span></p>
+            <p className="plan-card-balance">{isUnlimited(entitlement)
+              ? <><strong aria-label="Unlimited">∞</strong><span>unlimited<br />generations</span></>
+              : <><strong>{entitlement.balance}</strong><span>generations<br />remaining</span></>}</p>
           )}
           {bar !== null && <span className="plan-card-bar"><UsageBar value={Math.round(bar * 100)} max={100} label="Generations remaining this period" /></span>}
           {status && inactive && (
@@ -135,7 +138,7 @@ export function PlanDetailsPage() {
         <Row label="Status" value={statusLine} />
         {entitlement && !inactive && (
           <>
-            <Row label="Generations remaining" value={<strong className="settings-balance">{entitlement.balance}</strong>}
+            <Row label="Generations remaining" value={<strong className="settings-balance">{isUnlimited(entitlement) ? "∞ Unlimited" : entitlement.balance}</strong>}
               detail={allowance?.level === "empty" ? [allowance.announcement, allowance.emptyDetail].filter(Boolean).join(" ") : undefined} />
             {entitlement.subscriptionStatus === "active" && end && <Row label="Next renewal" value={formatDate(end)} />}
             {entitlement.subscriptionStatus === "trial" && end && <Row label="Paid plan starts" value={formatDate(end)} detail="Your plan’s allowance begins once your trial converts." />}
@@ -188,6 +191,10 @@ export function PlanDetailsPage() {
           <Row label="Refresh subscription status" onClick={() => void act(async () => { await account.refresh(); return "Subscription status updated."; })} />
         )}
       </Group>
+      {accessCodesShown() && <Group id="settings-access-code" title="Tester access"
+        footer="A single-use code from SmileCompose. It gives this account complimentary access for a set time.">
+        <AccessCodeForm />
+      </Group>}
     </>
   );
 }

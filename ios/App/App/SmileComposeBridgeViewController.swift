@@ -15,6 +15,7 @@ import Capacitor
 class SmileComposeBridgeViewController: CAPBridgeViewController {
     private var launchCover: UIView?
     private var loadingObservation: NSKeyValueObservation?
+    private let sideBar = SideBarPlugin()
 
     override func capacitorDidLoad() {
         // App-local plugins: permission-free photo picker, native Sign in with Apple,
@@ -24,6 +25,12 @@ class SmileComposeBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(AppleSignInPlugin())
         bridge?.registerPluginInstance(SecureStoragePlugin())
         bridge?.registerPluginInstance(AppearancePlugin())
+        bridge?.registerPluginInstance(sideBar)
+        if #available(iOS 27.1, *) {
+            registerForTraitChanges(UITraitCollection.systemTraitsAffectingVerticalBarEdge) { (self: Self, _: UITraitCollection) in
+                self.view.setNeedsLayout()
+            }
+        }
 
         // Warm ivory in Light and deep charcoal in Dark behind the web view, so
         // launch, rotation and overscroll never flash white.
@@ -52,6 +59,43 @@ class SmileComposeBridgeViewController: CAPBridgeViewController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in self?.hideLaunchCover() }
     }
 
+    // MARK: iPhone Duo side bar
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        publishSideBar()
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        publishSideBar()
+    }
+
+    /// Where the system keeps its vertical bar (the outer display, and the inner display in
+    /// landscape) and, while the device is partly folded, where the fold divides the screen.
+    /// The web app draws its own controls, so it is told the same geometry system bars use.
+    private func publishSideBar() {
+        guard #available(iOS 27.1, *) else { return }
+        var state: [String: Any] = ["edge": "none", "viewWidth": view.bounds.width, "viewHeight": view.bounds.height]
+        let edge = traitCollection.verticalBarEdge
+        if edge != .unspecified {
+            let rightToLeft = view.effectiveUserInterfaceLayoutDirection == .rightToLeft
+            let onRight = (edge == .trailing) != rightToLeft
+            // The column a 44-point system bar would occupy: below the clock and camera, above the Home indicator.
+            let bar = view.edgeInsets(for: .bar(onEdge: onRight ? .right : .left, extent: 44))
+            state["edge"] = onRight ? "right" : "left"
+            state["inset"] = onRight ? view.safeAreaInsets.right : view.safeAreaInsets.left
+            state["x"] = bar.left
+            state["y"] = bar.top
+            state["width"] = view.bounds.width - bar.left - bar.right
+            state["height"] = view.bounds.height - bar.top - bar.bottom
+        }
+        if let fold = view.reservedRegions(kind: .division).first(where: { $0.isActive }) {
+            state["fold"] = ["x": fold.frame.minX, "y": fold.frame.minY, "width": fold.frame.width, "height": fold.frame.height]
+        }
+        sideBar.update(state)
+    }
+
     private func hideLaunchCover() {
         guard let cover = launchCover else { return }
         launchCover = nil
@@ -78,6 +122,31 @@ class SmileComposeBridgeViewController: CAPBridgeViewController {
             WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true)
         )
         return super.webView(with: frame, configuration: configuration)
+    }
+}
+
+/// iPhone Duo: reports where the system's side bar sits (`get`, and `change` events as the
+/// device opens, closes, turns or folds). See `publishSideBar()` above and src/native/sideBar.ts.
+@objc(SideBarPlugin)
+public class SideBarPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "SideBarPlugin"
+    public let jsName = "SmileSideBar"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "get", returnType: CAPPluginReturnPromise)
+    ]
+    private var state: [String: Any] = ["edge": "none"]
+
+    func update(_ next: [String: Any]) {
+        guard !NSDictionary(dictionary: next).isEqual(to: state) else { return }
+        state = next
+        #if DEBUG
+        NSLog("SmileSideBar %@", "\(next)")
+        #endif
+        notifyListeners("change", data: next)
+    }
+
+    @objc func get(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { call.resolve(self.state) }
     }
 }
 

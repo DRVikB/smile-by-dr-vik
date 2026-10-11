@@ -22,6 +22,8 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SmileRequestGuard"] }],
   // Worker logs stay off: request bodies can contain patient photographs.
   "observability": { "enabled": false },
+  // Daily removal of expired or withdrawn lab-link files.
+  "triggers": { "crons": ["17 3 * * *"] },
   "env": {
     // Staging: synthetic/demo data only. Use a separate Supabase project and
     // separate secrets (`npx wrangler secret put NAME --env staging`).
@@ -32,7 +34,8 @@
       "durable_objects": {
         "bindings": [{ "name": "REQUEST_GUARD", "class_name": "SmileRequestGuard" }]
       },
-      "observability": { "enabled": false }
+      "observability": { "enabled": false },
+      "triggers": { "crons": ["17 3 * * *"] }
     }
   }
 }

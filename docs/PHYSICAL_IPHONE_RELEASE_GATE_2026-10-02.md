@@ -36,7 +36,7 @@ Build command used:
 
 ```sh
 NEXT_PUBLIC_SMILE_QA_DIAGNOSTICS=1 NEXT_PUBLIC_SMILE_DEBUG=0 npm run ios:sync
-xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+xcodebuild -project ios/App/SmileCompose.xcodeproj -scheme App -configuration Release \
   -destination 'generic/platform=iOS' -derivedDataPath /tmp/smile-device-consent \
   -allowProvisioningUpdates build
 ```
@@ -55,7 +55,7 @@ Evidence: `output/iphone-release-gate/` (ignored local logs and signed-build ver
 
 ## Exact Xcode install steps
 
-1. Open `/Users/vik/Documents/New project/smile/ios/App/App.xcodeproj` in Xcode.
+1. Open `/Users/vik/Documents/New project/smile/ios/App/SmileCompose.xcodeproj` in Xcode.
 2. Connect and unlock **Vikas’ iPhone**. Accept **Trust This Computer** if prompted.
 3. Xcode → **Settings → Apple Accounts**: sign in to the developer account if needed.
 4. Click the blue **App** project → **TARGETS → App → Signing & Capabilities**. Enable **Automatically manage signing**. Select **VIKAS BAJAJ**, team ID `7TPF7LT884`. Keep bundle ID `uk.co.drvik.smilecompose`. Confirm the same team on **SmileComposeWidgetExtension**.

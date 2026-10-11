@@ -61,3 +61,44 @@
 .upload-authority { display: grid; gap: 4px; margin: 4px 0 12px; }
 .upload-authority .control-hint { margin: 0; }
 .upload-authority.confirmed .ai-consent-check { opacity: .7; }
+
+/* Website sign-in page (/?signin, /?signup). Never shown in the iOS app. */
+.web-auth { position: fixed; inset: 0; z-index: 900; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(420px, 1fr); background: var(--bg-grouped); color: var(--text-primary); }
+.web-auth-visual { position: relative; overflow: hidden; background: #0b0b0c; }
+.web-auth-visual img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 65% 40%; }
+.web-auth-visual::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(11, 11, 12, .1) 30%, rgba(11, 11, 12, .82) 100%); }
+.web-auth-visual-copy { position: absolute; left: clamp(28px, 5vw, 64px); right: clamp(28px, 5vw, 64px); bottom: clamp(32px, 6vh, 64px); z-index: 1; color: #f5f3ef; }
+.web-auth-kicker { margin: 0 0 14px; font-size: 12px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: rgba(245, 243, 239, .7); }
+.web-auth-quote { margin: 0; font-family: var(--font-display); font-size: clamp(44px, 5vw, 72px); line-height: 1; letter-spacing: -.02em; }
+.web-auth-quote em { color: #d9b479; }
+.web-auth-note { margin: 18px 0 0; max-width: 40ch; font-size: 16px; line-height: 1.5; color: rgba(245, 243, 239, .72); }
+.web-auth-panel { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; padding: 24px clamp(24px, 5vw, 64px) max(24px, var(--safe-bottom)); }
+.web-auth-top { display: flex; justify-content: flex-start; }
+.web-auth-back { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px 8px 8px; border-radius: 999px; font-size: 14px; font-weight: 500; color: var(--text-secondary); text-decoration: none; }
+.web-auth-back:hover { background: var(--surface-subtle); color: var(--text-primary); }
+.web-auth-card { width: 100%; max-width: 400px; margin: auto; padding: 32px 0; }
+.web-auth-lockup { margin-bottom: 28px; }
+.web-auth-card h1 { margin: 0; font-family: var(--font-display); font-size: clamp(36px, 3.4vw, 46px); font-weight: 400; line-height: 1.05; letter-spacing: -.015em; }
+.web-auth-lead { margin: 12px 0 8px; font-size: 16px; line-height: 1.5; color: var(--text-secondary); }
+.web-auth-card .account-stack { margin-top: 22px; gap: 14px; }
+.web-auth-card .primary-button { min-height: 52px; }
+.web-auth-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--text-secondary); }
+.web-auth-foot .sc-creator img { height: 18px; width: auto; }
+@media (max-width: 860px) {
+  .web-auth { grid-template-columns: 1fr; grid-template-rows: auto 1fr; overflow-y: auto; }
+  .web-auth-visual { height: 34vh; min-height: 220px; }
+  .web-auth-quote { font-size: 40px; }
+  .web-auth-note, .web-auth-lockup { display: none; }
+  .web-auth-panel { overflow: visible; padding-top: 12px; }
+  .web-auth-card { padding-top: 12px; }
+}
+
+/* Tester access code */
+.access-code { display: grid; gap: 8px; text-align: left; }
+.access-code > label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.access-code-row { display: flex; gap: 8px; }
+.access-code-row input { flex: 1; min-width: 0; min-height: 46px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--input-background, var(--surface)); color: var(--text-primary); font: inherit; font-size: 16px; letter-spacing: .06em; text-transform: uppercase; }
+.access-code-row input::placeholder { letter-spacing: .04em; }
+.access-code-row input:focus-visible { outline: 2px solid var(--focus-ring, var(--accent)); outline-offset: 1px; }
+.access-code-row .secondary-button { flex: none; min-height: 46px; }
+.settings-panel .access-code { padding: 12px 16px; }

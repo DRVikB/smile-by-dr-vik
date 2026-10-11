@@ -1,5 +1,5 @@
 "use client";
-import { X } from "lucide-react";
+import { SheetClose } from "@/components/sideRail/SideRail";
 import { legalPath } from "@/config/accounts";
 
 export type LegalDocument = "privacy" | "terms" | "processing";
@@ -14,7 +14,7 @@ export function PrivacyNoticeSheet({ document = "privacy", html, onClose }: { do
       <div className="sheet privacy-sheet" onClick={e => e.stopPropagation()}>
         <div className="sheet-heading">
           <h2>{title}</h2>
-          <button className="icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>
+          <SheetClose onClose={onClose} />
         </div>
         <iframe className="privacy-frame" src={html ? undefined : src} srcDoc={html} sandbox="allow-popups" title={`SmileCompose ${title}`} />
       </div>

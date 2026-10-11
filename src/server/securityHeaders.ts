@@ -24,6 +24,10 @@ export function contentSecurityPolicy(supabaseUrl?: string,hashes:string[]=[]): 
 export function pageSecurityHeaders(supabaseUrl?: string,hashes:string[]=[]): Record<string, string> {
   return { ...BASE_SECURITY_HEADERS, "Content-Security-Policy": contentSecurityPolicy(supabaseUrl,hashes) };
 }
+/** The static landing page: its own script and styles only, no inline code, no third parties. */
+export function landingSecurityHeaders(): Record<string, string> {
+  return { ...BASE_SECURITY_HEADERS, "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'self'" };
+}
 /** Build shell only: the Worker uses Web Crypto, never a runtime Node dependency. */
 export async function inlineScriptHashes(html:string):Promise<string[]>{
   const scripts=[...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)].filter(m=>!(/\bsrc\s*=/.test(m[1]))&&m[2]);

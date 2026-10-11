@@ -186,7 +186,7 @@ test("the launch screen shows the SmileCompose symbol, wordmark and Dr Vik signa
   }
   // The launch renderer drew neither asset-catalog images nor attributed text with named colours.
   assert.doesNotMatch(storyboard, /attributedString/);
-  const project = await readFile("ios/App/App.xcodeproj/project.pbxproj", "utf8");
+  const project = await readFile("ios/App/SmileCompose.xcodeproj/project.pbxproj", "utf8");
   for (const file of ["LaunchSymbol@2x.png", "LaunchSymbol@3x.png", "LaunchSignature@2x.png", "LaunchSignature@3x.png"]) {
     assert.ok((await stat(`ios/App/App/Launch/${file}`)).size > 0, file);
     assert.match(project, new RegExp(`${file.replace(/[.@]/g, "\\$&")} in Resources`));

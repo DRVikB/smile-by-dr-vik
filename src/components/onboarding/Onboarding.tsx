@@ -1,4 +1,5 @@
 "use client";
+import { RailButton, RailItems, SideRailLayer, useSideRail } from "@/components/sideRail/SideRail";
 import { getCaseRepository } from "@/services/cases/caseRepository";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, X } from "lucide-react";
@@ -37,7 +38,7 @@ export function Onboarding({ appReady, onCreateFirst }: {
   const [deviceHasCases, setDeviceHasCases] = useState<boolean | null>(null);
   const [showingReady, setShowingReady] = useState(false);
   const [dismissed, setDismissed] = useState(false);
-  // TEMPORARY (testing): Settings › Replay onboarding plays every step in order and saves nothing.
+  // Settings › Admin › Replay onboarding: every step in order, without touching what has been completed.
   const [replay, setReplay] = useState<OnboardingStep | null>(null);
   useEffect(() => {
     const start = () => setReplay("welcome");
@@ -141,6 +142,7 @@ function useFocusHeading(key: string) {
 function Loading({ label }: { label?: string }) {
   return (
     <div className="onboarding onboarding-loading" role="status" aria-live="polite">
+      <SideRailLayer />
       <span className="onboarding-loading-mark" aria-hidden="true" />
       <BrandLockup />
       {label && <p>{label}</p>}
@@ -176,9 +178,13 @@ function Frame({ step, configured, hero, head, children, progress = true, mark =
   mark?: boolean;
   onDismiss?: () => void;
 }) {
+  const rail = useSideRail();
   return (
     <div className={`onboarding ob-frame ${hero ? "has-hero" : "is-plain"}`} data-step={step}>
-      {onDismiss && <button type="button" className="ob-dismiss" title="Not now" aria-label="Not now — continue without subscribing" onClick={onDismiss}><X size={20} aria-hidden="true" /></button>}
+      <SideRailLayer>
+        {onDismiss && <RailItems order={0}><RailButton label="Not now — continue without subscribing" onClick={onDismiss}><X size={21} strokeWidth={1.9} /></RailButton></RailItems>}
+      </SideRailLayer>
+      {onDismiss && !rail && <button type="button" className="ob-dismiss" title="Not now" aria-label="Not now — continue without subscribing" onClick={onDismiss}><X size={20} aria-hidden="true" /></button>}
       <div className="ob-layout" key={step}>
         {hero && <div className="ob-visual">{hero}</div>}
         <div className="ob-sheet">
@@ -200,7 +206,7 @@ function Frame({ step, configured, hero, head, children, progress = true, mark =
 function WelcomeStep({ onStart }: { onStart: () => void }) {
   const heading = useFocusHeading("welcome");
   return (
-    <div className="onboarding ob-frame has-hero ob-welcome" data-step="welcome">
+    <div className="onboarding ob-frame has-hero ob-welcome" data-step="welcome"><SideRailLayer />
       <div className="ob-layout">
         <div className="ob-visual"><WelcomeVisual /></div>
         <div className="ob-sheet">

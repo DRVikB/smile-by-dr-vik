@@ -136,3 +136,16 @@ test("iOS sign-in sessions live in the Keychain and move out of localStorage", a
   await storage.removeItem("smilecompose.auth");
   assert.equal(await storage.getItem("smilecompose.auth"), null);
 });
+
+test("a stalled or failing Keychain never blocks the app: reads fall back and writes carry on", async () => {
+  const { keychainSessionStorage } = await import("../src/native/secureStorage");
+  const never = () => new Promise<never>(() => {});
+  const stalled = { get: never, set: never, remove: never };
+  const failing = { async get(): Promise<never> { throw new Error("keychain unavailable"); }, async set(): Promise<void> { throw new Error("x"); }, async remove(): Promise<void> { throw new Error("x"); } };
+  for (const plugin of [stalled, failing]) {
+    const storage = keychainSessionStorage(plugin as never, new MemoryStorage(), 30);
+    assert.equal(await storage.getItem("smilecompose.auth"), null);
+    await storage.setItem("smilecompose.auth", "session");
+    await storage.removeItem("smilecompose.auth");
+  }
+});

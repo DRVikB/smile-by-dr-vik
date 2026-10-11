@@ -6,7 +6,7 @@ import type { PatientCaseStore } from "./patientCaseStore";
 const headers={"Cache-Control":"no-store"};
 const metaSchema=z.object({id:z.string().uuid(),kind:z.enum(ASSET_KINDS),mimeType:z.enum(["image/jpeg","image/png","image/webp","application/pdf"]),
   width:z.number().int().positive().max(20000).nullable(),height:z.number().int().positive().max(20000).nullable(),byteSize:z.number().int().positive().max(26214400),
-  checksum:z.string().regex(/^[a-f0-9]{64}$/),provenance:z.enum(["original","legacy-prepared-original","prepared","generated","report","mask","reference"])}).strict();
+  checksum:z.string().regex(/^[a-f0-9]{64}$/),provenance:z.enum(["original","legacy-prepared-original","prepared","generated","report","mask","reference","clinical"])}).strict();
 export interface PatientServices { accounts:AccountServices; patients:PatientCaseStore }
 function fail(status:number,code:string,cloud?:unknown) {return Response.json({code,error:code==="conflict"?"This case changed on another device. Your local changes are kept.":"Patient sync couldn’t complete. Your local case is kept.",...(cloud?{cloud}:{})},{status,headers});}
 async function body(request:Request) {

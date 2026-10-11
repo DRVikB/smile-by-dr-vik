@@ -32,7 +32,7 @@ export function AllowanceLine({ uses = 1 }: { uses?: number }) {
   const allowance = useAllowance();
   if (!allowance) return null;
   return <p className={`allowance-line level-${allowance.level}`} role="status">
-    Uses {uses} generation{uses === 1 ? "" : "s"} · {allowance.remaining} remaining{allowance.trial ? " in your trial" : ""}
+    Uses {uses} generation{uses === 1 ? "" : "s"} · {allowance.unlimited ? "∞ unlimited" : `${allowance.remaining} remaining${allowance.trial ? " in your trial" : ""}`}
   </p>;
 }
 

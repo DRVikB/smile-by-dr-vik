@@ -220,3 +220,77 @@ test("a case saved before consultation data existed reopens unchanged, with no g
  assert.equal(reopened.consultation,undefined);assert.deepEqual(reopened.settings,defaultSettings);
  a.disconnect();b.disconnect();
 });
+
+test("web portal: a case can start from photos alone, then its details and clinical photos sync",async()=>{
+ const a=repo(),id=uuid();
+ await a.updatePortal(id,{name:"Sophie R.",reference:"SR-1024",status:"progress",photos:{front:png,left:png}});
+ await a.refreshSync();
+ const index=await a.portalIndex();
+ assert.equal(index[id]?.reference,"SR-1024");assert.equal(index[id]?.status,"progress");assert.equal(index[id]?.photoCount,2);
+ const listed=(await a.listCases()).find(c=>c.id===id);
+ assert.equal(listed?.patientName,"Sophie R.");
+ const cloud=await server.store.get(A,id);
+ assert.ok(cloud?.assets.some(x=>x.kind==="CLINICAL_PHOTO"&&x.provenance==="clinical"));
+ await a.updatePortal(id,{status:"lab",photos:{left:null}});await a.refreshSync();
+ const factory=new IDBFactory(),b=repo(factory);await b.refreshSync();
+ const details=await b.portalDetails(id);
+ assert.equal(details?.portal.status,"lab");assert.equal(details?.portal.reference,"SR-1024");
+ assert.deepEqual(Object.keys(details?.portal.thumbs??{}),["front"]);
+ // Full photos come only on request.
+ assert.match((await b.portalPhoto(id,"front"))!,/^data:image\/png;base64,/);
+ assert.equal(await b.portalPhoto(id,"left"),null);
+});
+test("web portal details survive later design saves",async()=>{
+ const r=repo(),f=fixture();
+ await r.updatePortal(f.id,{reference:"AB-1",notes:"Natural, not too white"});
+ await r.recordVisualisation(f.entry,f.media);
+ assert.equal((await r.portalIndex())[f.id]?.reference,"AB-1");
+ assert.equal((await r.portalDetails(f.id))?.portal.notes,"Natural, not too white");
+});
+
+test("web portal: swapping slots moves the stored photos, and removing one drops its preview",async()=>{
+ const r=repo(),id=uuid();
+ await r.updatePortal(id,{reference:"SW-1",photos:{front:png,left:png},thumbs:{front:png,left:png}});
+ await r.updatePortal(id,{swap:["left","upper"]});
+ const after=await r.portalDetails(id);
+ assert.deepEqual(Object.keys(after?.portal.thumbs??{}).sort(),["front","upper"]);
+ await r.updatePortal(id,{photos:{upper:null}});
+ assert.deepEqual(Object.keys((await r.portalDetails(id))?.portal.thumbs??{}),["front"]);
+});
+
+test("web portal: a signed consent syncs with the case, its signature stored as a private asset",async()=>{
+ const {CONSENT_ITEMS,CONSENT_VERSION}=await import("../src/lib/portal");
+ const a=repo(),id=uuid();
+ const agreed=Object.fromEntries(CONSENT_ITEMS.map(i=>[i.id,i.required])) as never;
+ await a.updatePortal(id,{reference:"CO-1",consent:{version:CONSENT_VERSION,signedAt:Date.parse("2026-10-08T10:00:00Z"),patientName:"Sophie R.",agreed,signature:png}});
+ await a.refreshSync();
+ const cloud=await server.store.get(A,id);
+ assert.ok(cloud?.assets.some(x=>x.kind==="CLINICAL_PHOTO"));
+ assert.ok(!JSON.stringify(cloud?.state??{}).includes("data:image"),"no image data inside the case record");
+ const b=repo(new IDBFactory());await b.refreshSync();
+ const consent=(await b.portalDetails(id))?.portal.consent;
+ assert.equal(consent?.patientName,"Sophie R.");assert.equal(consent?.agreed.lab,false);assert.match(consent?.signature??"",/^data:image\/png;base64,/);
+ await b.updatePortal(id,{consent:null});
+ assert.equal((await b.portalDetails(id))?.portal.consent,undefined);
+ a.disconnect();b.disconnect();
+});
+
+test("launching again (resume) does not create a new cloud revision for cases that haven't changed",async()=>{
+ const a=repo(),f=fixture();
+ await a.persistCase(f.draft);await a.recordVisualisation(f.entry,f.media);await a.refreshSync();
+ const before=(await server.store.get(A,f.id))?.revision;assert.ok(before);
+ for(let i=0;i<3;i++){await a.resume();await a.refreshSync();}
+ assert.equal((await server.store.get(A,f.id))?.revision,before,"revision unchanged by launches");
+ assert.equal((await a.cache.outbox()).length,0,"nothing left waiting to upload");
+ // A real change still saves.
+ await a.renameCase(f.id,"AB-1");await a.refreshSync();
+ assert.ok(((await server.store.get(A,f.id))?.revision??0)>before);
+ a.disconnect();
+});
+
+test("saved case content compares equal whatever order its keys are in",async()=>{
+ const {stableJson}=await import("../src/services/cases/sync/types");
+ assert.equal(stableJson({a:1,b:{c:[{y:1,x:2}],d:null}}),stableJson({b:{d:null,c:[{x:2,y:1}]},a:1}));
+ assert.notEqual(stableJson({a:1,b:2}),stableJson({a:1,b:3}));
+ assert.notEqual(stableJson({a:[1,2]}),stableJson({a:[2,1]}),"array order still matters");
+});

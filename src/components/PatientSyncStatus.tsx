@@ -8,14 +8,17 @@ export function PatientSyncStatus({showPending=true}:{showPending?:boolean}){
  useEffect(()=>{let live=true;const load=()=>{void repository.syncStatuses().then(c=>{if(live)setCases(c);}).catch(()=>{});};load();const off=repository.subscribe(load);return()=>{live=false;off();};},[repository]);
  if(repository.scope.owner.kind!=="account")return null;
  const conflicts=cases.filter(c=>c.status==="conflict"),pending=cases.filter(c=>c.status==="pending");
- async function resolve(id:string,choice:"cloud"|"preserve-local"){setBusy(true);setError("");try{await repository.resolveConflict(id,choice);}catch{setError("The resolution couldn’t finish. Both versions are kept. Check your connection and try again.");}finally{setBusy(false);}}
+ async function resolve(ids:string[],choice:"cloud"|"preserve-local"){setBusy(true);setError("");try{for(const id of ids)await repository.resolveConflict(id,choice);}catch{setError("The resolution couldn’t finish. Both versions are kept. Check your connection and try again.");}finally{setBusy(false);}}
  return <div aria-live="polite">
   {showPending&&pending.length>0&&<p className="control-hint">{pending.length} {pending.length===1?"case":"cases"} saved on this device · waiting to sync.</p>}
-  {conflicts.map(c=><div className="error-message" key={c.id} role="status">
-   <p>{c.summary.patientName||"This case"} {c.conflict?.cloud.deletedAt?"was deleted":"changed"} on another device. Your local work is kept.</p>
-   <button className="text-button" disabled={busy} onClick={()=>void resolve(c.id,"cloud")}>Use cloud version</button>
-   <button className="text-button" disabled={busy} onClick={()=>void resolve(c.id,"preserve-local")}>Keep local as separate case</button>
-  </div>)}
+  {conflicts.length>0&&<div className="sync-conflict" role="status" aria-busy={busy}>
+   <p><strong>{conflicts.length===1?(conflicts[0].summary.patientName||"A case"):`${conflicts.length} cases`}</strong> changed on another device.</p>
+   {busy?<div className="sync-conflict-busy"><span className="sync-spinner" aria-hidden="true"/><span>Updating…</span></div>
+    :<div className="sync-conflict-actions">
+     <button className="secondary-button" onClick={()=>void resolve(conflicts.map(c=>c.id),"cloud")}>Use cloud</button>
+     <button className="secondary-button" onClick={()=>void resolve(conflicts.map(c=>c.id),"preserve-local")}>Use this device</button>
+    </div>}
+  </div>}
   {error&&<p className="error-message">{error}</p>}
  </div>;
 }

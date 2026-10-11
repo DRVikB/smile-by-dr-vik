@@ -25,6 +25,7 @@ const ACCOUNT_ERRORS: Record<AccountError["code"], { status: number; error: stri
   duplicate_request: { status: 409, error: "This request has already been submitted." },
   account_not_found: { status: 401, error: "Sign in to your SmileCompose account to generate a smile." },
   account_service_unavailable: { status: 503, error: "Your account couldn’t be checked. No generation was counted. Please try again." },
+  forbidden: { status: 403, error: "This account can’t generate smiles." },
 };
 
 /**

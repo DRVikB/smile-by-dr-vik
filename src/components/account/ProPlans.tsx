@@ -7,6 +7,7 @@ import {
   loadPlans, openManageSubscriptions, purchasePlan, purchasesAvailable, redeemOfferCode, restorePurchases, type PlanOffer,
 } from "@/services/purchases/purchases";
 import { useAccount } from "./AccountProvider";
+import { AccessCodeForm } from "./AccessCodeForm";
 import { AppleEulaLink, PrivacyLink, TermsLink } from "./LegalLinks";
 
 /**
@@ -150,6 +151,7 @@ export function ProPlans({ onPurchased }: { onPurchased?: () => void }) {
       )}
 
       {message && <p className="save-status" role="status">{message}</p>}
+      <AccessCodeForm onRedeemed={onPurchased} />
       <p className="paywall-legal"><TermsLink /> · <AppleEulaLink>Terms of Use (EULA)</AppleEulaLink> · <PrivacyLink /></p>
     </div>
   );

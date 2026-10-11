@@ -1,4 +1,5 @@
 "use client";
+import { RailButton, RailItems, SideRailLayer, useSideRail } from "@/components/sideRail/SideRail";
 import { useEffect, useRef, useState } from "react";
 import { Play, X } from "lucide-react";
 import { CompareSymbol } from "@/components/icons/SmileIcons";
@@ -38,6 +39,7 @@ export function ConsultView({
   onPresent: () => void;
   onClose: () => void;
 }) {
+  const rail = useSideRail();
   const [phase, setPhase] = useState<RevealPhase>("before");
   const [holding, setHolding] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,8 +89,9 @@ export function ConsultView({
         as="div"
         className="consult-top"
         inverse
-        left={
-          <button className="consult-close" onClick={onClose} onPointerDown={(e) => e.stopPropagation()}>
+        left={rail
+          ? <SideRailLayer><RailItems order={0}><RailButton label="Close" onClick={onClose}><X size={21} strokeWidth={1.9} /></RailButton></RailItems></SideRailLayer>
+          : <button className="consult-close" onClick={onClose} onPointerDown={(e) => e.stopPropagation()}>
             <X size={15} /> Close
           </button>
         }

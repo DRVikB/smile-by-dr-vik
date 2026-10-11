@@ -1,5 +1,7 @@
 import type { DurableObjectNamespace, DurableObjectState } from "@cloudflare/workers-types";
 import { serveRequest, type Environment } from "./sites-worker";
+import { accountServicesFromEnv } from "../src/server/access";
+import { purgeExpiredLabShares } from "../src/server/labHandlers";
 
 interface CloudflareEnvironment extends Environment {
   REQUEST_GUARD: DurableObjectNamespace;
@@ -26,6 +28,11 @@ export class SmileRequestGuard {
 }
 
 export default {
+  /** Daily: remove the copied files of expired or withdrawn lab links. */
+  async scheduled(_event: unknown, env: CloudflareEnvironment): Promise<void> {
+    const accounts = accountServicesFromEnv(env);
+    await purgeExpiredLabShares(accounts?.labs ? { accounts, labs: accounts.labs } : null);
+  },
   fetch(request: Request, env: CloudflareEnvironment): Promise<Response> {
     return serveRequest(request, env, async id => {
       // No memory fallback: if protection fails, the shared handler blocks AI spend.

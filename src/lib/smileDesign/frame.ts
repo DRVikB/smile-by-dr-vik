@@ -60,6 +60,8 @@ export interface SmileGuide {
   dy: number;
   /** Nasal width lines through the outer edges of the nose, in photo pixels: facial references that stay put. */
   nasal?: [[Point, Point], [Point, Point]];
+  /** The fit before the clinician dragged the guide's points, so Reset can return to it. */
+  original?: { fit: SmileFrameFit; shape: SmileGuideShape };
 }
 
 export interface GuideGeometry {
@@ -121,6 +123,9 @@ export function normaliseGuide(value: unknown): SmileGuide | undefined {
   const point = (p: unknown): p is Point => numbers(p, 2);
   const nasal = Array.isArray(v.nasal) && v.nasal.length === 2 && v.nasal.every(l => Array.isArray(l) && l.length === 2 && l.every(point))
     ? v.nasal.map(l => [[l[0][0], l[0][1]], [l[1][0], l[1][1]]]) as [[Point, Point], [Point, Point]] : undefined;
+  const o = v.original as { fit?: Partial<SmileFrameFit>; shape?: Partial<SmileGuideShape> } | undefined;
+  const original = o && o.fit && [o.fit.cx, o.fit.cy, o.fit.halfWidth, o.fit.angle].every(finite) && o.fit.halfWidth! > 0 && validShape(o.shape)
+    ? { fit: { cx: o.fit.cx!, cy: o.fit.cy!, halfWidth: o.fit.halfWidth!, angle: o.fit.angle! }, shape: copyShape(o.shape) } : undefined;
   return {
     version: 2, visible: v.visible !== false,
     fit: { cx: f.cx!, cy: f.cy!, halfWidth: f.halfWidth!, angle: f.angle! },
@@ -128,7 +133,68 @@ export function normaliseGuide(value: unknown): SmileGuide | undefined {
     width: clamp(finite(v.width) ? v.width : 1, 0.7, 1.3), length: clamp(finite(v.length) ? v.length : 1, 0.7, 1.35),
     curve: clamp(finite(v.curve) ? v.curve : 1, 0, 1.8), dx: clamp(finite(v.dx) ? v.dx : 0, -0.5, 0.5), dy: clamp(finite(v.dy) ? v.dy : 0, -0.5, 0.5),
     ...(nasal ? { nasal } : {}),
+    ...(original ? { original } : {}),
   };
+}
+
+function copyShape(s: SmileGuideShape): SmileGuideShape {
+  return { gum: [...s.gum], edge: [...s.edge], span: [s.span[0], s.span[1]], divisions: [...s.divisions], teeth: s.teeth.map(t => [t[0], t[1]] as [number, number]), measured: s.measured === true };
+}
+
+/**
+ * The guide with its sliders and nudges built into the shape (width, length and curve back to 100%,
+ * no nudge), so dragging a point moves exactly what is under the finger. Looks identical.
+ * The first fit is kept for Reset.
+ */
+export function bakeGuide(d: SmileGuide): SmileGuide {
+  const f = guideFrame(d), W = d.width;
+  const xs = Array.from({ length: GUIDE_SAMPLES }, (_, i) => -1 + i * STEP);
+  const shape: SmileGuideShape = {
+    gum: xs.map(u => f.gum(u * W) / W),
+    edge: xs.map(u => f.edge(u * W) / W),
+    span: [d.shape.span[0], d.shape.span[1]],
+    divisions: [...d.shape.divisions],
+    teeth: f.teeth.map(t => [t.centreTop / W, t.centreBottom / W] as [number, number]),
+    measured: d.shape.measured,
+  };
+  const [cx, cy] = f.toPhoto(0, 0);
+  return { ...d, fit: { ...d.fit, cx, cy, halfWidth: d.fit.halfWidth * W }, shape, width: 1, length: 1, curve: 1, dx: 0, dy: 0,
+    original: d.original ?? { fit: { ...d.fit }, shape: copyShape(d.shape) } };
+}
+
+export type GuideCurve = "gum" | "edge";
+export type GuideSide = "left" | "centre" | "right";
+const MIN_TOOTH = 0.05, MIN_HEIGHT = 0.06;
+
+/** How much a point at `u` moves when a gum-line or edge handle on `side` is dragged. */
+export function handleWeight(side: GuideSide, u: number): number {
+  if (side === "centre") return 1;
+  const t = clamp(side === "left" ? -u : u, 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+/** Raise, lower or tilt the gum line or biting-edge curve of a baked guide by `dy` guide units. */
+export function shiftGuideCurve(d: SmileGuide, curve: GuideCurve, side: GuideSide, dy: number): SmileGuide {
+  const s = d.shape;
+  const xs = s.gum.map((_, i) => -1 + i * STEP);
+  // A drag can't close the gap between the lines past MIN_HEIGHT, but corners already closer stay as they are.
+  const gum = curve === "gum" ? s.gum.map((y, i) => Math.min(y + dy * handleWeight(side, xs[i]), Math.max(y, s.edge[i] - MIN_HEIGHT))) : [...s.gum];
+  const edge = curve === "edge" ? s.edge.map((y, i) => Math.max(y + dy * handleWeight(side, xs[i]), Math.min(y, s.gum[i] + MIN_HEIGHT))) : [...s.edge];
+  const teeth = s.teeth.map(([top, bottom], k) => {
+    const w = handleWeight(side, (s.divisions[k] + s.divisions[k + 1]) / 2) * dy;
+    return curve === "gum" ? [Math.min(top + w, Math.max(top, bottom - MIN_HEIGHT)), bottom] as [number, number] : [top, Math.max(bottom + w, Math.min(bottom, top + MIN_HEIGHT))] as [number, number];
+  });
+  return { ...d, shape: { ...s, gum, edge, teeth } };
+}
+
+/** Move one tooth boundary (not the midline) of a baked guide to `u`, keeping every tooth a usable width. */
+export function moveGuideDivision(d: SmileGuide, index: number, u: number): SmileGuide {
+  if (index === 3 || index < 0 || index > 6) return d;
+  const div = [...d.shape.divisions];
+  const lo = index === 0 ? -1.3 : div[index - 1] + MIN_TOOTH, hi = index === 6 ? 1.3 : div[index + 1] - MIN_TOOTH;
+  div[index] = clamp(u, lo, hi);
+  const span: [number, number] = [Math.min(d.shape.span[0], div[0]), Math.max(d.shape.span[1], div[6])];
+  return { ...d, shape: { ...d.shape, divisions: div, span } };
 }
 
 /**

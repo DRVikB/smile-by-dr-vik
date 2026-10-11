@@ -1,4 +1,5 @@
 "use client";
+import { RailItems, useSideRail } from "@/components/sideRail/SideRail";
 import { getCaseRepository } from "@/services/cases/caseRepository";
 import { useEffect, useRef, useState } from "react";
 import { ChevronRight, MoreHorizontal, Settings } from "lucide-react";
@@ -30,6 +31,14 @@ export function HomeHeadline({ headingRef }: { headingRef: React.Ref<HTMLHeading
 export function ProfileButton({ className = "" }: { className?: string }) {
   const { initials, displayName, user, avatarUrl, openSettings } = useAccount();
   const label = user || displayName ? "Profile and settings" : "Settings";
+  const rail = useSideRail();
+  if (rail) return (
+    <RailItems order={2}>
+      <button type="button" className="rail-button" onClick={() => openSettings()} aria-label={label}>
+        {initials || avatarUrl ? <UserAvatar initials={initials} url={avatarUrl} size="small" className="rail-avatar" /> : <Settings size={19} strokeWidth={1.7} aria-hidden="true" />}
+      </button>
+    </RailItems>
+  );
   return (
     <button type="button" className={`profile-button${avatarUrl ? " has-photo" : ""} ${className}`} onClick={() => openSettings()} aria-label={label}>
       {initials || avatarUrl ? <UserAvatar initials={initials} url={avatarUrl} size="small" className="profile-button-avatar" /> : <Settings size={17} strokeWidth={1.7} aria-hidden="true" />}
@@ -72,7 +81,7 @@ export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unkn
       .catch(() => { if (live) setPages([]); });
       void repository.caseSyncIndicators().then(next => { if (live) setSyncIndicators(next); }).catch(() => {});
     };
-    load(); const off = repository.subscribe(load);
+    load(); void repository.repairThumbs().catch(() => {}); const off = repository.subscribe(load);
     return () => { live = false; off(); };
   }, [refreshKey]);
 
@@ -88,7 +97,7 @@ export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unkn
           const box = e.currentTarget;
           const children = [...box.children] as HTMLElement[];
           const nearest = children.reduce((best, child, i) => Math.abs(child.offsetLeft - box.scrollLeft) < Math.abs(children[best].offsetLeft - box.scrollLeft) ? i : best, 0);
-          setPage(nearest);
+          setPage(Math.min(nearest, pages.length - 1));
         }}
         onKeyDown={e => {
           if (e.target !== e.currentTarget) return;
@@ -100,7 +109,7 @@ export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unkn
         {pages.map((entries, i) => <ul className="recent-case-page" key={entries[0].id} aria-label={`Page ${i + 1} of ${pages.length}`}>
           {entries.map(entry => <li key={entry.id}>
             <button type="button" className="recent-case" onClick={() => onOpen(entry.id)} onFocus={() => goToPage(i)}>
-              {entry.thumb ? <img src={entry.thumb} alt="" loading="lazy" decoding="async" onLoad={e => frameSmile(e.currentTarget)} /> : <span className="recent-case-placeholder" aria-hidden="true" />}
+              {entry.thumb ? <img src={entry.thumb} alt="" decoding="async" onLoad={e => frameSmile(e.currentTarget)} /> : <span className="recent-case-placeholder" aria-hidden="true" />}
               <span className="recent-case-text">
                 {/* The whole card opens the case, where its options are. */}
                 <span className="recent-case-title"><strong>{entry.patientName || "Unnamed case"}</strong><MoreHorizontal size={18} strokeWidth={1.8} aria-hidden="true" /></span>

@@ -70,7 +70,7 @@
 		5C0A3E1F2A7B4C9D8E6F1A2E /* PhotoPickerPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoPickerPlugin.swift; sourceTree = "<group>"; };
 		5C0A3E1F2A7B4C9D8E6F1A30 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		5C0A3E1F2A7B4C9D8E6F1A32 /* AppleSignInPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInPlugin.swift; sourceTree = "<group>"; };
-		5C0A3E1F2A7B4C9D8E6F1A33 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		5C0A3E1F2A7B4C9D8E6F1A33 /* SmileCompose.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SmileCompose.entitlements; sourceTree = "<group>"; };
 		5C0A3E1F2A7B4C9D8E6F1A35 /* SecureStoragePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureStoragePlugin.swift; sourceTree = "<group>"; };
 		5C0A3E1F2A7B4C9D8E6F1A37 /* AppearancePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearancePlugin.swift; sourceTree = "<group>"; };
 		5C11A0000000000000000200 /* Launch/LaunchSymbol@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Launch/LaunchSymbol@2x.png"; sourceTree = "<group>"; };
@@ -133,7 +133,7 @@
 				5C0A3E1F2A7B4C9D8E6F1A32 /* AppleSignInPlugin.swift */,
 				5C0A3E1F2A7B4C9D8E6F1A35 /* SecureStoragePlugin.swift */,
 				5C0A3E1F2A7B4C9D8E6F1A37 /* AppearancePlugin.swift */,
-				5C0A3E1F2A7B4C9D8E6F1A33 /* App.entitlements */,
+				5C0A3E1F2A7B4C9D8E6F1A33 /* SmileCompose.entitlements */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -223,7 +223,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 504EC2FF1FED79650016851F /* Build configuration list for PBXProject "App" */;
+			buildConfigurationList = 504EC2FF1FED79650016851F /* Build configuration list for PBXProject "SmileCompose" */;
 			compatibilityVersion = "Xcode 8.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -442,9 +442,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
-				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
+				CODE_SIGN_ENTITLEMENTS = App/SmileCompose.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 7TPF7LT884;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SmileCompose;
@@ -470,9 +470,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
-				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
+				CODE_SIGN_ENTITLEMENTS = App/SmileCompose.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 7TPF7LT884;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SmileCompose;
@@ -497,7 +497,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = SmileComposeWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 7TPF7LT884;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SmileComposeWidget/Info.plist;
@@ -523,7 +523,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = SmileComposeWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 7TPF7LT884;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SmileComposeWidget/Info.plist;
@@ -546,7 +546,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		504EC2FF1FED79650016851F /* Build configuration list for PBXProject "App" */ = {
+		504EC2FF1FED79650016851F /* Build configuration list for PBXProject "SmileCompose" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				504EC3141FED79650016851F /* Debug */,

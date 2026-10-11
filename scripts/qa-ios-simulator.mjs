@@ -31,7 +31,7 @@ async function main() {
   const source=await fs.readFile('output/stage3-evidence/generation-source.jpg');
   if(createHash('sha256').update(source).digest('hex')!=='1f54f12c302287ce3dcef8701614ebd42130e9a078ec22e062214d09a23b1ee6')throw Error('Approved synthetic QA source is required');
   if(!process.argv.includes('--skip-web-build')) await command('npm',['run','ios:sync'],resolve(evidence,'qa-web-sync.log'));
-  await command('xcodebuild',['-project','ios/App/App.xcodeproj','-scheme','App','-configuration','Release','-destination','generic/platform=iOS Simulator','-derivedDataPath',temporary+'/build','build'],resolve(evidence,'qa-simulator-build.log'));
+  await command('xcodebuild',['-project','ios/App/SmileCompose.xcodeproj','-scheme','App','-configuration','Release','-destination','generic/platform=iOS Simulator','-derivedDataPath',temporary+'/build','build'],resolve(evidence,'qa-simulator-build.log'));
   const fixture=temporary+'/Fixture.app'; await fs.rm(fixture,{recursive:true,force:true});
   await fs.cp(temporary+'/build/Build/Products/Release-iphonesimulator/App.app',fixture,{recursive:true});
   await fs.mkdir(fixture+'/public/qa',{recursive:true}); await fs.copyFile('tests/ios/fixture-network.js',fixture+'/public/qa/fixture-network.js');

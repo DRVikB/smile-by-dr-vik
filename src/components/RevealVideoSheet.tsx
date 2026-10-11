@@ -1,7 +1,8 @@
 "use client";
+import { SheetClose } from "@/components/sideRail/SideRail";
 import { AI_CONCEPT_DISCLAIMER } from "@/lib/brand";
 import { useEffect, useRef, useState } from "react";
-import { Share2, X } from "lucide-react";
+import { Share2 } from "lucide-react";
 import { shareFile } from "@/lib/share";
 
 /**
@@ -85,9 +86,7 @@ export function RevealVideoSheet({
       <div className="sheet video-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-heading">
           <h2>Reveal Video</h2>
-          <button ref={closeButton} className="icon-button" aria-label="Close" onClick={onClose}>
-            <X size={16} />
-          </button>
+          <SheetClose onClose={onClose} buttonRef={closeButton} />
         </div>
         <p className="sheet-sub">Their smile today, with the illustration fading in. Made on this device — no AI credits.</p>
         <p className="share-concept-note">{AI_CONCEPT_DISCLAIMER}</p>

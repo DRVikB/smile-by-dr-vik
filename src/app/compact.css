@@ -45,7 +45,7 @@
     position: absolute;
     z-index: 13;
     top: calc(var(--photo-header) + 9px);
-    left: max(16px, env(safe-area-inset-left));
+    left: max(16px, var(--safe-left));
     max-width: calc(100% - 32px);
   }
   .variant-picker > summary {
@@ -102,8 +102,8 @@
     display: flex;
     flex-direction: column;
     z-index: 21;
-    bottom: calc(91px + env(safe-area-inset-bottom));
-    max-height: calc(100dvh - var(--photo-header) - 112px - env(safe-area-inset-bottom));
+    bottom: calc(91px + var(--safe-bottom));
+    max-height: calc(100dvh - var(--photo-header) - 112px - var(--safe-bottom));
   }
   .app-shell .preview-screen .review-drawer .floating-panel-toggle { flex-shrink: 0; }
   .app-shell .preview-screen .review-drawer .floating-panel-body {
@@ -111,13 +111,13 @@
     flex: 1 1 auto;
     max-height: min(58dvh, 550px);
   }
-  .app-shell .preview-screen .compare-label, .app-shell .preview-screen .guide-key { bottom: calc(104px + env(safe-area-inset-bottom)); }
+  .app-shell .preview-screen .compare-label, .app-shell .preview-screen .guide-key { bottom: calc(104px + var(--safe-bottom)); }
 
   .compact-preview-dock {
     display: flex;
     position: absolute;
     z-index: 24;
-    bottom: max(16px, env(safe-area-inset-bottom));
+    bottom: max(16px, var(--safe-bottom));
     left: 50%;
     width: min(440px, calc(100% - 32px));
     gap: 8px;
@@ -198,7 +198,7 @@
 @media (any-pointer: coarse) and (orientation: landscape) and (max-height: 500px),
        (max-width: 700px) and (orientation: landscape) and (max-height: 500px) {
   .app-shell .preview-screen > .variant-picker { top: calc(var(--photo-header) + 3px); left: 16px; }
-  .compact-preview-dock { width: min(380px, calc(100% - 32px)); right: 16px; left: auto; transform: none; bottom: max(10px, env(safe-area-inset-bottom)); }
+  .compact-preview-dock { width: min(380px, calc(100% - 32px)); right: 16px; left: auto; transform: none; bottom: max(10px, var(--safe-bottom)); }
   .compact-preview-dock > button { min-height: 44px; }
   /* Short landscape: the options cover the dock itself and fill the height below the
      header, scrolling inside, instead of growing up under the header. */

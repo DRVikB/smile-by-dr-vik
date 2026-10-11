@@ -1,4 +1,5 @@
 "use client";
+import { SideRailLayer } from "@/components/sideRail/SideRail";
 import { useEffect, useState } from "react";
 import { useAccount } from "./AccountProvider";
 import { PrivacyNoticeSheet } from "./PrivacyNoticeSheet";
@@ -51,7 +52,7 @@ export function DocumentsSheet({ onAccepted }: { onAccepted: () => void }) {
   }
 
   return (
-    <><div className="sheet-backdrop account-backdrop" role="dialog" aria-modal="true" aria-labelledby="documents-title">
+    <><div className="sheet-backdrop account-backdrop" role="dialog" aria-modal="true" aria-labelledby="documents-title"><SideRailLayer />
       <div className="sheet account-sheet">
         <p className="eyebrow">SmileCompose account</p>
         <h2 id="documents-title">Terms and privacy</h2>

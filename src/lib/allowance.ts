@@ -1,3 +1,4 @@
+import { UNLIMITED_THRESHOLD } from "@/config/subscriptions";
 import { periodAllowance, periodKind } from "@/config/subscriptions";
 import type { EntitlementPlan, GenerationEntitlement, SubscriptionState } from "@/lib/entitlement";
 
@@ -10,6 +11,8 @@ export type AllowanceLevel = "ok" | "low" | "critical" | "empty";
 
 export interface AllowanceView {
   remaining: number;
+  /** Complimentary unlimited access: shown as ∞, never counted down. */
+  unlimited: boolean;
   level: AllowanceLevel;
   plan: EntitlementPlan | null;
   trial: boolean;
@@ -72,9 +75,18 @@ function emptyDetail(e: GenerationEntitlement): string | null {
   }
 }
 
+/** Complimentary access with an effectively endless allowance (UNLIMITED_GENERATIONS). */
+export function isUnlimited(e: Pick<GenerationEntitlement, "subscriptionStatus" | "balance">): boolean {
+  return e.subscriptionStatus === "complimentary" && e.balance >= UNLIMITED_THRESHOLD;
+}
+
 export function describeAllowance(e: GenerationEntitlement): AllowanceView {
   const trial = e.plan === "trial";
   const remaining = Math.max(0, e.balance);
+  if (isUnlimited(e)) return {
+    remaining, unlimited: true, level: "ok", plan: e.plan, trial: false, summary: "∞ Unlimited generations",
+    renewal: "Complimentary access", rolloverNote: null, announcement: null, emptyDetail: null,
+  };
   const level = allowanceLevel(remaining, trial);
   const announcement =
     level === "empty" ? EMPTY_MESSAGE
@@ -83,6 +95,7 @@ export function describeAllowance(e: GenerationEntitlement): AllowanceView {
           : null;
   return {
     remaining,
+    unlimited: false,
     level,
     plan: e.plan,
     trial,
@@ -147,6 +160,8 @@ export function entitlementOf(status: StatusForEntitlement): GenerationEntitleme
 /** What the Home Screen widget shows of the allowance, worded as the app words it. */
 export interface WidgetAllowance {
   remaining: number;
+  /** Shows ∞ instead of the figure. */
+  unlimited: boolean;
   summary: string;
   renewal: string | null;
   plan: string | null;
@@ -168,10 +183,11 @@ export function widgetAllowance(e: GenerationEntitlement): WidgetAllowance {
   const full = e.allowance ?? Math.max(1, view.remaining);
   return {
     remaining: view.remaining,
+    unlimited: view.unlimited,
     summary: view.summary,
     renewal: view.renewal,
     plan: e.plan ? WIDGET_PLAN[e.plan] : null,
-    fraction: Math.round(Math.min(1, Math.max(0, view.remaining / full)) * 1000) / 1000,
+    fraction: view.unlimited ? 1 : Math.round(Math.min(1, Math.max(0, view.remaining / full)) * 1000) / 1000,
     periodEnd: e.periodEnd,
   };
 }

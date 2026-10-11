@@ -1,4 +1,5 @@
 "use client";
+import { SideRailLayer } from "@/components/sideRail/SideRail";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Photo, ShotType } from "@/lib/types";
 
@@ -63,7 +64,7 @@ export function EditArea({ photo, onSave, onClose, requiredBeforeGeneration = fa
     if (!pixels.some((v, i) => i % 4 === 3 && v > 0)) { setError("Paint at least one area, or use Remove edit area."); return; }
     onSave(c.toDataURL("image/png"));
   }
-  return <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-area-title">
+  return <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-area-title"><SideRailLayer />
     <section className="sheet edit-area-sheet">
       <div className="sheet-heading"><h2 id="edit-area-title">Protect the edit area</h2><button type="button" className="text-button" onClick={onClose}>Cancel</button></div>
       {requiredBeforeGeneration && <p className="sheet-sub" role="status">This photo needs a reviewed edit area before generating. No generation has been used. Mark the dental area, save it, then tap Generate when you are ready.</p>}

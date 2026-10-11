@@ -22,6 +22,7 @@ function renderPlans(user: null | { id: string }) {
     "@/services/purchases/purchases": { purchasesAvailable: () => false },
     "./AccountProvider": { useAccount: () => ({ configured: true, user, hasProAccess: false }) },
     "./LegalLinks": { AppleEulaLink: link, PrivacyLink: link, TermsLink: link },
+    "./AccessCodeForm": { AccessCodeForm: () => null },
   };
   new Function("require", "exports", code)((id: string) => { assert.ok(id in modules, id); return modules[id]; }, exports);
   return renderToStaticMarkup(createElement(exports.ProPlans as React.ComponentType));

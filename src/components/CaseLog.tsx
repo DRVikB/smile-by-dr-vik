@@ -1,4 +1,5 @@
 "use client";
+import { RailButton, RailItems, SheetClose, SideRailLayer, useSideRail } from "@/components/sideRail/SideRail";
 import { PatientSyncStatus } from "./PatientSyncStatus";
 import { CaseMediaStatus } from "./CaseMediaStatus";
 import { useCaseMedia } from "./useCaseMedia";
@@ -19,6 +20,7 @@ import {
 import { getCaseRepository } from "@/services/cases/caseRepository";
 import { caseIdOf } from "@/models/case";
 import { useCaseRecord } from "./useCaseRecord";
+import { CasePhotoSet } from "./CasePhotoSet";
 import { RECENTLY_DELETED_DAYS } from "@/config/cases";
 
 /** One patient case: every version made for it, newest first. */
@@ -55,6 +57,8 @@ const timeOf = (ms: number) => new Date(ms).toLocaleTimeString("en-GB", { hour: 
 const versionTitle = (entry: CaseLogEntry, index: number, total: number) => entry.label || `Version ${total - index}`;
 
 export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClose: () => void; initialEntryId?: string; onReopen?: (caseId:string)=>Promise<void>; onSignIn?: () => void }) {
+  // iPhone Duo: Back and Close sit in the side bar.
+  const rail = useSideRail();
   const [repository] = useState(getCaseRepository);
   const { listActiveLog, moveAllToRecentlyDeleted, moveToRecentlyDeleted, purgeRecentlyDeleted, renameCase, setCaseArchived, setFavourite } = repository;
   const [entries, setEntries] = useState<CaseLogEntry[] | null>(null);
@@ -223,16 +227,22 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
   );
 
   return (
+    <SideRailLayer>
     <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-label="Cases" onClick={onClose}>
       <div className="log-panel" onClick={(e) => e.stopPropagation()}>
         <PatientSyncStatus showPending={false} />
         {current ? (
           <div className="case-page" key={current.key}>
             <div className="case-page-head">
-              <button type="button" className="case-back" onClick={() => setOpenCase(null)}>
-                <ChevronLeft size={18} strokeWidth={2} aria-hidden="true" />Cases
-              </button>
-              <button className="icon-button" onClick={onClose} aria-label="Close"><X size={16} /></button>
+              {rail ? <RailItems order={0}>
+                <RailButton label="Back to Cases" onClick={() => setOpenCase(null)}><ChevronLeft size={22} strokeWidth={1.8} /></RailButton>
+                <RailButton label="Close" onClick={onClose}><X size={21} strokeWidth={1.9} /></RailButton>
+              </RailItems> : <>
+                <button type="button" className="case-back" onClick={() => setOpenCase(null)}>
+                  <ChevronLeft size={18} strokeWidth={2} aria-hidden="true" />Cases
+                </button>
+                <button className="icon-button" onClick={onClose} aria-label="Close"><X size={16} /></button>
+              </>}
             </div>
 
             {renaming !== null ? (
@@ -269,6 +279,7 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
             {errorBanner}
             {onReopen&&<button type="button" className="text-button" disabled={reopening} onClick={()=>void reopenDesign(current.key)}>{reopening ? "Opening design…" : "Reopen design"}</button>}
             {syncIndicators[current.key] && <p className="control-hint" role="status">{syncIndicators[current.key]}</p>}
+            <CasePhotoSet caseId={current.key} />
 
             {current.favourites > 0 && (
               <div className="settings-segment case-filter" role="tablist" aria-label="Show versions">
@@ -283,7 +294,7 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
                 return (
                   <li key={entry.id} className="version-tile">
                     <button type="button" className="version-open" onClick={() => void openEntry(entry)}>
-                      <img src={entry.thumb} alt="" draggable={false} />
+                      {entry.thumb ? <img src={entry.thumb} alt="" draggable={false} /> : <span className="version-thumb-empty" aria-hidden="true" />}
                       <span className="version-text">
                         <strong>{versionTitle(entry, index, current.versions.length)}</strong>
                         <span>{timeOf(entry.createdAt)}{(entry.testMode || entry.mode === "mock") ? " · Test" : ""}</span>
@@ -323,7 +334,8 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
           <>
             <div className="log-head">
               <h2>Cases</h2>
-              <button className="icon-button" onClick={onClose} aria-label="Close"><X size={16} /></button>
+              {rail ? <RailItems order={0}><RailButton label="Close" onClick={onClose}><X size={21} strokeWidth={1.9} /></RailButton></RailItems>
+                : <button className="icon-button" onClick={onClose} aria-label="Close"><X size={16} /></button>}
             </div>
 
             <div className="log-search">
@@ -438,7 +450,7 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
                 >
                   <Star size={17} strokeWidth={1.9} fill={open.entry.favourite ? "currentColor" : "none"} />
                 </button>
-                <button className="icon-button" onClick={() => setOpen(null)} aria-label="Close"><X size={16} /></button>
+                <SheetClose onClose={() => setOpen(null)} />
               </span>
             </div>
             {!open.entry.testMode && open.entry.mode !== "mock" && (
@@ -516,5 +528,6 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
         />
       )}
     </div>
+    </SideRailLayer>
   );
 }

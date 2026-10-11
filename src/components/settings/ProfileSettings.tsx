@@ -26,7 +26,7 @@ export function ProfileHeader() {
   const accountName = names.fullName && names.fullName !== title ? names.fullName : null;
 
   return (
-    <div className="profile-card">
+    <div className={`profile-card${user ? "" : " signed-out"}`}>
       {user ? (
         <button type="button" className="profile-avatar-button" onClick={() => setEditingPhoto(true)} aria-label={avatarUrl ? "Change or remove profile photo" : "Add profile photo"}>
           <Avatar initials={initials} url={avatarUrl} />

@@ -23,6 +23,8 @@ export async function backend(){
  insert into auth.users values('${A}'),('${B}');
  `);
  await db.exec(readFileSync("supabase/migrations/20261002093305_patient_case_sync.sql","utf8"));
+ // The web portal migration's patient-asset changes (CLINICAL_PHOTO); its labs tables need the account schema.
+ await db.exec(readFileSync("supabase/migrations/20261007120000_web_portal_labs.sql","utf8").split("create table public.labs")[0]);
  const media=new Map<string,Uint8Array>();let failRemove=false,uploadCount=0,downloadCount=0;
  const store:PatientCaseStore={
   async list(owner,cursor){const after=cursor?JSON.parse(atob(cursor)):null;const r=await db.query<Record<string,unknown>>(`select id,owner_user_id,created_at,updated_at,revision,archived_at,deleted_at,schema_version,summary from patient_cases where owner_user_id=$1 ${after?'and (updated_at,id)>($2::timestamptz,$3::uuid)':''} order by updated_at,id limit 51`,after?[owner,...after]:[owner]);const last=r.rows.slice(0,50).at(-1);return {cases:r.rows.slice(0,50).map(r=>{const {state,assets,...summary}=caseRecord(r);void state;void assets;return summary;}),nextCursor:r.rows.length>50?btoa(JSON.stringify([last!.updated_at,last!.id])):null};},

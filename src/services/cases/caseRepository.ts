@@ -4,11 +4,12 @@ import { captureWorkspace, guardStore, type WorkspaceLease } from "@/lib/workspa
 import type { CaseLogEntry, CaseLogMedia, SmileCase } from "@/lib/types";
 import { buildCase, caseIdOf, summariseCases } from "@/models/case";
 import { restoreAnalysisSnapshot } from "./sync/analysisSnapshot";
-import { createPatientLocalStore } from "./sync/localStore";
+import { createPatientLocalStore, type LocalPatientCase } from "./sync/localStore";
 import { createSyncCoordinator } from "./sync/coordinator";
 import { encodePatientState, hydrate, referencedAssets } from "./sync/media";
 import { caseMediaStatus } from "./sync/mediaStatus";
-import { uuidValid, type Json, type PatientApi } from "./sync/types";
+import { stableJson, uuidValid, type Json, type PatientApi } from "./sync/types";
+import { PHOTO_SLOTS, cleanTags, isCaseStatus, isPhotoSlot, validConsent, type CaseConsent, mergePortal, type PhotoSlot, type PortalDetails, type PortalPatch } from "@/lib/portal";
 
 /** UI -> this session-bound repository -> immediate local working copy + durable cloud outbox. */
 export function createCaseRepository(scope: WorkspaceLease) {
@@ -17,18 +18,20 @@ export function createCaseRepository(scope: WorkspaceLease) {
  const workingListeners=new Set<(draft:SmileCase|null)=>void>();
  const workingChange=(draft:SmileCase|null)=>{scope.assert();for(const fn of workingListeners)fn(draft);};
  const change=()=>{scope.assert();for(const fn of listeners)fn();};
- const sync=createSyncCoordinator(scope,local,change,async c=>{
+ const project=async(c:LocalPatientCase)=>{
   const entries:CaseLogEntry[]=[];
   if(!c.deletedAt)for(const item of c.state.entries){
     const e=await hydrate<CaseLogEntry>(item,id=>sync.loadAsset(c.id,id),scope).catch(()=>({...item as object,thumb:""}) as CaseLogEntry);scope.assert();entries.push(e);
   }
-  if(!c.deletedAt&&!entries.length&&c.state.draft){
+  if(!c.deletedAt&&!entries.length&&(c.state.draft||c.state.portal)){
     const thumb=c.state.draftThumb?await hydrate<string>(c.state.draftThumb,id=>sync.loadAsset(c.id,id),scope).catch(()=>""):"";
     entries.push({id:c.id,caseId:c.id,patientName:c.summary.patientName,createdAt:Date.parse(c.createdAt),mode:"live",draftOnly:true,label:"Draft",summary:"Unfinished design · no AI concept generated",archivedAt:c.state.caseStatus?.archivedAt??undefined,deletedAt:c.state.caseStatus?.deletedAt??undefined,thumb});
   }
   await log.replaceCaseMetadata(c.id,entries);
   if(c.deletedAt){const d=await drafts.readCase();if(d?.caseId===c.id){await drafts.persistCase(null);workingChange(null);}}
- });
+ };
+ const sync=createSyncCoordinator(scope,local,change,project);
+ let repairing:Promise<void>|null=null;
  const isAccount=scope.owner.kind==="account"&&uuidValid(scope.owner.userId);
  async function storedVersion(id:string){
   const entry=(await log.listAllLog()).find(e=>e.id===id);
@@ -42,7 +45,7 @@ export function createCaseRepository(scope: WorkspaceLease) {
   if(m&&c){const media=await hydrate<CaseLogMedia>(m,aid=>sync.loadAsset(c.id,aid),scope);await restoreAnalysisSnapshot(media.originalImage,media.analysisSnapshot??media.photoMetadata?.analysisSnapshot);scope.assert();return media;}
   return log.readLogMedia(id);
  }
- async function snapshot(id:string,force=false){
+ async function snapshot(id:string,force=false,portalOverride?:Json|null){
   if(!isAccount)return;
   const old=await local.getCase(id);if(old?.deletedAt)return;
   const group=(await log.listAllLog()).filter(e=>caseIdOf(e)===id&&!e.testMode&&e.mode!=="mock");
@@ -53,17 +56,23 @@ export function createCaseRepository(scope: WorkspaceLease) {
    if(m)media.push(m as unknown as CaseLogMedia);
   }
   const active=await drafts.readCase();const draft=active?.caseId===id&&!active.testMode?active:old?.state.draft as unknown as SmileCase|null??null;
-  if(!entries.length&&!draft)return;
+  const portal=portalOverride!==undefined?portalOverride:(old?.state.portal??null);
+  if(!entries.length&&!draft&&!portal)return;
   const preservedEntries=entries.map(e=>!e.thumb&&old?{...e,thumb:(old.state.entries.find(x=>x&&typeof x==="object"&&!Array.isArray(x)&&x.id===e.id) as Record<string,Json>|undefined)?.thumb as unknown as string??""}:e);
   let draftThumb=old?.state.draftThumb;
   if(!entries.length&&active?.caseId===id&&typeof document!=="undefined"){
     if(lastThumb?.src!==active.photo.dataUrl){const {thumbnail}=await import("@/lib/thumb");const thumb=await thumbnail(active.photo.dataUrl,240,0.65);scope.assert();lastThumb={src:active.photo.dataUrl,image:thumb};}
     draftThumb=lastThumb.image;
+  }else if(!entries.length&&!draft&&portal&&typeof document!=="undefined"){
+    // A case started from photos alone: its thumbnail comes from the first photo in the set.
+    const photos=(portal as Record<string,Json>).photos as Record<string,Json>|undefined;
+    const first=PHOTO_SLOTS.map(slot=>photos?.[slot.id]).find(v=>typeof v==="string"&&v.startsWith("data:")) as string|undefined;
+    if(first){const {thumbnail}=await import("@/lib/thumb");draftThumb=await thumbnail(first,240,0.65);scope.assert();}
   }
-  const encoded=await encodePatientState(scope,local,id,{entries:preservedEntries,media,draft,draftThumb,caseStatus,preferredDesignId:old?.state.preferredDesignId??draft?.preferredDesignId});
-  if(!force&&old&&JSON.stringify(old.state)===JSON.stringify(encoded.state))return;
+  const encoded=await encodePatientState(scope,local,id,{entries:preservedEntries,media,draft,draftThumb,caseStatus,portal:portal??undefined,preferredDesignId:old?.state.preferredDesignId??draft?.preferredDesignId});
+  if(!force&&old&&stableJson(old.state)===stableJson(encoded.state))return;
   await sync.enqueue(id,encoded.state,encoded.summary,encoded.assets);
-  if(!entries.length&&draft){await log.replaceCaseMetadata(id,[{id,caseId:id,patientName:draft.patientName??"",createdAt:Date.parse(old?.createdAt??new Date().toISOString()),mode:"live",draftOnly:true,label:"Draft",summary:"Unfinished design · no AI concept generated",archivedAt:caseStatus.archivedAt??undefined,deletedAt:caseStatus.deletedAt??undefined,thumb:lastThumb?.image??""}]);}
+  if(!entries.length&&(draft||portal)){const portalName=(portal as Record<string,Json>|null)?.name;await log.replaceCaseMetadata(id,[{id,caseId:id,patientName:draft?.patientName||(typeof portalName==="string"?portalName:""),createdAt:Date.parse(old?.createdAt??new Date().toISOString()),mode:"live",draftOnly:true,label:"Draft",summary:draft?"Unfinished design · no AI concept generated":"Photos added · not designed yet",archivedAt:caseStatus.archivedAt??undefined,deletedAt:caseStatus.deletedAt??undefined,thumb:draft?lastThumb?.image??"":await hydrate<string>(encoded.state.draftThumb??"",aid=>sync.loadAsset(id,aid),scope).catch(()=>"")}]);}
   else if((await log.listAllLog()).some(e=>caseIdOf(e)===id&&e.draftOnly)){for(const e of await log.listAllLog())if(caseIdOf(e)===id&&e.draftOnly)await log.deleteLogEntry(e.id);}
   // The binary cache now owns these bytes. Keep inexpensive metadata in the old UI log.
   await log.removeLogMedia(entries.map(e=>e.id));
@@ -79,6 +88,17 @@ export function createCaseRepository(scope: WorkspaceLease) {
   async mediaStatus(id:string){
    const [{record,value},saved,assets,operations]=await Promise.all([storedVersion(id),log.readLogMedia(id),local.assets(),local.outbox()]);
    return caseMediaStatus({record,assets,operations,required:value?[...referencedAssets(value)]:[],localAvailable:!!saved,online:typeof navigator==="undefined"||navigator.onLine!==false,transfers:sync.transfers()});
+  },
+  /** Thumbnails that failed to load when a case last changed (for example while offline) are fetched again; covers that now have one appear. */
+  repairThumbs():Promise<void>{
+   if(repairing)return repairing;
+   repairing=(async()=>{
+    const missing=async()=>(await log.listLog()).filter(e=>!e.thumb&&!e.deletedAt);
+    const before=await missing(),broken=new Set(before.map(caseIdOf));
+    for(const id of broken){const c=await local.getCase(id);if(!c||c.deletedAt)continue;await project(c).catch(()=>{});scope.assert();}
+    if(broken.size&&(await missing()).length<before.length)change();
+   })().catch(()=>{}).finally(()=>{repairing=null;});
+   return repairing;
   },
   async retryMedia(id:string){const {record}=await storedVersion(id);if(record)await sync.retry(record.id);return mediaFor(id);},
   async caseSyncIndicators(){
@@ -126,6 +146,33 @@ export function createCaseRepository(scope: WorkspaceLease) {
     if(draft.screen==="start")draft.screen=draft.result?"preview":"design";
     await restoreAnalysisSnapshot(draft.photo.dataUrl,draft.photo.analysisSnapshot);scope.assert();sync.pinCase(id);await drafts.persistCase(draft);return draft;},
   async syncStatuses(){return local.cases();},
+  /** Web portal: reference, status and notes for every case (no photos). */
+  async portalIndex(){const index:Record<string,{reference?:string;status?:string;name?:string;tags:string[];hasDraft:boolean;photoCount:number}>={};for(const c of await local.cases()){if(c.deletedAt)continue;const p=(c.state.portal??{}) as Record<string,Json>;const photos=p.photos&&typeof p.photos==="object"?Object.keys(p.photos):[];index[c.id]={reference:typeof p.reference==="string"?p.reference:undefined,status:typeof p.status==="string"?p.status:undefined,name:typeof p.name==="string"?p.name:undefined,tags:cleanTags(p.tags),hasDraft:Boolean(c.state.draft),photoCount:photos.length};}return index;},
+  /**
+   * Web portal and app: one case's details with small photo previews only (full photos load on request,
+   * so opening a case downloads a few hundred KB, not the whole set). Older sets without previews fall back to the photo.
+   */
+  async portalDetails(id:string){const c=await local.getCase(id);if(!c||c.deletedAt)return null;
+   const raw=(c.state.portal??{}) as Record<string,Json>;const photos=(raw.photos??{}) as Record<string,Json>,thumbRefs=(raw.thumbs??{}) as Record<string,Json>;
+   const thumbs:Partial<Record<PhotoSlot,string>>={};
+   for(const slot of Object.keys(photos)){if(!isPhotoSlot(slot))continue;const ref=thumbRefs[slot]??photos[slot];const url=await hydrate<string>(ref,aid=>sync.loadAsset(id,aid),scope).catch(()=>"");if(url)thumbs[slot]=url;}
+   const portal:PortalDetails={name:typeof raw.name==="string"?raw.name:undefined,reference:typeof raw.reference==="string"?raw.reference:undefined,status:isCaseStatus(raw.status)?raw.status:undefined,notes:typeof raw.notes==="string"?raw.notes:undefined,tags:cleanTags(raw.tags),thumbs};
+   if(raw.consent&&typeof raw.consent==="object"){const consent=await hydrate<CaseConsent>(raw.consent,aid=>sync.loadAsset(id,aid),scope).catch(()=>null);if(validConsent(consent))portal.consent=consent;}
+   const draft=c.state.draft as Record<string,Json>|null;
+   const designRef=(draft?.photo as Record<string,Json>|undefined)?.dataUrl;
+   let designThumb=c.state.draftThumb?await hydrate<string>(c.state.draftThumb,aid=>sync.loadAsset(id,aid),scope).catch(()=>""):"";
+   // Cases with designs keep no preview of their photo: make one in memory (the photo is usually already on this device).
+   if(!designThumb&&designRef&&typeof document!=="undefined"){const full=await hydrate<string>(designRef,aid=>sync.loadAsset(id,aid),scope).catch(()=>"");if(full){const {thumbnail}=await import("@/lib/thumb");designThumb=await thumbnail(full,360,0.72).catch(()=>"");}}
+   return {portal,designThumb,hasDesignPhoto:Boolean(designRef),hasDraft:Boolean(draft),createdAt:c.createdAt,updatedAt:c.updatedAt};},
+  /** One full-size photo from the set, downloaded only now. */
+  async portalPhoto(id:string,slot:PhotoSlot){const c=await local.getCase(id);const ref=((c?.state.portal as Record<string,Json>|undefined)?.photos as Record<string,Json>|undefined)?.[slot];return ref?hydrate<string>(ref,aid=>sync.loadAsset(id,aid),scope):null;},
+  /** The full photo the design uses (the draft's photograph). */
+  async portalDesignPhoto(id:string){const c=await local.getCase(id);const photo=(c?.state.draft as Record<string,Json>|null|undefined)?.photo as Record<string,Json>|undefined;return photo?.dataUrl?hydrate<string>(photo.dataUrl,aid=>sync.loadAsset(id,aid),scope):null;},
+  /** Web portal and app: change a case's details or photo set (creates the case if it only has photos). New photos get a small preview. */
+  async updatePortal(id:string,patch:PortalPatch){
+   const thumbs:Partial<Record<PhotoSlot,string|null>>={...(patch.thumbs??{})};
+   if(patch.photos&&typeof document!=="undefined"){const {thumbnail}=await import("@/lib/thumb");for(const [slot,value] of Object.entries(patch.photos))if(isPhotoSlot(slot)&&typeof value==="string"&&value.startsWith("data:image/")&&!thumbs[slot])thumbs[slot]=await thumbnail(value,360,0.72);}
+   return write(async()=>{const c=await local.getCase(id);await snapshot(id,true,mergePortal(c?.state.portal as Record<string,unknown>|undefined,{...patch,thumbs}) as Json);change();});},
   async syncConflicts(){return sync.conflicts();},
   async resolveConflict(id:string,choice:"cloud"|"preserve-local"){return write(async()=>{
     if(!(await local.getCase(id))?.conflict)return;

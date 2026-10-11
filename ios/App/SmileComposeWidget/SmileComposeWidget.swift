@@ -23,6 +23,9 @@ private let appGroup = "group.uk.co.drvik.smilecompose"
 /// wording, so the widget reads exactly as the app does.
 private struct Allowance: Decodable {
     let remaining: Int
+    /// Complimentary unlimited access: shown as ∞, never counted down. Absent from older app versions.
+    let unlimited: Bool?
+    var figure: String { unlimited == true ? "∞" : "\(remaining)" }
     /// "38 generations remaining"
     let summary: String
     /// "Renews 14 October", "Annual allowance renews 14 September 2027", "Trial ends 2 October"
@@ -545,9 +548,9 @@ private struct GenerationsSmallView: View {
                 Ring(fraction: allowance?.fraction, width: 6 * t.k, p: p) {
                     if let allowance {
                         VStack(spacing: 0) {
-                            Text("\(allowance.remaining)").font(.system(size: t.number, weight: .semibold, design: .rounded)).foregroundStyle(p.text)
+                            Text(allowance.figure).font(.system(size: t.number, weight: .semibold, design: .rounded)).foregroundStyle(p.text)
                                 .lineLimit(1).minimumScaleFactor(0.6).contentTransition(.numericText())
-                            Text("left").font(.system(size: t.caption)).foregroundStyle(p.secondary)
+                            Text(allowance.unlimited == true ? "unlimited" : "left").font(.system(size: t.caption)).foregroundStyle(p.secondary)
                         }
                     } else {
                         ToothShape().stroke(p.text, style: StrokeStyle(lineWidth: 1.5 * t.k, lineJoin: .round)).frame(width: 26 * t.k, height: 26 * t.k)
@@ -574,7 +577,7 @@ private struct GenerationsMediumView: View {
                 Ring(fraction: allowance?.fraction, width: 7 * t.k, p: p) {
                     if let allowance {
                         VStack(spacing: 0) {
-                            Text("\(allowance.remaining)").font(.system(size: t.number, weight: .semibold, design: .rounded)).foregroundStyle(p.text)
+                            Text(allowance.figure).font(.system(size: t.number, weight: .semibold, design: .rounded)).foregroundStyle(p.text)
                                 .lineLimit(1).minimumScaleFactor(0.6)
                             Text("generations").font(.system(size: t.caption)).foregroundStyle(p.secondary)
                         }
@@ -674,7 +677,7 @@ private struct FamilyView: View {
                 LineMark().frame(width: 28, height: 28)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(name.map { "Welcome, \($0)" } ?? "SmileCompose").font(.system(size: 14, weight: .semibold)).lineLimit(1)
-                    Text(entry.allowance.map { "\($0.remaining) generations left" } ?? "New smile design").font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(entry.allowance.map { $0.unlimited == true ? "Unlimited generations" : "\($0.remaining) generations left" } ?? "New smile design").font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
             .widgetURL(Action.new.url)
