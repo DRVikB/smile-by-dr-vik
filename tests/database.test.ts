@@ -46,6 +46,7 @@ before(async () => {
   await db.exec(readFileSync("supabase/migrations/20261008120000_lab_share_replies.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261008150000_admin_dashboard.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261011100000_access_codes.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261012190000_override_allowance_raise.sql", "utf8"));
   await db.exec(`grant all on all tables in schema public to service_role;`);
 });
 
@@ -518,4 +519,28 @@ test("an access code works once, for one account, and wrong guesses are limited"
       await assert.rejects(db.query(`select * from access_codes`), /permission denied/);
     } finally { await db.exec(`reset role;`); }
   }
+});
+
+test("a larger complimentary allowance takes effect in the same month; a smaller one never lowers it", async () => {
+  const tester = "00000000-0000-4000-8000-0000000000d1";
+  await db.query(`insert into auth.users (id, email) values ($1, 'raise@example.test')`, [tester]);
+  const ensure = (source: string, allowance: number) => db.query<{ id: string }>(
+    `select ensure_allowance_period($1, $2, 'production', null, date_trunc('month', now()), date_trunc('month', now()) + interval '1 month', $3) as id`, [tester, source, allowance]);
+  const remaining = async () => Number((await db.query<{ r: number }>(`select generation_remaining($1) as r`, [tester])).rows[0].r);
+  const period = (await ensure("override", 30)).rows[0].id;
+  await db.query(`update allowance_periods set used = 30 where id = $1`, [period]);
+  assert.equal(await remaining(), 0);
+  // A tester code worth more than what they already had: the same period, raised, with what was used still counted.
+  assert.equal((await ensure("override", 42)).rows[0].id, period);
+  assert.equal(await remaining(), 12);
+  const ledger = await db.query<{ quantity: number; note: string }>(`select quantity, note from generation_ledger where period_id = $1 order by created_at desc, quantity limit 1`, [period]);
+  assert.equal(Number(ledger.rows[0].quantity), 12);
+  assert.match(ledger.rows[0].note, /raised from 30 to 42/);
+  // Asking again, or with a smaller figure, changes nothing.
+  await ensure("override", 42); await ensure("override", 20);
+  assert.equal(await remaining(), 12);
+  // A subscription period keeps the allowance it was created with.
+  const sub = (await ensure("subscription", 50)).rows[0].id;
+  await ensure("subscription", 80);
+  assert.equal(Number((await db.query<{ a: number }>(`select included_allowance as a from allowance_periods where id = $1`, [sub])).rows[0].a), 50);
 });
