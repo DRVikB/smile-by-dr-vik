@@ -11,7 +11,12 @@ import { sendStyleFeedback } from "@/services/caseLibrary/caseLibraryApi";
  */
 export function StyleFeedback({ result }: { result: GenerationResult }) {
   const account = useAccount();
-  const [state, setState] = useState<"ask" | "saving" | "done" | "hidden">("ask");
+  // One card per design. The answer belongs to that design, so a new result starts by asking again
+  // (tracked here rather than by remounting, which had left earlier cards behind in the panel).
+  const design = result.requestId ?? result.variationId ?? "";
+  const [answer_, setAnswer] = useState<{ design: string; state: "saving" | "done" | "hidden" } | null>(null);
+  const state: "ask" | "saving" | "done" | "hidden" = answer_?.design === design ? answer_.state : "ask";
+  const setState = (next: "saving" | "done" | "hidden") => setAnswer({ design, state: next });
   const count = result.preferences?.styleReferenceCount ?? result.styleReferencesUsed?.count ?? 0;
   if (state === "hidden" || !count) return null;
 

@@ -1816,7 +1816,7 @@ export default function Smile() {
                 </p>
               )}
               {!testMode && ["no-match", "unavailable"].includes(result.preferences?.styleReferenceStatus ?? "") && <p className="scale-notice" role="status"><span>No Case Library references used</span>{result.preferences?.styleReferenceStatus === "unavailable" ? "Your Case Library could not be opened for this result." : "No close style match was found for this treatment and these teeth."} Add matching finished cases to your Case Library to use your style next time.</p>}
-              {!testMode && result.mode === "live" && result.preferences?.styleReferenceStatus === "used" && <StyleFeedback key={result.variationId} result={result} />}
+              {!testMode && result.mode === "live" && result.preferences?.styleReferenceStatus === "used" && <StyleFeedback result={result} />}
               {result.toothProtection && (
                 <p className="scale-notice" role="status"><span>{result.toothProtection.verified ? (result.toothProtection.arch ? "Opposite arch protected" : "Tooth map protected") : "Check the protected areas"}</span>
                   {result.toothProtection.arch
