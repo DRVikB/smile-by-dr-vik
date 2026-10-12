@@ -131,6 +131,12 @@ export interface EditRegionInput {
   feather: number;
   /** Close horizontal gaps up to this many pixels between selected teeth (automatic maps). */
   bridge?: number;
+  /**
+   * Automatic maps, restorative designs: the selected teeth of each arch form one smooth band rather
+   * than separate outlines, with room at the incisal edge for longer teeth. New teeth are a different
+   * shape from the worn ones they replace, so cutting along the old outlines chips their edges.
+   */
+  band?: boolean;
 }
 
 export interface EditRegion {
@@ -150,7 +156,10 @@ export function buildEditRegion(input: EditRegionInput): EditRegion {
     const influence = tooth.rule.exactOnly || !input.mouthOpening || input.mouthOpening.length<3 ? exact : fillPolygon(influenceOutline(tooth.outline, tooth.rule), w, h);
     for (let i = 0; i < allowed.length; i++) { if(exact[i])exactUnion[i]=1; if (exact[i] || influence[i]) allowed[i] = 1; }
   }
-  if(input.original){
+  // A band needs the inner-lip boundary to stop at; without one it stays with the outlines above.
+  const band = input.band && input.mouthOpening && input.mouthOpening.length >= 3 ? archBands(input.selected, w, h) : null;
+  if (band) for (let i = 0; i < allowed.length; i++) if (band.mask[i]) allowed[i] = 1;
+  if(input.original&&!band){
     if(input.original.length!==w*h*4)throw new Error("The protection source and masks are different sizes.");
     for(let i=0,p=0;i<allowed.length;i++,p+=4)if(allowed[i]&&!exactUnion[i]){
       const r=input.original[p],g=input.original[p+1],b=input.original[p+2];
@@ -162,19 +171,24 @@ export function buildEditRegion(input: EditRegionInput): EditRegion {
   }
   // Automatic outlines can stop short of contacts or miss a tooth between two
   // selected ones: close those gaps along each row, never upwards or downwards.
-  if (input.bridge && input.bridge > 0) {
+  if (!band && input.bridge && input.bridge > 0) {
     const closed = closeRows(allowed, w, h, Math.round(input.bridge));
     allowed.set(closed);
   }
   // Unselected teeth, with a pixel of margin, are never inside the edit.
   if (input.protectedTeeth.length) {
-    const others = new Uint8Array(w * h);
+    // Teeth beside a band are always protected. Teeth facing it (the other arch, under the band's own
+    // columns) are part of the edit where the band reaches them, since a longer tooth covers them, and
+    // protected beyond it.
+    const beside = new Uint8Array(w * h), facing = new Uint8Array(w * h);
     for (const outline of input.protectedTeeth) {
+      const centre = Math.round(outline.reduce((sum, p) => sum + p[0], 0) / Math.max(1, outline.length));
+      const target = band && centre >= 0 && centre < w && band.own[centre] ? facing : beside;
       const m = fillPolygon(outline, w, h);
-      for (let i = 0; i < m.length; i++) if (m[i]) others[i] = 1;
+      for (let i = 0; i < m.length; i++) if (m[i]) target[i] = 1;
     }
-    const guard = dilate(others, w, h, 1);
-    for (let i = 0; i < allowed.length; i++) if (guard[i]) allowed[i] = 0;
+    const besideGuard = dilate(beside, w, h, 1), facingGuard = dilate(facing, w, h, 1);
+    for (let i = 0; i < allowed.length; i++) if (besideGuard[i] || (facingGuard[i] && !(band && band.mask[i]))) allowed[i] = 0;
   }
   if (input.mouthOpening && input.mouthOpening.length >= 3) {
     const mouth = fillPolygon(input.mouthOpening, w, h);
@@ -192,6 +206,83 @@ export function buildEditRegion(input: EditRegionInput): EditRegion {
   const area = (2 * r + 1) ** 2;
   for (let i = 0; i < alpha.length; i++) alpha[i] = allowed[i] ? Math.round((255 * count[i]) / area) : 0;
   return { allowed, alpha };
+}
+
+/** Moving minimum or maximum, then a moving average, over the defined span of a column profile. */
+function smoothProfile(values: Float64Array, from: number, to: number, reach: number, soften: number, pick: (a: number, b: number) => number): Float64Array {
+  const picked = new Float64Array(values);
+  for (let x = from; x <= to; x++) {
+    let v = values[x];
+    for (let k = Math.max(from, x - reach); k <= Math.min(to, x + reach); k++) v = pick(v, values[k]);
+    picked[x] = v;
+  }
+  const out = new Float64Array(picked);
+  for (let x = from; x <= to; x++) {
+    let sum = 0, n = 0;
+    for (let k = Math.max(from, x - soften); k <= Math.min(to, x + soften); k++) { sum += picked[k]; n++; }
+    out[x] = sum / n;
+  }
+  return out;
+}
+
+/**
+ * One band per arch for the selected teeth that may change form: from a smooth line along their gum
+ * margins to a smooth line past their incisal edges. `own` marks the columns under the teeth
+ * themselves (not the small allowance either side).
+ */
+function archBands(selected: { outline: Point[]; rule: ToothEditRule }[], w: number, h: number): { mask: Uint8Array; own: Uint8Array } | null {
+  const mask = new Uint8Array(w * h), own = new Uint8Array(w);
+  let any = false;
+  for (const direction of [1, -1] as const) {
+    const teeth = selected.filter(t => !t.rule.exactOnly && t.outline.length >= 3 && (t.rule.direction ?? 1) === direction);
+    if (!teeth.length) continue;
+    const top = new Float64Array(w).fill(Number.NaN), bottom = new Float64Array(w).fill(Number.NaN);
+    const widths: number[] = [], heights: number[] = [];
+    for (const tooth of teeth) {
+      const filled = fillPolygon(tooth.outline, w, h);
+      const xs = tooth.outline.map(p => p[0]), ys = tooth.outline.map(p => p[1]);
+      const x0 = Math.max(0, Math.floor(Math.min(...xs))), x1 = Math.min(w - 1, Math.ceil(Math.max(...xs)));
+      const y0 = Math.max(0, Math.floor(Math.min(...ys))), y1 = Math.min(h - 1, Math.ceil(Math.max(...ys)));
+      widths.push(x1 - x0); heights.push(y1 - y0);
+      for (let x = x0; x <= x1; x++) {
+        let first = -1, last = -1;
+        for (let y = y0; y <= y1; y++) if (filled[y * w + x]) { if (first < 0) first = y; last = y; }
+        if (first < 0) continue;
+        top[x] = Number.isNaN(top[x]) ? first : Math.min(top[x], first);
+        bottom[x] = Number.isNaN(bottom[x]) ? last : Math.max(bottom[x], last);
+      }
+    }
+    let from = -1, to = -1;
+    for (let x = 0; x < w; x++) if (!Number.isNaN(top[x])) { if (from < 0) from = x; to = x; }
+    if (from < 0) continue;
+    // Columns between teeth (contacts the detector stopped short of, or a tooth it missed) follow their neighbours.
+    for (const line of [top, bottom]) {
+      let last = from;
+      for (let x = from + 1; x <= to; x++) {
+        if (Number.isNaN(line[x])) continue;
+        for (let k = last + 1; k < x; k++) line[k] = line[last] + ((line[x] - line[last]) * (k - last)) / (x - last);
+        last = x;
+      }
+    }
+    const median = (list: number[]) => [...list].sort((a, b) => a - b)[Math.floor(list.length / 2)];
+    const width = Math.max(4, median(widths)), height = Math.max(4, median(heights));
+    for (let x = from; x <= to; x++) own[x] = 1;
+    // A little room either side for a wider end tooth, carried at the end tooth's own level.
+    const side = Math.round(width * 0.12), start = Math.max(0, from - side), end = Math.min(w - 1, to + side);
+    for (let x = start; x < from; x++) { top[x] = top[from]; bottom[x] = bottom[from]; }
+    for (let x = to + 1; x <= end; x++) { top[x] = top[to]; bottom[x] = bottom[to]; }
+    const reach = Math.max(1, Math.round(width * 0.5)), soften = Math.max(1, Math.round(width * 0.2));
+    // Upper teeth: the gum margin is the upper line and they lengthen downwards. Lower teeth: the reverse.
+    const growth = height * 0.45;
+    const gum = direction === 1 ? smoothProfile(top, start, end, reach, soften, Math.min) : smoothProfile(bottom, start, end, reach, soften, Math.max);
+    const edge = direction === 1 ? smoothProfile(bottom, start, end, reach, soften, Math.max) : smoothProfile(top, start, end, reach, soften, Math.min);
+    for (let x = start; x <= end; x++) {
+      const a = direction === 1 ? gum[x] : edge[x] - growth, b = direction === 1 ? edge[x] + growth : gum[x];
+      for (let y = Math.max(0, Math.floor(a)); y <= Math.min(h - 1, Math.ceil(b)); y++) mask[y * w + x] = 1;
+    }
+    any = true;
+  }
+  return any ? { mask, own } : null;
 }
 
 /** Fill runs of 0 no longer than 2r between 1s on the same row. */
@@ -212,6 +303,11 @@ function closeRows(mask: Uint8Array, w: number, h: number, r: number): Uint8Arra
 /** A narrow feather: a few pixels on a phone photo, never a wide blur. */
 export function featherFor(teethWidthPx: number): number {
   return Math.max(1, Math.min(6, Math.round(teethWidthPx * 0.006)));
+}
+
+/** A band blends over a wider edge, so its boundary never reads as a cut line. */
+export function bandFeatherFor(teethWidthPx: number): number {
+  return Math.max(3, Math.min(14, Math.round(teethWidthPx * 0.014)));
 }
 
 /** The active plan for each selected tooth (a preset gives each tooth the global goal). */

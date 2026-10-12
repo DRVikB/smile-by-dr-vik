@@ -46,3 +46,40 @@ test('partial preset, stale photo, unreviewed map, duplicate FDI and zero-area b
 });
 test('alignment and full arch retain their independent paths',()=>{assert.deepEqual(protectionPlan(undefined,photo,settings([11],{alignment:{arches:'Upper'}})),{ok:false,reason:'alignment'});assert.deepEqual(protectionPlan(undefined,photo,settings([],{treatmentMode:'full_arch',fullArch:{arch:'both',restorationType:'zirconia',prostheticGingiva:'auto'}})),{ok:false,reason:'full-arch'});});
 test('44-pixel invisible touch targets resolve overlapping areas to the nearest tooth',()=>{const targets=[hitTarget({key:'11',fdi:11,x:10,y:10,width:10,height:15},0.5),hitTarget({key:'21',fdi:21,x:24,y:10,width:10,height:15},0.5)];assert.equal(targets[0].width*0.5,44);assert.equal(targets[0].height*0.5,44);assert.equal(nearestHit(targets,15,17)?.fdi,11);assert.equal(nearestHit(targets,29,17)?.fdi,21);assert.equal(nearestHit(targets,500,500),undefined);});
+
+// Automatic maps, restorative designs: one smooth band per arch instead of per-tooth outlines.
+test('an automatic restorative edit is one band: room to lengthen, no gaps between teeth, neighbours and the far arch protected',()=>{
+  const BW=240,BH=160;
+  const box=(x0:number,y0:number,x1:number,y1:number):[number,number][]=>[[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
+  // Four worn upper teeth with small gaps, an unselected upper tooth either side, and lower teeth just beneath.
+  const uppers=[box(70,50,92,80),box(96,50,118,80),box(122,50,144,80),box(148,50,170,80)];
+  const besides=[box(44,52,66,78),box(174,52,196,78)];
+  const lowers=[box(80,84,110,120),box(112,84,142,120),box(144,84,170,120)];
+  const mouthOpening=box(30,40,210,130);
+  const rule=toothEditRule(settings([12,11,21,22],{treatment:'Porcelain'}),{tooth:11,intent:'Auto',condition:'Natural'});
+  const input={width:BW,height:BH,selected:uppers.map(outline=>({outline,rule})),protectedTeeth:[...besides,...lowers],mouthOpening,feather:2};
+  const outlines_=buildEditRegion(input),band=buildEditRegion({...input,band:true});
+  const at=(r:{allowed:Uint8Array},x:number,y:number)=>r.allowed[y*BW+x];
+  // Between two teeth, and just past the worn incisal edge over a lower tooth: clipped before, part of the edit now.
+  assert.equal(at(outlines_,94,65),0);assert.equal(at(band,94,65),1);
+  assert.equal(at(outlines_,105,88),0);assert.equal(at(band,105,88),1);
+  // Every row of the band is one unbroken run: no notches for the lower teeth to show through.
+  for(let y=52;y<=90;y++){let runs=0,inside=false;for(let x=0;x<BW;x++){const on=band.allowed[y*BW+x]===1;if(on&&!inside)runs++;inside=on;}assert.equal(runs,1,`row ${y}`);}
+  // Still protected: the teeth beside the band, the lower teeth beyond its reach, and everything outside the mouth.
+  assert.equal(at(band,55,65),0);assert.equal(at(band,185,65),0);
+  assert.equal(at(band,105,110),0);assert.equal(at(band,120,35),0);
+  // Nothing above the gum margins of the selected teeth.
+  for(let x=70;x<=170;x++)assert.equal(at(band,x,46),0);
+  // A soft edge: full strength inside, fading before the boundary.
+  assert.equal(band.alpha[65*BW+120],255);assert.ok(band.alpha[92*BW+120]<255);
+});
+test('a band never applies to shade-only teeth or without the inner-lip boundary',()=>{
+  const box=(x0:number,y0:number,x1:number,y1:number):[number,number][]=>[[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
+  const teeth=[box(70,50,92,80),box(96,50,118,80)];
+  const shade={exactOnly:true,lateral:0,incisal:0,cervical:0};
+  const form=toothEditRule(settings([11,21],{treatment:'Porcelain'}),{tooth:11,intent:'Auto',condition:'Natural'});
+  const shadeOnly=buildEditRegion({width:240,height:160,selected:teeth.map(outline=>({outline,rule:shade})),protectedTeeth:[],mouthOpening:box(30,40,210,130),feather:0,band:true});
+  assert.equal(shadeOnly.allowed[65*240+94],0);
+  const noMouth=buildEditRegion({width:240,height:160,selected:teeth.map(outline=>({outline,rule:form})),protectedTeeth:[],mouthOpening:null,feather:0,band:true});
+  assert.equal(noMouth.allowed[65*240+94],0);assert.equal(noMouth.allowed[88*240+105],0);
+});

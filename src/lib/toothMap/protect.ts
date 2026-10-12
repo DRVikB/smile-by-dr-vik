@@ -1,6 +1,6 @@
 import type { SmileSettings, ToothProtection } from "../types";
 import { releaseCanvas } from "../canvasMemory";
-import { buildEditRegion, compositeWithAlpha, featherFor, measureChange, selectedPlans, toothEditRule } from "./masks";
+import { bandFeatherFor, buildEditRegion, compositeWithAlpha, featherFor, measureChange, selectedPlans, toothEditRule } from "./masks";
 import type { Point } from "./segment";
 import {fillPolygon} from "./segment";
 import {shadeOnlyPixels} from "./shade";
@@ -116,6 +116,7 @@ export function guidanceMask(map: ToothMap, originalDataUrl: string, settings: S
     mouthOpening: map.mouthOpening ? px(map.mouthOpening) : null,
     feather: 0,
     bridge: options.automatic ? bridgeFor(selectedTeeth.map(t => t.outline)) : 0,
+    band: options.automatic,
   });
   if (!region.allowed.some(Boolean)) throw new Error("The selected tooth boundary has no usable edit area. Review or redraw it before generating.");
   const canvas = document.createElement("canvas");
@@ -172,8 +173,9 @@ export async function protectWithToothMap(
     protectedTeeth,
     mouthOpening: map.mouthOpening ? px(map.mouthOpening) : null,
     original: original.data,
-    feather: featherFor(Math.max(...xs) - Math.min(...xs)),
+    feather: (options.automatic ? bandFeatherFor : featherFor)(Math.max(...xs) - Math.min(...xs)),
     bridge: options.automatic ? bridgeFor(selected.map(t => t.outline)) : 0,
+    band: options.automatic,
   });
   if (!region.allowed.some(Boolean)) throw new Error("The selected tooth boundary has no usable edit area. Review or redraw it before generating.");
 
