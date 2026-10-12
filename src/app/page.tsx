@@ -1032,6 +1032,12 @@ export default function Smile() {
           ).catch(() => null);
           if (assessment) next = { ...next, scaleFlag: assessment.flag };
         }
+        // Veneers and bonding can't move teeth: flag a result whose teeth (and midline) have slid sideways.
+        if (settingsIn.treatmentMode !== "full_arch" && !settingsIn.alignment && settingsIn.treatment !== "Whitening" && !settingsIn.toothMatch) {
+          const positions = await (await import("@/lib/positionCheck")).assessToothPositionsFromDataUrls(photoIn.dataUrl, next.image).catch(() => null);
+          repository.scope.assert();
+          if (positions) next = { ...next, positionFlag: positions.flag };
+        }
       }
       repository.scope.assert();
       if (process.env.NEXT_PUBLIC_SMILE_QA_RAW_CAPTURE === "1") {
@@ -1822,6 +1828,11 @@ export default function Smile() {
                   or try Softer, before presenting it.
                 </p>
               )}
+              {result.positionFlag === "moved" && (
+                <p className="scale-notice" role="status">
+                  <span>Check the midline</span>The teeth in this result sit to one side of where they are in the photo, so the midline has moved. Veneers and bonding can’t move teeth: generate again, or try Softer, before presenting it.
+                </p>
+              )}
               {!testMode && ["no-match", "unavailable"].includes(result.preferences?.styleReferenceStatus ?? "") && <p className="scale-notice" role="status"><span>No Case Library references used</span>{result.preferences?.styleReferenceStatus === "unavailable" ? "Your Case Library could not be opened for this result." : "No close style match was found for this treatment and these teeth."} Add matching finished cases to your Case Library to use your style next time.</p>}
               {!testMode && result.mode === "live" && result.preferences?.styleReferenceStatus === "used" && <StyleFeedback result={result} />}
               {result.toothProtection && (
@@ -1966,6 +1977,9 @@ export default function Smile() {
                   />
                   {o.result.scaleFlag === "grew" && (
                     <span className="option-flag">Check size</span>
+                  )}
+                  {o.result.positionFlag === "moved" && (
+                    <span className="option-flag">Check midline</span>
                   )}
                   <span className="option-cap">
                     <span>{o.label}</span>

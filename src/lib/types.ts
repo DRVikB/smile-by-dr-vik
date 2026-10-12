@@ -234,6 +234,8 @@ export interface GenerationResult {
    *  capture guide by more than a reasonable margin. Unset when there was
    *  no guide region to check against (e.g. an uploaded photo). */
   scaleFlag?: "ok" | "grew";
+  /** Veneers and bonding: the row of teeth (and so the midline) sits to one side of where it was photographed. */
+  positionFlag?: "ok" | "moved";
   /** Everything outside the lips was restored to the original photograph. */
   faceLocked?: boolean;
   editAreaProtected?: boolean;
