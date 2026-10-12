@@ -14,6 +14,12 @@ import { toothWeights } from "./whitening";
  * measured clearly in both images (a visible gap below the upper edges, enough
  * columns agreeing) and the extra length is modest and consistent. A result that
  * is already within tolerance, or that cannot be measured, is left untouched.
+ *
+ * The line it trims to is a smooth curve along the longest nearby original
+ * edges, never each column's own edge: a chipped or worn tooth may be restored
+ * to its neighbours' level, and the cut can't follow a ragged edge. Where the
+ * original edges are too uneven to give such a line (worn or broken-down
+ * teeth, which the design is there to rebuild), nothing is trimmed at all.
  */
 
 export interface EdgeGuardOptions {
@@ -32,7 +38,7 @@ export interface EdgeGuardResult {
   toothHeightPx: number;
   /** Columns that could be measured in both images. */
   measured: number;
-  reason: "trimmed" | "within-tolerance" | "unmeasurable" | "implausible";
+  reason: "trimmed" | "within-tolerance" | "unmeasurable" | "implausible" | "irregular";
 }
 
 type Run = readonly [start: number, end: number];
@@ -89,11 +95,6 @@ export function guardUpperEdges(
   if (both.length < before.length * 0.4) return untouched("unmeasurable", 0, 0, both.length);
 
   const toothHeight = median(both.map(i => before[i]![1] - before[i]![0]));
-  const extra = median(both.map(i => after[i]![1] - before[i]![1]));
-  const tolerance = Math.max(2, Math.round(toothHeight * (options.tolerance ?? 0.05)));
-  if (extra <= tolerance) return untouched("within-tolerance", Math.max(0, extra), toothHeight, both.length);
-  // Far more than a design would add: something else is going on, so leave it alone.
-  if (extra > toothHeight * 0.35) return untouched("implausible", extra, toothHeight, both.length);
 
   // The original edge for every checked column, filling unmeasured columns from their neighbours.
   const edges = before.map(r => (r ? r[1] : NaN));
@@ -104,19 +105,35 @@ export function guardUpperEdges(
     while (r < edges.length && Number.isNaN(edges[r])) r++;
     edges[i] = l >= 0 && r < edges.length ? edges[l] + (edges[r] - edges[l]) * (i - l) / (r - l) : l >= 0 ? edges[l] : r < edges.length ? edges[r] : NaN;
   }
+  // The limit: the longest original edge within about half a tooth either side, then smoothed.
+  // (The checked span holds roughly six front teeth.)
+  const reach = Math.max(2, Math.round(edges.length / 12));
+  const longest = edges.map((_, i) => { let v = edges[i]; for (let k = Math.max(0, i - reach); k <= Math.min(edges.length - 1, i + reach); k++) if (edges[k] > v) v = edges[k]; return v; });
+  const limitLine = longest.map((_, i) => { let sum = 0, n = 0; for (let k = Math.max(0, i - reach); k <= Math.min(edges.length - 1, i + reach); k++) { sum += longest[k]; n++; } return sum / n; });
+
+  const extra = median(both.map(i => after[i]![1] - limitLine[i]));
+  const tolerance = Math.max(2, Math.round(toothHeight * (options.tolerance ?? 0.05)));
+  if (extra <= tolerance) return untouched("within-tolerance", Math.max(0, extra), toothHeight, both.length);
+  // Far more than a design would add: something else is going on, so leave it alone.
+  if (extra > toothHeight * 0.35) return untouched("implausible", extra, toothHeight, both.length);
+  // Worn, chipped or uneven edges: there is no trustworthy line to hold the new teeth to, and
+  // rebuilding those edges is the point of the design.
+  const unevenness = median(both.map(i => limitLine[i] - before[i]![1]));
+  if (unevenness > toothHeight * 0.1) return untouched("irregular", extra, toothHeight, both.length);
 
   const pixels = new Uint8ClampedArray(result);
   let trimmed = false;
+  const soft = Math.max(2, tolerance);
   after.forEach((run, i) => {
-    if (!run || Number.isNaN(edges[i])) return;
-    const limit = Math.round(edges[i]) + tolerance;
+    if (!run || Number.isNaN(limitLine[i])) return;
+    const limit = Math.round(limitLine[i]) + tolerance;
     if (run[1] <= limit) return;
     const x = x0 + i;
     for (let y = limit + 1; y <= Math.min(h - 1, run[1] + 2); y++) {
       const k = y * w + x;
       if (!opening[k]) continue;
-      // One soft row at the new edge, then the original photograph below it.
-      const mix = y === limit + 1 ? 0.5 : 1;
+      // A short ramp at the new edge, then the original photograph below it.
+      const mix = Math.min(1, (y - limit) / soft);
       for (let c = 0; c < 3; c++) pixels[k * 4 + c] = Math.round(pixels[k * 4 + c] * (1 - mix) + original[k * 4 + c] * mix);
       trimmed = true;
     }

@@ -52,3 +52,39 @@ test("edge guard: an implausibly large difference is not 'corrected'", () => {
   assert.equal(r.reason, "implausible");
   assert.equal(r.pixels, result.px);
 });
+
+// A mouth whose upper edge differs by column (worn, chipped or uneven teeth).
+function mouthWithEdges(edgeAt: (x: number) => number) {
+  const px = new Uint8ClampedArray(W * H * 4), opening = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, inside = y >= TOP && y <= BOTTOM && x >= 5 && x < W - 5;
+    if (inside) opening[i] = 1;
+    px.set([...(!inside ? SKIN : y <= edgeAt(x) ? IVORY : DARK), 255], i * 4);
+  }
+  return { px, opening };
+}
+
+test("edge guard: worn, uneven edges are never used as a cutting line", () => {
+  // Every other tooth worn short by a third: the design is there to rebuild them.
+  const worn = mouthWithEdges(x => (Math.floor(x / 8) % 2 ? 30 : 23));
+  const rebuilt = mouth(33);
+  const out = guardUpperEdges(worn.px, rebuilt.px, W, H, worn.opening);
+  assert.equal(out.reason, "irregular");
+  assert.equal(out.trimmed, false);
+  assert.equal(out.pixels, rebuilt.px);
+});
+
+test("edge guard: a chipped tooth is restored to its neighbours' level, and the trimmed line is smooth", () => {
+  // Even edges at 30 with one narrow chip up to 26.
+  const chipped = mouthWithEdges(x => (x >= 38 && x <= 41 ? 26 : 30));
+  const longer = mouth(35);
+  const out = guardUpperEdges(chipped.px, longer.px, W, H, chipped.opening);
+  assert.equal(out.reason, "trimmed");
+  // Where the chip was, the new tooth reaches the same line as its neighbours.
+  const edgeIn = (x: number) => { let y = TOP; while (y < BOTTOM && at(out.pixels, x, y + 1)[0] > 150) y++; return y; };
+  assert.ok(Math.abs(edgeIn(40) - edgeIn(30)) <= 1, `chip column ${edgeIn(40)} vs neighbour ${edgeIn(30)}`);
+  // Neighbouring columns never differ by more than a pixel: no torn edge.
+  for (let x = 26; x < 54; x++) assert.ok(Math.abs(edgeIn(x) - edgeIn(x + 1)) <= 1, `step at ${x}`);
+  // And the extra length is gone.
+  assert.ok(edgeIn(30) < 35);
+});
