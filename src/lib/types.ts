@@ -239,6 +239,8 @@ export interface GenerationResult {
   editAreaProtected?: boolean;
   /** The edit moved the lip border itself, not only the teeth. */
   lipsMoved?: boolean;
+  /** Full arch: the result's parted lips were kept rather than the photographed ones. */
+  lipsFollowed?: boolean;
   /** Tooth Map protection: only these teeth could change; everything else is the original photo. */
   toothProtection?: ToothProtection;
 }

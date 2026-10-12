@@ -3,7 +3,7 @@ import { SheetClose, SideRailLayer } from "@/components/sideRail/SideRail";
 import type { MouthAlignmentDiagnostic } from "@/lib/face/alignmentDiagnostic";
 import { normalizeTreatmentScope, standardTreatmentSummary } from "@/lib/fullArch";
 import { generationUnavailable, INTERNAL_SINGLE_TOOTH } from "@/lib/generation/availability";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import {
   ArrowRight,
   ChevronDown,
@@ -146,12 +146,13 @@ async function lockFace(
   stage: (value: GenerationStage) => void = () => {},
   alignment?: (diagnostic: MouthAlignmentDiagnostic) => void,
   automaticMap?: import("@/lib/toothMap/types").ToothMap | null,
-): Promise<Pick<GenerationResult, "image" | "faceLocked" | "lipsMoved" | "editAreaProtected" | "toothProtection">> {
+): Promise<Pick<GenerationResult, "image" | "faceLocked" | "lipsMoved" | "lipsFollowed" | "editAreaProtected" | "toothProtection">> {
   scope.assert();
   const { lockFaceOutsideLips } = await import("@/lib/face/mouthLock");
   scope.assert();
   stage("mouth_composite");
-  const r = await lockFaceOutsideLips(photo.dataUrl, image, alignment);
+  // Full arch: the lips may follow the result when it parts them to show the new teeth (see lock.ts).
+  const r = await lockFaceOutsideLips(photo.dataUrl, image, alignment, { followLips: settings.treatmentMode === "full_arch" });
   scope.assert();
   if (r.invalidAlignment)
     throw new SmileGenerationError("The image service returned a preview that does not match your original photo's framing. It has not been shown or saved. Please generate again; your photo and selections are unchanged.", r.failureReason ?? "mouth_alignment_rejected");
@@ -203,7 +204,7 @@ async function lockFace(
     scope.assert();
     if (guarded) imageOut = guarded.image;
   }
-  return { image: imageOut, editAreaProtected: Boolean(photo.editMask), faceLocked: r.locked, lipsMoved: r.lipsMoved, ...(toothProtection ? { toothProtection } : {}) };
+  return { image: imageOut, editAreaProtected: Boolean(photo.editMask), faceLocked: r.locked, lipsMoved: r.lipsMoved, ...(r.lipsFollowed ? { lipsFollowed: true } : {}), ...(toothProtection ? { toothProtection } : {}) };
 }
 
 const ignoreCount = () => {};
@@ -300,7 +301,13 @@ export default function Smile() {
   const [editAreaRequired, setEditAreaRequired] = useState(false);
   const [camera, setCamera] = useState(false);
   const [error, setError] = useState("");
-  const [storageError, setStorageError] = useState(false);
+  // Why the device couldn't save: "full", or the step and error type (never any case content).
+  const [storageError, setStorageError] = useState<string | false>(false);
+  const storageFailed = useCallback((step: string, error?: unknown) => {
+    const name = error instanceof Error ? error.name : typeof error;
+    const text = error instanceof Error ? error.message : "";
+    setStorageError(name === "QuotaExceededError" || /quota|exceeded the|storage is full/i.test(text) ? "full" : `${step} · ${name}`.slice(0, 48));
+  }, []);
   const [sampleBusy, setSampleBusy] = useState(false);
   const [reference, setReference] = useState<Photo | null>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -554,8 +561,8 @@ export default function Smile() {
           restoreWorkingCase(c);
         }
       })
-      .catch(() => {
-        if (active) setStorageError(true);
+      .catch(e => {
+        if (active) storageFailed("open", e);
       })
       .finally(() => {
         if (active) setReady(true);
@@ -591,8 +598,8 @@ export default function Smile() {
             screen: screen === "compare" ? "design" : screen,
           }
         : null,
-    ).catch(() => setStorageError(true));
-  }, [caseId, uploadAuthority, photo, settings, result, screen, ready, testMode, testPreview, reference, variants, patientName, consultation, aiConsent, costs, resolution, validationCaseId, requestLimit]);
+    ).catch(e => storageFailed("save-case", e));
+  }, [storageFailed, caseId, uploadAuthority, photo, settings, result, screen, ready, testMode, testPreview, reference, variants, patientName, consultation, aiConsent, costs, resolution, validationCaseId, requestLimit]);
 
   useEffect(() => {
     document.body.classList.toggle("consult-open", fullscreen);
@@ -682,8 +689,8 @@ export default function Smile() {
       await persistCase({ caseId: nextCaseId, uploadAuthority, photo: p, settings: nextSettings, reference: nextReference, result: null, aiConsent: null,
         consultation: testMode ? undefined : consultation,
         screen: screen === "start" || screen === "photo" ? "photo" : "design", testMode: false, testPreview: null });
-    } catch {
-      setStorageError(true);
+    } catch (e) {
+      storageFailed("save-photo", e);
     }
   }
 
@@ -1077,8 +1084,8 @@ export default function Smile() {
           },
           { id, image: entryResult.image, originalImage: photo.dataUrl, photoMetadata: { sourceProvenance:photo.sourceProvenance,name:photo.name,width:photo.width,height:photo.height,framing:photo.framing,quality:photo.quality,toothMap:photo.toothMap,analysisSnapshot:photo.analysisSnapshot }, analysisSnapshot:photo.analysisSnapshot, preferences: entryResult.preferences ?? { settings: used, testMode }, review: entryResult.review, scaleFlag: entryResult.scaleFlag, aiConsent: testMode ? undefined : consent ?? aiConsent ?? undefined, generation: entryResult.generation },
         );
-      } catch {
-        setStorageError(true);
+      } catch (e) {
+        storageFailed("save-design", e);
       }
     })();
     logWrites.current.set(id, writing);
@@ -1109,8 +1116,8 @@ export default function Smile() {
         screen: screen === "compare" ? "design" : screen,
       });
       return true;
-    } catch {
-      setStorageError(true);
+    } catch (e) {
+      storageFailed("save-consent", e);
       setError("This device couldn’t save the permission record, so no AI request was sent. Check local storage and try again.");
       return false;
     }
@@ -1125,7 +1132,7 @@ export default function Smile() {
     // on that exact saved version without recreating a deliberately deleted case.
     void (logWrites.current.get(next.variationId) ?? Promise.resolve())
       .then(() => updateLogReview(next.variationId, review))
-      .catch(() => setStorageError(true));
+      .catch(e => storageFailed("save-review", e));
   }
 
   async function generate(override?: Partial<SmileSettings>, approvedConsent?: AiProcessingConsent) {
@@ -1423,7 +1430,7 @@ export default function Smile() {
     clearSettingsHistory();
     setError("");
     setScreen("start");
-    void persistCase(null).catch(() => setStorageError(true));
+    void persistCase(null).catch(e => storageFailed("close-case", e));
   }
 
   const reportPreferences = result ? getReportPreferences(result, variants) : undefined;
@@ -1833,7 +1840,12 @@ export default function Smile() {
                   {result.editAreaProtected ? "The original photo is restored outside your painted area. Check that the boundary excludes gums and untreated teeth, and review the design inside it." : result.faceLocked ? "Automatic protection covers the surrounding face, not individual teeth or gums. Compare gum margins, lower teeth and untreated teeth before presenting. Use Protect edit area for precise boundaries." : "The face could not be protected automatically. Inspect the whole result against the original, or use Protect edit area and generate again before presenting."}
                 </p>
               )}
-              {result.lipsMoved && (
+              {result.lipsFollowed && (
+                <p className="scale-notice" role="status">
+                  <span>Lips parted to show the teeth</span>This photo shows little tooth, so the full-arch concept is drawn with the lips slightly apart. Everything around the mouth is the original photograph. Check the smile suits the face before presenting it.
+                </p>
+              )}
+              {result.lipsMoved && !result.lipsFollowed && (
                 <p className="scale-notice" role="status">
                   <span>Check smile fit</span>The AI attempted to change the lip line.
                   {result.faceLocked ? " The original lips and face have been restored. Check that the teeth fit the original opening and that no hidden teeth have appeared." : " Compare with the original before presenting this version."}
@@ -2049,7 +2061,11 @@ export default function Smile() {
       )}
       {storageError && (
         <p className="storage-note" role="status">
-          This device could not save all case data. Keep this preview open and save any images you need before closing the app.
+          {storageError === "full"
+            ? "SmileCompose has run out of storage on this device, so this case isn’t fully saved. Keep this preview open and save any images you need; freeing space (Settings › Cases & Storage) lets it save again."
+            : "This device could not save all case data. Keep this preview open and save any images you need before closing the app."}
+          {storageError !== "full" && <small className="storage-note-code">Reference: {storageError}</small>}
+          <button type="button" className="text-button" onClick={() => setStorageError(false)}>Dismiss</button>
         </p>
       )}
       {goalsOpen && photo && <PatientGoalsSheet consultation={consultation} onChange={setConsultation} onClose={() => setGoalsOpen(false)} hasPreferred={Boolean(caseRecord.preferredDesignId)} />}

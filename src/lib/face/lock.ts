@@ -33,6 +33,8 @@ export interface LockPlan {
   polygon: Point[];
   /** The original outer contour bounds any stable inner-lip blending. */
   outerBoundary: Point[];
+  /** The result's outer lip contour, in the original photograph's coordinates. */
+  generatedOuter?: Point[];
   grow: number;
   feather: number;
 }
@@ -49,7 +51,7 @@ const MAX_SCALE = 1.18;
 const MAX_ANGLE = (8 * Math.PI) / 180;
 
 /** Invalidate reusable results made with the older, lip-inclusive mask. */
-export const MOUTH_LOCK_VERSION = "2026-10-03-bounded-lip-transition-v7";
+export const MOUTH_LOCK_VERSION = "2026-10-12-full-arch-follows-lips-v8";
 
 /** Categorical device QA only; never capture image content or browser errors. */
 export const MOUTH_LOCK_FAILURE_CODES = [
@@ -125,6 +127,7 @@ export function planMouthLock(
     lipsMoved,
     polygon: pick(original, INNER_LIP),
     outerBoundary: pick(original, OUTER_LIP),
+    generatedOuter: pick(generated, OUTER_LIP).map(p => applySimilarity(transform, p)),
     grow: 0,
     feather: Math.max(1, 0.005 * mouthWidth),
   };
@@ -156,6 +159,35 @@ export function mouthOpeningMask(plan: LockPlan, width: number, height: number):
 }
 
 /**
+ * Full arch only. A whole-arch restoration on a mouth that shows little tooth (a worn or
+ * overclosed bite) comes back with the lips parted to show the new teeth; pasting that through
+ * the photographed opening leaves a thin strip of tooth. Here the lips may follow the result,
+ * as long as they stay close to where they were: each point of the outer lip within a third of
+ * the mouth's width of its original place.
+ */
+export function lipsCanBeFollowed(plan: LockPlan): boolean {
+  const moved = plan.generatedOuter;
+  if (!moved || moved.length !== plan.outerBoundary.length || moved.length < 3) return false;
+  const xs = plan.outerBoundary.map(p => p[0]);
+  const mouthWidth = Math.max(...xs) - Math.min(...xs);
+  return mouthWidth >= 20 && moved.every((p, i) => p.every(Number.isFinite) && distance(p, plan.outerBoundary[i]) <= mouthWidth / 3);
+}
+
+/** The original lips and the result's lips together, with a soft edge that fades into the skin around them. */
+function followedLipsMask(plan: LockPlan, width: number, height: number): Mask {
+  const grow = plan.feather * 8, feather = plan.feather * 8;
+  const masks = [polygonMask(plan.outerBoundary, width, height, grow, feather), polygonMask(plan.generatedOuter!, width, height, grow, feather)];
+  const x0 = Math.min(...masks.map(m => m.x0)), y0 = Math.min(...masks.map(m => m.y0));
+  const x1 = Math.max(...masks.map(m => m.x0 + m.width)), y1 = Math.max(...masks.map(m => m.y0 + m.height));
+  const w = x1 - x0, h = y1 - y0, alpha = new Float32Array(w * h);
+  for (const m of masks) for (let y = 0; y < m.height; y++) for (let x = 0; x < m.width; x++) {
+    const i = (m.y0 + y - y0) * w + (m.x0 + x - x0), v = m.alpha[y * m.width + x];
+    if (v > alpha[i]) alpha[i] = v;
+  }
+  return { ...masks[0], x0, y0, width: w, height: h, alpha };
+}
+
+/**
  * Where the edit is used: the patient's own mouth opening. The lips are always the
  * patient's: an image service that thins or lifts the upper lip to show more tooth
  * would otherwise make the new teeth look larger than they would be. A narrow
@@ -164,7 +196,8 @@ export function mouthOpeningMask(plan: LockPlan, width: number, height: number):
  * lip line; it never reaches past the outer lip contour. Lips that clearly moved
  * keep the strict opening with no margin.
  */
-export function mouthTransitionMask(plan: LockPlan, width: number, height: number): Mask {
+export function mouthTransitionMask(plan: LockPlan, width: number, height: number, options: { followLips?: boolean } = {}): Mask {
+  if (plan.lipsMoved && options.followLips && lipsCanBeFollowed(plan)) return followedLipsMask(plan, width, height);
   if (plan.lipsMoved) return polygonMask(plan.polygon, width, height, 0, plan.feather, true);
   const opening = polygonMask(plan.polygon, width, height, plan.feather * 4, plan.feather);
   const strict = polygonMask(plan.polygon, width, height, 0, plan.feather, true);

@@ -2,7 +2,7 @@ import type { MouthAlignmentDiagnostic } from "./alignmentDiagnostic";
 import { releaseCanvas } from "../canvasMemory";
 import { compositeMasked, measureProtectedRegionChange, editableRegionRange } from "./geometry";
 import { detectFace, detectFaceDetailed } from "./landmarks";
-import { planMouthLock, pixelLockPlan, mouthTransitionMask, type MouthLockFailure } from "./lock";
+import { planMouthLock, pixelLockPlan, mouthTransitionMask, lipsCanBeFollowed, type MouthLockFailure } from "./lock";
 import { alignByPixels, pixelMatchAccepted, samePhotograph } from "./pixelAlign";
 import { OUTER_LIP, pick } from "./geometry";
 
@@ -11,6 +11,8 @@ export interface MouthLockResult {
   /** True when the source outer-lip contour and surrounding face are restored. */
   locked: boolean;
   lipsMoved: boolean;
+  /** Full arch: the result's parted lips were kept, blended into the original face (see lock.ts). */
+  lipsFollowed?: boolean;
   /** The source has a face but the returned image cannot be aligned to it. */
   invalidAlignment?: boolean;
   failureReason?: MouthLockFailure;
@@ -36,6 +38,7 @@ export async function lockFaceOutsideLips(
   original: string,
   generated: string,
   report?: (diagnostic: MouthAlignmentDiagnostic) => void,
+  options: { followLips?: boolean } = {},
 ): Promise<MouthLockResult> {
   const untouched = { image: generated, locked: false, lipsMoved: false };
   let failureReason: MouthLockFailure = "mouth_image_decode_failed";
@@ -106,7 +109,7 @@ export async function lockFaceOutsideLips(
     // (Too small a face to compare leaves the landmark decision standing.)
     if (identity && !samePhotograph(identity)) return { ...untouched, invalidAlignment: true, failureReason: "mouth_alignment_rejected" };
 
-    const mask = mouthTransitionMask(plan, width, height);
+    const mask = mouthTransitionMask(plan, width, height, options);
     const editableRange = editableRegionRange(editedPixels.data, width, mask);
     emit({ ...lastDiagnostic, ...(editableRange !== null ? { editableRange } : {}) });
     if (editableRange === null || editableRange <= 2) return { ...untouched, failureReason: "mouth_blank_output" };
@@ -127,6 +130,7 @@ export async function lockFaceOutsideLips(
       image,
       locked: true,
       lipsMoved: plan.lipsMoved,
+      lipsFollowed: Boolean(plan.lipsMoved && options.followLips && lipsCanBeFollowed(plan)),
     };
   } catch {
     return { ...untouched, failureReason };
