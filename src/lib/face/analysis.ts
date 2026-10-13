@@ -176,6 +176,8 @@ export interface AnalysisRow {
   /** For the key over the viewer, where space is tight. */
   shortLabel: string;
   shortValue: string;
+  /** The reference line this reading belongs to. */
+  guide: "eyeLine" | "midline" | "nasalLines" | "mouthLine";
 }
 
 const round1 = (n: number) => (Math.round(Math.abs(n) * 10) / 10).toFixed(1);
@@ -190,6 +192,7 @@ export function analysisRows(a: SmileAnalysis): AnalysisRow[] {
     note: tilt <= 2 ? "Photo is level" : "Photo or head is tilted — lines follow the eyes",
     shortLabel: "Head tilt",
     shortValue: `${round1(a.headTiltDeg)}°`,
+    guide: "eyeLine",
   });
   const cant = Math.abs(a.cantDeg);
   rows.push({
@@ -198,6 +201,7 @@ export function analysisRows(a: SmileAnalysis): AnalysisRow[] {
     note: cant <= 2 ? "Reads level with the eyes" : "Mouth corners slope relative to the eyes",
     shortLabel: "Corners vs eyes",
     shortValue: `${round1(a.cantDeg)}°`,
+    guide: "mouthLine",
   });
   const offset = a.smileWidthPx ? a.midlineOffsetPx / a.smileWidthPx * 100 : 0;
   const centred = Math.abs(offset) < 1;
@@ -207,7 +211,8 @@ export function analysisRows(a: SmileAnalysis): AnalysisRow[] {
     value: centred ? "Centred" : `${round1(offset)}% of mouth width ${side}`,
     note: "Mouth-centre guide, not a dental-midline measurement. No calibrated millimetres are available.",
     shortLabel: "Smile centre",
-    shortValue: centred ? "Centred" : `${round1(offset)}% ${side}`,
+    shortValue: centred ? "Centred" : `${round1(offset)}% photo ${offset > 0 ? "right" : "left"}`,
+    guide: "midline",
   });
   if (a.alarWidthPx && a.smileWidthPx > 0) {
     const share = Math.round((a.alarWidthPx / a.smileWidthPx) * 100);
@@ -217,6 +222,7 @@ export function analysisRows(a: SmileAnalysis): AnalysisRow[] {
       note: "Lines through the outer edges of the nose, a common reference for where the canines sit.",
       shortLabel: "Nasal width",
       shortValue: `${share}% of smile`,
+      guide: "nasalLines",
     });
   }
   return rows;

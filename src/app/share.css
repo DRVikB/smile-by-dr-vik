@@ -49,9 +49,6 @@
 
 /* Making */
 .share-making { display: grid; place-items: center; gap: 14px; padding: 56px 0; font-size: 14px; color: var(--text-secondary); }
-.share-spinner { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--sc-gold, #D4B583); animation: share-spin 900ms linear infinite; }
-@keyframes share-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .share-spinner { animation-duration: 3s; } }
 
 /* Ready */
 .share-ready { display: grid; gap: 14px; }

@@ -1,4 +1,5 @@
 "use client";
+import { haptic } from "@/native/haptics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ToothShape } from "@/lib/types";
 import { bakeGuide, guideFrame, guideGeometry, moveGuideDivision, normaliseGuide, SHAPE_STYLE, shiftGuideCurve, smoothPath, type GuideCurve, type GuideSide, type SmileGuide } from "@/lib/smileDesign/frame";
@@ -82,7 +83,7 @@ export function SmileGuideOverlay({ guide, shape, width, height, scale = 1, onCh
           const state = t.fdi === pick.selected ? " is-selected" : t.fdi === pick.partner ? " is-partner" : "";
           return (
             <path key={t.fdi} className={`smile-guide-pick${state}`} d={smoothPath(t.outline, true)} data-own-taps=""
-              role="button" aria-label={pick.label(t.fdi)} aria-pressed={t.fdi === pick.selected} onClick={() => pick.onPick(t.fdi)} />
+              role="button" aria-label={pick.label(t.fdi)} aria-pressed={t.fdi === pick.selected} onClick={() => { haptic("select"); pick.onPick(t.fdi); }} />
           );
         })}
         {g.teeth.filter(t => t.fdi === pick.selected || t.fdi === pick.partner).map(t => {

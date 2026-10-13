@@ -1114,6 +1114,26 @@ main {
   font-size: 11px;
   letter-spacing: 0;
 }
+/* An illustration being replaced fades away over the one taking its place. */
+.compare-image.compare-outgoing { pointer-events: none; animation: compare-outgoing 480ms ease both; }
+@keyframes compare-outgoing { from { opacity: var(--from, 1); } to { opacity: 0; } }
+/* A new smile's place in Cases, confirmed once it has been uncovered: the tick is drawn, then the note goes. */
+.saved-note {
+  position: absolute; z-index: 6; left: max(20px, var(--app-safe-left, 0px)); top: calc(var(--photo-header, 56px) + 62px); display: inline-flex; align-items: center; gap: 7px; margin: 0; padding: 8px 15px 8px 11px;
+  border-radius: 100px; background: rgba(23, 22, 21, .58); color: #fff; font-size: 12.5px; font-weight: 500; white-space: nowrap;
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); pointer-events: none; opacity: 0;
+  animation: saved-note 3400ms ease 2950ms both;
+}
+.saved-note svg { width: 18px; height: 18px; fill: none; stroke: var(--sc-gold, #D9B77E); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.saved-note path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: saved-tick 520ms ease-out 3250ms both; }
+@keyframes saved-note { 0% { opacity: 0; transform: translateY(6px); } 10%, 84% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
+@keyframes saved-tick { to { stroke-dashoffset: 0; } }
+/* Touch layouts have no Slide/Overlay switch on the photograph: the note takes its corner, level with Whole photo. */
+@media (any-pointer: coarse), (max-width: 700px) { .app-shell .preview-screen .saved-note { top: calc(var(--photo-header, 56px) + 9px); left: max(16px, var(--app-safe-left, 0px)); } }
+@media (prefers-reduced-motion: reduce) {
+  .saved-note { animation-delay: 300ms; }
+  .saved-note path { stroke-dashoffset: 0; animation: none; }
+}
 .compare-divider {
   position: absolute;
   top: 0;

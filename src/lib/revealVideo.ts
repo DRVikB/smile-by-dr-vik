@@ -18,6 +18,14 @@ export const REVEAL = {
   after: 2300,
 } as const;
 export const REVEAL_TOTAL = REVEAL.hold + REVEAL.fade + REVEAL.after;
+/**
+ * The opening: on a dark frame the SmileCompose mark is drawn (guide lines, then the smile), and the
+ * patient's photograph fades in through it. The same motion as the app's composing screen.
+ */
+export const REVEAL_INTRO = { guides: 450, smile: 850, hold: 250, fade: 450 } as const;
+export const REVEAL_INTRO_TOTAL = REVEAL_INTRO.guides + REVEAL_INTRO.smile + REVEAL_INTRO.hold + REVEAL_INTRO.fade;
+/** The whole video: the opening, then the reveal. */
+export const REVEAL_VIDEO_TOTAL = REVEAL_INTRO_TOTAL + REVEAL_TOTAL;
 /** How far the frame eases in towards the mouth by the end. */
 export const REVEAL_ZOOM = 1.5;
 
@@ -31,6 +39,48 @@ export function revealFrame(ms: number): { mix: number; zoom: number } {
   const mix = smooth((ms - REVEAL.hold) / REVEAL.fade);
   const zoom = 1 + (REVEAL_ZOOM - 1) * smooth(ms / (REVEAL.hold + REVEAL.fade));
   return { mix, zoom };
+}
+
+/** At `ms` into the opening: how much of the guide lines and the smile are drawn, and how far the photograph has faded in. */
+export function introFrame(ms: number): { guides: number; smile: number; photo: number } {
+  const { guides, smile, hold, fade } = REVEAL_INTRO;
+  return {
+    guides: smooth(ms / guides),
+    smile: smooth((ms - guides * 0.6) / smile),
+    photo: smooth((ms - guides - smile - hold) / fade),
+  };
+}
+
+const MARK = { x: 150, y: 176, size: 724, arc: [215, 431.5, 336.5, 769, 687.5, 769, 809, 431.5] as const, arcLength: 815 };
+
+/** The mark, part drawn, centred in the frame (viewBox units scaled to `size` pixels). */
+function drawIntroMark(ctx: CanvasRenderingContext2D, width: number, height: number, guides: number, smile: number, alpha: number) {
+  if (alpha <= 0) return;
+  const size = Math.round(Math.min(width, height) * 0.3), k = size / MARK.size;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate((width - size) / 2 - MARK.x * k, (height - size) / 2 - MARK.y * k);
+  ctx.scale(k, k);
+  ctx.lineCap = "round";
+  if (guides > 0) {
+    ctx.strokeStyle = "rgba(140, 127, 113, 0.6)";
+    ctx.lineWidth = 17;
+    ctx.beginPath();
+    ctx.moveTo(512, 251.5); ctx.lineTo(512, 251.5 + 605 * guides);
+    ctx.moveTo(270, 481.5); ctx.lineTo(270 + 485 * guides, 481.5);
+    ctx.stroke();
+  }
+  if (smile > 0) {
+    const gold = ctx.createLinearGradient(215, 380, 810, 700);
+    gold.addColorStop(0, "#EBD7B4"); gold.addColorStop(1, "#B48E58");
+    ctx.strokeStyle = gold;
+    ctx.lineWidth = 82;
+    ctx.setLineDash([MARK.arcLength * smile, MARK.arcLength * 2]);
+    const [x0, y0, x1, y1, x2, y2, x3, y3] = MARK.arc;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.bezierCurveTo(x1, y1, x2, y2, x3, y3); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
 }
 
 /** The first recording format this browser supports; MP4 first (iPad, iPhone). */
@@ -91,7 +141,10 @@ export async function recordReveal(
   const fy = (options.focus?.y ?? 0.62) * height;
   const fontPx = Math.round(Math.min(width, height) * 0.032);
 
-  const draw = (ms: number) => {
+  const draw = (at: number) => {
+    // The opening plays first; the reveal's own clock starts when it ends.
+    const ms = Math.max(0, at - REVEAL_INTRO_TOTAL);
+    const intro = at < REVEAL_INTRO_TOTAL ? introFrame(at) : null;
     const { mix, zoom } = revealFrame(ms);
     ctx.save();
     ctx.fillStyle = BRAND.ink;
@@ -141,6 +194,14 @@ export async function recordReveal(
     ctx.fillText("Clinician-designed visual guide", width / 2, height - fontPx * 1.3);
     ctx.fillText("Not a guaranteed treatment result", width / 2, height - fontPx * 0.45);
     ctx.textAlign = "left";
+
+    if (intro) {
+      ctx.globalAlpha = 1 - intro.photo;
+      ctx.fillStyle = BRAND.ink;
+      ctx.fillRect(0, 0, width, height);
+      ctx.globalAlpha = 1;
+      drawIntroMark(ctx, width, height, intro.guides, intro.smile, 1 - intro.photo);
+    }
   };
 
   draw(0);
@@ -160,8 +221,8 @@ export async function recordReveal(
   await new Promise<void>((resolve) => {
     const tick = () => {
       const ms = performance.now() - start;
-      draw(Math.min(ms, REVEAL_TOTAL));
-      if (ms >= REVEAL_TOTAL + 150) resolve();
+      draw(Math.min(ms, REVEAL_VIDEO_TOTAL));
+      if (ms >= REVEAL_VIDEO_TOTAL + 150) resolve();
       else requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);

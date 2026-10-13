@@ -144,6 +144,8 @@
   transform: scale(.96);
   transition-duration: 90ms;
 }
+/* The main gold actions also deepen a shade under the finger. */
+:is(.primary-button, .compact-dock-save, .photo-primary, .splash-primary):active:not(:disabled) { filter: brightness(.93); }
 :is(.log-row, .settings-row, .cl-item, .version-open, .recent-case):active:not(:disabled) {
   transform: scale(.985);
   transition: transform 90ms var(--ease-soft);

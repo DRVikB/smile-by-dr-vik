@@ -82,24 +82,13 @@ html[data-side-bar] .app-shell[data-screen="design"] .app-header { min-height: 0
   html[data-side-bar="left"] .compact-options-popover { right: auto; left: calc(var(--side-bar-inset) - 10px); width: min(410px, calc(100vw - var(--side-bar-inset) - 26px)); }
 }
 
-/* Folded iPhone Duo (the outer display is wide but short): the picture keeps the upper part of the
-   screen so the face is seen properly, and the card scrolls beneath it instead of squeezing the
-   picture to fit everything at once. */
+/* Folded iPhone Duo (the outer display is wide but short): the picture keeps at least the upper part
+   of the screen so the face is seen properly, and takes whatever height the card doesn't need. A card
+   with more in it than fits scrolls inside itself (as on every phone). */
 @media (max-width: 699px) {
-  html[data-side-bar] .onboarding.has-hero, html[data-side-bar] .onboarding.has-hero[data-step="subscription"] { overflow: hidden; }
-  html[data-side-bar] .onboarding.has-hero .ob-layout { flex: 1 1 auto; height: auto; min-height: 0; }
-  html[data-side-bar] .onboarding.has-hero .ob-visual { position: relative; flex: none; height: 44dvh; min-height: 0; max-height: none; }
-  html[data-side-bar] .onboarding.has-hero .ob-sheet {
-    flex: 1 1 0; height: auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
-    padding-bottom: calc(var(--safe-bottom) + 18px);
-    /* A soft shadow along the lower edge while there is more of the card to scroll to; it fades out at the end. */
-    background:
-      linear-gradient(transparent, var(--background) 70%) center bottom / 100% 44px no-repeat local,
-      radial-gradient(farthest-side at 50% 100%, rgba(20, 16, 12, .2), transparent) center bottom / 100% 14px no-repeat scroll,
-      var(--background);
-  }
-  /* The welcome card is short enough to show whole, so its picture gives it just the room it needs. */
-  html[data-side-bar] .onboarding.has-hero.ob-welcome .ob-visual { height: 40dvh; }
+  html[data-side-bar] .onboarding.has-hero:not([data-step="subscription"]) .ob-visual { min-height: 42dvh; }
+  html[data-side-bar] .onboarding[data-step="subscription"] .ob-visual { height: 44dvh; }
+  html[data-side-bar] .onboarding.has-hero .ob-sheet { padding-bottom: calc(var(--safe-bottom) + 18px); }
 }
 /* "Not now" is in the rail, so the plans card's top row needs no room kept for it. */
 html[data-side-bar] .onboarding[data-step="subscription"] .ob-top { padding-right: 0; }
@@ -142,43 +131,34 @@ html[data-side-bar] .app-shell .app-header .sc-brand-header-start:not(:has(*)), 
 .side-rail .studio-tabs button:active { transform: scale(.94); }
 .side-rail .studio-tabs button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
-/* Smile analysis, open landscape: the brand line would sit over the photo's own buttons, so it steps aside. */
+/* Smile analysis on iPhone Duo, closed: the panel is centred on the display, as the photograph is,
+   and kept narrow enough to stay clear of the side bar's column. (Closed and on its side, the panel is
+   the column down the left that every wide screen gets.) */
+@media (max-width: 699px) and (orientation: portrait) {
+  html[data-side-bar] :is(.app-shell .preview-screen, .saved-case-viewer) .analysis-panel { left: 0; right: 0; margin-inline: auto; }
+  html[data-side-bar="right"] :is(.app-shell .preview-screen, .saved-case-viewer) .analysis-panel { width: calc(2 * var(--rail-left) - 100% - 16px); }
+  html[data-side-bar="left"] :is(.app-shell .preview-screen, .saved-case-viewer) .analysis-panel { width: calc(100% - 2 * (var(--rail-left) + var(--rail-width) + 8px)); }
+  html[data-side-bar] .analysis-lines button { padding-inline: 10px; }
+}
+/* Smile analysis on iPhone Duo, open and on its side: the brand line would sit over the Before / After
+   switch, so it steps aside (Back and More are in the side bar) and the switch and panel move up. */
 @media (min-width: 700px) and (orientation: landscape) {
   html[data-side-bar] .app-shell[data-screen="preview"]:has(.comparison.has-guides) .app-header { display: none; }
-  html[data-side-bar] .app-shell .preview-screen .comparison.has-guides .compare-mode { top: 16px; }
+  html[data-side-bar] .app-shell .preview-screen .analysis-view { top: 16px; }
+  html[data-side-bar] .app-shell .preview-screen .analysis-panel { top: 72px; max-height: calc(100% - 72px - max(16px, var(--safe-bottom))); }
 }
 
-/* Smile analysis on iPhone Duo. The photograph and its guides get the screen; the key and readings
-   sit in a panel that belongs to the layout instead of a band across the middle. */
-/* Outer display: the photo runs from the top, and the panel is a sheet that carries on behind the
-   Share / Options bar, so there is no empty band. */
-@media (max-width: 699px) {
-  html[data-side-bar] .app-shell .preview-screen .comparison.has-guides { padding-top: calc(var(--safe-top) + 58px); padding-bottom: 0; }
-  html[data-side-bar] .app-shell .preview-screen .analysis-details {
-    max-height: 56%; margin-top: -18px; padding: 12px 18px calc(150px + var(--safe-bottom)); border-top: 0; border-radius: 22px 22px 0 0; z-index: 2;
-    box-shadow: 0 -14px 30px -22px rgba(0, 0, 0, .6);
-  }
-  html[data-side-bar] .app-shell .preview-screen .comparison.has-guides .compare-label { bottom: 30px; }
-  html[data-side-bar] .analysis-details .guide-key-lines { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
-}
-/* Open display, landscape: photo on the left at full height, the panel a card on the right. */
-@media (min-width: 700px) and (orientation: landscape) {
-  html[data-side-bar] .app-shell .preview-screen .comparison.has-guides { flex-direction: row; padding: 0; }
-  html[data-side-bar="right"] .app-shell .preview-screen .comparison.has-guides { padding-right: var(--safe-right); }
-  html[data-side-bar="left"] .app-shell .preview-screen .comparison.has-guides { padding-left: var(--safe-left); }
-  html[data-side-bar] .app-shell .preview-screen .analysis-details {
-    width: min(330px, 36%); max-height: none; margin: 16px 0 max(16px, var(--safe-bottom)) 14px; padding: 14px 18px; border: 1px solid var(--border); border-radius: 22px;
-    box-shadow: var(--shadow-sm); font-size: 14px;
-  }
-  html[data-side-bar] .analysis-details .guide-key-lines { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 10px 0 12px; }
-  html[data-side-bar] .analysis-details .guide-key-readings { grid-template-columns: minmax(0, 1fr); gap: 8px; padding-top: 12px; }
-  html[data-side-bar] .analysis-details .guide-key-readings > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-  html[data-side-bar] .analysis-details .guide-key-readings dd { margin: 0; text-align: right; }
-  /* Share / Options stays centred under the photograph, not under the panel. */
-  html[data-side-bar="right"] .app-shell .preview-screen:has(.comparison.has-guides) .compact-preview-dock { left: calc((100% - var(--safe-right) - min(330px, 36%) - 14px) / 2); width: min(420px, calc(100% - var(--safe-right) - min(330px, 36%) - 46px)); }
-  html[data-side-bar="left"] .app-shell .preview-screen:has(.comparison.has-guides) .compact-preview-dock { left: calc(var(--safe-left) + (100% - var(--safe-left) - min(330px, 36%) - 14px) / 2); width: min(420px, calc(100% - var(--safe-left) - min(330px, 36%) - 46px)); }
-  html[data-side-bar] .app-shell .preview-screen .comparison.has-guides .compare-label { bottom: calc(112px + var(--safe-bottom)); }
-}
+
+/* Closed and turned on its side, the side bar is short (350 to 380pt). The studio has eight controls
+   for it (Back, Undo, Redo, More and the four design steps): they stay in one stack, each a little
+   smaller where needed, sized so that all eight fit the column exactly. */
+html[data-rail-short] .side-rail:has(.studio-tabs) { --rail-item: min(44px, calc((var(--rail-height) - 40px) / 8)); gap: 5px; }
+html[data-rail-short] .side-rail:has(.studio-tabs) .rail-group { gap: 5px; }
+html[data-rail-short] .side-rail:has(.studio-tabs) .rail-button { width: var(--rail-item); height: var(--rail-item); }
+html[data-rail-short] .side-rail:has(.studio-tabs) .rail-tabs { margin-bottom: 2px; }
+html[data-rail-short] .side-rail .studio-tabs { gap: 3px; width: auto; padding: 3px; border-radius: 999px; }
+html[data-rail-short] .side-rail .studio-tabs button { width: var(--rail-item); height: var(--rail-item); }
+html[data-rail-short] .side-rail .studio-tabs button svg { width: 20px; height: 20px; }
 
 /* The open display has more height: the step buttons get full-size targets and more air between them. */
 @media (min-width: 700px) {

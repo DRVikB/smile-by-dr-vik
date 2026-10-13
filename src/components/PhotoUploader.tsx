@@ -1,4 +1,5 @@
 "use client";
+import { ComposingMark } from "@/components/ComposingMark";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowRight,
@@ -293,7 +294,7 @@ export function PhotoUploader({
           {onSample && <div className="sc-or" role="separator" aria-label="or">OR</div>}
           {onSample && (
             <button type="button" className="photo-sample" onClick={onSample} disabled={sampleBusy}>
-              <span className="photo-row-icon" aria-hidden="true"><CasesSymbol size={18} /></span>
+              <span className="photo-row-icon" aria-hidden="true">{sampleBusy ? <ComposingMark motion="sheen" tone="auto" className="photo-row-mark" /> : <CasesSymbol size={18} />}</span>
               <span>{sampleBusy ? "Opening the sample case…" : "Explore a sample case"}<small>No patient photo, no AI credits</small></span>
               <ChevronRight size={18} strokeWidth={1.7} aria-hidden="true" />
             </button>

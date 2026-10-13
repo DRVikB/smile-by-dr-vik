@@ -1,4 +1,5 @@
 "use client";
+import { ComposingMark } from "@/components/ComposingMark";
 import { RailButton, RailItems, SideRailLayer, useSideRail } from "@/components/sideRail/SideRail";
 import { getCaseRepository } from "@/services/cases/caseRepository";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -7,7 +8,7 @@ import { useAccount } from "@/components/account/AccountProvider";
 import { AppleSignInButton } from "@/components/account/AppleSignInButton";
 import { PrivacyLink, TermsLink } from "@/components/account/LegalLinks";
 import { ProPlans } from "@/components/account/ProPlans";
-import { BrandLockup, CreatorSignature, SmileMark } from "@/components/Brand";
+import { CreatorSignature, SmileMark } from "@/components/Brand";
 import { SMILECOMPOSE } from "@/lib/brand";
 import { NAME_LIMITS, greeting, initials as initialsOf, normaliseName } from "@/lib/profile";
 import {
@@ -143,8 +144,8 @@ function Loading({ label }: { label?: string }) {
   return (
     <div className="onboarding onboarding-loading" role="status" aria-live="polite">
       <SideRailLayer />
-      <span className="onboarding-loading-mark" aria-hidden="true" />
-      <BrandLockup />
+      <ComposingMark tone="auto" quick className="onboarding-loading-mark" />
+      <span className="sc-wordmark" aria-label={SMILECOMPOSE.name}>{SMILECOMPOSE.wordmark}</span>
       {label && <p>{label}</p>}
     </div>
   );

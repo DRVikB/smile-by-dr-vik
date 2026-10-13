@@ -1,4 +1,5 @@
 "use client";
+import { ComposingMark } from "@/components/ComposingMark";
 import { RailButton, RailItems, SideRailLayer, useSideRail } from "@/components/sideRail/SideRail";
 import { getCaseRepository } from "@/services/cases/caseRepository";
 import { AI_CONCEPT_DISCLAIMER } from "@/lib/brand";
@@ -302,7 +303,7 @@ export function ShareSheet({
 
         {step === "making" && (
           <div className="share-making" role="status">
-            <span className="share-spinner" aria-hidden="true" />
+            <ComposingMark motion="sheen" tone="auto" className="share-making-mark" />
             {making === "report" ? "Preparing the consultation report…" : "Preparing the Smile Preview…"}
           </div>
         )}

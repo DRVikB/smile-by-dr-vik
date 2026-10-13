@@ -29,6 +29,9 @@ import { EditArea } from "@/components/EditArea";
 import { DesignStudio } from "@/components/studio/DesignStudio";
 import { PatientPhoto } from "@/components/PatientPhoto";
 import { GenerationState } from "@/components/GenerationState";
+import { designSummary } from "@/lib/consultation";
+import { prefersReducedMotion } from "@/lib/motion";
+import { haptic } from "@/native/haptics";
 import { BeforeAfterSlider, type CompareMode } from "@/components/BeforeAfterSlider";
 import { ConsultView } from "@/components/ConsultView";
 import { Presentation } from "@/components/Presentation";
@@ -295,6 +298,25 @@ export default function Smile() {
     return () => query.removeEventListener("change", update);
   }, []);
   const [busy, setBusy] = useState(false);
+  // A smile that has just been made: the processing screen clears over it (`leaving`) and the
+  // comparison uncovers it once (`reveal`); then the case's place in Cases is confirmed (`savedNote`).
+  const [leaving, setLeaving] = useState(false);
+  const [reveal, setReveal] = useState(false);
+  const [savedNote, setSavedNote] = useState(0);
+  const leaveTimer = useRef(0);
+  const savedTimer = useRef(0);
+  useEffect(() => () => { window.clearTimeout(leaveTimer.current); window.clearTimeout(savedTimer.current); }, []);
+  // A reveal belongs to the screen it started on.
+  useEffect(() => { if (screen !== "preview") setReveal(false); }, [screen]);
+  /** Hands a finished smile from the processing screen to the comparison. */
+  function presentNewSmile() {
+    haptic("ready");
+    setReveal(true);
+    if (prefersReducedMotion()) return;
+    setLeaving(true);
+    window.clearTimeout(leaveTimer.current);
+    leaveTimer.current = window.setTimeout(() => setLeaving(false), 800);
+  }
   const [previewMode, setPreviewMode] = useState<CompareMode>("slide");
   const [reviewOpen, setReviewOpen] = useState(false);
   const [editAreaOpen, setEditAreaOpen] = useState(false);
@@ -1073,6 +1095,7 @@ export default function Smile() {
   ) {
     if (!photo) return;
     const id = entryResult.variationId || crypto.randomUUID();
+    let saved = false;
     const writing = (async () => {
       try {
         const thumb = await thumbnail(entryResult.image);
@@ -1090,6 +1113,7 @@ export default function Smile() {
           },
           { id, image: entryResult.image, originalImage: photo.dataUrl, photoMetadata: { sourceProvenance:photo.sourceProvenance,name:photo.name,width:photo.width,height:photo.height,framing:photo.framing,quality:photo.quality,toothMap:photo.toothMap,analysisSnapshot:photo.analysisSnapshot }, analysisSnapshot:photo.analysisSnapshot, preferences: entryResult.preferences ?? { settings: used, testMode }, review: entryResult.review, scaleFlag: entryResult.scaleFlag, aiConsent: testMode ? undefined : consent ?? aiConsent ?? undefined, generation: entryResult.generation },
         );
+        saved = true;
       } catch (e) {
         storageFailed("save-design", e);
       }
@@ -1097,6 +1121,13 @@ export default function Smile() {
     logWrites.current.set(id, writing);
     await writing;
     setCaseLogVersion(v => v + 1);
+    // Demo and sample designs are never kept, so nothing is claimed for them.
+    if (saved && !testMode && entryResult.mode !== "mock") {
+      // Shown once the new smile has been uncovered, and gone a few seconds later.
+      setSavedNote(n => n + 1);
+      window.clearTimeout(savedTimer.current);
+      savedTimer.current = window.setTimeout(() => setSavedNote(0), 6500);
+    }
     if (logWrites.current.get(id) === writing) logWrites.current.delete(id);
   }
 
@@ -1184,6 +1215,7 @@ export default function Smile() {
       setVariants([]);
       setResult(next);
       setScreen("preview");
+      presentNewSmile();
       void logGenerated(next, used, undefined, consentForRequest);
     } catch (e) {
       if (!controller.signal.aborted) showGenerationError(e, "This preview took too long. Please try again.");
@@ -1770,7 +1802,15 @@ export default function Smile() {
                   onHideAnalysis={() => setAnalysisOn(false)}
                   previewLabel={preferredHere ? "Patient preferred · AI concept" : result.preferences?.styleReferenceStatus === "used" ? "In your style · AI concept" : undefined}
                   fill={photo}
+                  reveal={reveal}
+                  onRevealed={() => setReveal(false)}
                 />
+                {savedNote > 0 && (
+                  <p key={savedNote} className="saved-note" role="status">
+                    <svg viewBox="0 0 26 26" aria-hidden="true"><path pathLength={1} d="M6 13.5l4.8 4.8L20 7.5" /></svg>
+                    Saved to Cases
+                  </p>
+                )}
                 <button
                   className="fullscreen-button"
                   onClick={() => setFullscreen(true)}
@@ -2058,8 +2098,8 @@ export default function Smile() {
         />
       )}
 
-      {busy && photo && (
-        <GenerationState onCancel={cancelGeneration} testMode={testMode} photo={photo.dataUrl} focus={photo} stage={generationStage} />
+      {(busy || leaving) && photo && (
+        <GenerationState onCancel={cancelGeneration} testMode={testMode} photo={photo.dataUrl} focus={photo} stage={generationStage} design={designSummary(settings).headline} leaving={leaving && !busy} />
       )}
 
       {error && (

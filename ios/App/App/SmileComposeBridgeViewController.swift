@@ -26,6 +26,7 @@ class SmileComposeBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(SecureStoragePlugin())
         bridge?.registerPluginInstance(AppearancePlugin())
         bridge?.registerPluginInstance(sideBar)
+        bridge?.registerPluginInstance(HapticsPlugin())
         if #available(iOS 27.1, *) {
             registerForTraitChanges(UITraitCollection.systemTraitsAffectingVerticalBarEdge) { (self: Self, _: UITraitCollection) in
                 self.view.setNeedsLayout()
@@ -60,6 +61,21 @@ class SmileComposeBridgeViewController: CAPBridgeViewController {
     }
 
     // MARK: iPhone Duo side bar
+
+    #if DEBUG
+    /// Layout checks only (never in a release build): a headless simulator cannot be turned, so
+    /// launching with `-SmileOrientation landscape` (or `portrait`) asks the scene for that orientation.
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        guard let wanted = UserDefaults.standard.string(forKey: "SmileOrientation"),
+              let scene = view.window?.windowScene else { return }
+        // "landscape" turns the device anticlockwise, which keeps iPhone Duo's side bar on the right.
+        let mask: UIInterfaceOrientationMask = wanted == "landscape" ? .landscapeLeft : wanted == "landscapeRight" ? .landscapeRight : .portrait
+        scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { error in
+            NSLog("SmileOrientation %@ refused: %@", wanted, error.localizedDescription)
+        }
+    }
+    #endif
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
@@ -147,6 +163,33 @@ public class SideBarPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func get(_ call: CAPPluginCall) {
         DispatchQueue.main.async { call.resolve(self.state) }
+    }
+}
+
+/// A small tap in the hand at three moments: a smile is ready, the comparison divider passes its
+/// resting place, a tooth is chosen. The system's own haptics setting applies. See src/native/haptics.ts.
+@objc(HapticsPlugin)
+public class HapticsPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "HapticsPlugin"
+    public let jsName = "SmileHaptics"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "play", returnType: CAPPluginReturnPromise)
+    ]
+    private let selection = UISelectionFeedbackGenerator()
+    private let soft = UIImpactFeedbackGenerator(style: .soft)
+    private let light = UIImpactFeedbackGenerator(style: .light)
+
+    @objc func play(_ call: CAPPluginCall) {
+        let kind = call.getString("kind") ?? ""
+        DispatchQueue.main.async {
+            switch kind {
+            case "ready": self.soft.impactOccurred(intensity: 0.9)
+            case "tick": self.selection.selectionChanged()
+            case "select": self.light.impactOccurred(intensity: 0.7)
+            default: break
+            }
+            call.resolve()
+        }
     }
 }
 

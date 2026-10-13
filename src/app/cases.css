@@ -83,6 +83,12 @@
   .version-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
+/* A case made since the list was last open settles in at the top, outlined in gold for a moment. */
+.log-list > li.is-new { animation: case-arrive 640ms var(--ease-soft, ease) 120ms both; }
+.log-list > li.is-new .case-row { animation: case-arrive-ring 2400ms ease 500ms both; }
+@keyframes case-arrive { from { max-height: 0; opacity: 0; transform: translateY(-10px); } to { max-height: 140px; opacity: 1; transform: none; } }
+@keyframes case-arrive-ring { 0%, 55% { box-shadow: 0 0 0 1.5px var(--sc-gold, #D9B77E); } 100% { box-shadow: 0 0 0 1.5px transparent; } }
+@media (prefers-reduced-motion: reduce) { .log-list > li.is-new { animation: none; } }
 @keyframes case-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes star-pop { 0% { transform: scale(1); } 45% { transform: scale(1.35); } 100% { transform: scale(1); } }
 
@@ -112,5 +118,3 @@
 .sync-conflict-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .sync-conflict-actions .secondary-button { flex: 1 1 160px; min-height: 44px; font-size: 14px; }
 .sync-conflict-busy { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--text-secondary); }
-.sync-spinner { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent); animation: ob-spin 0.9s linear infinite; }
-@media (prefers-reduced-motion: reduce) { .sync-spinner { animation-duration: 2.4s; } }

@@ -529,46 +529,95 @@ input[type="checkbox"][role="switch"],
   overflow: visible; pointer-events: none;
   filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, .75));
 }
-/* What each line is, and the readings: dark glass, so it reads on any photo and in either theme. */
-/* Portrait: centred just above the Before / After labels, wherever each layout puts them. */
-.guide-key {
-  position: absolute; z-index: 11;
-  left: 50%; bottom: 16px; transform: translate(-50%, -42px);
-  width: min(520px, calc(100% - 32px));
-  display: grid; gap: 8px; padding: 12px 14px;
-  border-radius: 18px; color: #fff;
-  background: rgba(20, 19, 17, .72);
-  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, .25);
-  font-size: 13px; line-height: 1.35;
-  animation: fade-in-soft 260ms var(--ease-soft) both;
+.guide-line { transition: opacity 260ms ease; }
+
+/* ============================================================
+   Smile analysis (src/components/SmileGuides.tsx, BeforeAfterSlider `analysis`).
+   The photograph keeps the whole screen. Over it: a Before / After switch in the
+   corner, and one dark glass panel with each line's reading and switch. The panel
+   sits along the foot of a tall screen and down the left of a wide one, and its
+   title bar folds it away. Share / Options step aside until Done.
+   ============================================================ */
+.compare-level { position: absolute; inset: 0; transition: transform 720ms var(--ease-soft, ease); }
+.compare-after { opacity: 0; transition: opacity 380ms ease; }
+.compare-after.is-showing { opacity: 1; }
+.app-shell .preview-screen:has(.comparison.has-guides) :is(.compact-preview-dock, .saved-note),
+.saved-case-viewer:has(.comparison.has-guides) .saved-case-footer { display: none; }
+/* Whole photo / Fill screen undoes any zoom, so the zoom's own Fit button never joins it. */
+.comparison:has(.compare-fit) .comparison-zoom .photo-framing-toggle,
+.comparison.has-guides .comparison-zoom .photo-framing-toggle { display: none; }
+
+.analysis-view {
+  position: absolute; z-index: 6; top: calc(var(--photo-header, 76px) + 8px); left: max(16px, var(--app-safe-left, var(--safe-left)));
+  display: inline-flex; border-radius: 100px;
 }
-.guide-key-lines { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; padding: 0; list-style: none; font-weight: 500; }
-.guide-key-lines li { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
-.guide-swatch { flex: none; width: 20px; height: 0; border-top: 2.5px solid var(--guide); border-radius: 2px; }
-.guide-swatch.dashed { border-top-style: dashed; }
-.guide-swatch.arc { height: 8px; border-top: 0; border-bottom: 2.5px solid var(--guide); border-radius: 0 0 50% 50% / 0 0 100% 100%; transform: translateY(-3px); }
-.guide-key-readings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .14); }
-.guide-key-readings dt { font-size: 11.5px; color: rgba(255, 255, 255, .68); }
-.guide-key-readings dd { margin: 2px 0 0; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.guide-key-note, .guide-key-message { margin: 0; font-size: 12px; color: rgba(255, 255, 255, .7); }
-.guide-key-message { font-size: 13.5px; color: #fff; text-align: center; }
-/* Landscape: a column beside the face, under the Slide / Overlay switch. */
+.analysis-view button { border-radius: 100px; color: rgba(255, 255, 255, .8); }
+.analysis-view button[aria-pressed="true"] { background: rgba(255, 255, 255, .95); color: #171717; }
+.saved-case-viewer .analysis-view { top: calc(var(--safe-top) + 82px); left: max(16px, var(--safe-left)); }
+
+.analysis-panel {
+  position: absolute; z-index: 11; bottom: max(12px, calc(var(--safe-bottom) + 6px));
+  left: max(12px, var(--app-safe-left, var(--safe-left))); right: max(12px, var(--app-safe-right, var(--safe-right)));
+  max-width: 520px; margin-inline: auto; padding: 2px 12px 10px;
+  border: 1px solid rgba(255, 255, 255, .1); border-radius: 22px; color: #fff; background: rgba(20, 19, 17, .74);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2); backdrop-filter: blur(22px) saturate(1.2);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .28); font-size: 13px; line-height: 1.35;
+  animation: analysis-panel-in 420ms var(--ease-soft, ease) both;
+}
+@keyframes analysis-panel-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.analysis-panel.is-collapsed { padding-bottom: 2px; }
+.analysis-panel-head { display: flex; align-items: center; gap: 8px; }
+.analysis-panel-title { flex: 1; display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 2px; color: inherit; font-size: 14.5px; text-align: left; }
+.analysis-panel-title strong { font-weight: 600; }
+.analysis-panel-title svg { color: rgba(255, 255, 255, .7); transition: transform 320ms var(--ease-soft, ease); }
+.analysis-panel.is-collapsed .analysis-panel-title svg { transform: rotate(180deg); }
+.analysis-panel-done { min-height: 44px; padding: 0 4px 0 14px; color: #E3C48F; font-size: 14.5px; font-weight: 600; }
+.analysis-panel :is(.analysis-panel-title, .analysis-panel-done, .analysis-switch, .analysis-lines button):focus-visible { outline: 2px solid #E3C48F; outline-offset: 2px; }
+.analysis-panel-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 420ms var(--ease-soft, ease); }
+.analysis-panel.is-collapsed .analysis-panel-body { grid-template-rows: 0fr; }
+.analysis-panel-inner { min-height: 0; overflow: hidden; }
+.analysis-panel-tools { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; padding: 0 2px; }
+.analysis-switch { display: inline-flex; align-items: center; gap: 9px; min-height: 40px; color: rgba(255, 255, 255, .84); font-size: 13px; font-weight: 500; }
+.analysis-switch > span { position: relative; flex: none; width: 40px; height: 24px; border-radius: 12px; background: rgba(255, 255, 255, .24); transition: background-color 220ms ease; }
+.analysis-switch > span::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform 260ms var(--spring, ease); }
+.analysis-switch[aria-checked="true"] > span { background: #D9B77E; }
+.analysis-switch[aria-checked="true"] > span::after { transform: translateX(16px); }
+.analysis-lines { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.analysis-lines li.is-wide { grid-column: 1 / -1; }
+/* The two angles sit side by side, the midline runs across, then nasal width beside the arc. */
+.analysis-lines .is-eyeLine { order: 1; } .analysis-lines .is-mouthLine { order: 2; } .analysis-lines .is-midline { order: 3; }
+.analysis-lines .is-nasalLines { order: 4; } .analysis-lines .is-smileArc { order: 5; }
+.analysis-lines button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 48px; padding: 6px 12px; border-radius: 13px; background: rgba(255, 255, 255, .1); color: #fff; text-align: left; }
+.analysis-lines button > span:first-child { display: grid; min-width: 0; }
+.analysis-lines small { font-size: 11.5px; color: rgba(255, 255, 255, .66); }
+.analysis-lines b { overflow: hidden; font-size: 14.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; text-overflow: ellipsis; }
+.analysis-lines svg { flex: none; color: #E3C48F; }
+.analysis-lines button[aria-pressed="false"] { background: rgba(255, 255, 255, .04); }
+.analysis-lines button[aria-pressed="false"] :is(b, small, svg) { color: rgba(255, 255, 255, .42); }
+.analysis-panel-note { margin: 8px 2px 0; font-size: 11px; line-height: 1.45; color: rgba(255, 255, 255, .62); }
+.analysis-panel-message { margin: 0; padding: 4px 2px 10px; font-size: 13.5px; }
+/* Wide screens: a column down the left, under the Before / After switch; the face sits to its right. */
 @media (orientation: landscape) {
-  :is(.app-shell, .saved-case-viewer) .comparison.has-guides > .guide-key {
-    left: max(20px, var(--safe-left)); right: auto; bottom: auto;
-    top: calc(var(--photo-header) + 64px);
-    transform: none; width: min(272px, 30vw);
+  .analysis-panel {
+    right: auto; bottom: auto; margin: 0; left: max(16px, var(--app-safe-left, var(--safe-left)));
+    top: calc(var(--photo-header, 76px) + 64px); width: min(310px, 34vw);
+    max-height: calc(100% - var(--photo-header, 76px) - 64px - max(16px, var(--safe-bottom))); overflow-y: auto; overscroll-behavior: contain;
   }
-  .saved-case-viewer .comparison.has-guides > .guide-key { top: calc(var(--safe-top) + 138px); }
-  .guide-key-lines { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
-  .guide-key-readings { grid-template-columns: minmax(0, 1fr); gap: 6px; }
-  .guide-key-readings > div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
-  .guide-key-readings dd { margin: 0; text-align: right; }
+  .analysis-lines { grid-template-columns: minmax(0, 1fr); }
+  .saved-case-viewer .analysis-panel { top: calc(var(--safe-top) + 138px); max-height: calc(100% - var(--safe-top) - 138px - max(16px, var(--safe-bottom))); }
 }
+/* A phone on its side has little height: a wider panel, with the lines two to a row again. */
 @media (orientation: landscape) and (max-height: 500px) {
-  .guide-key-note { display: none; }
-  .guide-key-lines { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analysis-panel { top: calc(var(--photo-header, 76px) + 58px); width: min(400px, 46vw); max-height: calc(100% - var(--photo-header, 76px) - 58px - max(10px, var(--safe-bottom))); }
+  .analysis-lines { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analysis-lines button { min-height: 40px; padding-block: 3px; }
+  .analysis-panel-tools { margin-bottom: 2px; }
+  .saved-case-viewer .analysis-view { top: calc(var(--safe-top) + 66px); }
+  .saved-case-viewer .analysis-panel { top: calc(var(--safe-top) + 120px); max-height: calc(100% - var(--safe-top) - 120px - max(10px, var(--safe-bottom))); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .compare-level, .compare-after, .guide-line, .analysis-panel-body, .analysis-panel-title svg, .analysis-switch > span, .analysis-switch > span::after { transition: none; }
+  .analysis-panel { animation: none; }
 }
 
 /* ============================================================
@@ -866,4 +915,12 @@ input[type="checkbox"][role="switch"],
 @media (min-width: 700px) {
   @container studio-arch (max-width: 358px) { .studio-arch { zoom: 1.15; } }
   @container studio-arch (max-width: 294px) { .studio-arch { zoom: 1; } }
+}
+/* A very narrow card (the closed iPhone Duo turned on its side): the chart and the count selector shrink to fit it. */
+@container studio-arch (max-width: 262px) { .studio-arch { zoom: .8; } }
+@container studio-arch (max-width: 214px) { .studio-arch { zoom: .7; } }
+@media (orientation: landscape) and (max-width: 720px) {
+  .studio-count { gap: 2px; }
+  .studio-count button { min-width: 0; padding-inline: 2px; font-size: 13.5px; line-height: 1.15; }
+  .studio-generate .generate-button { padding-inline: 10px; font-size: 14.5px; white-space: nowrap; }
 }

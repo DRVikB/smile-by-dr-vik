@@ -512,7 +512,7 @@ body { background: var(--background); }
    safe areas, never on solid bands.
    ============================================================ */
 .saved-case-header { padding-bottom: 30px; background: linear-gradient(180deg, rgba(12, 11, 10, .72) 0%, rgba(12, 11, 10, .34) 58%, rgba(12, 11, 10, 0) 100%); }
-.saved-case-footer { padding-top: 44px; background: linear-gradient(180deg, rgba(12, 11, 10, 0) 0%, rgba(12, 11, 10, .52) 34%, rgba(12, 11, 10, .88) 100%); }
+.saved-case-footer { padding-top: 56px; background: linear-gradient(180deg, rgba(12, 11, 10, 0) 0%, rgba(12, 11, 10, .66) 30%, rgba(12, 11, 10, .92) 100%); }
 .saved-case-footer > span, .saved-case-footer > p { text-shadow: 0 1px 12px rgba(0, 0, 0, .4); }
 .comparison.is-filled .compare-vignette { background: radial-gradient(ellipse at 50% 46%, transparent 62%, rgba(0, 0, 0, .16) 100%); }
 /* "Whole photo" undoes any zoom too, so the zoom's own Fit button is not needed here. */
@@ -525,35 +525,34 @@ body { background: var(--background); }
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); touch-action: manipulation;
 }
 .compare-fit:focus-visible { outline: 2px solid var(--sc-gold); outline-offset: 2px; }
-.saved-case-viewer .compare-fit { top: calc(var(--safe-top) + 82px); right: max(16px, var(--safe-right)); }
-.comparison.has-guides .compare-fit { top: 12px; }
-/* The live result: level with the version picker, under the header. */
-.app-shell .preview-screen .compare-fit { top: calc(var(--photo-header) + 9px); right: max(16px, var(--app-safe-right, 0px)); }
-.app-shell .preview-screen .comparison.has-guides .compare-fit { top: 12px; }
-/* Portrait analysis: the photograph runs up behind the header too; the details stay below it. */
-@media (orientation: portrait) {
-  .saved-case-viewer .saved-case-content .comparison.has-guides { padding-top: 0; }
-  .saved-case-viewer .comparison.has-guides :is(.compare-mode, .compare-fit) { top: calc(var(--safe-top) + 82px); }
+/* Every pill on the photograph is one control: the same height, glass, border and type, so a pair
+   such as Slide / Overlay on the left and Whole photo on the right sit on one line. */
+:root { --photo-pill: 42px; }
+@media (any-pointer: coarse) { :root { --photo-pill: 46px; } }
+.compare-mode, .analysis-view, .compare-fit {
+  box-sizing: border-box; height: var(--photo-pill); min-height: 0; border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(18, 17, 16, .5); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  font-size: 13px; font-weight: 500; line-height: 1;
 }
+.compare-mode, .analysis-view { padding: 3px; align-items: stretch; }
+.compare-mode button, .analysis-view button { min-height: 0; padding: 0 15px; font-size: 13px; font-weight: 500; line-height: 1; }
+.compare-fit { padding: 0 15px; }
+.saved-case-viewer .compare-fit { top: calc(var(--safe-top) + 82px); right: max(16px, var(--safe-right)); }
+/* The live result: level with the version picker, under the header. */
+.app-shell .preview-screen .compare-fit { top: calc(var(--photo-header) + 8px); right: max(16px, var(--app-safe-right, 0px)); }
 
-/* V1: analysis is a deliberate workspace, with details below the photograph. */
 .comparison { display: flex; flex-direction: column; }
 .compare-canvas { position: relative; flex: 1 1 0; min-height: 0; width: 100%; overflow: hidden; }
-.comparison.has-guides { padding-top: calc(var(--photo-header, 84px) + 12px); padding-bottom: calc(132px + var(--safe-bottom)); }
-.saved-case-viewer .comparison.has-guides { padding-top: calc(84px + var(--safe-top)); padding-bottom: calc(152px + var(--safe-bottom)); }
-.app-shell .preview-screen .comparison.has-guides .compare-label,
-.saved-case-viewer .comparison.has-guides .compare-label { bottom: 12px; }
-.comparison.has-guides .compare-mode { top: 12px; }
-.analysis-details { flex: none; max-height: 30%; overflow: auto; padding: 10px 16px; background: var(--surface-solid); color: var(--text-primary); border-top: 1px solid var(--border); font-size: 13px; }
-.analysis-details-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.analysis-details .text-button, .analysis-details .settings-segment button, .analysis-details summary { min-height: 44px; }
-.analysis-details .settings-segment { max-width: 300px; margin: 0 0 4px; }
-.analysis-details summary { cursor: pointer; align-content: center; color: var(--text-secondary); }
-.analysis-details .guide-key-lines { display: flex; flex-wrap: wrap; margin: 8px 0; }
-.analysis-details .guide-key-readings { border-color: var(--border); margin: 8px 0; }
-.analysis-details .guide-key-readings dt, .analysis-details .guide-key-note, .analysis-details .guide-key-message { color: var(--text-secondary); }
 .saved-case-actions { display: flex; justify-content: center; gap: 12px; width: 100%; }
 .saved-case-actions button { min-height: 44px; font-size: 13px; }
+/* Smile analysis is the second action of a pair, not an afterthought: glass beside the gold. */
+.saved-case-analysis {
+  display: inline-flex; align-items: center; gap: 8px; padding: 0 18px; border-radius: 100px; border: 1px solid rgba(255, 255, 255, .22);
+  color: #fff; background: rgba(18, 17, 16, .5); font-weight: 500; -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+}
+.saved-case-analysis:active:not(:disabled) { transform: scale(.96); }
+.saved-case-analysis:focus-visible { outline: 2px solid var(--sc-gold); outline-offset: 2px; }
+.saved-case-viewer:focus { outline: none; }
 .case-media-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 12px 0; color: var(--text-secondary); font-size: 13px; }
 .case-media-status > span { display: inline-flex; align-items: center; gap: 7px; }
 .case-media-status small { flex-basis: 100%; font-size: 12px; }
@@ -564,15 +563,6 @@ body { background: var(--background); }
 .recent-case-placeholder { width: 100%; aspect-ratio: 1; border-radius: var(--r-card); background: var(--surface-subtle); }
 @keyframes media-sync-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .media-sync-spinner { animation: none; } }
-@media (orientation: landscape) and (max-height: 600px) {
-  .comparison.has-guides, .saved-case-viewer .comparison.has-guides { flex-direction: row; padding-top: calc(60px + var(--safe-top)); padding-bottom: calc(96px + var(--safe-bottom)); }
-  .analysis-details { width: 32%; max-height: 100%; border-top: 0; border-left: 1px solid var(--border); padding: 4px 12px; }
-  .analysis-details-head { flex-wrap: wrap; gap: 0; }
-  .saved-case-viewer .comparison.has-guides { padding-bottom: 0; }
-  .saved-case-viewer:has(.has-guides) .saved-case-footer { position: static; background: #171614; width: 100%; }
-  .saved-case-content:has(.has-guides) { display: flex; flex-direction: column; }
-  .saved-case-content:has(.has-guides) .comparison { flex: 1; min-height: 0; }
-}
 
 .desktop-concept-note { grid-column: 1 / -1; margin: 2px 0 0; text-align: center; font-size: 11px; line-height: 1.5; color: var(--text-secondary); }
 

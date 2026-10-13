@@ -40,13 +40,15 @@ export function SideRailProvider({ children }: { children: React.ReactNode }) {
     const names = ["--rail-left", "--rail-top", "--rail-width", "--rail-height", "--side-bar-inset", "--fold-left", "--fold-width"];
     if (!bar) return;
     root.dataset.sideBar = bar.edge;
+    // Closed and turned on its side the column is short (about 350pt): layouts that fill the rail tighten up.
+    if (bar.rail.height < 420) root.dataset.railShort = "true"; else delete root.dataset.railShort;
     root.style.setProperty("--rail-left", `${bar.rail.x}px`);
     root.style.setProperty("--rail-top", `${bar.rail.y}px`);
     root.style.setProperty("--rail-width", `${bar.rail.width}px`);
     root.style.setProperty("--rail-height", `${bar.rail.height}px`);
     root.style.setProperty("--side-bar-inset", `${bar.inset}px`);
     if (bar.fold) { root.dataset.fold = "true"; root.style.setProperty("--fold-left", `${bar.fold.x}px`); root.style.setProperty("--fold-width", `${bar.fold.width}px`); }
-    return () => { delete root.dataset.sideBar; delete root.dataset.fold; names.forEach(name => root.style.removeProperty(name)); };
+    return () => { delete root.dataset.sideBar; delete root.dataset.railShort; delete root.dataset.fold; names.forEach(name => root.style.removeProperty(name)); };
   }, [bar]);
 
   const enter = useCallback((id: string, at: number) => setLayers(current => [...current.filter(x => x.id !== id), { id, opened: at }]), []);

@@ -25,9 +25,12 @@ export function SavedCaseViewer({ entry, media, analysis: startWithAnalysis = fa
   useEffect(() => {
     const el = dialog.current;
     el?.showModal();
+    // Opening moves focus to the dialog itself, not its first button: a focus ring on Close would
+    // otherwise greet every touch user.
+    el?.focus();
     return () => el?.close();
   }, []);
-  return <dialog ref={dialog} className="saved-case-viewer" aria-label={`Saved comparison: ${entry.patientName || "Unnamed"}`} onClick={e => e.stopPropagation()} onCancel={e => { e.preventDefault(); if (sharing) { setSharing(false); onExported?.(); } else if (videoOpen) setVideoOpen(false); else onClose(); }}>
+  return <dialog ref={dialog} tabIndex={-1} className="saved-case-viewer" aria-label={`Saved comparison: ${entry.patientName || "Unnamed"}`} onClick={e => e.stopPropagation()} onCancel={e => { e.preventDefault(); if (sharing) { setSharing(false); onExported?.(); } else if (videoOpen) setVideoOpen(false); else onClose(); }}>
     <div className="saved-case-content" inert={sharing || videoOpen}>
       <CenteredBrandHeader
         className="saved-case-header"
@@ -41,7 +44,7 @@ export function SavedCaseViewer({ entry, media, analysis: startWithAnalysis = fa
         <span>{entry.patientName || "Saved case"} · {entry.label || "Before & after"}</span>
         <p>{isDemo ? "Demo concept · Sample imagery, not a patient result." : AI_CONCEPT_SUMMARY}</p>
         <div className="saved-case-actions"><button type="button" className="primary-button" onClick={() => setSharing(true)}><Share2 size={17} />Export &amp; share</button>
-        {!analysis && <button type="button" className="text-button" onClick={() => setAnalysis(true)}><AnalysisSymbol size={16} />Smile analysis</button>}</div>
+        {!analysis && <button type="button" className="saved-case-analysis" onClick={() => setAnalysis(true)}><AnalysisSymbol size={16} />Smile analysis</button>}</div>
       </footer>
     </div>
     {sharing && <ShareSheet input={savedCaseExport(entry, media, record)} entryId={entry.id}

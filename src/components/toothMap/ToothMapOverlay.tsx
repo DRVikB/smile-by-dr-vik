@@ -1,4 +1,5 @@
 "use client";
+import { haptic } from "@/native/haptics";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { toothShapes } from "@/lib/toothMap/outline";
 import { fitSmileTemplate } from "@/lib/toothMap/template";
@@ -106,7 +107,7 @@ export function ToothMapOverlay({ controller, settings, width, height, scale = 1
       if (p.long || Math.hypot(e.clientX - p.x, e.clientY - p.y) > MOVE_TOLERANCE) return;
       if (reviewing && activeRegion) { controller.setFocusedId(activeRegion); return; }
       if (activeFdi === null) return;
-      if (mode === "single") controller.openControls(activeFdi); else controller.toggle(activeFdi);
+      if (mode === "single") controller.openControls(activeFdi); else { haptic("select"); controller.toggle(activeFdi); }
     },
     onPointerCancel: () => { if (press.current) window.clearTimeout(press.current.timer); press.current = null; },
     onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
@@ -114,7 +115,7 @@ export function ToothMapOverlay({ controller, settings, width, height, scale = 1
       if ((e.key === "Enter" || e.key === " ") && (fdi !== null || (reviewing && regionId))) {
         e.preventDefault();
         if(reviewing && regionId) controller.setFocusedId(regionId);
-        else if (fdi !== null) { if (mode === "single") controller.openControls(fdi); else controller.toggle(fdi); }
+        else if (fdi !== null) { if (mode === "single") controller.openControls(fdi); else { haptic("select"); controller.toggle(fdi); } }
       }
     },
   });

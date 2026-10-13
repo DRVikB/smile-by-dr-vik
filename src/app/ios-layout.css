@@ -137,13 +137,10 @@ body:has(.app-shell[data-screen="photo"]) { overflow: hidden; }
   .start-screen .start-copy .splash-rule { margin-top: 16px; margin-bottom: 12px; }
   .start-screen .start-copy .splash-actions { margin-top: 22px; }
   .start-screen .start-copy .recent-cases { margin-top: 16px; }
-  .generation-splash .sc-composing-symbol { display: none; }
   .generation-splash-content { padding-block: 16px; }
   .generation-splash-copy h2 { font-size: 34px; }
   .generation-splash-intro > p { margin-top: 12px; }
-  .generation-splash-steps { margin-top: 20px; gap: 8px; }
-  .generation-splash-step-mark { width: 28px; height: 28px; }
-  .generation-splash-progress { margin-top: 20px; }
+  
 }
 @media (orientation: landscape) and (max-height: 500px) {
   :root { --app-top-space: calc(var(--app-safe-top) + 8px); }

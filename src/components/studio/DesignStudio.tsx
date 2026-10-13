@@ -1,4 +1,5 @@
 "use client";
+import { haptic } from "@/native/haptics";
 import { RailItems, useSideRail } from "@/components/sideRail/SideRail";
 import { generationUnavailable, INTERNAL_SINGLE_TOOTH, INTERNAL_ALIGNMENT, INTERNAL_FULL_ARCH } from "@/lib/generation/availability";
 import { useState } from "react";
@@ -229,7 +230,8 @@ export function DesignStudio({
   const rail = useSideRail();
   const steps = (
     <div className="studio-tabs" role="tablist" aria-label="Design steps" aria-orientation={rail ? "vertical" : undefined}>
-      {TABS.map(({ id, label: base, Icon }, i) => { const label = id === "teeth" && fullArch ? "Arch" : base; return (
+      {/* iPhone Duo: Review is where Next leads and Generate Smile lives, so the side bar keeps only the four design steps. */}
+      {TABS.filter(t => !rail || t.id !== "review").map(({ id, label: base, Icon }, i) => { const label = id === "teeth" && fullArch ? "Arch" : base; return (
         <button key={id} id={`studio-tab-${id}`} type="button" role="tab" aria-selected={tab === id} aria-controls={`studio-page-${id}`}
           className={`${tab === id ? "is-active" : ""}${i < index ? " is-done" : ""}`} title={rail ? label : undefined} onClick={() => go(id)}>
           <Icon size={20} />
@@ -267,7 +269,7 @@ export function DesignStudio({
                 const count = TEETH_COUNTS.find(n => upperTeeth[n].includes(tooth)) ?? 10;
                 return <button key={tooth} type="button" className={`studio-arch-tooth${on ? " on" : ""}`} style={{ width: w, height: h }}
                   aria-label={`Tooth ${tooth}${on ? ", included" : ""}. Design ${count} upper teeth`} aria-pressed={on}
-                  disabled={individual} onClick={() => setTeeth(count)} />;
+                  disabled={individual} onClick={() => { haptic("select"); setTeeth(count); }} />;
               })}
             </div></div>}
             {/* Presets keep the existing generation baseline independent of detection. */}
@@ -511,7 +513,8 @@ export function DesignStudio({
           {tab === "review" && noChange && <p className="control-hint">No change selected: select teeth to edit and choose a different shade or design goal. No generation is needed.</p>}
           {tab === "review" && suggestBoundaryReview && <p className="control-hint">Ready to generate with automatic face protection. <button type="button" className="text-button" onClick={() => { go("teeth"); toothMap?.setEditing(true); }}>Optional tooth-map review</button></p>}
           <div className="studio-steps-nav">
-            {previous && <button type="button" className="secondary-button studio-back" onClick={() => go(previous.id)} aria-label={`Back to ${previous.id === "teeth" && fullArch ? "Arch" : previous.label}`}>
+            {/* iPhone Duo: the side bar's Back and its step buttons already go back, so the foot keeps one action. */}
+            {previous && !rail && <button type="button" className="secondary-button studio-back" onClick={() => go(previous.id)} aria-label={`Back to ${previous.id === "teeth" && fullArch ? "Arch" : previous.label}`}>
               <ChevronLeft size={18} aria-hidden="true" />Back
             </button>}
             {next ? (

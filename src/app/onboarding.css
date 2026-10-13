@@ -11,7 +11,6 @@
 }
 .onboarding-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
 .onboarding-loading p { margin: 0; color: var(--text-secondary); font-size: 14px; letter-spacing: .02em; }
-.onboarding-loading-mark { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--border); border-top-color: var(--accent); animation: ob-spin 1.1s linear infinite; }
 
 /* Frame ------------------------------------------------------
    A full-bleed picture (.ob-visual) and an ivory sheet of content (.ob-sheet).
@@ -324,14 +323,14 @@
   .is-plain .ob-actions { justify-items: center; }
   .is-plain .ob-actions .ob-button { max-width: 420px; }
 }
-/* The subscription card grows with its contents instead of hiding its exit
-   below an inner scroll. The page may scroll on small screens; dismissal stays visible. */
-/* Portrait: the card slides up over the pinned picture. Landscape: the picture stays put and only the card scrolls, inside itself. */
+/* The plans are longer than the screen. The picture never moves (it only answers a sideways drag on
+   its slider); the card beneath it scrolls inside itself. Dismissal stays visible. */
 @media (max-width: 699px), (orientation: portrait) {
-  .onboarding.has-hero[data-step="subscription"] { overflow-y: auto; }
-  .onboarding[data-step="subscription"] .ob-layout { flex: none; height: auto; min-height: 100%; }
-  .onboarding[data-step="subscription"] .ob-sheet { flex: none; height: auto; overflow: visible; }
+  .onboarding[data-step="subscription"] .ob-visual { flex: none; }
+  .onboarding[data-step="subscription"] .ob-sheet { flex: 1 1 0; height: auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 }
+/* A drag on the picture moves its slider and nothing else. */
+.ob-visual .reveal-card.interactive .reveal-frame { touch-action: none; }
 .onboarding[data-step="subscription"] .ob-top { padding-right: 52px; }
 .onboarding[data-step="subscription"] .ob-head { margin-top: 0; }
 .onboarding[data-step="subscription"] .ob-body { margin-bottom: 0; }
@@ -367,7 +366,6 @@
   .ob-layout, .how-card, .float-a, .float-b, .float-c, .how-step { animation: none; }
   .reveal-card.animate { animation: none; --split: 50%; }
   .reveal-hint { animation: none; }
-  .onboarding-loading-mark { animation-duration: 3s; }
 }
 
 /* How it works — compact list (Settings › Help) ------------- */
@@ -410,17 +408,23 @@
    as well as its width) and the picture fills whatever is left above it. */
 @media (max-width: 699px) {
   /* The photo always keeps a generous share of the screen; a shorter phone scrolls rather than losing it. */
-  .has-hero:not([data-step="subscription"]) .ob-visual { flex: 1 1 auto; height: auto; min-height: max(220px, 34dvh); max-height: 62dvh; }
+  /* The picture takes the spare height first (up to its limit); whatever is left goes to the card, so a
+     card with little in it still reaches the foot of the screen instead of leaving the dark page showing. */
+  .has-hero:not([data-step="subscription"]) .ob-visual { flex: 1000 1 auto; height: auto; min-height: max(220px, 34dvh); max-height: 78dvh; }
   /* Very short phones (iPhone SE, the folded iPhone Duo): a smaller photo, so the sign-in and subscription choices are in view without scrolling. */
   @media (max-height: 700px) and (orientation: portrait) {
     .has-hero:not([data-step="subscription"]) .ob-visual { min-height: max(150px, 22dvh); }
     .onboarding[data-step="subscription"] .ob-visual { height: clamp(140px, 30dvh, 600px); }
   }
-  /* Safety net: a phone too short for the content scrolls the page rather than clipping it. */
-  .onboarding.has-hero { overflow-y: auto; }
-  .has-hero .ob-sheet { flex: none; overflow: visible; gap: clamp(10px, 2dvh, 20px); padding-top: clamp(16px, 2.4dvh, 22px);
+  /* A card taller than the space left for it scrolls inside itself; the picture above never moves. A soft
+     shadow along its lower edge shows while there is more to scroll to, and fades out at the end. */
+  .has-hero .ob-sheet { flex: 1 1 auto; gap: clamp(10px, 2dvh, 20px); padding-top: clamp(16px, 2.4dvh, 22px);
     /* The last action sits just above the home indicator; the photo takes the space back. */
-    padding-bottom: max(10px, var(--safe-bottom)); }
+    padding-bottom: max(10px, var(--safe-bottom));
+    background:
+      linear-gradient(transparent, var(--background) 70%) center bottom / 100% 44px no-repeat local,
+      radial-gradient(farthest-side at 50% 100%, rgba(20, 16, 12, .2), transparent) center bottom / 100% 14px no-repeat scroll,
+      var(--background); }
   .has-hero .ob-head { gap: clamp(6px, 1.2dvh, 12px); }
   .has-hero .ob-body { gap: clamp(8px, 1.4dvh, 14px); }
   .has-hero .ob-title { font-size: clamp(25px, min(8vw, 4.2dvh), 40px); }
@@ -439,12 +443,6 @@
 }
 
 
-/* Wherever a page scrolls (the plans, or any page on a short screen), the picture stays put and the
-   card slides up over it. Pages that fit don't move at all. */
-@media (max-width: 699px), (orientation: portrait) {
-  .onboarding.has-hero .ob-visual { position: sticky; top: 0; z-index: 0; }
-  .onboarding.has-hero .ob-sheet { z-index: 1; }
-}
 /* Portrait phones with a status strip beside the screen (the folded iPhone Duo): the picture and the card share the same inset,
    so the card's content is centred under the picture's centre line. (Without side insets this changes nothing.) */
 @media (max-width: 699px) {

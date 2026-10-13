@@ -1,11 +1,12 @@
 "use client";
+import { ComposingMark } from "@/components/ComposingMark";
 import { RailButton, RailItems, SheetClose, SideRailLayer, useSideRail } from "@/components/sideRail/SideRail";
 import { PatientSyncStatus } from "./PatientSyncStatus";
 import { CaseMediaStatus } from "./CaseMediaStatus";
 import { useCaseMedia } from "./useCaseMedia";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Archive, Check, ChevronLeft, ChevronRight, CircleCheck, Pencil, ScanEye, Search, Share2, Star, Trash2, X } from "lucide-react";
-import { AnalysisSymbol, IconTile, SmileSymbol } from "@/components/icons/SmileIcons";
+import { AnalysisSymbol, SmileSymbol } from "@/components/icons/SmileIcons";
 import { AI_CONCEPT_DISCLAIMER } from "@/lib/brand";
 import { savedCaseExport } from "@/lib/savedCaseExport";
 import { SavedCaseViewer } from "./SavedCaseViewer";
@@ -22,6 +23,9 @@ import { caseIdOf } from "@/models/case";
 import { useCaseRecord } from "./useCaseRecord";
 import { CasePhotoSet } from "./CasePhotoSet";
 import { RECENTLY_DELETED_DAYS } from "@/config/cases";
+
+/** When the list of cases was last looked at: anything made since arrives with a small welcome. */
+let casesSeenAt = Date.now();
 
 /** One patient case: every version made for it, newest first. */
 interface CaseGroup {
@@ -60,6 +64,9 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
   // iPhone Duo: Back and Close sit in the side bar.
   const rail = useSideRail();
   const [repository] = useState(getCaseRepository);
+  // Cases made since the list was last open settle in at the top.
+  const [seenAt] = useState(() => casesSeenAt);
+  useEffect(() => () => { casesSeenAt = Date.now(); }, []);
   const { listActiveLog, moveAllToRecentlyDeleted, moveToRecentlyDeleted, purgeRecentlyDeleted, renameCase, setCaseArchived, setFavourite } = repository;
   const [entries, setEntries] = useState<CaseLogEntry[] | null>(null);
   const [query, setQuery] = useState("");
@@ -359,7 +366,7 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
             ) : shown.length === 0 ? (
               all.length === 0 ? (
                 <div className="empty-state">
-                  <IconTile icon={SmileSymbol} size="lg" className="empty-state-tile" />
+                  <span className="icon-tile icon-tile-lg empty-state-tile" aria-hidden="true"><ComposingMark motion="draw" tone="auto" quick className="empty-state-mark" /></span>
                   <p className="empty-state-title">No smile designs yet</p>
                   <p className="empty-state-body">Upload a patient photograph to begin visualising treatment possibilities. Your saved designs will appear here.</p>
                 </div>
@@ -369,7 +376,7 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
             ) : (
               <ul className="log-list">
                 {shown.map((group) => (
-                  <li key={group.key}>
+                  <li key={group.key} className={group.updatedAt > seenAt ? "is-new" : undefined}>
                     <button className="log-row case-row" onClick={() => setOpenCase(group.key)}>
                       <span className={`case-cover count-${Math.min(3, group.versions.length)}`} aria-hidden="true">
                         {coverThumbs(group).map(v => v.thumb ? <img key={v.id} src={v.thumb} alt="" draggable={false} /> : <SmileSymbol key={v.id} size={26} />)}

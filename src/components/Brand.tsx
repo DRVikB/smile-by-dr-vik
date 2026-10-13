@@ -28,7 +28,14 @@ export function BrandLockup({ inverse = false, className = "" }: { inverse?: boo
 /** Shown while the app loads. Matches the native iOS launch screen (the app icon itself, same sizes), so the hand-off doesn't jump. */
 export function BrandLaunch() {
   return <div className="sc-launch" role="status" aria-label="Opening SmileCompose">
-    <img className="sc-launch-symbol" src="/brand/smilecompose-launch-icon.png" alt="" width={288} height={288} fetchPriority="high" />
+    <span className="sc-launch-symbol">
+      <img src="/brand/smilecompose-launch-icon.png" alt="" width={288} height={288} fetchPriority="high" />
+      {/* The same artwork as the system launch screen, so nothing jumps; a light then travels along its smile. */}
+      <svg className="sc-launch-sheen" viewBox="0 0 1024 1024" fill="none" aria-hidden="true">
+        <mask id="sc-launch-smile" maskUnits="userSpaceOnUse" x="150" y="330" width="724" height="480"><path d="M216 431C322 770 702 770 808 431" stroke="#fff" strokeWidth="84" strokeLinecap="round" /></mask>
+        <g mask="url(#sc-launch-smile)"><path pathLength={100} d="M216 431C322 770 702 770 808 431" /></g>
+      </svg>
+    </span>
     <span className="sc-wordmark">{SMILECOMPOSE.wordmark}</span>
     <span className="sc-creator sc-launch-creator">
       <span>Designed By</span>

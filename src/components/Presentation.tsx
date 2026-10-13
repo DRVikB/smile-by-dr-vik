@@ -1,4 +1,5 @@
 "use client";
+import { ComposingMark } from "@/components/ComposingMark";
 import { useEffect, useState } from "react";
 import { Download, Share2, X } from "lucide-react";
 import { composePresentation, presentationPdf } from "@/lib/presentation";
@@ -95,9 +96,10 @@ export function Presentation({
       {artwork ? (
         <img className="present-art" src={artwork} alt="Before and after smile presentation" />
       ) : (
-        <p className="present-status" role="status">
-          {error || "Preparing the presentation…"}
-        </p>
+        <div className="present-waiting">
+          {!error && <ComposingMark motion="sheen" className="present-mark" />}
+          <p className="present-status" role="status">{error || "Preparing the presentation…"}</p>
+        </div>
       )}
       <div className="present-actions">
         {onShare ? (

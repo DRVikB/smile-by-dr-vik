@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pickVideoType, REVEAL, REVEAL_TOTAL, REVEAL_ZOOM, revealFrame, videoSize } from "../src/lib/revealVideo";
+import { introFrame, pickVideoType, REVEAL, REVEAL_INTRO, REVEAL_INTRO_TOTAL, REVEAL_TOTAL, REVEAL_VIDEO_TOTAL, REVEAL_ZOOM, revealFrame, videoSize } from "../src/lib/revealVideo";
 
 test("the reveal holds their smile, fades the illustration in, then holds it", () => {
   assert.equal(revealFrame(0).mix, 0);
@@ -33,4 +33,26 @@ test("the video keeps the photo's shape at an even-numbered size", () => {
   const { width, height } = videoSize(2048, 1365);
   assert.equal(width, 1080);
   assert.equal(height % 2, 0);
+});
+
+test("the opening draws the guide lines, then the smile, and only then lets the photograph in", () => {
+  assert.deepEqual(introFrame(0), { guides: 0, smile: 0, photo: 0 });
+  // Guides are complete before the smile is.
+  const early = introFrame(REVEAL_INTRO.guides);
+  assert.equal(early.guides, 1);
+  assert.ok(early.smile > 0 && early.smile < 0.5);
+  // The whole mark is drawn, and held, before the photograph starts to show.
+  const drawn = introFrame(REVEAL_INTRO.guides + REVEAL_INTRO.smile + REVEAL_INTRO.hold);
+  assert.deepEqual(drawn, { guides: 1, smile: 1, photo: 0 });
+  assert.equal(introFrame(REVEAL_INTRO_TOTAL).photo, 1);
+  // Nothing runs backwards.
+  let last = { guides: 0, smile: 0, photo: 0 };
+  for (let ms = 0; ms <= REVEAL_INTRO_TOTAL; ms += 50) {
+    const f = introFrame(ms);
+    assert.ok(f.guides >= last.guides && f.smile >= last.smile && f.photo >= last.photo);
+    last = f;
+  }
+  // The opening adds two seconds; the reveal itself is unchanged.
+  assert.equal(REVEAL_INTRO_TOTAL, 2000);
+  assert.equal(REVEAL_VIDEO_TOTAL, REVEAL_INTRO_TOTAL + REVEAL_TOTAL);
 });
