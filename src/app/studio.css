@@ -610,7 +610,8 @@ input[type="checkbox"][role="switch"],
 @media (orientation: landscape) and (max-height: 500px) {
   .analysis-panel { top: calc(var(--photo-header, 76px) + 58px); width: min(400px, 46vw); max-height: calc(100% - var(--photo-header, 76px) - 58px - max(10px, var(--safe-bottom))); }
   .analysis-lines { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .analysis-lines button { min-height: 40px; padding-block: 3px; }
+  .analysis-lines button { min-height: 40px; padding: 3px 9px; gap: 4px; }
+  .analysis-lines b { font-size: 13.5px; }
   .analysis-panel-tools { margin-bottom: 2px; }
   .saved-case-viewer .analysis-view { top: calc(var(--safe-top) + 66px); }
   .saved-case-viewer .analysis-panel { top: calc(var(--safe-top) + 120px); max-height: calc(100% - var(--safe-top) - 120px - max(10px, var(--safe-bottom))); }

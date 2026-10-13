@@ -14,6 +14,11 @@ import { AI_CONCEPT_SUMMARY } from "@/lib/brand";
 
 export type CompareMode = "slide" | "overlay";
 
+/** Where the analysis panel's column ends on a wide screen (it matches .analysis-panel in studio.css), so the face can sit in the middle of what is left. */
+export function analysisColumn(width: number, height: number): number {
+  return 16 + (height <= 500 ? Math.min(400, width * 0.46) : Math.min(310, width * 0.34));
+}
+
 /** Accessible description of the overlay mix. */
 export function overlayValueText(opacity: number): string {
   return `AI illustration at ${opacity} percent over the original`;
@@ -117,7 +122,7 @@ export function BeforeAfterSlider({
         region: analysis ? analysisRegion(source) : smile,
         // Portrait screens keep the smile a little above the actions. In analysis the eyes-to-chin
         // region sits clear of the panel: above it on a tall screen, to its right on a wide one.
-        anchor: analysis ? (h > w ? { x: 0.5, y: Math.max(0.3, (h - 240) / (2 * h)) } : { x: 0.62, y: 0.5 }) : { x: 0.5, y: h > w ? 0.46 : 0.5 },
+        anchor: analysis ? (h > w ? { x: 0.5, y: Math.max(0.3, (h - 240) / (2 * h)) } : { x: Math.min(0.76, (analysisColumn(w, h) + w) / (2 * w)), y: 0.5 }) : { x: 0.5, y: h > w ? 0.46 : 0.5 },
         maxCrop: 0.42,
       });
       setViewport(rect);
