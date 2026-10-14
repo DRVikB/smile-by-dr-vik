@@ -358,6 +358,13 @@ input[type="checkbox"][role="switch"],
   transition: border-color 200ms var(--ease-soft), box-shadow 200ms var(--ease-soft), background-color 200ms var(--ease-soft);
 }
 .studio-shape-figure { width: 100%; max-width: 88px; }
+/* Every tile keeps its icon and name inside it: the layout never grows past the tile, so the four icons
+   and names sit at the same size and height. Where four in a row would be too narrow for "Rectangle"
+   on one line (the Duo's screens, an iPhone on its side), the shapes go two by two. */
+.studio-shape { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.studio-shape > span:last-child { max-width: 100%; white-space: nowrap; }
+.studio-shapes-fit { container: shape-row / inline-size; }
+@container shape-row (max-width: 360px) { .studio-shapes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .studio-shape[aria-pressed="true"] { background: var(--surface-elevated); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent), 0 6px 16px -10px rgba(120, 88, 40, .5); }
 .studio-shape[aria-pressed="true"] .tooth-form-main path { fill: #FFFFFF; stroke: var(--accent-text); stroke-width: 2.2; }
 
@@ -925,3 +932,6 @@ input[type="checkbox"][role="switch"],
   .studio-count button { min-width: 0; padding-inline: 2px; font-size: 13.5px; line-height: 1.15; }
   .studio-generate .generate-button { padding-inline: 10px; font-size: 14.5px; white-space: nowrap; }
 }
+/* Options shown in full (the open Duo on its side): a hairline above, then the options at the card's own spacing. */
+.studio-more-body.is-shown { display: grid; gap: 18px; padding-top: 16px; border-top: 1px solid var(--separator); }
+

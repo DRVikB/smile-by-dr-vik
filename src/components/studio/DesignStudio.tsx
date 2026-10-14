@@ -1,6 +1,7 @@
 "use client";
 import { haptic } from "@/native/haptics";
 import { RailItems, useSideRail } from "@/components/sideRail/SideRail";
+import { useMediaQuery } from "@/components/settings/settingsParts";
 import { generationUnavailable, INTERNAL_SINGLE_TOOTH, INTERNAL_ALIGNMENT, INTERNAL_FULL_ARCH } from "@/lib/generation/availability";
 import { useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, ImagePlus, X } from "lucide-react";
@@ -97,7 +98,9 @@ function shadeDescription(value: TargetShade) {
   return SHADES.find(s => s.value === value)?.description ?? QUICK_SHADES.find(s => s.value === value)?.description ?? "";
 }
 
-function More({ children, label = "More options" }: { children: React.ReactNode; label?: string }) {
+function More({ children, label = "More options", shown = false }: { children: React.ReactNode; label?: string; shown?: boolean }) {
+  // Where there is room for everything, the options are simply there instead of behind "More options".
+  if (shown) return <div className="studio-more-body is-shown">{children}</div>;
   return <details className="studio-more">
     <summary>{label}<ChevronDown size={16} aria-hidden="true" /></summary>
     <div className="studio-more-body">{children}</div>
@@ -229,6 +232,8 @@ export function DesignStudio({
 
   const rail = useSideRail();
   const styleInUse = useStyleInUse(settings);
+  // The open iPhone Duo on its side has the height for every option at once.
+  const openDuoLandscape = useMediaQuery("(min-width: 700px) and (orientation: landscape)") && rail;
   const steps = (
     <div className="studio-tabs" role="tablist" aria-label="Design steps" aria-orientation={rail ? "vertical" : undefined}>
       {/* iPhone Duo: Review is where Next leads and Generate Smile lives, so the side bar keeps only the four design steps. */}
@@ -332,14 +337,14 @@ export function DesignStudio({
               {settings.treatment === "Whitening" && !fullArch && <p>Whitening keeps tooth shape, edges and texture. These choices are retained for restorative treatments.</p>}
               <p>{match ? `${toothLabel(match.tooth)} is designed to match ${toothLabel(partnerOf(match.tooth))} and the teeth beside it. The tooth form here only changes the guide outlines.` : "Choose a tooth form that suits the patient’s features."}</p>
             </header>
-            <div className="studio-shapes" role="group" aria-label="Tooth shape">
+            <div className="studio-shapes-fit"><div className="studio-shapes" role="group" aria-label="Tooth shape">
               {SHAPES.map(s => (
                 <button key={s.shape} type="button" className="studio-shape" aria-pressed={settings.shape === s.shape} onClick={() => change("shape", s.shape)}>
                   <span className="studio-shape-figure"><ToothForm shape={s.shape} /></span>
                   <span>{s.name}</span>
                 </button>
               ))}
-            </div>
+            </div></div>
             {shape && <p className="studio-summary"><strong>{shape.name}</strong><span>{shape.description}</span></p>}
             {guide && guideAvailable && <SmileGuideControls guide={guide} />}
             <More label="Character, texture and facial style">
@@ -370,7 +375,7 @@ export function DesignStudio({
               ))}
             </div>
             <p className="studio-summary"><strong>{QUICK_SHADES.find(s => s.value === settings.targetShade)?.label ?? settings.targetShade}</strong><span>{shadeDescription(settings.targetShade)}</span></p>
-            <More>
+            <More shown={openDuoLandscape}>
               <div className="control-group">
                 <div className="control-label"><span>Specific shade</span><span className="muted">Shade guide</span></div>
                 <div className="studio-swatches" role="group" aria-label="Target shade">
