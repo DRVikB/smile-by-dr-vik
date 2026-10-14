@@ -167,16 +167,20 @@ html[data-side-bar] .studio-generate { box-shadow: none; }
    the next. Closed and turned on its side the bar is short, so it carries on down the strip to the
    pill's foot (html[data-rail-short]). */
 html[data-side-bar] .side-rail:has(.studio-tabs) {
-  --rail-span: calc(var(--rail-height) - 12px);
+  /* The bar ends exactly where the Next / Generate pill does: the screen's foot less the pill's own
+     bottom spacing (studio.css .studio-generate), whatever the device's home-bar height. */
+  --rail-span: calc(100dvh - var(--rail-top) - 12px - var(--app-safe-bottom, var(--safe-bottom)));
   --pill-pad: 4px;
   --rail-item: min(44px, calc((var(--rail-span) - 40px) / 8));
-  --rail-gap: calc((var(--rail-span) - 8 * var(--rail-item) - var(--pill-pad) - 1px) / 7);
+  --rail-gap: calc((var(--rail-span) - 8 * var(--rail-item) - 2 * var(--pill-pad) - 2px) / 7);
   height: var(--rail-span); gap: var(--rail-gap);
 }
-html[data-rail-short] .side-rail:has(.studio-tabs) { --rail-span: calc(100dvh - var(--rail-top) - max(8px, var(--app-safe-bottom, var(--safe-bottom)))); }
+@media (orientation: landscape) and (max-height: 500px) {
+  html[data-side-bar] .side-rail:has(.studio-tabs) { --rail-span: calc(100dvh - var(--rail-top) - max(8px, var(--app-safe-bottom, var(--safe-bottom)))); }
+}
 html[data-side-bar] .side-rail:has(.studio-tabs) .rail-group { gap: var(--rail-gap); }
 html[data-side-bar] .side-rail:has(.studio-tabs) .rail-button { width: var(--rail-item); height: var(--rail-item); }
-html[data-side-bar] .side-rail:has(.studio-tabs) .rail-tabs { margin: calc(-1 * (var(--pill-pad) + 1px)) 0 0; }
+html[data-side-bar] .side-rail:has(.studio-tabs) .rail-tabs { margin: auto 0 0; }
 html[data-side-bar] .side-rail .studio-tabs { gap: var(--rail-gap); width: auto; padding: var(--pill-pad); border-radius: 999px; }
 html[data-side-bar] .side-rail .studio-tabs button { width: var(--rail-item); height: var(--rail-item); }
 /* As large as the 44pt buttons comfortably hold. */
