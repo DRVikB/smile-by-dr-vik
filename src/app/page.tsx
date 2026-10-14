@@ -1622,7 +1622,7 @@ export default function Smile() {
                   </div>
                 </div>
                 <AllowancePill className="on-photo" />
-                <RecentCases refreshKey={logOpen} onOpen={id => { setLogEntry(id); setLogOpen(true); }} onDesignMore={id => void designMore(id)} onSeeAll={() => { setLogEntry(undefined); setLogOpen(true); }} />
+                <RecentCases refreshKey={logOpen} onOpen={id => { setLogEntry(id); setLogOpen(true); }} onSeeAll={() => { setLogEntry(undefined); setLogOpen(true); }} />
               </div>
               <div className="hero-footer">
                 <p className="splash-tagline">
@@ -2137,7 +2137,7 @@ export default function Smile() {
         </p>
       )}
       {goalsOpen && photo && <PatientGoalsSheet consultation={consultation} onChange={setConsultation} onClose={() => setGoalsOpen(false)} hasPreferred={Boolean(caseRecord.preferredDesignId)} />}
-      {logOpen && <CaseLog onSignIn={() => { setLogOpen(false); account.openAuth("signIn"); }} initialEntryId={logEntry} onReopen={async id=>{const draft=await repository.reopenCase(id);repository.scope.assert();caseSession.current++;request.current?.abort();restoreWorkingCase(draft);setLogOpen(false);setLogEntry(undefined);}} onClose={() => { setLogOpen(false); setLogEntry(undefined); }} />}
+      {logOpen && <CaseLog onSignIn={() => { setLogOpen(false); account.openAuth("signIn"); }} initialEntryId={logEntry} onReopen={async id=>{await designMore(id);setLogOpen(false);setLogEntry(undefined);}} onClose={() => { setLogOpen(false); setLogEntry(undefined); }} />}
       {libraryOpen && (
         <CaseLibrary
           onClose={() => { setLibraryOpen(false); void caseLibrary.refresh(); }}

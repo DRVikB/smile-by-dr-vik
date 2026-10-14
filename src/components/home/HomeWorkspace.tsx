@@ -2,7 +2,7 @@
 import { RailItems, useSideRail } from "@/components/sideRail/SideRail";
 import { getCaseRepository } from "@/services/cases/caseRepository";
 import { useEffect, useRef, useState } from "react";
-import { ChevronRight, MoreHorizontal, PenLine, Settings } from "lucide-react";
+import { ChevronRight, MoreHorizontal, Settings } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { recentCasePages, recentCaseTreatment, type RecentCase } from "@/lib/recentCases";
 import { greeting } from "@/lib/profile";
@@ -52,7 +52,7 @@ function frameSmile(image: HTMLImageElement) {
 }
 
 /** Swipe through all local cases, three covers at a time. */
-export function RecentCases({ refreshKey, onOpen, onDesignMore, onSeeAll }: { refreshKey: unknown; onOpen: (id: string) => void; onDesignMore?: (caseId: string) => void; onSeeAll: () => void }) {
+export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unknown; onOpen: (id: string) => void; onSeeAll: () => void }) {
   const [pages, setPages] = useState<RecentCase[][]>([]);
   const [page, setPage] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
@@ -118,11 +118,6 @@ export function RecentCases({ refreshKey, onOpen, onDesignMore, onSeeAll }: { re
                 {syncIndicators[entry.caseId ?? entry.id] && <small>{syncIndicators[entry.caseId ?? entry.id]}</small>}
               </span>
             </button>
-            {/* Back into the studio for more results in the same case; on the photo, so the card keeps its height. */}
-            {onDesignMore && !(entry.testMode || entry.mode === "mock") && (
-              <button type="button" className="recent-case-more" onClick={() => onDesignMore(entry.caseId ?? entry.id)}
-                aria-label={`Design more for ${entry.patientName || "this case"}`}><PenLine size={13} strokeWidth={2} aria-hidden="true" />Design more</button>
-            )}
           </li>)}
         </ul>)}
       </div>

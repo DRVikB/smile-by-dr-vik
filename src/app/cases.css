@@ -118,3 +118,6 @@
 .sync-conflict-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .sync-conflict-actions .secondary-button { flex: 1 1 160px; min-height: 44px; font-size: 14px; }
 .sync-conflict-busy { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--text-secondary); }
+/* The case page: back into the studio for more results in this case, its main action. */
+.case-design-more { display: inline-flex; align-items: center; justify-content: center; gap: 8px; align-self: flex-start; min-height: 48px; padding: 0 22px; }
+

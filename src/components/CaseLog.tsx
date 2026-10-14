@@ -5,7 +5,7 @@ import { PatientSyncStatus } from "./PatientSyncStatus";
 import { CaseMediaStatus } from "./CaseMediaStatus";
 import { useCaseMedia } from "./useCaseMedia";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, Check, ChevronLeft, ChevronRight, CircleCheck, Pencil, ScanEye, Search, Share2, Star, Trash2, X } from "lucide-react";
+import { Archive, Check, ChevronLeft, ChevronRight, CircleCheck, PenLine, Pencil, ScanEye, Search, Share2, Star, Trash2, X } from "lucide-react";
 import { AnalysisSymbol, SmileSymbol } from "@/components/icons/SmileIcons";
 import { AI_CONCEPT_DISCLAIMER } from "@/lib/brand";
 import { savedCaseExport } from "@/lib/savedCaseExport";
@@ -284,7 +284,7 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
             <p className="control-hint case-hint">Use initials or a practice reference, not the patient’s full name.</p>
 
             {errorBanner}
-            {onReopen&&<button type="button" className="text-button" disabled={reopening} onClick={()=>void reopenDesign(current.key)}>{reopening ? "Opening design…" : "Reopen design"}</button>}
+            {onReopen&&<button type="button" className="primary-button case-design-more" disabled={reopening} onClick={()=>void reopenDesign(current.key)}><PenLine size={17} strokeWidth={1.9} aria-hidden="true" />{reopening ? "Opening the studio…" : "Design more"}</button>}
             {syncIndicators[current.key] && <p className="control-hint" role="status">{syncIndicators[current.key]}</p>}
             <CasePhotoSet caseId={current.key} />
 
