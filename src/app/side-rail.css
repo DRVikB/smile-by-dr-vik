@@ -152,10 +152,15 @@ html[data-side-bar] .app-shell .app-header .sc-brand-header-start:not(:has(*)), 
 /* Closed and turned on its side, the side bar is short (350 to 380pt). The studio has eight controls
    for it (Back, Undo, Redo, More and the four design steps): they stay in one stack, each a little
    smaller where needed, sized so that all eight fit the column exactly. */
-html[data-rail-short] .side-rail:has(.studio-tabs) { --rail-item: min(44px, calc((var(--rail-height) - 40px) / 8)); gap: 5px; }
+/* The column carries on down the strip to the foot of the Generate / Next pill, so the last step
+   lines up with the pill and the buttons keep (or come close to) their full size. */
+html[data-rail-short] .side-rail:has(.studio-tabs) {
+  --rail-span: calc(100dvh - var(--rail-top) - max(8px, var(--app-safe-bottom, var(--safe-bottom))));
+  --rail-item: min(44px, calc((var(--rail-span) - 40px) / 8)); height: var(--rail-span); gap: 5px;
+}
 html[data-rail-short] .side-rail:has(.studio-tabs) .rail-group { gap: 5px; }
 html[data-rail-short] .side-rail:has(.studio-tabs) .rail-button { width: var(--rail-item); height: var(--rail-item); }
-html[data-rail-short] .side-rail:has(.studio-tabs) .rail-tabs { margin-bottom: 2px; }
+html[data-rail-short] .side-rail:has(.studio-tabs) .rail-tabs { margin-bottom: 0; }
 html[data-rail-short] .side-rail .studio-tabs { gap: 3px; width: auto; padding: 3px; border-radius: 999px; }
 html[data-rail-short] .side-rail .studio-tabs button { width: var(--rail-item); height: var(--rail-item); }
 html[data-rail-short] .side-rail .studio-tabs button svg { width: 20px; height: 20px; }
@@ -165,3 +170,8 @@ html[data-rail-short] .side-rail .studio-tabs button svg { width: 20px; height: 
   .side-rail .studio-tabs { gap: 8px; }
   .side-rail .studio-tabs button { width: 44px; height: 44px; }
 }
+
+/* iPhone Duo: the studio's foot is one pill under the card, with the side bar beside it; no rule
+   across the screen above it (it ran on under the side bar). */
+html[data-side-bar] .studio-generate { box-shadow: none; }
+
