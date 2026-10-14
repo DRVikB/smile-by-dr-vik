@@ -89,7 +89,8 @@ html[data-side-bar] .app-shell[data-screen="design"] .app-header { min-height: 0
   html[data-side-bar] .onboarding.has-hero:not([data-step="subscription"]) .ob-visual { min-height: max(200px, 30dvh); }
   html[data-side-bar] .onboarding.has-hero:not([data-step="subscription"]) .ob-sheet { flex: 0 1 auto; }
   html[data-side-bar] .onboarding[data-step="subscription"] .ob-visual { height: 44dvh; }
-  html[data-side-bar] .onboarding.has-hero .ob-sheet { padding-bottom: calc(var(--safe-bottom) + 18px); }
+  /* The last line sits just above the home bar, not a band of white below it. */
+  html[data-side-bar] .onboarding.has-hero .ob-sheet { padding-bottom: max(14px, calc(var(--safe-bottom) - 8px)); }
 }
 /* "Not now" is in the rail, so the plans card's top row needs no room kept for it. */
 html[data-side-bar] .onboarding[data-step="subscription"] .ob-top { padding-right: 0; }
