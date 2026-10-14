@@ -218,4 +218,7 @@ html[data-rail-short] { --rail-top-min: 16px; }
 @media (orientation: landscape) and (max-height: 500px) {
   html[data-side-bar] .start-screen .start-visual { right: 0; -webkit-mask-image: none; mask-image: none; }
 }
+/* Closed and on its side, the bar's first control (Done in Settings) starts 16pt down: the header grows to
+   hold it, with the title level with it. */
+html[data-rail-short] .settings-top { box-sizing: border-box; min-height: 72px; padding-top: 16px; padding-bottom: 12px; align-items: center; }
 
