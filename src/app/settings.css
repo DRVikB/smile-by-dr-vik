@@ -173,6 +173,32 @@ button.settings-row:active:not(:disabled) { transform: none; background: var(--p
 .appearance-swatch.system { background: linear-gradient(135deg, #FFFFFF 0 50%, #1C1C1E 50%); color: #96683C; }
 .appearance-option[aria-checked="true"] .appearance-swatch { box-shadow: inset 0 0 0 1px var(--border), 0 0 0 2px var(--accent); }
 .appearance-option[aria-checked="true"] > span:last-child { font-weight: 600; }
+/* Appearance on iPad: three rows, each with a drawing of the app in that appearance. */
+.appearance-rows { display: grid; }
+.appearance-choice {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 18px; width: 100%;
+  padding: 16px 18px; border: 0; background: none; color: var(--text-primary); font: inherit; text-align: left; cursor: pointer;
+}
+.appearance-choice + .appearance-choice { border-top: 1px solid var(--separator); }
+.appearance-choice:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: 16px; }
+.appearance-choice-text { display: grid; gap: 3px; }
+.appearance-choice-text strong { font-size: 16px; font-weight: 600; }
+.appearance-choice-text span { font-size: 13.5px; line-height: 1.4; color: var(--text-secondary); }
+.appearance-choice-check { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--border-strong, var(--border)); color: var(--on-gold); transition: background-color 200ms var(--ease-soft, ease), box-shadow 200ms var(--ease-soft, ease); }
+.appearance-choice[aria-checked="true"] .appearance-choice-check { background: var(--accent); box-shadow: none; }
+.appearance-choice[aria-checked="true"] .appearance-preview { box-shadow: 0 0 0 2px var(--accent), 0 6px 16px -10px rgba(0, 0, 0, .4); }
+.appearance-preview { display: flex; flex: none; width: 112px; height: 76px; overflow: hidden; border-radius: 14px; box-shadow: 0 0 0 1px var(--border), 0 6px 16px -10px rgba(0, 0, 0, .3); transition: box-shadow 200ms var(--ease-soft, ease); }
+.appearance-preview-screen { position: relative; flex: 1; display: grid; grid-template-rows: 6px 1fr 4px 4px 10px; gap: 4px; padding: 8px; }
+.appearance-preview-screen.is-light { background: #FFFFFF; --ap-ink: #2B2A27; --ap-soft: #ECE7DE; }
+.appearance-preview-screen.is-dark { background: #161513; --ap-ink: #F2EFE8; --ap-soft: #2C2A27; }
+.appearance-preview-screen i { display: block; border-radius: 3px; background: var(--ap-soft); }
+.appearance-preview-screen .ap-bar { width: 46%; justify-self: center; background: var(--ap-ink); opacity: .55; }
+.appearance-preview-screen .ap-photo { border-radius: 5px; background: linear-gradient(135deg, #C9A38D, #8F6D5C); }
+.appearance-preview-screen .ap-line { width: 78%; background: var(--ap-ink); opacity: .7; }
+.appearance-preview-screen .ap-line.is-short { width: 52%; opacity: .4; }
+.appearance-preview-screen .ap-button { border-radius: 999px; background: linear-gradient(180deg, #E3C48F, #C9A466); }
+.appearance-preview.is-system .appearance-preview-screen { padding-inline: 6px; }
+
 /* Settings › App Permissions: what iOS has recorded for each one. */
 .permission-badge { flex: none; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--text-secondary); background: var(--control-background); }
 .permission-badge.is-allowed { color: var(--success, #2f6b1d); background: color-mix(in srgb, var(--success, #3b6d11) 14%, transparent); }

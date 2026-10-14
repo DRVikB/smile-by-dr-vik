@@ -62,7 +62,7 @@ function SectionContent({ section, withHeader }: { section: SettingsSection; wit
     case "profile": return <>{withHeader && <ProfileHeader />}<AccountSection />{withHeader && <SignOutSection />}</>;
     case "subscription": return <PlanCard />;
     case "cases": return <CasesSection />;
-    case "appearance": return <AppearanceSection />;
+    case "appearance": return <AppearanceSection detailed={withHeader} />;
     case "privacy": return <PrivacySection />;
     case "about": return <HelpAboutSection />;
     case "admin": return withHeader ? <><AdminSection withDashboard={false} /><AdminView embedded /></> : <AdminSection withDashboard />;
