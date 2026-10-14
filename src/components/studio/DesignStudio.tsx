@@ -232,8 +232,8 @@ export function DesignStudio({
 
   const rail = useSideRail();
   const styleInUse = useStyleInUse(settings);
-  // The open iPhone Duo on its side has the height for every option at once.
-  const openDuoLandscape = useMediaQuery("(min-width: 700px) and (orientation: landscape)") && rail;
+  // iPad, and the open iPhone Duo on its side, have the room for every option at once.
+  const roomForAll = useMediaQuery("(min-width: 700px) and (min-height: 600px)");
   const steps = (
     <div className="studio-tabs" role="tablist" aria-label="Design steps" aria-orientation={rail ? "vertical" : undefined}>
       {/* iPhone Duo: Review is where Next leads and Generate Smile lives, so the side bar keeps only the four design steps. */}
@@ -375,7 +375,7 @@ export function DesignStudio({
               ))}
             </div>
             <p className="studio-summary"><strong>{QUICK_SHADES.find(s => s.value === settings.targetShade)?.label ?? settings.targetShade}</strong><span>{shadeDescription(settings.targetShade)}</span></p>
-            <More shown={openDuoLandscape}>
+            <More shown={roomForAll}>
               <div className="control-group">
                 <div className="control-label"><span>Specific shade</span><span className="muted">Shade guide</span></div>
                 <div className="studio-swatches" role="group" aria-label="Target shade">

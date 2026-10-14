@@ -386,6 +386,20 @@
   .composing-line { margin-top: 8px; }
   .generation-splash-copy { padding-bottom: 150px; }
 }
+/* iPad upright: the whole composition (mark, heading, note, dots, stage and line) is one block on the
+   screen's centre, not split between the top and the foot. */
+@media (min-width: 700px) and (min-height: 600px) and (orientation: portrait) {
+  html:not([data-side-bar]) .generation-splash-content { align-items: center; padding-top: 0; padding-bottom: 0; }
+  html:not([data-side-bar]) .generation-splash-copy { justify-content: center; gap: clamp(30px, 4.2vh, 56px); margin: auto; padding-bottom: 0; }
+  /* The words now sit over the middle of the photograph, so the shade is even across it. */
+  html:not([data-side-bar]) .generation-splash::before { background: radial-gradient(ellipse 70% 55% at 50% 50%, rgba(14, 12, 11, .74) 0%, rgba(14, 12, 11, .56) 55%, rgba(14, 12, 11, .42) 100%); }
+  html:not([data-side-bar]) .composing-progress { position: static; width: min(460px, 100%); margin-inline: auto; }
+  html:not([data-side-bar]) .composing-line { width: 100%; }
+}
+/* iPad on its side: a larger mark, carrying the left of the screen. */
+@media (min-width: 700px) and (min-height: 600px) and (orientation: landscape) {
+  html:not([data-side-bar]) .generation-splash .composing-mark { width: clamp(150px, 21vh, 240px); margin-bottom: clamp(20px, 3vh, 36px); }
+}
 
 /* iPhone Duo, closed or open: the whole screen is composed on its centre line (the strip beside the
    camera is matched by an equal margin on the other side), with the smile between the two blocks. */

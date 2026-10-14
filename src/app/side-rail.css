@@ -202,7 +202,7 @@ html[data-side-bar] .side-rail .studio-tabs button svg { width: min(26px, calc(v
 /* iPhone Duo, partly folded with the open display on its side: the studio splits at the fold, the
    photograph on the near half and the steps on the far half, so nothing sits across the crease. */
 @media (min-width: 700px) and (orientation: landscape) {
-  html[data-fold="vertical"] .studio { gap: calc(var(--fold-width) + 24px); }
+  html[data-fold="vertical"] .studio { gap: calc(var(--fold-width) + 4px); }
   html[data-fold="vertical"] .studio-stage { flex: 0 0 calc(var(--fold-left) - max(20px, var(--app-safe-left, 0px)) - 12px); }
   html[data-fold="vertical"] .studio-dock { flex: 1 1 auto; min-width: 0; }
   /* Smile analysis: the readings stay on the near half. */

@@ -295,7 +295,7 @@ input[type="checkbox"][role="switch"],
 }
 /* Fills the dock's top padding once the tabs pin, so scrolled content never shows above them.
    Exactly the tabs' width (the cards are no wider), so it never makes the dock scroll sideways. */
-.studio-tabs::before { content: ""; position: absolute; left: 0; right: 0; top: -15px; height: 15px; background: var(--background); }
+.studio-tabs::before { content: ""; position: absolute; left: -24px; right: -24px; top: -15px; height: 15px; background: linear-gradient(var(--background), color-mix(in srgb, var(--background) 0%, transparent)); pointer-events: none; }
 .studio-tabs button {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   min-height: 56px; padding: 6px 2px; border-radius: 16px;
@@ -440,8 +440,9 @@ input[type="checkbox"][role="switch"],
   position: sticky; bottom: 0; z-index: 4; display: grid; gap: 8px;
   /* margin-top: auto keeps it at the bottom of the dock when a step is short */
   margin: auto calc(-1 * max(16px, var(--app-safe-right))) 0 calc(-1 * max(16px, var(--app-safe-left)));
-  padding: 12px max(16px, var(--app-safe-right)) calc(12px + var(--app-safe-bottom)) max(16px, var(--app-safe-left));
-  background: var(--background); box-shadow: 0 -1px 0 var(--separator);
+  padding: 22px max(16px, var(--app-safe-right)) calc(12px + var(--app-safe-bottom)) max(16px, var(--app-safe-left));
+  /* It fades in over whatever scrolls beneath (a card's shadow included) rather than cutting it with a band and a rule. */
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--background) 0%, transparent), var(--background) 20px);
 }
 /* Back / Next, or Generate on the Review step */
 .studio-steps-nav { display: flex; gap: 10px; }
@@ -463,22 +464,22 @@ input[type="checkbox"][role="switch"],
 }
 /* iPad landscape and wider: portrait patient photos fill a full-height frame on the left, the steps sit on the right. */
 @media (min-width: 1000px) and (orientation: landscape), (min-width: 900px) and (min-height: 600px) and (orientation: landscape) {
-  .studio { flex-direction: row; gap: 20px; }
+  .studio { flex-direction: row; gap: 0; }
   .studio-stage { flex: 1 1 auto; height: auto; min-height: 0; margin: 0 0 max(20px, var(--app-safe-bottom)) max(20px, var(--app-safe-left)); }
-  .studio-dock { flex: 0 0 min(480px, 42%); padding: 0 max(20px, var(--app-safe-right)) 0 0; }
+  .studio-dock { flex: 0 0 calc(min(480px, 42%) + 20px); padding: 0 max(20px, var(--app-safe-right)) 0 20px; }
   .studio-tabs button { flex-direction: column; gap: 3px; font-size: 12.5px; }
-  .studio-generate { margin: auto calc(-1 * max(20px, var(--app-safe-right))) 0 0; padding: 12px max(20px, var(--app-safe-right)) calc(12px + var(--app-safe-bottom)) 0; }
+  .studio-generate { margin: auto calc(-1 * max(20px, var(--app-safe-right))) 0 -20px; padding: 22px max(20px, var(--app-safe-right)) calc(12px + var(--app-safe-bottom)) 20px; }
 }
 /* iPhone landscape: the iPad workflow, compressed. The photograph fills the left at full
    height; the steps scroll in their own column on the right, with Back / Next (or
    Generate) pinned at its foot, all inside the safe areas. */
 @media (orientation: landscape) and (max-height: 500px) {
-  .studio { flex-direction: row; gap: 12px; }
+  .studio { flex-direction: row; gap: 0; }
   .studio-stage {
     flex: 1 1 auto; height: auto; min-height: 0; border-radius: 16px;
     margin: 0 0 max(8px, var(--app-safe-bottom)) max(12px, var(--app-safe-left));
   }
-  .studio-dock { flex: 0 0 min(400px, 50%); gap: 10px; padding: 0 max(12px, var(--app-safe-right)) 0 0; }
+  .studio-dock { flex: 0 0 calc(min(400px, 50%) + 12px); gap: 10px; padding: 0 max(12px, var(--app-safe-right)) 0 12px; }
   .studio-tabs, .studio-cards, .studio-steps-nav { max-width: none; margin-inline: 0; }
   .studio-tabs { padding: 3px; border-radius: 16px; }
   .studio-tabs::before { display: none; }
@@ -488,8 +489,8 @@ input[type="checkbox"][role="switch"],
   .studio-card-head p { font-size: 13px; }
   .studio-arch { zoom: 1; }
   .studio-generate {
-    margin: auto calc(-1 * max(12px, var(--app-safe-right))) 0 0;
-    padding: 8px max(12px, var(--app-safe-right)) max(8px, var(--app-safe-bottom)) 0;
+    margin: auto calc(-1 * max(12px, var(--app-safe-right))) 0 -12px;
+    padding: 16px max(12px, var(--app-safe-right)) max(8px, var(--app-safe-bottom)) 12px;
   }
   .studio-steps-nav .primary-button, .studio-back { min-height: 46px; }
 }
