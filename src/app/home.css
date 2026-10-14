@@ -278,4 +278,10 @@
   .start-screen .recent-case-item .recent-case img, .start-screen .recent-case-item .recent-case .recent-case-placeholder { aspect-ratio: 3.4 / 1; }
   .start-screen:has(.recent-cases) .splash-heading { font-size: min(6.2vw, 7vh, 88px); }
 }
+/* A phone or the closed Duo on its side with no Recent Cases yet: the tagline belongs to the whole screen,
+   centred along its foot on one line, not in the column the cases would take. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .start-screen:not(:has(.recent-cases)) .hero-footer { left: var(--home-pad-l); right: var(--home-pad-r); width: auto; }
+  .start-screen:not(:has(.recent-cases)) .splash-tagline { white-space: nowrap; }
+}
 
