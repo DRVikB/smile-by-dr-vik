@@ -284,4 +284,29 @@
   .start-screen:not(:has(.recent-cases)) .hero-footer { left: var(--home-pad-l); right: var(--home-pad-r); width: auto; }
   .start-screen:not(:has(.recent-cases)) .splash-tagline { white-space: nowrap; }
 }
+/* iPad and the open Duo in landscape, with Recent Cases: Home is one screen however much it holds (a
+   greeting, "Welcome, Dr Vik.", the allowance and pages of cases). The welcome takes one line across the
+   wide screen, and on the shorter ones the cards drop their date line and crop a little wider. */
+@media (min-width: 701px) and (min-height: 501px) and (orientation: landscape) {
+  .start-screen:has(.recent-cases) .splash-heading br { display: none; }
+  .start-screen:has(.recent-cases) .splash-heading { max-width: none; white-space: nowrap; font-size: min(5.4vw, 7.4vh, 80px); }
+  .start-screen:has(.recent-cases) .start-greeting { margin-bottom: 2px; }
+  .start-screen:has(.recent-cases) .allowance-pill { margin-top: clamp(8px, 1.4vh, 14px); }
+}
+@media (min-width: 701px) and (min-height: 501px) and (max-height: 900px) and (orientation: landscape) {
+  .start-screen .recent-case-item .recent-case small:not(.recent-case-treatment) { display: none; }
+  .start-screen .recent-case-item .recent-case img, .start-screen .recent-case-item .recent-case .recent-case-placeholder { aspect-ratio: 3.4 / 1; }
+}
+/* The shortest wide screens (iPad mini, the open Duo): a tighter rhythm still fits everything. */
+@media (min-width: 701px) and (min-height: 501px) and (max-height: 760px) and (orientation: landscape) {
+  .start-screen:has(.recent-cases) .start-copy { padding-top: 4px; }
+  .start-screen:has(.recent-cases) .splash-heading { font-size: min(5vw, 6.6vh, 64px); }
+  .start-screen:has(.recent-cases) .splash-sub { margin-top: 4px; font-size: 16px; }
+  .start-screen:has(.recent-cases) .splash-actions { margin-top: 12px; gap: 8px; }
+  .start-screen:has(.recent-cases) .splash-pair { gap: 8px; }
+  .start-screen:has(.recent-cases) .splash-primary, .start-screen:has(.recent-cases) .splash-outline { min-height: 44px; font-size: 15px; }
+  .start-screen:has(.recent-cases) .allowance-pill { margin-top: 8px; min-height: 34px; padding-block: 5px; }
+  .start-screen:has(.recent-cases) .recent-cases { margin-top: 8px; }
+  .start-screen .recent-case-item .recent-case img, .start-screen .recent-case-item .recent-case .recent-case-placeholder { aspect-ratio: 3.8 / 1; }
+}
 
