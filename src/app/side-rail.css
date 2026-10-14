@@ -82,11 +82,12 @@ html[data-side-bar] .app-shell[data-screen="design"] .app-header { min-height: 0
   html[data-side-bar="left"] .compact-options-popover { right: auto; left: calc(var(--side-bar-inset) - 10px); width: min(410px, calc(100vw - var(--side-bar-inset) - 26px)); }
 }
 
-/* Folded iPhone Duo (the outer display is wide but short): the picture keeps at least the upper part
-   of the screen so the face is seen properly, and takes whatever height the card doesn't need. A card
-   with more in it than fits scrolls inside itself (as on every phone). */
+/* Folded iPhone Duo (the outer display is wide but short): the picture takes whatever height the card
+   doesn't need, so a card that fits never scrolls; it keeps at least the face (30% of the screen). Only the
+   plans card, which can't fit, scrolls inside itself. */
 @media (max-width: 699px) {
-  html[data-side-bar] .onboarding.has-hero:not([data-step="subscription"]) .ob-visual { min-height: 42dvh; }
+  html[data-side-bar] .onboarding.has-hero:not([data-step="subscription"]) .ob-visual { min-height: max(200px, 30dvh); }
+  html[data-side-bar] .onboarding.has-hero:not([data-step="subscription"]) .ob-sheet { flex: 0 1 auto; }
   html[data-side-bar] .onboarding[data-step="subscription"] .ob-visual { height: 44dvh; }
   html[data-side-bar] .onboarding.has-hero .ob-sheet { padding-bottom: calc(var(--safe-bottom) + 18px); }
 }
