@@ -736,3 +736,14 @@ html, body { overflow-x: clip; max-width: 100%; }
   .saved-case-viewer .compare-label { bottom: calc(max(10px, var(--safe-bottom)) + 12px); }
 }
 
+/* The result's Share / Options card and the saved comparison's card are one design: the same corners,
+   pill buttons and type, from this one rule, so a change to one is a change to both. */
+:is(.compact-preview-dock, .saved-case-footer) { border-radius: 22px; }
+.compact-preview-dock { padding: 10px; gap: 8px; }
+:is(.compact-preview-dock, .saved-case-footer .saved-case-actions) > button { min-height: 48px; padding-inline: 12px; border-radius: 999px; font-size: 14.5px; font-weight: 600; white-space: nowrap; }
+@media (orientation: landscape) and (max-height: 500px) {
+  :is(.compact-preview-dock, .saved-case-footer .saved-case-actions) > button { min-height: 42px; }
+}
+/* Before / After labels read on any part of the photograph, dark or light: a firmer fill and a fine edge. */
+.comparison .compare-label { background: rgba(22, 18, 14, .58); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2); }
+
