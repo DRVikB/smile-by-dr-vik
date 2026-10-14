@@ -345,6 +345,8 @@ input[type="checkbox"][role="switch"],
 .studio-arch-tooth::after { content: ""; position: absolute; inset: -10px -1.5px; }
 .studio-arch-tooth:disabled { cursor: default; }
 .studio-count button, .studio-mode button { min-height: 40px; }
+/* "One tooth": the two words stacked and centred in their segment, so it sits as neatly as the numbers. */
+.studio-count .studio-count-stack { display: inline-grid; justify-items: center; line-height: 1.08; font-size: .9em; text-align: center; }
 
 /* Shape: tooth-form tiles */
 /* Sized by the card they sit in, so the four tiles and their labels fit a narrow column as well as a wide one. */

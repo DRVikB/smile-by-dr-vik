@@ -286,7 +286,7 @@ export function DesignStudio({
                   onClick={() => { setIndividual(false); toothMap?.setPicking(false); setTeeth(n); }}>{n}</button>
               ))}
               <button type="button" aria-pressed={Boolean(match)} className={match ? "selected" : ""}
-                onClick={() => { setIndividual(false); toothMap?.setPicking(false); onChange(withToothMatch(settings, match ?? { tooth: 21, missing: false })); }}>One tooth</button>
+                onClick={() => { setIndividual(false); toothMap?.setPicking(false); onChange(withToothMatch(settings, match ?? { tooth: 21, missing: false })); }}><span className="studio-count-stack"><span>One</span> <span>tooth</span></span></button>
               {INTERNAL_SINGLE_TOOTH && <button type="button" aria-pressed={individual || Boolean(settings.toothPlans)} className={individual || settings.toothPlans ? "selected" : ""}
                 onClick={() => { setIndividual(true); toothMap?.setPicking(true); }}>Custom</button>}
             </div>
