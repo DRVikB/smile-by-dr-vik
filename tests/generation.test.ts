@@ -265,15 +265,15 @@ test("the clinician's own cases are described as a style source, not as the pati
   assert.match(three, /Edit only the first image/);
   // Style only: contour, texture, layering — never the other patients' arrangement.
   for (const rule of [
-    "proportions",
+    "balance between neighbouring teeth",
     "texture",
     "shape character",
     "explicit shade",
-    "never copy identity, gums or tooth arrangements",
+    "never copy identity, gums, tooth arrangements or tooth size",
     "selected region",
   ])
     assert.ok(three.includes(rule), `missing: ${rule}`);
-  assert.match(three, /never copy identity, gums or tooth arrangements/);
+  assert.match(three, /never copy identity, gums, tooth arrangements or tooth size/);
 
   // Singular reads as singular.
   const one = buildSmileInstruction(defaultSettings, false, undefined, 1);
@@ -306,3 +306,10 @@ test("generation accepts at most three style references, and caps their size", (
   const huge = `data:image/png;base64,${"iVBORw0KGgo"}${"A".repeat(2_300_000)}`;
   assert.equal(generationSchema.safeParse({ ...base, styleReferences: [huge] }).success, false);
 });
+
+test("style references never change how large the patient's teeth appear", () => {
+  const prompt = buildSmileInstruction(defaultSettings, false, undefined, 2);
+  assert.match(prompt, /A reference never changes how large this patient's teeth appear/);
+  assert.match(prompt, /each treated tooth keeps its photographed width/);
+});
+

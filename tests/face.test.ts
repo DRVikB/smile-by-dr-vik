@@ -180,5 +180,6 @@ test("provider lip movement retains the strict original opening", async () => {
   const plan = planMouthLock(original, generated)!;
   assert.equal(plan.lipsMoved, true);
   const mask = mouthTransitionMask(plan, 800, 900);
-  assert.deepEqual(mask, polygonMask(plan.polygon, 800, 900, 0, plan.feather, true));
+  // Strictly inside the original opening (the lips stay the patient's), fading over 1.2% of the mouth's width.
+  assert.deepEqual(mask, polygonMask(plan.polygon, 800, 900, 0, plan.feather * 2.4, true));
 });

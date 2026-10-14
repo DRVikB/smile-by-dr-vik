@@ -23,10 +23,13 @@ test("edge guard: upper teeth that came out longer are trimmed back to the origi
   const r = guardUpperEdges(original.px, result.px, W, H, original.opening);
   assert.equal(r.reason, "trimmed");
   assert.equal(r.extraPx, 6);
-  // Tolerance is max(2 px, 5% of the 20 px tooth): rows up to 32 keep the new teeth, row 34 onwards is the original dark space.
+  // Tolerance is max(2 px, 5% of the 20 px tooth): rows up to 32 keep the new teeth, the edge then fades
+  // over four rows (half way at row 34) and from row 36 it is the original dark space.
   assert.deepEqual(at(r.pixels, 40, 31), IVORY);
-  assert.deepEqual(at(r.pixels, 40, 34), DARK);
+  const fading = at(r.pixels, 40, 34);
+  assert.ok(fading[0] < IVORY[0] && fading[0] > DARK[0], "the new edge fades into the original rather than stopping");
   assert.deepEqual(at(r.pixels, 40, 36), DARK);
+  assert.deepEqual(at(r.pixels, 40, 37), DARK);
   // Outside the checked span (the corners of the mouth) nothing is touched.
   assert.deepEqual(at(r.pixels, 7, 36), IVORY);
 });
@@ -88,3 +91,13 @@ test("edge guard: a chipped tooth is restored to its neighbours' level, and the 
   // And the extra length is gone.
   assert.ok(edgeIn(30) < 35);
 });
+
+test("edge guard: a trim fades across neighbouring columns, never a step between teeth", () => {
+  const original = mouth(30), result = mouth(36);
+  const r = guardUpperEdges(original.px, result.px, W, H, original.opening);
+  // Down one row in the fade, the change from column to column is gradual, without a jump of more than a third of the range.
+  const row = [...Array(W).keys()].map(x => at(r.pixels, x, 34)[0]);
+  const jumps = row.slice(1).map((v, i) => Math.abs(v - row[i]));
+  assert.ok(Math.max(...jumps) <= (IVORY[0] - DARK[0]) / 3);
+});
+

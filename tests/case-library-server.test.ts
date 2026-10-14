@@ -208,7 +208,7 @@ test("CRITICAL: relevant Case Library references are actually included in the ou
   assert.match(prompt, /the first image is the SOURCE PATIENT to edit/);
   assert.match(prompt, /STYLE REFERENCES, not patients to edit/);
   assert.match(prompt, /Preserve facial identity, facial expression, head position, lip position, mouth width, mouth opening/);
-  assert.match(prompt, /never copy identity, gums or tooth arrangements/);
+  assert.match(prompt, /never copy identity, gums, tooth arrangements or tooth size/);
   assert.deepEqual(w.commits.at(-1)!.referenceCaseIds, [porcelain], "reference IDs recorded with the generation");
 });
 

@@ -122,21 +122,35 @@ export function guardUpperEdges(
   if (unevenness > toothHeight * 0.1) return untouched("irregular", extra, toothHeight, both.length);
 
   const pixels = new Uint8ClampedArray(result);
-  let trimmed = false;
-  const soft = Math.max(2, tolerance);
-  after.forEach((run, i) => {
-    if (!run || Number.isNaN(limitLine[i])) return;
-    const limit = Math.round(limitLine[i]) + tolerance;
-    if (run[1] <= limit) return;
+  // How much of the original photograph shows at each pixel: a ramp below the new edge (about twice the
+  // tolerance, so the edge fades rather than stops), then smoothed across neighbouring columns so a
+  // trimmed tooth never ends in a step beside one that was left alone.
+  const soft = Math.max(3, tolerance * 2);
+  const runs = after.map((run, i) => (run && !Number.isNaN(limitLine[i]) ? { limit: Math.round(limitLine[i]) + tolerance, end: run[1] } : null)).map(r => (r && r.end > r.limit ? r : null));
+  const cut = runs.filter((r): r is { limit: number; end: number } => r !== null);
+  if (!cut.length) return { pixels, trimmed: false, extraPx: extra, toothHeightPx: toothHeight, measured: both.length, reason: "within-tolerance" };
+  const blur = Math.max(2, Math.round(tolerance));
+  const bx0 = Math.max(0, x0 - blur), bx1 = Math.min(w, x0 + after.length + blur);
+  const by0 = Math.min(...cut.map(r => r.limit)) + 1, by1 = Math.min(h - 1, Math.max(...cut.map(r => r.end)) + 2);
+  const bw = bx1 - bx0, bh = by1 - by0 + 1;
+  const mix = new Float32Array(bw * bh);
+  runs.forEach((r, i) => {
+    if (!r) return;
     const x = x0 + i;
-    for (let y = limit + 1; y <= Math.min(h - 1, run[1] + 2); y++) {
-      const k = y * w + x;
-      if (!opening[k]) continue;
-      // A short ramp at the new edge, then the original photograph below it.
-      const mix = Math.min(1, (y - limit) / soft);
-      for (let c = 0; c < 3; c++) pixels[k * 4 + c] = Math.round(pixels[k * 4 + c] * (1 - mix) + original[k * 4 + c] * mix);
-      trimmed = true;
-    }
+    for (let y = r.limit + 1; y <= Math.min(by1, r.end + 2); y++) if (opening[y * w + x]) mix[(y - by0) * bw + (x - bx0)] = Math.min(1, (y - r.limit) / soft);
   });
+  const smooth = new Float32Array(bw * bh);
+  for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+    let sum = 0, n = 0;
+    for (let k = Math.max(0, x - blur); k <= Math.min(bw - 1, x + blur); k++) { sum += mix[y * bw + k]; n++; }
+    smooth[y * bw + x] = sum / n;
+  }
+  let trimmed = false;
+  for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+    const m = smooth[y * bw + x], k = (y + by0) * w + (x + bx0);
+    if (m <= 0 || !opening[k]) continue;
+    for (let c = 0; c < 3; c++) pixels[k * 4 + c] = Math.round(pixels[k * 4 + c] * (1 - m) + original[k * 4 + c] * m);
+    trimmed = true;
+  }
   return { pixels, trimmed, extraPx: extra, toothHeightPx: toothHeight, measured: both.length, reason: trimmed ? "trimmed" : "within-tolerance" };
 }
