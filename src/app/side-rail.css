@@ -182,8 +182,16 @@ html[data-side-bar] .side-rail:has(.studio-tabs) {
 @media (orientation: landscape) and (max-height: 500px) {
   html[data-side-bar] .side-rail:has(.studio-tabs) { --rail-span: calc(100dvh - var(--rail-start) - max(8px, var(--app-safe-bottom, var(--safe-bottom)))); }
 }
+/* The closed iPhone Duo on its side: the camera sits in the strip just below the system's column, so the
+   bar ends where the column does, and the Next / Generate pill ends on the same line (the space below
+   it is the camera's). */
+html[data-rail-short] .side-rail:has(.studio-tabs) { --rail-span: calc(var(--rail-top) + var(--rail-height) - var(--rail-start)); }
+@media (orientation: landscape) and (max-height: 500px) {
+  html[data-rail-short] .studio-generate { padding-bottom: calc(100dvh - var(--rail-top) - var(--rail-height)); }
+}
 html[data-side-bar] .side-rail:has(.studio-tabs) .rail-group { gap: var(--rail-gap); }
-html[data-side-bar] .side-rail:has(.studio-tabs) .rail-button { width: var(--rail-item); height: var(--rail-item); }
+html[data-side-bar] .side-rail:has(.studio-tabs) :is(.rail-button, .nav-tool) { width: var(--rail-item); height: var(--rail-item); min-width: 0; min-height: 0; }
+html[data-side-bar] .side-rail:has(.studio-tabs) .nav-history { gap: var(--rail-gap); }
 html[data-side-bar] .side-rail:has(.studio-tabs) .rail-tabs { margin: auto 0 0; }
 html[data-side-bar] .side-rail .studio-tabs { gap: var(--rail-gap); width: auto; padding: var(--pill-pad); border-radius: 999px; }
 html[data-side-bar] .side-rail .studio-tabs button { width: var(--rail-item); height: var(--rail-item); }
@@ -204,4 +212,10 @@ html[data-side-bar] .side-rail .studio-tabs button svg { width: min(26px, calc(v
 /* The closed iPhone Duo on its side: the system's column starts at the very top edge, in the screen's
    rounded corner. The first control starts level with the top of a sheet's card (16pt) instead, on every page. */
 html[data-rail-short] { --rail-top-min: 16px; }
+
+/* Home on iPhone Duo, on its side: the photograph runs under the side strip to the screen's edge (the
+   picture-led rule), instead of stopping and fading out against it. */
+@media (orientation: landscape) and (max-height: 500px) {
+  html[data-side-bar] .start-screen .start-visual { right: 0; -webkit-mask-image: none; mask-image: none; }
+}
 
