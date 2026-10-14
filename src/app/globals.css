@@ -30,11 +30,11 @@
   --sc-gold: #D4B583;
   --sc-space: 8px;
 
-  --r-card: 24px;
+  --r-card: 22px;
   --r-panel: 22px;
-  --r-button: 15px;
-  --r-segment: 11px;
-  --r-sheet: 26px;
+  --r-button: 16px;
+  --r-segment: 12px;
+  --r-sheet: 22px;
 
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
   --fast: 180ms var(--ease);
@@ -101,7 +101,7 @@ input:focus-visible,
 textarea:focus-visible {
   outline: 3px solid var(--brand-blue);
   outline-offset: 3px;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 .sr-only {
   position: absolute;
@@ -152,7 +152,7 @@ textarea:focus-visible {
 /* ---------------- Typography ---------------- */
 .wordmark {
   font-size: 18px;
-  font-weight: 450;
+  font-weight: 400;
   letter-spacing: 0;
   white-space: nowrap;
 }
@@ -194,13 +194,13 @@ textarea:focus-visible {
 }
 .eyebrow {
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0;
   color: var(--text-secondary);
 }
 h1 {
   font-size: clamp(32px, 4vw, 46px);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: -0.028em;
   line-height: 1.06;
   margin: 0;
@@ -260,7 +260,7 @@ h3 {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
   padding: 8px 12px;
   border-radius: 12px;
@@ -323,7 +323,7 @@ main {
   background: var(--accent);
   color: var(--on-accent);
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 .primary-button:hover:not(:disabled) {
@@ -341,7 +341,7 @@ main {
   border: 1px solid var(--border);
   color: var(--text-primary);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
 }
 .secondary-button:hover:not(:disabled) {
   background: var(--surface-elevated);
@@ -351,7 +351,7 @@ main {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-secondary);
   padding: 8px 4px;
 }
@@ -451,7 +451,7 @@ main {
 .start-copy h1 {
   color: #fff;
   font-size: clamp(34px, 4.6vw, 48px);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1.08;
   max-width: 11ch;
@@ -492,8 +492,8 @@ main {
 }
 .hero-location {
   flex: 0 0 auto;
-  font-size: 10px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   letter-spacing: 0;
   color: rgba(255, 255, 255, 0.62);
 }
@@ -518,7 +518,7 @@ main {
   padding: 0 22px;
   border-radius: var(--r-button);
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 .capture-card {
@@ -536,7 +536,7 @@ main {
   gap: 10px;
 }
 .capture-card strong {
-  font-weight: 500;
+  font-weight: 600;
   font-size: 15px;
 }
 .capture-card span span,
@@ -566,7 +566,7 @@ main {
   align-items: center;
   gap: 13px;
   padding: 9px 12px 9px 9px;
-  border-radius: 17px;
+  border-radius: 16px;
   background: rgba(20, 20, 20, 0.42);
   border: 1px solid rgba(255, 255, 255, 0.2);
   -webkit-backdrop-filter: blur(18px);
@@ -589,7 +589,7 @@ main {
 }
 .selected-title {
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: #fff;
 }
 .selected-photo > div span:last-child {
@@ -702,7 +702,7 @@ main {
   padding: 7px 13px;
   border-radius: 100px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.01em;
   color: #fff;
   background: rgba(18, 17, 16, 0.5);
@@ -755,7 +755,7 @@ main {
   padding: 10px 12px;
   border-radius: var(--r-segment);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-secondary);
   background: transparent;
 }
@@ -813,7 +813,7 @@ main {
   justify-content: space-between;
   gap: 12px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
 }
 .control-label span:last-child:not(:only-child),
@@ -858,7 +858,7 @@ main {
 .shade-swatch {
   width: 26px;
   height: 40px;
-  border-radius: 7px 7px 9px 9px;
+  border-radius: 8px 8px 8px 8px;
   border: 1px solid var(--border);
   display: grid;
   place-items: center;
@@ -880,7 +880,7 @@ main {
 }
 .shade-option[aria-pressed="true"] span:last-child {
   color: var(--text-primary);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 /* Photographic tooth form cards */
@@ -897,14 +897,14 @@ main {
 .tooth-card-check { position: absolute; right: 0; top: -2px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: white; background: var(--sc-charcoal); box-shadow: 0 2px 6px rgba(0, 0, 0, .25); }
 .tooth-card-title { margin-top: 10px; font-family: Georgia, serif; font-size: clamp(17px, 1.5vw, 22px); line-height: 1.2; color: var(--text-secondary); transition: color var(--fast); }
 .tooth-card[aria-pressed="true"] .tooth-card-title { color: var(--text-primary); }
-.tooth-card-description { margin-top: 5px; font-size: 10.5px; line-height: 1.45; color: var(--text-secondary); text-align: center; }
+.tooth-card-description { margin-top: 5px; font-size: 11px; line-height: 1.45; color: var(--text-secondary); text-align: center; }
 
 /* Segmented controls */
 .segmented {
   display: flex;
   gap: 4px;
   padding: 4px;
-  border-radius: 13px;
+  border-radius: 12px;
   background: var(--control-background);
   border: 0;
 }
@@ -914,7 +914,7 @@ main {
   padding: 0 10px;
   border-radius: 8px;
   font-size: 13.5px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-secondary);
   transition:
     background var(--fast),
@@ -940,7 +940,7 @@ main {
   align-items: center;
   gap: 6px;
   padding: 11px 6px 9px;
-  border-radius: 13px;
+  border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--surface-solid);
   color: var(--text-secondary);
@@ -994,7 +994,7 @@ main {
   width: 100%;
   min-height: 70px;
   padding: 12px 14px;
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--surface-solid);
   font-size: 14px;
@@ -1011,7 +1011,7 @@ main {
   gap: 9px;
   width: 100%;
   min-height: 48px;
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px dashed var(--border);
   background: var(--surface-solid);
   font-size: 13.5px;
@@ -1120,7 +1120,7 @@ main {
 /* A new smile's place in Cases, confirmed once it has been uncovered: the tick is drawn, then the note goes. */
 .saved-note {
   position: absolute; z-index: 6; left: max(20px, var(--app-safe-left, 0px)); top: calc(var(--photo-header, 56px) + 62px); display: inline-flex; align-items: center; gap: 7px; margin: 0; padding: 8px 15px 8px 11px;
-  border-radius: 100px; background: rgba(23, 22, 21, .58); color: #fff; font-size: 12.5px; font-weight: 500; white-space: nowrap;
+  border-radius: 100px; background: rgba(23, 22, 21, .58); color: #fff; font-size: 12.5px; font-weight: 600; white-space: nowrap;
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); pointer-events: none; opacity: 0;
   animation: saved-note 3400ms ease 2950ms both;
 }
@@ -1193,7 +1193,7 @@ main {
   padding: 9px 14px;
   border-radius: 100px;
   font-size: 12.5px;
-  font-weight: 500;
+  font-weight: 600;
   color: #fff;
   background: rgba(18, 17, 16, 0.5);
   -webkit-backdrop-filter: blur(16px);
@@ -1216,7 +1216,7 @@ main {
   gap: clamp(6px, 2vw, 22px);
   margin-top: 16px;
   padding: 10px;
-  border-radius: 20px;
+  border-radius: 22px;
   background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
@@ -1229,9 +1229,9 @@ main {
   gap: 6px;
   min-width: 84px;
   padding: 10px 14px;
-  border-radius: 15px;
+  border-radius: 16px;
   font-size: 12.5px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
 }
 .action-button:hover:not(:disabled) {
@@ -1279,7 +1279,7 @@ main {
 }
 .demo-notice span {
   color: var(--text-primary);
-  font-weight: 500;
+  font-weight: 600;
   margin-right: 6px;
 }
 .scale-notice {
@@ -1326,7 +1326,7 @@ main {
 .ai-consent-sheet h2 { margin: 4px 0 16px; font-family: var(--font-display); font-size: clamp(24px, 4vw, 31px); font-weight: 400; line-height: 1.12; }
 .ai-consent-copy { display: grid; gap: 10px; color: var(--text-secondary); font-size: 14px; line-height: 1.55; }
 .ai-consent-copy p { margin: 0; }
-.ai-consent-check { display: flex; align-items: flex-start; gap: 11px; margin: 20px 0 12px; padding: 14px; border: 1px solid var(--border); border-radius: 14px; color: var(--text-primary); background: var(--card); font-size: 14px; line-height: 1.45; }
+.ai-consent-check { display: flex; align-items: flex-start; gap: 11px; margin: 20px 0 12px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; color: var(--text-primary); background: var(--card); font-size: 14px; line-height: 1.45; }
 .ai-consent-check input { width: 18px; height: 18px; margin: 1px 0 0; flex: 0 0 auto; accent-color: var(--accent); }
 .ai-consent-sheet .control-hint { margin: 0 0 18px; }
 .ai-consent-actions { display: grid; gap: 9px; }
@@ -1359,7 +1359,7 @@ main {
   gap: 14px;
   width: 100%;
   padding: 10px;
-  border-radius: 18px;
+  border-radius: 16px;
   border: 1px solid var(--border);
   background: var(--surface-solid);
   text-align: left;
@@ -1378,7 +1378,7 @@ button.option-card:hover {
   width: 92px;
   height: 74px;
   flex-shrink: 0;
-  border-radius: 13px;
+  border-radius: 12px;
   background-size: cover;
   background-position: center 38%;
   background-color: #141312;
@@ -1391,7 +1391,7 @@ button.option-card:hover {
 }
 .option-cap span:first-child {
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
 }
 .option-pick {
   font-size: 12.5px;
@@ -1405,7 +1405,7 @@ button.option-card:hover {
   left: 8px;
   padding: 4px 9px;
   border-radius: 100px;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.01em;
   color: #fff;
@@ -1429,7 +1429,7 @@ button.option-card:hover {
   background: var(--surface-solid);
   text-align: left;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
 }
 .save-option small {
   display: block;
@@ -1458,7 +1458,7 @@ button.option-card:hover {
   animation: fade-up var(--mid) both;
 }
 .camera-view {
-  border-radius: 18px;
+  border-radius: 16px;
   overflow: hidden;
   background: #141312;
   aspect-ratio: 3 / 4;
@@ -1508,7 +1508,7 @@ button.option-card:hover {
   min-width: 34px;
   text-align: center;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .camera-fallback {
@@ -1601,8 +1601,8 @@ button.option-card:hover {
 }
 .consult-practice {
   flex: 0 0 auto;
-  font-size: 10px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   letter-spacing: 0;
   color: rgba(255, 255, 255, 0.62);
 }
@@ -1710,7 +1710,7 @@ button.option-card:hover {
   }
   .hero-words {
     gap: 16px;
-    font-size: 10px;
+    font-size: 11px;
   }
   .hero-footer {
     align-items: flex-end;
@@ -1718,7 +1718,7 @@ button.option-card:hover {
   .hero-location {
     writing-mode: vertical-rl;
     transform: rotate(180deg);
-    font-size: 9px;
+    font-size: 11px;
   }
   .app-header .dr-vik-mark {
     height: 19px;
@@ -1777,21 +1777,21 @@ button.option-card:hover {
   .design-fieldset, .design-scroll { overflow: visible; }
 }
 
-.design-panel-title { margin: 0; padding: 18px 20px 12px; font-size: 18px; font-weight: 500; flex-shrink: 0; }
+.design-panel-title { margin: 0; padding: 18px 20px 12px; font-size: 18px; font-weight: 600; flex-shrink: 0; }
 .design-panel .panel-actions { flex-shrink: 0; }
 
 .selected-photo-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .selected-photo-actions button { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.25); border-radius: 100px; color: #fff; background: rgba(18,17,16,.35); font-size: 13px; }
 .photo-under { flex-wrap: wrap; }
 
-.variant-tabs { display: flex; gap: 8px; padding: 6px; margin-bottom: 12px; border-radius: 18px; background: rgba(128,128,128,.12); }
-.variant-tabs button { flex: 1; min-height: 44px; padding: 10px 14px; border-radius: 13px; background: transparent; color: inherit; font-size: 14px; }
+.variant-tabs { display: flex; gap: 8px; padding: 6px; margin-bottom: 12px; border-radius: 16px; background: rgba(128,128,128,.12); }
+.variant-tabs button { flex: 1; min-height: 44px; padding: 10px 14px; border-radius: 12px; background: transparent; color: inherit; font-size: 14px; }
 .variant-tabs button[aria-pressed="true"] { background: var(--surface-elevated); color: var(--text-primary); box-shadow: var(--shadow-sm); }
 .consult-variants { position: absolute; z-index: 4; top: calc(85px + var(--safe-top)); left: 50%; transform: translateX(-50%); width: min(420px, calc(100% - 32px)); color: #fff; }
 .consult-variants .variant-tabs { background: rgba(0,0,0,.5); backdrop-filter: blur(16px); }
 
 /* Patient report preview. */
-.report-summary { margin: 18px 0; padding: 20px; border: 1px solid #e5e5e7; border-radius: 18px; background: var(--sc-ivory); }
+.report-summary { margin: 18px 0; padding: 20px; border: 1px solid #e5e5e7; border-radius: 16px; background: var(--sc-ivory); }
 .report-summary-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; font-weight: 600; }
 .report-summary-heading img { width: 76px; height: auto; }
 .report-summary dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; margin: 20px 0 0; }
@@ -1812,7 +1812,7 @@ button.option-card:hover {
 .portrait-top-right { display: flex; align-items: center; gap: 14px; }
 .hero-log {
   display: inline-flex; align-items: center; gap: 7px; min-height: 38px;
-  padding: 0 14px; border-radius: 100px; font-size: 13px; font-weight: 500;
+  padding: 0 14px; border-radius: 100px; font-size: 13px; font-weight: 600;
   color: #fff; background: rgba(20, 20, 20, 0.38);
   border: 1px solid rgba(255, 255, 255, 0.24);
   -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
@@ -1821,12 +1821,12 @@ button.option-card:hover {
 
 .patient-field {
   display: flex; align-items: center; gap: 12px; margin-bottom: 14px;
-  padding: 10px 14px; border-radius: 14px;
+  padding: 10px 14px; border-radius: 12px;
   background: var(--surface); border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
 }
 .patient-field label {
-  font-size: 13px; font-weight: 500; color: var(--text-secondary); flex-shrink: 0;
+  font-size: 13px; font-weight: 600; color: var(--text-secondary); flex-shrink: 0;
 }
 .patient-field input {
   flex: 1; min-width: 0; border: 0; background: transparent;
@@ -1851,7 +1851,7 @@ button.option-card:hover {
 .log-head h2 { font-size: 19px; font-weight: 600; letter-spacing: -0.015em; }
 .log-search {
   display: flex; align-items: center; gap: 10px; padding: 0 14px;
-  min-height: 46px; border-radius: 14px;
+  min-height: 46px; border-radius: 12px;
   background: var(--control-background); border: 1px solid var(--border);
   color: var(--text-secondary); flex-shrink: 0;
 }
@@ -1877,7 +1877,7 @@ button.option-card:hover {
   object-fit: cover; background: #141312;
 }
 .log-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.log-row-text strong { font-size: 15px; font-weight: 500; }
+.log-row-text strong { font-size: 15px; font-weight: 600; }
 .log-date { font-size: 12.5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .library-tip {
   margin: 0;
@@ -1894,7 +1894,7 @@ button.option-card:hover {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .log-pill {
-  margin-left: auto; flex-shrink: 0; font-size: 11px; font-weight: 500;
+  margin-left: auto; flex-shrink: 0; font-size: 11px; font-weight: 600;
   padding: 4px 9px; border-radius: 100px;
   background: var(--control-background); color: var(--text-secondary);
 }
@@ -1944,14 +1944,14 @@ button.option-card:hover {
 /* ---- Patient-led adjustment ---- */
 .adjust-row { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
 .adjust-label { font-size: 12.5px; color: var(--text-secondary); }
-.adjust-button { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 16px; border-radius: 100px; border: 1px solid var(--border); background: var(--surface-solid); font-size: 13.5px; font-weight: 500; color: var(--text-primary); box-shadow: var(--shadow-sm); }
+.adjust-button { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 16px; border-radius: 100px; border: 1px solid var(--border); background: var(--surface-solid); font-size: 13.5px; font-weight: 600; color: var(--text-primary); box-shadow: var(--shadow-sm); }
 .adjust-button:hover:not(:disabled) { border-color: var(--border-strong); }
 
 /* ---- Capture framing guide ---- */
 .camera-view { position: relative; }
 .capture-guide { position: absolute; inset: 0; pointer-events: none; }
 /* position comes from SMILE_GUIDE so the guide and the prompt cannot drift apart */
-.capture-guide-smile { position: absolute; border: 2px solid rgba(255, 255, 255, .92); border-radius: 10px; box-shadow: 0 1px 10px rgba(0, 0, 0, .35); }
+.capture-guide-smile { position: absolute; border: 2px solid rgba(255, 255, 255, .92); border-radius: 8px; box-shadow: 0 1px 10px rgba(0, 0, 0, .35); }
 .capture-hint { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); margin: 0; max-width: calc(100% - 24px); padding: 7px 13px; border-radius: 100px; font-size: 12px; line-height: 1.35; text-align: center; color: white; background: rgba(18, 17, 16, .58); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); pointer-events: none; }
 
 /* Case library */
@@ -1968,7 +1968,7 @@ button.option-card:hover {
   width: 100%;
   min-height: 40px;
   padding: 8px 12px;
-  border-radius: 11px;
+  border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--control-background);
   font-size: 14.5px;
@@ -1998,7 +1998,7 @@ button.option-card:hover {
   gap: 8px;
   width: 100%;
   padding: 8px;
-  border-radius: 15px;
+  border-radius: 16px;
   border: 1px solid var(--border);
   background: var(--surface-solid);
   text-align: left;
@@ -2012,7 +2012,7 @@ button.option-card:hover {
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
-  border-radius: 10px;
+  border-radius: 8px;
   display: block;
   background: var(--control-background);
 }
@@ -2032,7 +2032,7 @@ button.option-card:hover {
 .library-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .library-card-text strong {
   font-size: 12.5px;
-  font-weight: 550;
+  font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2055,7 +2055,7 @@ button.option-card:hover {
   gap: 10px;
   min-height: 40px;
   padding: 0 12px;
-  border-radius: 11px;
+  border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--control-background);
   font-size: 13.5px;
@@ -2121,7 +2121,7 @@ button.option-card:hover {
   padding: 0 22px;
   border-radius: 100px;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   transition: transform var(--fast), background var(--fast), opacity var(--fast);
 }
 .splash-primary { background: #fff; color: #15140f; }
@@ -2134,7 +2134,7 @@ button.option-card:hover {
 .splash-outline:hover { background: rgba(255, 255, 255, 0.08); }
 .splash-tagline {
   margin: 0;
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0;
   color: rgba(255, 255, 255, 0.45);
 }
@@ -2182,7 +2182,7 @@ button.option-card:hover {
 }
 .photo-stage {
   position: relative;
-  border-radius: 20px;
+  border-radius: 22px;
   overflow: hidden;
   background: var(--control-background);
   border: 1px solid var(--border);
@@ -2235,9 +2235,9 @@ button.option-card:hover {
   gap: 10px;
   min-height: 52px;
   padding: 0 22px;
-  border-radius: 14px;
+  border-radius: 12px;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   transition: transform var(--fast), background var(--fast);
 }
 .photo-primary { background: var(--accent); color: var(--on-accent); }
@@ -2255,7 +2255,7 @@ button.option-card:hover {
   gap: 6px;
   min-height: 38px;
   padding: 0 12px;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--control-background);
   font-size: 13px;
@@ -2289,7 +2289,7 @@ button.option-card:hover {
 .photo-tips strong {
   display: block;
   font-size: 12.5px;
-  font-weight: 550;
+  font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 10px;
 }
@@ -2333,7 +2333,7 @@ button.option-card:hover {
   gap: 0;
   padding: 0;
   overflow: hidden;
-  border-radius: 20px;
+  border-radius: 22px;
   margin: 0;
 }
 .variation-sheet .option-image {
@@ -2348,7 +2348,7 @@ button.option-card:hover {
   gap: 4px;
   text-align: left;
 }
-.variation-sheet .option-cap span:first-child { font-size: 16px; font-weight: 550; }
+.variation-sheet .option-cap span:first-child { font-size: 16px; font-weight: 600; }
 .variation-sheet .option-pick { font-size: 13px; line-height: 1.4; }
 /* The patient's own photo is a point of comparison, not a choice. */
 .variation-sheet .option-original { opacity: 1; cursor: default; }
@@ -2400,7 +2400,7 @@ button.option-card:hover {
   max-width: 100%;
   max-height: calc(100% - 92px);
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: 8px;
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
 }
 .present-status {
@@ -2417,7 +2417,7 @@ button.option-card:hover {
   padding: 0 20px;
   border-radius: 100px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: #0a0a0a;
   background: var(--sc-gold);
   transition: opacity var(--fast), transform var(--fast);
@@ -2505,7 +2505,7 @@ button.option-card:hover {
   padding: 0 13px;
   border-radius: 100px;
   font-size: 12.5px;
-  font-weight: 500;
+  font-weight: 600;
   color: #fff;
   background: rgba(18, 17, 16, 0.58);
   -webkit-backdrop-filter: blur(16px);
@@ -2726,7 +2726,7 @@ button.option-card:hover {
   margin: 16px auto 0;
   max-width: 620px;
   width: 100%;
-  border-radius: 18px;
+  border-radius: 16px;
   background: var(--surface-solid);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
@@ -2739,7 +2739,7 @@ button.option-card:hover {
   min-height: 48px;
   padding: 0 18px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   list-style: none;
 }
@@ -2805,7 +2805,7 @@ button.option-card:hover {
   display: block;
   width: 100%;
   max-height: 58dvh;
-  border-radius: 18px;
+  border-radius: 16px;
   background: #0a0a0a;
   object-fit: contain;
 }
@@ -2820,7 +2820,7 @@ button.option-card:hover {
   background: var(--text-primary);
   color: var(--background);
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
 }
 .video-send:disabled { opacity: 0.4; }
 
@@ -2843,7 +2843,7 @@ button.option-card:hover {
   padding: 0 14px;
   border-radius: 100px;
   font-size: 12.5px;
-  font-weight: 500;
+  font-weight: 600;
   color: rgba(255, 255, 255, 0.78);
   touch-action: manipulation;
 }
@@ -2869,7 +2869,7 @@ button.option-card:hover {
 .analysis-toggle-text small { margin-top: 2px; }
 
 /* Clinician-only planning controls: excluded from image/report renderers. */
-.generation-costs { flex-shrink: 0; margin: 0 0 18px; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+.generation-costs { flex-shrink: 0; margin: 0 0 18px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 .cost-toggle { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; min-height: 44px; background: var(--control-background); color: inherit; font-size: 13px; text-align: left; }
 .cost-toggle > span:last-child { color: var(--text-secondary); font-size: 12px; }
 .cost-content { padding: 0 14px 12px; }
@@ -2877,14 +2877,14 @@ button.option-card:hover {
 .cost-content a { text-decoration: underline; }
 .cost-lines { font-size: 12px; margin: 12px 0; }
 .cost-lines > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 5px 12px; padding: 7px 0; border-bottom: 1px solid var(--separator); }
-.cost-lines dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 500; }
-.action-cost { display: block; font-size: 10px; line-height: 1.4; font-weight: 400; }
+.cost-lines dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+.action-cost { display: block; font-size: 11px; line-height: 1.4; font-weight: 400; }
 .compare-button:has(.action-cost), .generate-button:has(.action-cost) { flex-wrap: wrap; }
 .compare-button .action-cost, .generate-button .action-cost { flex-basis: 100%; }
 @media print { .generation-costs, .action-cost { display: none !important; } }
 
 .cost-explainer summary { cursor: pointer; font-size: 12px; padding: 10px 0; min-height: 44px; }
-.design-select { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-solid); color: var(--text-primary); font: inherit; font-size: 14px; }
+.design-select { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-solid); color: var(--text-primary); font: inherit; font-size: 14px; }
 .edit-area-sheet { width: min(900px, 96vw); max-height: calc(100dvh - var(--display-toolbar-height) - 24px); overflow-y: auto; }
 .edit-area-viewport { max-height: 40dvh; overflow: auto; background: #202020; border-radius: 12px; margin-top: 12px; overscroll-behavior: contain; }
 .edit-area-image { position: relative; }
@@ -2898,25 +2898,25 @@ button.option-card:hover {
 .design-fieldset .segmented[aria-label="Treatment"] button { flex: 1 1 90px; white-space: normal; min-height: 48px; }
 
 /* Clinician controls share the existing neutral palette and touch sizing. */
-.clinical-details { margin: 12px 0; padding: 12px; border: 1px solid var(--border); border-radius: 14px; min-width: 0; }
+.clinical-details { margin: 12px 0; padding: 12px; border: 1px solid var(--border); border-radius: 12px; min-width: 0; }
 .clinical-details summary { cursor: pointer; font-size: 14px; min-height: 32px; }
 .tooth-arch > strong { display: block; font-size: 12px; margin: 10px 0 5px; }
 .tooth-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .tooth-grid button { min-height: 48px; padding: 5px 1px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--text-primary); }
 .tooth-grid button.active { background: color-mix(in srgb, var(--success) 16%, transparent); color: var(--success); }
 .tooth-grid button.focused { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-.tooth-grid small { display: block; font-size: 9px; }
+.tooth-grid small { display: block; font-size: 11px; }
 .tooth-editor { margin-top: 14px; display: grid; gap: 10px; font-size: 13px; }
 .tooth-editor select { width: 100%; margin-top: 4px; }
 .feature-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-.feature-tags button { background: var(--card); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 20px; padding: 9px 12px; min-height: 44px; font-size: 12px; }
+.feature-tags button { background: var(--card); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 22px; padding: 9px 12px; min-height: 44px; font-size: 12px; }
 .feature-tags button.selected { background: var(--inverse-surface); color: var(--on-inverse); border-color: var(--inverse-surface); }
 .clinical-form { display: grid; gap: 12px; margin-top: 12px; }
 .clinical-form label { display: grid; gap: 6px; font-size: 13px; }
 .clinical-form input, .clinical-form select { min-height: 44px; width: 100%; }
 .clinical-form .style-toggle { display: flex; }
 .clinical-form .style-toggle input { width: auto; min-height: auto; }
-.review-panel { padding: 14px; background: var(--control-background); border-radius: 14px; margin: 12px 0; }
+.review-panel { padding: 14px; background: var(--control-background); border-radius: 12px; margin: 12px 0; }
 .review-panel summary { cursor: pointer; min-height: 32px; }
 .review-panel textarea { width: 100%; }
 .validation-images { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
@@ -2975,7 +2975,7 @@ fieldset.clinical-form { border: 0; padding: 0; min-width: 0; }
     min-height: 44px;
     padding: 10px 32px 10px 12px;
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 8px;
     color: var(--text-primary);
     background-color: var(--surface-solid);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%236b6864' stroke-width='1.5'/%3E%3C/svg%3E");
@@ -3004,7 +3004,7 @@ fieldset.clinical-form { border: 0; padding: 0; min-width: 0; }
     justify-content: flex-start;
     gap: 8px;
     padding: 10px 12px;
-    border-radius: 14px;
+    border-radius: 12px;
     background: var(--glass-strong);
     -webkit-backdrop-filter: blur(22px);
     backdrop-filter: blur(22px);
@@ -3087,7 +3087,7 @@ fieldset.clinical-form { border: 0; padding: 0; min-width: 0; }
   .consult-foot { padding: 8px 16px; }
   .consult-practice { display: none; }
   .consult-hint, .consult-meta { font-size: 11px; }
-  .consult-meta small { font-size: 9px; }
+  .consult-meta small { font-size: 11px; }
   .consult-serif { display: none; }
 }
 

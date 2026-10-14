@@ -17,7 +17,7 @@
 .share-options { display: grid; gap: 12px; }
 .share-option {
   display: flex; align-items: center; gap: 16px; width: 100%; padding: 12px 14px 12px 12px;
-  border-radius: 20px; border: 1px solid var(--border); background: var(--card); color: var(--text-primary); text-align: left;
+  border-radius: 22px; border: 1px solid var(--border); background: var(--card); color: var(--text-primary); text-align: left;
   box-shadow: var(--shadow-sm); transition: transform 200ms var(--ease-soft), border-color 200ms var(--ease-soft);
 }
 .share-option:hover { border-color: var(--border-strong); }
@@ -34,7 +34,7 @@
 .share-video { justify-self: center; display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 12px; font-size: 13.5px; color: var(--text-secondary); background: none; }
 
 /* Thumbnails: miniature exports, always light */
-.share-thumb { flex: none; width: 116px; height: 96px; display: grid; place-items: center; border-radius: 14px; background: #EFE9DF; overflow: hidden; }
+.share-thumb { flex: none; width: 116px; height: 96px; display: grid; place-items: center; border-radius: 12px; background: #EFE9DF; overflow: hidden; }
 .share-thumb.is-preview { padding: 10px; align-content: center; gap: 5px; place-items: stretch; background: #FAF8F4; box-shadow: inset 0 0 0 1px rgba(42,38,34,.08); }
 .share-thumb-photos { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
 .share-thumb-photos img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 4px; }
@@ -52,15 +52,15 @@
 
 /* Ready */
 .share-ready { display: grid; gap: 14px; }
-.share-result { display: grid; justify-items: center; max-height: min(52svh, 560px); overflow-y: auto; padding: 14px; border-radius: 18px; background: #E9E3D9; }
-.share-result img { display: block; max-width: 100%; max-height: min(48svh, 520px); height: auto; border-radius: 6px; box-shadow: 0 10px 28px rgba(42,38,34,.16); }
+.share-result { display: grid; justify-items: center; max-height: min(52svh, 560px); overflow-y: auto; padding: 14px; border-radius: 16px; background: #E9E3D9; }
+.share-result img { display: block; max-width: 100%; max-height: min(48svh, 520px); height: auto; border-radius: 8px; box-shadow: 0 10px 28px rgba(42,38,34,.16); }
 .share-result.is-pages { gap: 14px; }
 .share-result.is-pages img { max-height: none; width: min(100%, 440px); }
 .share-primary { width: 100%; min-height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; }
 .share-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .share-actions button {
   display: grid; justify-items: center; gap: 5px; padding: 11px 4px; border-radius: 16px; min-height: 66px;
-  border: 1px solid var(--border); background: var(--card); color: var(--text-primary); font-size: 12.5px; font-weight: 500;
+  border: 1px solid var(--border); background: var(--card); color: var(--text-primary); font-size: 12.5px; font-weight: 600;
 }
 .share-actions button:disabled { opacity: .5; }
 .share-status, .share-note { margin: 0; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; color: var(--text-secondary); text-align: center; }
@@ -78,7 +78,7 @@
   font-size: 16px;
 }
 .review-field textarea, .review-item textarea { resize: vertical; min-height: 58px; }
-.review-group { display: grid; gap: 10px; margin: 0; padding: 14px; border: 1px solid var(--border); border-radius: 18px; background: var(--card); }
+.review-group { display: grid; gap: 10px; margin: 0; padding: 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); }
 .review-group legend { padding: 0 6px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary); }
 .review-check { display: flex; align-items: flex-start; gap: 10px; font-size: 14.5px; line-height: 1.35; }
 .review-check input[type="checkbox"] { flex: none; width: 19px; height: 19px; margin: 1px 0 0; accent-color: var(--accent); }

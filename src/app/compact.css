@@ -13,7 +13,7 @@
   .app-shell[data-screen="photo"] .app-header { display: flex; flex-wrap: nowrap; gap: 8px; padding: 10px 16px; }
   .app-shell[data-screen="photo"] .nav-group { gap: 7px; }
   .app-shell[data-screen="photo"] .nav-step { display: none; }
-  .app-shell[data-screen="photo"] .test-mode-pill { min-height: 23px; padding-inline: 7px; font-size: 9px; }
+  .app-shell[data-screen="photo"] .test-mode-pill { min-height: 23px; padding-inline: 7px; font-size: 11px; }
   .app-shell[data-screen="photo"] .app-menu > summary { color: var(--text-primary); background: var(--control-background); border-color: var(--border); }
   .app-shell .design-screen .zoompan-hint,
   .app-shell .design-screen .photo-label,
@@ -79,7 +79,7 @@
     width: min(280px, calc(100vw - 32px));
     padding: 7px;
     border: 1px solid var(--glass-border);
-    border-radius: 17px;
+    border-radius: 16px;
     background: var(--sc-panel);
     color: var(--text-primary);
     box-shadow: var(--shadow-lg);
@@ -89,7 +89,7 @@
   .variant-picker-options button {
     min-height: 44px;
     padding: 9px 11px;
-    border-radius: 11px;
+    border-radius: 12px;
     color: inherit;
     font-size: 13px;
     text-align: left;
@@ -124,7 +124,7 @@
     transform: translateX(-50%);
     padding: 7px;
     border: 1px solid var(--glass-border);
-    border-radius: 19px;
+    border-radius: 16px;
     background: var(--sc-panel);
     box-shadow: 0 12px 35px #0003;
     -webkit-backdrop-filter: blur(22px);
@@ -136,9 +136,9 @@
     justify-content: center;
     gap: 9px;
     min-height: 50px;
-    border-radius: 13px;
+    border-radius: 12px;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
   }
   .compact-dock-save { flex: 1.1; background: var(--accent); color: var(--on-accent); }
   .compact-dock-options { flex: 1; background: var(--control-background); color: var(--text-primary); }
@@ -172,9 +172,9 @@
   .compact-options-heading h2 { margin: 0; font-size: 18px; font-weight: 600; }
   .compact-options-heading button { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: var(--control-background); color: var(--text-primary); }
   .compact-options-group + .compact-options-group { border-top: 1px solid var(--separator); margin-top: 8px; padding-top: 8px; }
-  .compact-options-label { display: block; margin: 5px 3px 8px; color: var(--sc-text-muted); font-size: 10px; letter-spacing: 0; }
-  .compact-compare-switch { display: flex; gap: 4px; padding: 4px; border-radius: 13px; background: var(--control-background); }
-  .compact-compare-switch button { flex: 1; min-height: 44px; border-radius: 10px; font-size: 13px; }
+  .compact-options-label { display: block; margin: 5px 3px 8px; color: var(--sc-text-muted); font-size: 11px; letter-spacing: 0; }
+  .compact-compare-switch { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--control-background); }
+  .compact-compare-switch button { flex: 1; min-height: 44px; border-radius: 8px; font-size: 13px; }
   .compact-compare-switch button[aria-pressed="true"] { background: var(--surface-elevated); color: var(--text-primary); box-shadow: var(--shadow-sm); }
   .compact-option-row { display: flex; width: 100%; min-height: 44px; align-items: center; gap: 14px; padding: 8px 6px; border-bottom: 1px solid var(--separator); color: var(--text-primary); text-align: left; }
   .compact-option-row:last-child { border-bottom: 0; }
@@ -189,8 +189,8 @@
   .consult-compact-options { display: block; position: relative; }
   .consult-compact-options > summary { display: grid; min-height: 44px; place-items: center; padding: 8px 14px; border: 1px solid #ffffff70; border-radius: 100px; background: #17151280; color: #fff; font-size: 12px; list-style: none; }
   .consult-compact-options > summary::-webkit-details-marker { display: none; }
-  .consult-compact-options > div { display: grid; position: absolute; top: calc(100% + 8px); right: 0; width: 190px; padding: 6px; border-radius: 14px; background: var(--glass-strong); color: var(--text-primary); border: 1px solid var(--glass-border); box-shadow: var(--shadow-lg); }
-  .consult-compact-options > div button { min-height: 44px; padding: 9px 12px; border-radius: 9px; text-align: left; font-size: 12px; }
+  .consult-compact-options > div { display: grid; position: absolute; top: calc(100% + 8px); right: 0; width: 190px; padding: 6px; border-radius: 12px; background: var(--glass-strong); color: var(--text-primary); border: 1px solid var(--glass-border); box-shadow: var(--shadow-lg); }
+  .consult-compact-options > div button { min-height: 44px; padding: 9px 12px; border-radius: 8px; text-align: left; font-size: 12px; }
   .consult-compact-options > div button:hover { background: var(--hover); }
   .consult-top-actions { width: auto; flex-wrap: nowrap; }
 }

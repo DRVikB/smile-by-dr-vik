@@ -20,7 +20,7 @@
 .app-menu { position: relative; }
 .app-menu > summary { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; list-style: none; cursor: pointer; border: 1px solid #ffffff50; border-radius: 50%; background: #17161555; }
 .app-menu > summary::-webkit-details-marker { display: none; }
-.app-menu .nav-actions { position: absolute; right: 0; top: 54px; width: 190px; display: flex; flex-direction: column; align-items: stretch; padding: 12px; gap: 4px; background: var(--glass-strong); color: var(--text-primary); border: 1px solid var(--glass-border); border-radius: 18px; box-shadow: var(--shadow-lg); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); }
+.app-menu .nav-actions { position: absolute; right: 0; top: 54px; width: 190px; display: flex; flex-direction: column; align-items: stretch; padding: 12px; gap: 4px; background: var(--glass-strong); color: var(--text-primary); border: 1px solid var(--glass-border); border-radius: 16px; box-shadow: var(--shadow-lg); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); }
 .app-menu .nav-action { justify-content: flex-start; color: var(--text-primary); }
 
 .app-shell .design-screen, .app-shell .preview-screen { position: relative; height: 100dvh; min-height: 0; padding: 0; overflow: hidden; }
@@ -43,7 +43,7 @@
 .floating-panel { position: absolute; z-index: 10; width: 360px; right: 20px; border: 1px solid var(--glass-border); border-radius: 22px; background: var(--sc-panel); color: var(--text-primary); box-shadow: 0 16px 50px #0003; -webkit-backdrop-filter: blur(28px); backdrop-filter: blur(28px); overflow: hidden; }
 .floating-panel-toggle { display: flex; align-items: center; width: 100%; gap: 10px; padding: 16px 18px; min-height: 60px; background: transparent; text-align: left; color: inherit; }
 .floating-panel-toggle > span { flex: 1; min-width: 0; }
-.floating-panel-toggle strong { font-size: 15px; font-weight: 500; }
+.floating-panel-toggle strong { font-size: 15px; font-weight: 600; }
 .floating-panel-toggle small { display: block; font-size: 11px; color: var(--sc-text-muted); margin-top: 3px; }
 .is-open .panel-chevron { transform: rotate(180deg); }
 .floating-panel-body { display: none; overflow-y: auto; overscroll-behavior: contain; max-height: 55dvh; padding: 0 16px 16px; }
@@ -63,7 +63,7 @@
 .review-drawer .comparison-hint { display: none; }
 .review-drawer .analysis-images { grid-template-columns: 1fr; }
 .review-drawer .disclaimer { display: block; padding: 12px 0 0; margin: 0; color: var(--sc-text-muted); }
-.app-shell .preview-screen > .bottom-action-bar { position: absolute; z-index: 11; bottom: max(16px,var(--safe-bottom)); left: 20px; width: min(650px,calc(100% - 220px)); margin: 0; padding: 8px; background: var(--sc-panel); border: 1px solid var(--glass-border); border-radius: 18px; -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); box-shadow: 0 12px 40px #0003; }
+.app-shell .preview-screen > .bottom-action-bar { position: absolute; z-index: 11; bottom: max(16px,var(--safe-bottom)); left: 20px; width: min(650px,calc(100% - 220px)); margin: 0; padding: 8px; background: var(--sc-panel); border: 1px solid var(--glass-border); border-radius: 16px; -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); box-shadow: 0 12px 40px #0003; }
 .bottom-action-bar .action-button { font-size: 12px; }
 .generation-splash {
   position: fixed;
@@ -285,11 +285,11 @@
 }
 @media (max-width: 600px) {
   .app-shell:is([data-screen="design"], [data-screen="preview"]) .app-header { flex-wrap: nowrap; }
-  .app-shell:is([data-screen="design"], [data-screen="preview"]) .test-mode-pill { font-size: 10px; padding: 5px 7px; white-space: nowrap; }
+  .app-shell:is([data-screen="design"], [data-screen="preview"]) .test-mode-pill { font-size: 11px; padding: 5px 7px; white-space: nowrap; }
   .app-menu { flex-shrink: 0; }
 }
 @media (max-width: 360px) {
-  .app-shell:is([data-screen="design"], [data-screen="preview"]) .test-mode-pill { position: absolute; top: calc(53px + var(--safe-top)); left: 70px; padding: 2px 7px; font-size: 9px; }
+  .app-shell:is([data-screen="design"], [data-screen="preview"]) .test-mode-pill { position: absolute; top: calc(53px + var(--safe-top)); left: 70px; padding: 2px 7px; font-size: 11px; }
 }
 
 /* ============================================================

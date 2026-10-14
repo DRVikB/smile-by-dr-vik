@@ -57,7 +57,7 @@
 
   /* Accent — champagne gold fills, bronze text and strokes */
   --accent: #C9A466;
-  --accent-hover: #C09A5C; /* iOS keeps :hover after a tap, so it must not look disabled */
+  --accent-hover: #C09A5C; /* iOS keeps:hover after a tap, so it must not look disabled */
   --accent-text: #8A6431;
   --on-accent: #24211E;
   --accent-soft: #F5EFE5;

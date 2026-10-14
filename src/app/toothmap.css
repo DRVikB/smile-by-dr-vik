@@ -43,7 +43,7 @@
 /* Teeth step: how the map is shown */
 .tooth-map-view { display: grid; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--inset-bg, var(--control-background)); box-shadow: inset 0 0 0 1px var(--card-border, var(--border)); }
 .tooth-map-view-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
-.tooth-map-view-row > span { font-size: 14px; font-weight: 500; }
+.tooth-map-view-row > span { font-size: 14px; font-weight: 600; }
 .tooth-map-view .segmented { flex: none; }
 .tooth-map-view .segmented button { min-height: 44px; padding: 0 12px; font-size: 13px; }
 .tooth-map-view .studio-switch-row { min-height: 44px; }
@@ -67,7 +67,7 @@
 @keyframes tooth-map-pulse { 50% { opacity: .3; } }
 @media (prefers-reduced-motion: reduce) { .tooth-map-dot.is-busy { animation: none; } }
 .tooth-map-review { display: flex; flex-wrap: wrap; gap: 6px; }
-.tooth-map-review button { padding: 5px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500; color: var(--text-primary); border: 1px dashed var(--border-strong); background: var(--card); }
+.tooth-map-review button { padding: 5px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--text-primary); border: 1px dashed var(--border-strong); background: var(--card); }
 .tooth-map-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .tooth-map-actions .primary-button, .tooth-map-actions .secondary-button { min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
 .tooth-map-editor { display: grid; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
@@ -86,7 +86,7 @@
 .tooth-controls .primary-button { min-height: 48px; }
 
 /* Development-only debug view */
-.tooth-debug { display: grid; gap: 8px; margin-top: 12px; padding: 12px; border-radius: 14px; border: 1px dashed #c0392b; font-size: 12px; }
+.tooth-debug { display: grid; gap: 8px; margin-top: 12px; padding: 12px; border-radius: 12px; border: 1px dashed #c0392b; font-size: 12px; }
 .tooth-debug img { width: 100%; border-radius: 8px; }
 .tooth-debug table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .tooth-debug td, .tooth-debug th { padding: 2px 4px; text-align: left; border-bottom: 1px solid var(--border); }
@@ -108,7 +108,7 @@
 
 /* Scalable planning library: original vectors, never patient edit masks. */
 .contour-library { min-width: 0; border-top: 1px solid var(--border); padding-top: 4px; }
-.contour-library > summary { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none; font-size: 14px; font-weight: 500; }
+.contour-library > summary { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none; font-size: 14px; font-weight: 600; }
 .contour-library > summary::-webkit-details-marker { display: none; }
 .contour-library > summary::after { content: "+"; font-size: 20px; font-weight: 400; color: var(--text-secondary); }
 .contour-library[open] > summary::after { content: "−"; }
@@ -123,7 +123,7 @@
 .contour-reference-frame { stroke: var(--sc-gold, #D4B583); stroke-width: .8; opacity: .8; }
 .contour-reference-axis { stroke: var(--text-secondary); stroke-width: .6; stroke-dasharray: 1 3; opacity: .65; }
 .contour-reference-arc { stroke: var(--text-secondary); stroke-width: .6; stroke-dasharray: 2 3; opacity: .4; }
-.contour-reference strong { display: block; font-size: 13px; font-weight: 500; }
+.contour-reference strong { display: block; font-size: 13px; font-weight: 600; }
 .contour-reference small { display: block; margin-top: 4px; font-size: 11px; line-height: 1.4; color: var(--text-secondary); }
 .contour-library > p { margin: 10px 0 0; font-size: 11px; line-height: 1.5; color: var(--text-secondary); }
 @media (max-width: 380px) {
