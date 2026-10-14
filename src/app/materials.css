@@ -141,13 +141,13 @@
 :is(.primary-button, .secondary-button, .splash-primary, .splash-outline, .nav-back, .app-menu > summary,
     .icon-button, .profile-button, .compact-dock-save, .compact-dock-options, .action-button, .adjust-button,
     .case-rename-button, .cl-sidebar-add, .version-star):active:not(:disabled) {
-  transform: scale(.96);
+  transform: scale(.95);
   transition-duration: 90ms;
 }
 /* The main gold actions also deepen a shade under the finger. */
 :is(.primary-button, .compact-dock-save, .photo-primary, .splash-primary):active:not(:disabled) { filter: brightness(.93); }
 :is(.log-row, .settings-row, .cl-item, .version-open, .recent-case):active:not(:disabled) {
-  transform: scale(.985);
+  transform: scale(.98);
   transition: transform 90ms var(--ease-soft);
 }
 :is(.log-row, .settings-row, .cl-item, .version-open, .recent-case) {

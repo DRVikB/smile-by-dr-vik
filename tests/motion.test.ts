@@ -59,12 +59,12 @@ test("passing the divider's resting place is felt once, from either side", () =>
   assert.ok(!crosses(50, 50, 50));
 });
 
-test("the app's three haptics are the ones the native bridge plays", () => {
+test("the app's haptics are the ones the native bridge plays", () => {
   const swift = readFileSync("ios/App/App/SmileComposeBridgeViewController.swift", "utf8");
   assert.match(swift, /registerPluginInstance\(HapticsPlugin\(\)\)/);
   assert.match(swift, /jsName = "SmileHaptics"/);
   const source = readFileSync("src/native/haptics.ts", "utf8");
   const kinds = /export type Haptic = ([^;]+);/.exec(source)![1].match(/"(\w+)"/g)!.map(k => k.slice(1, -1));
-  assert.deepEqual(kinds, ["ready", "tick", "select"]);
+  assert.deepEqual(kinds, ["ready", "tick", "select", "press"]);
   for (const kind of kinds) assert.match(swift, new RegExp(`case "${kind}":`), `${kind} is handled natively`);
 });

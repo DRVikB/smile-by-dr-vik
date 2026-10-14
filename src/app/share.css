@@ -21,13 +21,13 @@
   box-shadow: var(--shadow-sm); transition: transform 200ms var(--ease-soft), border-color 200ms var(--ease-soft);
 }
 .share-option:hover { border-color: var(--border-strong); }
-.share-option:active { transform: scale(.985); }
+.share-option:active { transform: scale(.98); }
 .share-option > svg { flex: none; color: var(--text-tertiary); }
 .share-option-text { flex: 1; min-width: 0; display: grid; gap: 4px; }
 .share-option-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-family: var(--font-display); font-size: 21px; line-height: 1.15; }
 .share-option-title em {
   font-family: var(--font-sans); font-style: normal; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
-  padding: 3px 8px; border-radius: 999px; color: #5a4526; background: color-mix(in srgb, var(--sc-gold, #D4B583) 38%, transparent);
+  padding: 3px 8px; border-radius: 999px; color: #5a4526; background: color-mix(in srgb, var(--sc-gold) 38%, transparent);
 }
 .share-option-desc { font-size: 14px; line-height: 1.4; color: var(--text-secondary); }
 .share-option-meta { font-size: 12.5px; color: var(--text-tertiary); }
@@ -113,5 +113,5 @@
 .log-exports li small { font-size: 12.5px; color: var(--text-secondary); }
 
 /* Dark appearance: the badge's text reads light on the gold. */
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .share-option-title em { color: #F3E3C5; background: color-mix(in srgb, var(--sc-gold, #D4B583) 30%, transparent); } }
-:root[data-theme="dark"] .share-option-title em { color: #F3E3C5; background: color-mix(in srgb, var(--sc-gold, #D4B583) 30%, transparent); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .share-option-title em { color: #F3E3C5; background: color-mix(in srgb, var(--sc-gold) 30%, transparent); } }
+:root[data-theme="dark"] .share-option-title em { color: #F3E3C5; background: color-mix(in srgb, var(--sc-gold) 30%, transparent); }

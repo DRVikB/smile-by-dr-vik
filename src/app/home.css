@@ -237,3 +237,45 @@
   .start-screen:has(.recent-cases) .splash-heading { font-size: min(6.2vw, 9.4vh, 88px); }
   .start-screen:has(.recent-cases) .splash-primary, .start-screen:has(.recent-cases) .splash-outline { min-height: 54px; font-size: 18px; }
 }
+/* Design more: a gold pill along the foot of every card, back into the studio for more results. The
+   card's frame moves to the list item so the photo, the words and the pill sit in one card, and cards
+   side by side share one height with their pills level. */
+.start-screen .recent-case-item {
+  display: flex; flex-direction: column; padding: 5px; border-radius: 16px;
+  background: rgba(22, 19, 16, .72); border: 1px solid rgba(250, 247, 242, .16); box-shadow: 0 10px 22px -16px rgba(0, 0, 0, .7);
+}
+.start-screen .recent-case-item > .recent-case { flex: 1 1 auto; padding: 0; border: 0; border-radius: 12px; background: none; box-shadow: none; }
+.start-screen .recent-case-more {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: none; min-height: 36px; margin: 2px 4px 4px; padding: 0 12px;
+  border-radius: 999px; background: var(--accent-gradient, var(--accent)); color: var(--on-gold); font-size: 13px; font-weight: 600;
+}
+.start-screen .recent-case-more { white-space: nowrap; }
+/* iPad and the open Duo: a slimmer pill and a wider crop keep the whole Home, tagline included, on one screen. */
+@media (min-width: 701px) and (min-height: 501px) {
+  .start-screen .recent-case-item .recent-case img, .start-screen .recent-case-item .recent-case .recent-case-placeholder { aspect-ratio: 3 / 1; }
+  .start-screen .recent-case-more { min-height: 32px; margin: 1px 3px 3px; font-size: 12.5px; }
+}
+/* An iPhone on its side: narrow cards, so the pill drops its symbol and keeps to one line. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .start-screen .recent-case-more { min-height: 32px; margin: 1px 3px 3px; padding: 0 8px; font-size: 12.5px; }
+  .start-screen .recent-case-more svg { display: none; }
+}
+/* iPad and the open Duo in landscape with Recent Cases: everything is sized by the screen's height as
+   well, so the welcome, the actions, two cards with Design more and the tagline all fit on one screen. */
+@media (min-width: 701px) and (min-height: 501px) and (orientation: landscape) {
+  .start-screen:has(.recent-cases) .start-copy { padding-top: clamp(6px, 2.4vh, 28px); }
+  .start-screen:has(.recent-cases) .splash-heading { font-size: min(6.2vw, 7.6vh, 88px); }
+  .start-screen:has(.recent-cases) .splash-sub { margin-top: clamp(6px, 1.4vh, 16px); font-size: clamp(16px, min(2.1vw, 3vh), 22px); }
+  .start-screen:has(.recent-cases) .splash-actions { margin-top: clamp(12px, 2.6vh, 30px); gap: 10px; }
+  .start-screen:has(.recent-cases) .splash-pair { gap: 10px; }
+  .start-screen:has(.recent-cases) .splash-primary, .start-screen:has(.recent-cases) .splash-outline { min-height: clamp(44px, 7vh, 54px); font-size: clamp(15px, 2.4vh, 18px); }
+  .start-screen:has(.recent-cases) .recent-cases { margin-top: clamp(8px, 2vh, 22px); }
+  .start-screen .recent-case-item .recent-case .recent-case-text { gap: 1px; padding: 6px 7px 4px; }
+}
+/* Shorter wide screens (the open Duo, iPad mini): the cards keep the patient and treatment, and drop the date line. */
+@media (min-width: 701px) and (min-height: 501px) and (max-height: 760px) and (orientation: landscape) {
+  .start-screen .recent-case-item .recent-case small:not(.recent-case-treatment) { display: none; }
+  .start-screen .recent-case-item .recent-case img, .start-screen .recent-case-item .recent-case .recent-case-placeholder { aspect-ratio: 3.4 / 1; }
+  .start-screen:has(.recent-cases) .splash-heading { font-size: min(6.2vw, 7vh, 88px); }
+}
+

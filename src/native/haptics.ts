@@ -3,10 +3,11 @@ import { isNativeApp } from "./platform";
 
 /**
  * A small tap in the hand, in the iOS app only: `ready` when a new smile arrives, `tick` as the
- * comparison divider passes its resting place, `select` when a tooth is chosen. The system's own
+ * comparison divider passes its resting place, `select` when a tooth is chosen, `press` as a main gold
+ * button goes down. The system's own
  * haptics setting decides whether anything is felt; in a browser nothing happens.
  */
-export type Haptic = "ready" | "tick" | "select";
+export type Haptic = "ready" | "tick" | "select" | "press";
 
 interface HapticsPlugin { play(options: { kind: Haptic }): Promise<void> }
 

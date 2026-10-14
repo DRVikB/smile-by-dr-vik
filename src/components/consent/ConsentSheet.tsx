@@ -2,8 +2,9 @@
 import { SheetClose } from "@/components/sideRail/SideRail";
 import { useEffect, useRef, useState } from "react";
 import { Check, Download, FileSignature, RotateCcw } from "lucide-react";
-import { CONSENT_ITEMS, CONSENT_VERSION, type CaseConsent, type ConsentItem } from "@/lib/portal";
+import { CONSENT_ITEMS, CONSENT_VERSION, SHOWN_CONSENT_ITEMS, type CaseConsent, type ConsentItem } from "@/lib/portal";
 import { signedOn } from "@/lib/consentRecord";
+import { features } from "@/config/features";
 
 /** A finger or pen signature on a canvas, exported as a small transparent PNG. */
 function SignaturePad({ onChange }: { onChange: (png: string) => void }) {
@@ -79,7 +80,7 @@ export function ConsentSheet({ patientName, onCancel, onSigned }: {
         <h2 id="cs-title">Your consent</h2>
         <p className="cs-lead">Please read each statement. The first two are needed for us to design your smile; the rest are your choice, and you can change your mind at any time.</p>
         <ul className="cs-items">
-          {CONSENT_ITEMS.map(item => <li key={item.id}>
+          {SHOWN_CONSENT_ITEMS.map(item => <li key={item.id}>
             <label className={agreed[item.id] ? "on" : ""}>
               <input type="checkbox" checked={agreed[item.id]} onChange={e => setAgreed(a => ({ ...a, [item.id]: e.target.checked }))} />
               <span className="cs-box" aria-hidden="true"><Check size={15} /></span>
@@ -120,7 +121,7 @@ export function ConsentView({ consent, caseLabel, onClose, onRemove }: { consent
       </div>
       <h2 id="cs-view-title">Consent · {consent.patientName}</h2>
       <ul className="cs-items cs-readonly">
-        {CONSENT_ITEMS.map(item => <li key={item.id}><label className={consent.agreed[item.id] ? "on" : "off"}>
+        {SHOWN_CONSENT_ITEMS.map(item => <li key={item.id}><label className={consent.agreed[item.id] ? "on" : "off"}>
           <span className="cs-box" aria-hidden="true">{consent.agreed[item.id] ? <Check size={15} /> : null}</span>
           <span className="cs-text">{item.text}<small>{consent.agreed[item.id] ? "Agreed" : "Not agreed"}</small></span>
         </label></li>)}
@@ -148,7 +149,7 @@ export function ConsentStatus({ consent, patientName, caseLabel, onSave }: {
   return <div className="cs-status">
     {consent ? <button type="button" className="cs-status-row signed" onClick={() => setOpen("view")}>
       <span className="cs-status-mark"><Check size={14} /></span>
-      <span><b>Consent signed</b><small>{consent.patientName} · {new Date(consent.signedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}{consent.agreed.lab ? "" : " · not for labs"}</small></span>
+      <span><b>Consent signed</b><small>{consent.patientName} · {new Date(consent.signedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}{features.labExport && !consent.agreed.lab ? " · not for labs" : ""}</small></span>
     </button> : <button type="button" className="cs-status-row" onClick={() => setOpen("sign")}>
       <span className="cs-status-mark"><FileSignature size={14} /></span>
       <span><b>Record patient consent</b><small>Hand the device to the patient to read and sign</small></span>

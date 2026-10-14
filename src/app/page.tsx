@@ -1403,6 +1403,20 @@ export default function Smile() {
     void generate(next);
   }
 
+  /** Recent Cases: back into the studio with a saved case's photo and design, ready for more results in the same case. */
+  async function designMore(id: string) {
+    setError("");
+    try {
+      const draft = await repository.reopenCase(id);
+      repository.scope.assert();
+      caseSession.current++;
+      request.current?.abort();
+      restoreWorkingCase({ ...draft, screen: "design" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That case couldn’t be opened.");
+    }
+  }
+
   /** Web portal: open a case's design, or start one from its smile front photo. */
   async function openFromPortal(id: string, start: PortalStart) {
     setError("");
@@ -1608,7 +1622,7 @@ export default function Smile() {
                   </div>
                 </div>
                 <AllowancePill className="on-photo" />
-                <RecentCases refreshKey={logOpen} onOpen={id => { setLogEntry(id); setLogOpen(true); }} onSeeAll={() => { setLogEntry(undefined); setLogOpen(true); }} />
+                <RecentCases refreshKey={logOpen} onOpen={id => { setLogEntry(id); setLogOpen(true); }} onDesignMore={id => void designMore(id)} onSeeAll={() => { setLogEntry(undefined); setLogOpen(true); }} />
               </div>
               <div className="hero-footer">
                 <p className="splash-tagline">

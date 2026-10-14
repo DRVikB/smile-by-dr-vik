@@ -32,7 +32,7 @@
   background: var(--control-background); border: 1px solid var(--border); color: var(--text-primary); font: inherit; font-size: 13px; cursor: pointer;
   transition: background var(--fast), transform var(--fast);
 }
-.case-rename-button:active { transform: scale(.97); }
+.case-rename-button:active { transform: scale(.95); }
 .case-rename { display: flex; align-items: center; gap: 8px; }
 .case-rename input {
   flex: 1; min-width: 0; min-height: 46px; padding: 0 14px; border-radius: 12px;
@@ -70,7 +70,7 @@
   cursor: pointer; transition: transform var(--fast), color var(--fast), background var(--fast);
 }
 .version-tile .version-star { position: absolute; top: 8px; right: 8px; }
-.version-star:active { transform: scale(.88); }
+.version-star:active { transform: scale(.95); }
 .version-star.on { color: var(--sc-gold); background: rgba(18, 17, 16, .6); }
 .version-star.on svg { animation: star-pop 360ms cubic-bezier(0.32, 0.72, 0, 1); }
 .log-detail-head-actions { display: inline-flex; align-items: center; gap: 8px; flex: none; }
@@ -87,7 +87,7 @@
 .log-list > li.is-new { animation: case-arrive 640ms var(--ease-soft, ease) 120ms both; }
 .log-list > li.is-new .case-row { animation: case-arrive-ring 2400ms ease 500ms both; }
 @keyframes case-arrive { from { max-height: 0; opacity: 0; transform: translateY(-10px); } to { max-height: 140px; opacity: 1; transform: none; } }
-@keyframes case-arrive-ring { 0%, 55% { box-shadow: 0 0 0 1.5px var(--sc-gold, #D9B77E); } 100% { box-shadow: 0 0 0 1.5px transparent; } }
+@keyframes case-arrive-ring { 0%, 55% { box-shadow: 0 0 0 1.5px var(--sc-gold); } 100% { box-shadow: 0 0 0 1.5px transparent; } }
 @media (prefers-reduced-motion: reduce) { .log-list > li.is-new { animation: none; } }
 @keyframes case-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes star-pop { 0% { transform: scale(1); } 45% { transform: scale(1.35); } 100% { transform: scale(1); } }

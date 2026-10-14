@@ -61,7 +61,7 @@
 .tooth-map-status > p { margin: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 9px; align-items: center; font-weight: 600; }
 .tooth-map-status > p small { grid-column: 2; font-weight: 400; font-size: 12.5px; color: var(--text-secondary); }
 .tooth-map-status.is-empty p { display: block; font-weight: 400; color: var(--text-secondary); }
-.tooth-map-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sc-gold, #D4B583); }
+.tooth-map-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sc-gold); }
 .tooth-map-dot.is-confirmed { background: #6FAE84; }
 .tooth-map-dot.is-busy { animation: tooth-map-pulse 1.1s ease-in-out infinite; }
 @keyframes tooth-map-pulse { 50% { opacity: .3; } }
@@ -115,12 +115,12 @@
 .contour-library summary small { display: block; margin-top: 3px; color: var(--text-secondary); font-size: 11px; font-weight: 400; }
 .contour-library-grid { display: grid; gap: 8px; padding-top: 8px; }
 .contour-reference { display: grid; grid-template-columns: minmax(0, 1fr) 84px; align-items: center; gap: 12px; min-height: 76px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); color: var(--text-primary); cursor: pointer; text-align: left; }
-.contour-reference[aria-pressed="true"] { border-color: var(--sc-gold, #D4B583); background: var(--control-background); box-shadow: inset 0 0 0 1px var(--sc-gold, #D4B583); }
-.contour-reference:focus-visible, .contour-library > summary:focus-visible { outline: 2px solid var(--sc-gold, #D4B583); outline-offset: 3px; }
+.contour-reference[aria-pressed="true"] { border-color: var(--sc-gold); background: var(--control-background); box-shadow: inset 0 0 0 1px var(--sc-gold); }
+.contour-reference:focus-visible, .contour-library > summary:focus-visible { outline: 2px solid var(--sc-gold); outline-offset: 3px; }
 .contour-reference svg { display: block; width: 100%; height: auto; max-height: 90px; overflow: visible; }
 .contour-reference svg path, .contour-reference svg line, .contour-reference svg polygon { fill: none; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
 .contour-reference-tooth { stroke: var(--text-primary); stroke-width: 1; }
-.contour-reference-frame { stroke: var(--sc-gold, #D4B583); stroke-width: .8; opacity: .8; }
+.contour-reference-frame { stroke: var(--sc-gold); stroke-width: .8; opacity: .8; }
 .contour-reference-axis { stroke: var(--text-secondary); stroke-width: .6; stroke-dasharray: 1 3; opacity: .65; }
 .contour-reference-arc { stroke: var(--text-secondary); stroke-width: .6; stroke-dasharray: 2 3; opacity: .4; }
 .contour-reference strong { display: block; font-size: 13px; font-weight: 600; }

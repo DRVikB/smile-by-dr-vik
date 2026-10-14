@@ -430,7 +430,7 @@ section { position: relative; }
 
 /* Whole practice */
 .team { padding: clamp(80px, 10vw, 130px) 0; background: var(--card); border-top: 1px solid var(--line); }
-.team-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.team-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .team-card { position: relative; padding: 28px; border-radius: var(--radius); background: var(--bg); border: 1px solid var(--line); transition: transform .5s var(--ease), box-shadow .5s var(--ease); }
 .team-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
 .team-card h3 { margin: 0 0 8px; font: 400 26px/1.15 var(--serif); }

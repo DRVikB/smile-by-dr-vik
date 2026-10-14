@@ -16,7 +16,7 @@ import { isOnDeviceWhitening } from "@/lib/whiteningDevice";
 import { SegmentedControl, SHAPES, ToothForm } from "./StudioParts";
 import { ToothChart } from "@/components/ToothChart";
 import { ClinicalDataFields } from "@/components/ClinicalDataFields";
-import { StartingConditions, YourStyle } from "@/components/caseLibrary/YourStyle";
+import { StartingConditions, StyleSwitch, useStyleInUse } from "@/components/caseLibrary/YourStyle";
 import { CompareSymbol, ComposeSymbol, ShadeSymbol, ToothSymbol, TreatmentSymbol, VisualiseSymbol, type SmileIcon } from "@/components/icons/SmileIcons";
 import { SelectedTeethSummary, SingleToothEdit, ToothControls, ToothMapStatus, ToothMapView, ToothPicking } from "@/components/toothMap/ToothMapPanel";
 import type { ToothMapController } from "@/components/toothMap/useToothMap";
@@ -228,6 +228,7 @@ export function DesignStudio({
   ];
 
   const rail = useSideRail();
+  const styleInUse = useStyleInUse(settings);
   const steps = (
     <div className="studio-tabs" role="tablist" aria-label="Design steps" aria-orientation={rail ? "vertical" : undefined}>
       {/* iPhone Duo: Review is where Next leads and Generate Smile lives, so the side bar keeps only the four design steps. */}
@@ -340,7 +341,6 @@ export function DesignStudio({
               ))}
             </div>
             {shape && <p className="studio-summary"><strong>{shape.name}</strong><span>{shape.description}</span></p>}
-            {!match && !(alignment?.only && !fullArch) && settings.treatment !== "Whitening" && <YourStyle settings={settings} onChange={onChange} />}
             {guide && guideAvailable && <SmileGuideControls guide={guide} />}
             <More label="Character, texture and facial style">
               <SegmentedControl<SmileCharacter> label="Character" options={["Soft", "Balanced", "Defined"]} value={settings.character} onChange={v => change("character", v)} />
@@ -512,6 +512,8 @@ export function DesignStudio({
           {unavailable && <p className="control-hint" role="status">{unavailable}</p>}
           {tab === "review" && noChange && <p className="control-hint">No change selected: select teeth to edit and choose a different shade or design goal. No generation is needed.</p>}
           {tab === "review" && suggestBoundaryReview && <p className="control-hint">Ready to generate with automatic face protection. <button type="button" className="text-button" onClick={() => { go("teeth"); toothMap?.setEditing(true); }}>Optional tooth-map review</button></p>}
+          {/* Decided before anything is made: designing in the clinician's own style. */}
+          {tab === "review" && <StyleSwitch settings={settings} onChange={onChange} />}
           <div className="studio-steps-nav">
             {/* iPhone Duo: the side bar's Back and its step buttons already go back, so the foot keeps one action. */}
             {previous && !rail && <button type="button" className="secondary-button studio-back" onClick={() => go(previous.id)} aria-label={`Back to ${previous.id === "teeth" && fullArch ? "Arch" : previous.label}`}>
@@ -524,7 +526,7 @@ export function DesignStudio({
             ) : (
               <button className="primary-button generate-button" onClick={onGenerate} disabled={Boolean(unavailable) || busy || noChange}>
                 <VisualiseSymbol size={20} />
-                {busy ? "Creating your visualisation…" : "Generate Smile"}
+                {busy ? "Creating your visualisation…" : styleInUse ? "Generate in my style" : "Generate Smile"}
                 {costs.open && !busy && <small className="action-cost">{allowanceLabel(1, costs.testMode)}</small>}
               </button>
             )}

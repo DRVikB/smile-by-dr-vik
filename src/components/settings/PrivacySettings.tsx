@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Database, Download, ShieldCheck } from "lucide-react";
+import { Camera, Database, Download, ExternalLink, ImageDown, Images, ShieldCheck, SmartphoneNfc } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { PRIVACY_CONTACT_EMAIL } from "@/config/legal";
 import { isNativeApp } from "@/native/platform";
+import { appPermissions, openAppSettings, PERMISSION_LABEL, type AppPermissions, type PermissionState } from "@/native/permissions";
 import { captureWorkspace } from "@/lib/workspace";
 import { fetchAccountExport } from "@/services/account/accountApi";
 import { openManageSubscriptions } from "@/services/purchases/purchases";
@@ -76,6 +77,7 @@ export function PrivacySection() {
   return (
     <Group id="settings-privacy" title="Privacy & Data">
       <Row icon={<ShieldCheck size={17} strokeWidth={1.6} />} label="Data & Privacy" detail="How patient photos and cases are stored and processed" onClick={() => nav.openPage({ kind: "dataPrivacy" })} />
+      <Row icon={<SmartphoneNfc size={17} strokeWidth={1.6} />} label="App Permissions" detail="Camera and saving to Photos" onClick={() => nav.openPage({ kind: "permissions" })} />
       <Row icon={<Download size={17} strokeWidth={1.6} />} label="Export My Data" onClick={exportData} />
       <Row icon={<Database size={17} strokeWidth={1.6} />} label="Manage Data" detail="Delete cases, device data or your account" onClick={() => nav.openPage({ kind: "manageData" })} />
     </Group>
@@ -98,6 +100,42 @@ export function DataPrivacyPage() {
       <Row label="Storage used on this device" value={storageUsed === null ? "…" : formatBytes(storageUsed)} />
       <Row label="Data Processing Information" onClick={() => account.openPrivacy("processing")} />
     </Group>
+  );
+}
+
+function PermissionBadge({ state }: { state: PermissionState | undefined }) {
+  if (!state) return null;
+  return <span className={`permission-badge is-${state}`}>{PERMISSION_LABEL[state]}</span>;
+}
+
+/**
+ * Settings › App Permissions: what SmileCompose asks for, when, and what it never uses. In the app each
+ * permission shows what iOS has recorded, refreshed whenever the app comes back to the front.
+ */
+export function PermissionsPage() {
+  const [state, setState] = useState<AppPermissions | null>(null);
+  const native = isNativeApp();
+  useEffect(() => {
+    const read = () => void appPermissions().then(setState);
+    read();
+    const onVisible = () => { if (document.visibilityState === "visible") read(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+  return (
+    <>
+      <Group title="App permissions" footer="Each is asked for only when you first use it, never when the app opens.">
+        <Row icon={<Camera size={17} strokeWidth={1.6} />} label="Camera" detail="Asked the first time you take a photo. Used to take the patient smile photograph you design with." trailing={<PermissionBadge state={state?.camera} />} />
+        <Row icon={<ImageDown size={17} strokeWidth={1.6} />} label="Add to Photos" detail="Asked the first time you save an export. Only adds the before-and-after images and videos you save." trailing={<PermissionBadge state={state?.photosAdd} />} />
+        <Row icon={<Images size={17} strokeWidth={1.6} />} label="Choose photos" detail="Apple’s private photo picker hands over only the photo you pick. The rest of your library stays unseen." trailing={<span className="permission-badge is-none">None needed</span>} />
+      </Group>
+      <Group title="Never used" footer="SmileCompose doesn’t track you or show tracking prompts.">
+        <p className="settings-note">Microphone, location, contacts, notifications and Face ID.</p>
+      </Group>
+      {native && <Group footer="Change either permission in iOS Settings.">
+        <Row icon={<ExternalLink size={17} strokeWidth={1.6} />} label="Open iOS Settings" onClick={() => void openAppSettings()} />
+      </Group>}
+    </>
   );
 }
 

@@ -65,7 +65,7 @@
 .pt-btn:active { transform: scale(.98); }
 .pt-btn:disabled { opacity: .45; cursor: not-allowed; }
 .pt-btn-dark { background: var(--text-primary); color: var(--bg-grouped) !important; }
-.pt-btn-gold { background: var(--accent-gradient); color: #23190b !important; }
+.pt-btn-gold { background: var(--accent-gradient); color: var(--on-gold) !important; }
 .pt-btn-line { background: var(--surface); border-color: var(--border); }
 .pt-btn-line:hover:not(:disabled) { background: var(--surface-subtle); }
 .pt-btn-icon { width: 42px; padding: 0; }
@@ -176,7 +176,7 @@
 .pt-empty b { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--text-primary); }
 .pt-empty small { font-size: 11px; font-weight: 600; }
 .pt-cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 8px 7px; background: linear-gradient(transparent, rgba(0, 0, 0, .62)); color: #fff; font-size: 11.5px; }
-.pt-design { position: absolute; top: 7px; left: 7px; padding: 2px 8px; border-radius: 999px; background: var(--accent); color: #23190b; font-size: 11px; font-weight: 700; }
+.pt-design { position: absolute; top: 7px; left: 7px; padding: 2px 8px; border-radius: 999px; background: var(--accent); color: var(--on-gold); font-size: 11px; font-weight: 700; }
 .pt-remove { position: absolute; top: 6px; right: 6px; z-index: 1; display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .5); color: #fff !important; opacity: 0; cursor: pointer; transition: opacity .2s; }
 .pt-slot:hover .pt-remove, .pt-remove:focus-visible { opacity: 1; }
 .pt-set-error { grid-column: 1 / -1; }
@@ -361,7 +361,7 @@
 .cs-items label.on { border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: var(--accent-soft); }
 .cs-items input { position: absolute; opacity: 0; pointer-events: none; }
 .cs-box { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; border: 1.5px solid var(--border-strong, var(--text-tertiary, #8a8a8e)); color: transparent; transition: background .2s, color .2s, border-color .2s; }
-.cs-items label.on .cs-box { background: var(--accent-gradient, var(--accent)); border-color: transparent; color: #23190b; }
+.cs-items label.on .cs-box { background: var(--accent-gradient, var(--accent)); border-color: transparent; color: var(--on-gold); }
 .cs-items input:focus-visible + .cs-box { outline: 2px solid var(--focus-ring, var(--accent)); outline-offset: 2px; }
 .cs-text { font-size: 15.5px; line-height: 1.45; }
 .cs-text small { display: block; margin-top: 2px; color: var(--text-secondary); font-size: 12px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
@@ -379,7 +379,7 @@
 .cs-signed span { padding-top: 6px; border-top: 1px solid #d1d1d6; min-width: 240px; font-size: 13px; }
 .cs-done { display: grid; justify-items: center; gap: 6px; padding: 30px 10px 10px; text-align: center; }
 .cs-done p { margin: 0 0 16px; max-width: 380px; color: var(--text-secondary); }
-.cs-done-mark { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: var(--accent-gradient, var(--accent)); color: #23190b; }
+.cs-done-mark { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: var(--accent-gradient, var(--accent)); color: var(--on-gold); }
 .cs-status { margin: 0 0 16px; }
 .cs-status-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--border-strong, var(--border)); background: none; color: var(--text-primary); text-align: left; cursor: pointer; font: inherit; }
 .cs-status-row.signed { border-style: solid; background: var(--surface-subtle, transparent); }
@@ -491,7 +491,7 @@
 .ad-embedded .ad-tabs { max-width: none; }
 .settings-panel.split.admin { width: min(1280px, calc(100vw - 48px - var(--safe-left) - var(--safe-right))); }
 .settings-detail-body > .ad-root, .settings-scroll > .ad-root { max-width: none; }
-.settings-sidebar-count { margin-left: auto; min-width: 22px; padding: 2px 7px; border-radius: 999px; background: var(--accent-gradient, var(--accent)); color: #23190b; font-size: 12px; font-weight: 700; text-align: center; }
+.settings-sidebar-count { margin-left: auto; min-width: 22px; padding: 2px 7px; border-radius: 999px; background: var(--accent-gradient, var(--accent)); color: var(--on-gold); font-size: 12px; font-weight: 700; text-align: center; }
 @container ad (max-width: 800px) {
   .ad-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .ad-stat { min-height: 96px; padding: 14px 16px; }

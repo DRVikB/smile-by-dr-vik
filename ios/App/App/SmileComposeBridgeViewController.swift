@@ -1,6 +1,8 @@
 import UIKit
 import WebKit
 import Capacitor
+import AVFoundation
+import Photos
 
 /// SmileCompose's root view controller.
 ///
@@ -27,6 +29,7 @@ class SmileComposeBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(AppearancePlugin())
         bridge?.registerPluginInstance(sideBar)
         bridge?.registerPluginInstance(HapticsPlugin())
+        bridge?.registerPluginInstance(PermissionsPlugin())
         if #available(iOS 27.1, *) {
             registerForTraitChanges(UITraitCollection.systemTraitsAffectingVerticalBarEdge) { (self: Self, _: UITraitCollection) in
                 self.view.setNeedsLayout()
@@ -166,8 +169,8 @@ public class SideBarPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 }
 
-/// A small tap in the hand at three moments: a smile is ready, the comparison divider passes its
-/// resting place, a tooth is chosen. The system's own haptics setting applies. See src/native/haptics.ts.
+/// A small tap in the hand: a smile is ready, the comparison divider passes its resting place, a tooth
+/// is chosen, a main gold button is pressed. The system's own haptics setting applies. See src/native/haptics.ts.
 @objc(HapticsPlugin)
 public class HapticsPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "HapticsPlugin"
@@ -186,9 +189,48 @@ public class HapticsPlugin: CAPPlugin, CAPBridgedPlugin {
             case "ready": self.soft.impactOccurred(intensity: 0.9)
             case "tick": self.selection.selectionChanged()
             case "select": self.light.impactOccurred(intensity: 0.7)
+            case "press": self.light.impactOccurred(intensity: 0.45)
             default: break
             }
             call.resolve()
+        }
+    }
+}
+
+/// Settings › Privacy & Data › App Permissions: what the system has recorded for the app's two
+/// permissions (`status`), and a way to open the app's page in iOS Settings (`openSettings`). It never
+/// asks for a permission itself. See src/native/permissions.ts.
+@objc(PermissionsPlugin)
+public class PermissionsPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "PermissionsPlugin"
+    public let jsName = "SmilePermissions"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise)
+    ]
+
+    @objc func status(_ call: CAPPluginCall) {
+        let camera: String
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized: camera = "allowed"
+        case .denied: camera = "denied"
+        case .restricted: camera = "restricted"
+        default: camera = "notAsked"
+        }
+        let photos: String
+        switch PHPhotoLibrary.authorizationStatus(for: .addOnly) {
+        case .authorized, .limited: photos = "allowed"
+        case .denied: photos = "denied"
+        case .restricted: photos = "restricted"
+        default: photos = "notAsked"
+        }
+        call.resolve(["camera": camera, "photosAdd": photos])
+    }
+
+    @objc func openSettings(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let url = URL(string: UIApplication.openSettingsURLString) else { call.resolve(); return }
+            UIApplication.shared.open(url) { _ in call.resolve() }
         }
     }
 }

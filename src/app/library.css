@@ -213,18 +213,7 @@
 }
 
 /* Compose: Your style */
-.your-style .style-card, .your-style .style-invite { display: grid; gap: 10px; padding: 12px; border-radius: 12px; background: var(--control-background); border: 1px solid var(--border); }
-.style-card-head { display: flex; align-items: center; gap: 10px; }
-.style-card-icon { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-text); }
-.style-card-text { display: grid; flex: 1; gap: 1px; min-width: 0; }
-.style-card-text strong { font-size: 14px; font-weight: 600; }
-.style-card-text span { font-size: 13px; color: var(--text-secondary); }
-.style-card-head .text-button { min-height: 36px; color: var(--accent-text); font-weight: 600; }
-.style-invite strong { font-size: 14px; font-weight: 600; }
-.style-invite span { font-size: 13px; line-height: 1.45; color: var(--text-secondary); }
-.style-invite .secondary-button { justify-self: start; min-height: 44px; }
 .style-conditions-label { margin-top: 6px; }
-.your-style .style-card .control-hint { margin: 0; }
 
 /* iOS-style switch row */
 .ios-switch-row { justify-content: space-between; padding: 0 2px 0 12px; background: var(--card); }
@@ -305,3 +294,14 @@
 .style-line .text-button { flex: none; }
 /* One "Your style" card per design, whatever else is in the review panel. */
 .style-feedback ~ .style-feedback { display: none; }
+/* Review: designing in my style, decided right above Generate. */
+.style-switch { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 16px; background: var(--card); cursor: pointer; transition: border-color 220ms var(--ease-soft, ease), background-color 220ms var(--ease-soft, ease); }
+.style-switch.is-on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--card)); }
+.style-switch.is-empty { cursor: default; }
+.style-switch-text { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.style-switch-text strong { font-size: 15px; font-weight: 600; }
+.style-switch-text > span { font-size: 13px; line-height: 1.35; color: var(--text-secondary); }
+.style-switch-thumbs { display: flex; gap: 5px; margin-top: 5px; }
+.style-switch-thumbs img { width: 30px; height: 30px; border-radius: 8px; object-fit: cover; }
+.style-switch .text-button { flex: none; min-height: 44px; color: var(--accent-text); font-weight: 600; }
+

@@ -28,6 +28,7 @@
   --sc-taupe: #A08F7E;
   --sc-charcoal: #3C3C3C;
   --sc-gold: #D4B583;
+  --on-gold: #23190b; /* text and symbols on gold */
   --sc-space: 8px;
 
   --r-card: 22px;
@@ -85,7 +86,7 @@ button {
     opacity var(--fast);
 }
 button:active:not(:disabled) {
-  transform: scale(0.985);
+  transform: scale(.98);
 }
 button:disabled {
   cursor: default;
@@ -1124,7 +1125,7 @@ main {
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); pointer-events: none; opacity: 0;
   animation: saved-note 3400ms ease 2950ms both;
 }
-.saved-note svg { width: 18px; height: 18px; fill: none; stroke: var(--sc-gold, #D9B77E); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.saved-note svg { width: 18px; height: 18px; fill: none; stroke: var(--sc-gold); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .saved-note path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: saved-tick 520ms ease-out 3250ms both; }
 @keyframes saved-note { 0% { opacity: 0; transform: translateY(6px); } 10%, 84% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
 @keyframes saved-tick { to { stroke-dashoffset: 0; } }
@@ -2130,7 +2131,7 @@ button.option-card:hover {
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.38);
 }
-.splash-primary:active, .splash-outline:active { transform: scale(0.985); }
+.splash-primary:active, .splash-outline:active { transform: scale(.98); }
 .splash-outline:hover { background: rgba(255, 255, 255, 0.08); }
 .splash-tagline {
   margin: 0;
@@ -2246,7 +2247,7 @@ button.option-card:hover {
   color: var(--text-primary);
   border: 1px solid var(--border);
 }
-.photo-primary:active, .photo-outline:active { transform: scale(0.985); }
+.photo-primary:active, .photo-outline:active { transform: scale(.98); }
 .photo-primary:disabled, .photo-outline:disabled { opacity: 0.55; }
 .photo-secondary-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .photo-secondary-row button {
@@ -2422,7 +2423,7 @@ button.option-card:hover {
   background: var(--sc-gold);
   transition: opacity var(--fast), transform var(--fast);
 }
-.present-button:active { transform: scale(0.985); }
+.present-button:active { transform: scale(.98); }
 .present-button:disabled { opacity: 0.45; }
 .present-close {
   color: rgba(244, 241, 236, 0.86);

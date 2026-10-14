@@ -47,7 +47,11 @@ export function SideRailProvider({ children }: { children: React.ReactNode }) {
     root.style.setProperty("--rail-width", `${bar.rail.width}px`);
     root.style.setProperty("--rail-height", `${bar.rail.height}px`);
     root.style.setProperty("--side-bar-inset", `${bar.inset}px`);
-    if (bar.fold) { root.dataset.fold = "true"; root.style.setProperty("--fold-left", `${bar.fold.x}px`); root.style.setProperty("--fold-width", `${bar.fold.width}px`); }
+    // Partly folded: the band content keeps clear of. Only an upright fold (the open display on its side) splits a layout.
+    if (bar.fold) {
+      root.dataset.fold = bar.fold.height >= bar.fold.width ? "vertical" : "horizontal";
+      root.style.setProperty("--fold-left", `${bar.fold.x}px`); root.style.setProperty("--fold-width", `${bar.fold.width}px`);
+    }
     return () => { delete root.dataset.sideBar; delete root.dataset.railShort; delete root.dataset.fold; names.forEach(name => root.style.removeProperty(name)); };
   }, [bar]);
 

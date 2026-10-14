@@ -2,6 +2,7 @@
 import { Fragment, createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Bell, Check, Copy, FileText, Lock, Mail, MessageSquare, Plus, Send, Trash2, X } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
+import { features } from "@/config/features";
 import {
   createLab, createShare, labEmail, listLabs, removeLab, replyFile, revokeShare, type Lab, type LabPackFile, type LabReply, type LabShare,
 } from "@/services/labs/labsApi";
@@ -28,6 +29,8 @@ export function LabsProvider({ children }: { children: React.ReactNode }) {
     catch (e) { setLabs(current => current ?? []); setError(e instanceof Error ? e.message : "Labs couldn’t be loaded."); }
   }, [token]);
   useEffect(() => {
+    // Labs are hidden until the feature ships: nothing is fetched.
+    if (!features.labExport) { setLabs([]); return; }
     void reload();
     // Pick up opens and replies while the portal is open.
     const timer = setInterval(() => { if (document.visibilityState === "visible") void reload(); }, 60_000);

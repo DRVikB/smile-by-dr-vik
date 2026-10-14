@@ -5,12 +5,13 @@ import { SavedCaseViewer } from "@/components/SavedCaseViewer";
 import { caseIdOf } from "@/models/case";
 import { savedCaseExport } from "@/lib/savedCaseExport";
 import { AI_CONCEPT_SUMMARY } from "@/lib/brand";
-import { CASE_STATUSES, CASE_TAGS, MAX_TAGS, PHOTO_SLOTS, caseTitle, cleanTag, initialsOf, type CaseStatus, type CaseConsent, type PhotoSlot, type PortalDetails, type PortalPatch } from "@/lib/portal";
+import { SHOWN_CASE_STATUSES, CASE_TAGS, MAX_TAGS, PHOTO_SLOTS, caseTitle, cleanTag, initialsOf, type CaseStatus, type CaseConsent, type PhotoSlot, type PortalDetails, type PortalPatch } from "@/lib/portal";
 import type { CaseRepository } from "@/services/cases/caseRepository";
 import { PhotoSet, PhotoViewer } from "./PhotoSet";
 import { ConsentStatus } from "@/components/consent/ConsentSheet";
 import { LabReplies, SendToLab, ShareState, useLabs, type LabPackOption } from "./labs";
 import { dataUrlToBlob, designRows, relativeDate, type CaseVersion } from "./portalData";
+import { features } from "@/config/features";
 
 type Tab = "details" | "design" | "notes" | "lab";
 
@@ -155,7 +156,7 @@ export function PortalCase({ caseId, repository, onBack, onOpenStudio, initialTa
           onClick={async () => { await repository.setFavourite(latest.entry.id, !favourite); void load(); }}><Heart size={17} fill={favourite ? "currentColor" : "none"} /></button>}
         <button className="pt-btn pt-btn-line" disabled={!frontThumb && !hasDraft} title={!frontThumb && !hasDraft ? "Add a smile front photo first" : undefined}
           onClick={async () => onOpenStudio(caseId, { hasDraft, name, front: hasDraft ? undefined : (await loadFull("front")) ?? undefined })}><PenLine size={16} />{versions?.length || hasDraft ? "Open in Design Studio" : "Design this smile"}</button>
-        <button className="pt-btn pt-btn-line" disabled={!reference} title={!reference ? "Add a case reference first" : undefined} onClick={() => setSending(true)}><Send size={16} />Send to lab</button>
+        {features.labExport && <button className="pt-btn pt-btn-line" disabled={!reference} title={!reference ? "Add a case reference first" : undefined} onClick={() => setSending(true)}><Send size={16} />Send to lab</button>}
         <button className="pt-btn pt-btn-dark" disabled={!version} onClick={() => setPresenting("view")}><MonitorPlay size={16} />Present to patient</button>
         <span className="pt-menu-wrap">
           <button className="pt-btn pt-btn-line pt-btn-icon" aria-label="More actions" aria-expanded={menu} onClick={() => { setMenu(m => !m); setConfirm(null); }}><MoreHorizontal size={18} /></button>
@@ -173,7 +174,7 @@ export function PortalCase({ caseId, repository, onBack, onOpenStudio, initialTa
       </div>
     </div>
     {!name && !reference && versions !== null && <div className="pt-callout" role="note">
-      <div><b>Give this case a name or reference</b><span>So you can find it again, and so labs see your practice reference rather than a date.</span></div>
+      <div><b>Give this case a name or reference</b><span>{features.labExport ? "So you can find it again, and so labs see your practice reference rather than a date." : "So you can find it again, by your practice reference rather than a date."}</span></div>
       <button className="pt-btn pt-btn-gold pt-btn-small" onClick={() => { setTab("details"); setTimeout(() => nameInput.current?.focus(), 50); }}>Add details</button>
     </div>}
 
@@ -198,16 +199,16 @@ export function PortalCase({ caseId, repository, onBack, onOpenStudio, initialTa
 
       <aside className="pt-card pt-panel">
         <div className="pt-tabs" role="tablist">
-          {(["details", "design", "notes", "lab"] as Tab[]).map(t => <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{t === "lab" ? `Lab${caseShares.length ? ` (${caseShares.length})` : ""}` : t[0].toUpperCase() + t.slice(1)}</button>)}
+          {(["details", "design", "notes", ...(features.labExport ? ["lab"] : [])] as Tab[]).map(t => <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{t === "lab" ? `Lab${caseShares.length ? ` (${caseShares.length})` : ""}` : t[0].toUpperCase() + t.slice(1)}</button>)}
         </div>
         {tab === "details" && <div>
           <div className="pt-who"><span className="pt-ini">{initialsOf(name || reference)}</span><div><b>{caseTitle(name, reference, createdAt)}</b><small>{reference ? `Case ${reference}` : "No reference yet"}</small></div></div>
           <ConsentStatus consent={details.consent} patientName={name} caseLabel={reference || caseTitle(name, reference, createdAt)} onSave={saveConsent} />
           <label className="pt-field">Patient name or initials<input ref={nameInput} value={name} maxLength={60} onChange={e => setName(e.target.value)} onBlur={() => name !== (details.name ?? "") && void save({ name })} /></label>
           <label className="pt-field">Case reference<input value={reference} maxLength={40} placeholder="e.g. SR-1024" onChange={e => setReference(e.target.value)} onBlur={() => reference !== (details.reference ?? "") && void save({ reference })} />
-            <span className="pt-hint">Your practice reference. Labs see this, not the name. Avoid dates of birth or NHS numbers.</span></label>
+            <span className="pt-hint">Your practice reference{features.labExport ? ". Labs see this, not the name" : ""}. Avoid dates of birth or NHS numbers.</span></label>
           <p className="pt-sec">Status</p>
-          <div className="pt-seg">{CASE_STATUSES.map(s => <button key={s.id} className={status === s.id ? "on" : ""} onClick={() => void save({ status: s.id })}>{s.label}</button>)}</div>
+          <div className="pt-seg">{SHOWN_CASE_STATUSES.map(s => <button key={s.id} className={status === s.id ? "on" : ""} onClick={() => void save({ status: s.id })}>{s.label}</button>)}</div>
           <p className="pt-sec">Tags</p>
           <div className="pt-tag-picker">
             {[...CASE_TAGS, ...tags.filter(t => !(CASE_TAGS as readonly string[]).includes(t))].map(t => {
@@ -227,9 +228,9 @@ export function PortalCase({ caseId, repository, onBack, onOpenStudio, initialTa
         </div>}
         {tab === "notes" && <div>
           <textarea className="pt-notes" value={notes} maxLength={2000} placeholder="What the patient wants, concerns, next steps…" onChange={e => setNotes(e.target.value)} onBlur={() => notes !== (details.notes ?? "") && void save({ notes })} />
-          <p className="pt-hint">Notes stay with the case. They go to a lab only if you include them.</p>
+          <p className="pt-hint">Notes stay with the case.{features.labExport ? " They go to a lab only if you include them." : ""}</p>
         </div>}
-        {tab === "lab" && <div>
+        {tab === "lab" && features.labExport && <div>
           {caseShares.length ? caseShares.map(s => <div key={s.id}><div className="pt-labrow"><span className="pt-lab-mark small">{initialsOf(s.labName)}</span><div><b>{s.labName}</b><small>Sent {new Date(s.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} · expires {new Date(s.expiresAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</small></div><ShareState share={s} /></div><LabReplies share={s} /></div>)
             : <p className="pt-hint">Not sent to a lab yet.</p>}
           {details.consent && !details.consent.agreed.lab && <p className="pt-warn">The patient didn’t agree to their photos being shared with a lab. Record a new consent first if they’ve changed their mind.</p>}

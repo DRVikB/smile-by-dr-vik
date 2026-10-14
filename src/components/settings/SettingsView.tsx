@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BadgeCheck, Check, ChevronLeft, FolderOpen, Info, LayoutDashboard, Palette, PlayCircle, ShieldCheck, UserRound } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { CasesSection, ManageCasesPage } from "./CasesSettings";
-import { DataPrivacyPage, ManageDataPage, PrivacySection } from "./PrivacySettings";
+import { DataPrivacyPage, PermissionsPage, ManageDataPage, PrivacySection } from "./PrivacySettings";
 import { AccountSection, EditProfilePage, ProfileHeader, SignInMethodsPage, SignOutSection } from "./ProfileSettings";
 import { PlanCard, PlanDetailsPage } from "./SubscriptionSettings";
 import { AboutPage, HelpAboutSection, HelpPage } from "./SupportSettings";
@@ -30,7 +30,7 @@ const SECTIONS: { key: SettingsSection; label: string; Icon: typeof UserRound }[
 const ADMIN_SECTION = { key: "admin" as const, label: "Admin", Icon: LayoutDashboard };
 
 const PAGE_TITLES = {
-  editProfile: "Edit Profile", signIn: "Sign-in Methods", plan: "Plan & Usage", dataPrivacy: "Data & Privacy",
+  editProfile: "Edit Profile", signIn: "Sign-in Methods", plan: "Plan & Usage", dataPrivacy: "Data & Privacy", permissions: "App Permissions",
   manageData: "Manage Data", help: "Help", about: "About SmileCompose", admin: "Admin",
 } as const;
 const CASE_TITLES = { active: "Manage Cases", archived: "Archived Cases", deleted: "Recently Deleted" } as const;
@@ -145,6 +145,7 @@ export function SettingsView({ initialSection, onClose, onSectionChange }: {
         : page.kind === "signIn" ? <SignInMethodsPage />
           : page.kind === "plan" ? <PlanDetailsPage />
             : page.kind === "dataPrivacy" ? <DataPrivacyPage />
+              : page.kind === "permissions" ? <PermissionsPage />
               : page.kind === "manageData" ? <ManageDataPage />
                 : page.kind === "about" ? <AboutPage />
                   : page.kind === "admin" ? (admin.isAdmin ? <AdminView embedded /> : null)

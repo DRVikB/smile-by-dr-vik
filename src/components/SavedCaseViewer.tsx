@@ -42,9 +42,9 @@ export function SavedCaseViewer({ entry, media, analysis: startWithAnalysis = fa
         fill={{ ...media.photoMetadata, analysisSnapshot: media.photoMetadata?.analysisSnapshot ?? media.analysisSnapshot }} />
       <footer className="saved-case-footer">
         <span>{entry.patientName || "Saved case"} · {entry.label || "Before & after"}</span>
-        <p>{isDemo ? "Demo concept · Sample imagery, not a patient result." : AI_CONCEPT_SUMMARY}</p>
         <div className="saved-case-actions"><button type="button" className="primary-button" onClick={() => setSharing(true)}><Share2 size={17} />Export &amp; share</button>
         {!analysis && <button type="button" className="saved-case-analysis" onClick={() => setAnalysis(true)}><AnalysisSymbol size={16} />Smile analysis</button>}</div>
+        <p>{isDemo ? "Demo concept · Sample imagery, not a patient result." : AI_CONCEPT_SUMMARY}</p>
       </footer>
     </div>
     {sharing && <ShareSheet input={savedCaseExport(entry, media, record)} entryId={entry.id}

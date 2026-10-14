@@ -1,3 +1,4 @@
+import { features } from "@/config/features";
 /**
  * The web portal's case details: a name or initials, the practice reference, status, notes and the
  * clinical photo set. They sync with the case (state.portal); photos become CLINICAL_PHOTO assets.
@@ -21,11 +22,14 @@ export const CASE_STATUSES = [
   { id: "done", label: "Completed" },
 ] as const;
 export type CaseStatus = typeof CASE_STATUSES[number]["id"];
+/** The statuses offered to the clinician: "With lab" only once Labs ship. A saved "lab" status still reads correctly. */
+export const SHOWN_CASE_STATUSES = CASE_STATUSES.filter(s => s.id !== "lab" || features.labExport);
 /**
  * The patient's consent for this case, signed on the device. A template for the practice's own legal review;
  * the version changes whenever the wording does, so each record shows exactly what was agreed.
  */
-export const CONSENT_VERSION = "2026-10-consent-v1";
+/** v2: the lab-sharing statement is left out while Labs are hidden (v1 offered it). */
+export const CONSENT_VERSION = features.labExport ? "2026-10-consent-v1" : "2026-10-consent-v2";
 export const CONSENT_ITEMS = [
   { id: "photos", required: true, text: "My dentist may take photographs of my face and teeth and use them to plan and discuss my treatment." },
   { id: "concept", required: true, text: "I understand the smile design is a computer-generated visualisation to help us discuss options. It is not a guarantee of how my teeth will look after treatment." },
@@ -34,6 +38,8 @@ export const CONSENT_ITEMS = [
   { id: "marketing", required: false, text: "Photos of my smile may be used in the practice’s marketing, such as its website or social media." },
 ] as const;
 export type ConsentItem = typeof CONSENT_ITEMS[number]["id"];
+/** The statements the patient is asked to agree to (and that a signed record lists). */
+export const SHOWN_CONSENT_ITEMS = CONSENT_ITEMS.filter(i => i.id !== "lab" || features.labExport);
 export interface CaseConsent {
   version: string;
   signedAt: number;

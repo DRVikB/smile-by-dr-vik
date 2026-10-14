@@ -10,7 +10,7 @@ export type SettingsSection = "profile" | "subscription" | "cases" | "appearance
 /** Second-level pages: detail, explanations and destructive controls live here, not on the main list. */
 export type SettingsPage =
   | { kind: "editProfile" } | { kind: "signIn" } | { kind: "plan" } | { kind: "cases"; filter: CaseState }
-  | { kind: "dataPrivacy" } | { kind: "manageData" } | { kind: "help" } | { kind: "about" } | { kind: "admin" };
+  | { kind: "dataPrivacy" } | { kind: "permissions" } | { kind: "manageData" } | { kind: "help" } | { kind: "about" } | { kind: "admin" };
 
 export interface ConfirmRequest {
   title: string;

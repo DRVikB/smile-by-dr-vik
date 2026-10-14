@@ -12,13 +12,13 @@
   color: var(--text-primary); background: var(--surface-elevated); border: 1px solid var(--border); box-shadow: var(--shadow-sm);
   cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform 300ms var(--spring), opacity 200ms var(--ease-soft);
 }
-.rail-button:active:not(:disabled) { transform: scale(.94); }
+.rail-button:active:not(:disabled) { transform: scale(.95); }
 .rail-button:disabled { opacity: .38; box-shadow: none; }
 .rail-button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.rail-button.prominent { color: #23190b; background: var(--accent-gradient); border-color: transparent; }
+.rail-button.prominent { color: var(--on-gold); background: var(--accent-gradient); border-color: transparent; }
 .rail-button[aria-pressed="true"] { color: var(--on-selected); background: var(--selected-fill); border-color: transparent; }
 .rail-button .rail-avatar { width: 100%; height: 100%; border-radius: 50%; }
-.rail-badge { position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--accent-gradient); color: #23190b; font-size: 11px; font-weight: 700; line-height: 16px; text-align: center; }
+.rail-badge { position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--accent-gradient); color: var(--on-gold); font-size: 11px; font-weight: 700; line-height: 16px; text-align: center; }
 
 /* The More menu opens beside the rail, towards the content. */
 .rail-menu { position: relative; }
@@ -126,9 +126,9 @@ html[data-side-bar] .app-shell .app-header .sc-brand-header-start:not(:has(*)), 
 .side-rail .studio-tabs button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .side-rail .studio-tabs button svg { width: 22px; height: 22px; color: inherit; }
 .side-rail .studio-tabs button.is-done { color: var(--accent-text); background: var(--accent-soft); }
-.side-rail .studio-tabs button.is-active { color: #23190b; background: var(--accent-gradient); box-shadow: 0 6px 14px -8px rgba(120, 88, 40, .8), inset 0 1px 0 rgba(255, 255, 255, .45); }
-.side-rail .studio-tabs button.is-active svg { color: #23190b; }
-.side-rail .studio-tabs button:active { transform: scale(.94); }
+.side-rail .studio-tabs button.is-active { color: var(--on-gold); background: var(--accent-gradient); box-shadow: 0 6px 14px -8px rgba(120, 88, 40, .8), inset 0 1px 0 rgba(255, 255, 255, .45); }
+.side-rail .studio-tabs button.is-active svg { color: var(--on-gold); }
+.side-rail .studio-tabs button:active { transform: scale(.95); }
 .side-rail .studio-tabs button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 /* Smile analysis on iPhone Duo, closed: the panel is centred on the display, as the photograph is,
@@ -180,4 +180,14 @@ html[data-side-bar] .side-rail .studio-tabs button { width: var(--rail-item); he
 /* As large as the 44pt buttons comfortably hold. */
 html[data-side-bar] .side-rail:has(.studio-tabs) .rail-button > svg,
 html[data-side-bar] .side-rail .studio-tabs button svg { width: min(26px, calc(var(--rail-item) * .6)); height: min(26px, calc(var(--rail-item) * .6)); }
+
+/* iPhone Duo, partly folded with the open display on its side: the studio splits at the fold, the
+   photograph on the near half and the steps on the far half, so nothing sits across the crease. */
+@media (min-width: 700px) and (orientation: landscape) {
+  html[data-fold="vertical"] .studio { gap: calc(var(--fold-width) + 24px); }
+  html[data-fold="vertical"] .studio-stage { flex: 0 0 calc(var(--fold-left) - max(20px, var(--app-safe-left, 0px)) - 12px); }
+  html[data-fold="vertical"] .studio-dock { flex: 1 1 auto; min-width: 0; }
+  /* Smile analysis: the readings stay on the near half. */
+  html[data-fold="vertical"] .analysis-panel { max-width: calc(var(--fold-left) - 32px); }
+}
 

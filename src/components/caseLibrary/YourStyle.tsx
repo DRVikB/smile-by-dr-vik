@@ -1,74 +1,11 @@
 "use client";
-import { BookMarked, Plus } from "lucide-react";
+import { BookMarked } from "lucide-react";
 import { CaseFeatures } from "@/components/CaseFeatures";
 import { useAccount } from "@/components/account/AccountProvider";
 import { DEFAULT_STYLE_REFERENCE_LIMIT, findMatchingStyleReferences } from "@/lib/styleMatching";
 import type { SmileSettings } from "@/lib/types";
-import { useCaseLibrary } from "./caseLibraryContext";
-
-/**
- * Compose: which of the clinician's Case Library references suit this design.
- * The count is a preview; the server makes the same match for the actual request.
- */
-export function YourStyle({ settings, onChange }: { settings: SmileSettings; onChange: (s: SmileSettings) => void }) {
-  const lib = useCaseLibrary();
-  const account = useAccount();
-  const cases = lib.cases;
-  const matches = cases ? findMatchingStyleReferences(lib.candidates, settings, DEFAULT_STYLE_REFERENCE_LIMIT) : [];
-  const on = settings.libraryStyle;
-
-  let body: React.ReactNode;
-  if (lib.mode === "signedOut") {
-    body = (
-      <div className="style-invite">
-        <strong>Make results more like your own work</strong>
-        <span>Sign in to add your finished cases as private style references.</span>
-        <button type="button" className="secondary-button" onClick={() => account.openAuth("signIn")}>Sign In</button>
-      </div>
-    );
-  } else if (cases === null) {
-    body = <p className="control-hint">Checking your Case Library…</p>;
-  } else if (cases.length === 0) {
-    body = (
-      <div className="style-invite">
-        <strong>Make results more like your own work</strong>
-        <span>Add your finished bonding and porcelain cases, and SmileCompose can use them as style references for designs like this.</span>
-        <button type="button" className="secondary-button" onClick={() => lib.open({ add: true })}><Plus size={15} strokeWidth={2} aria-hidden="true" />Add Cases</button>
-      </div>
-    );
-  } else {
-    body = (
-      <div className="style-card">
-        <div className="style-card-head">
-          <span className="style-card-icon" aria-hidden="true"><BookMarked size={16} strokeWidth={1.8} /></span>
-          <span className="style-card-text">
-            <strong>{on && matches.length ? "Designing in your style" : "Case Library"}</strong>
-            <span>{matches.length ? `${matches.length} matching ${matches.length === 1 ? "reference" : "references"}` : "No close style match found"}</span>
-          </span>
-          <button type="button" className="text-button" onClick={() => lib.open()}>View</button>
-        </div>
-        <label className="style-toggle ios-switch-row">
-          <span>Design in my style</span>
-          <input type="checkbox" role="switch" checked={on} onChange={e => onChange({ ...settings, libraryStyle: e.target.checked })} />
-        </label>
-        <p className="control-hint">
-          {!on
-            ? "No Case Library references will be sent with this design."
-            : matches.length
-              ? `Your closest ${settings.treatment === "Porcelain" ? "porcelain" : "composite"} ${matches.length === 1 ? "case is" : "cases are"} sent with this photo as style guidance for contour, texture and finish. ${lib.mode === "device" ? "" : "The patient’s own anatomy always comes from this photo."}`.trim()
-              : `None of your ${cases.length} ${cases.length === 1 ? "case matches" : "cases match"} this treatment and these teeth, so none will be sent. Add a matching case to use your style here.`}
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="control-group your-style">
-      <div className="control-label"><span>Your style</span><span className="muted">Your Case Library</span></div>
-      {body}
-    </div>
-  );
-}
+import { useContext } from "react";
+import { CaseLibraryContext, useCaseLibrary } from "./caseLibraryContext";
 
 /** Optional starting conditions that sharpen Case Library matching (kept under More). */
 export function StartingConditions({ settings, onChange }: { settings: SmileSettings; onChange: (s: SmileSettings) => void }) {
@@ -108,3 +45,51 @@ export function StyleLine({ settings, onChange }: { settings: SmileSettings; onC
     </div>
   );
 }
+
+/** Whether a design can follow the clinician's Case Library at all (not whitening, alignment only or one-tooth matching). */
+export function styleApplies(settings: SmileSettings): boolean {
+  return settings.treatment !== "Whitening" && !settings.toothMatch && !(settings.alignment?.only && settings.treatmentMode !== "full_arch");
+}
+
+/**
+ * Review: the one switch for designing in the clinician's own style, right above Generate, so it is
+ * decided before anything is made. On, it shows the cases that will guide the design; with none to
+ * match it says so; signed out or with an empty library it offers to add cases.
+ */
+export function StyleSwitch({ settings, onChange }: { settings: SmileSettings; onChange: (s: SmileSettings) => void }) {
+  const lib = useContext(CaseLibraryContext);
+  const account = useAccount();
+  const cases = lib?.cases ?? null;
+  if (!lib || !styleApplies(settings) || (cases === null && lib.mode !== "signedOut")) return null;
+  if (lib.mode === "signedOut" || !cases?.length) {
+    return (
+      <div className="style-switch is-empty">
+        <span className="style-switch-text"><strong>Design in my style</strong><span>Add your finished cases so results follow your own work.</span></span>
+        <button type="button" className="text-button" onClick={() => (lib.mode === "signedOut" ? account.openAuth("signIn") : lib.open({ add: true }))}>{lib.mode === "signedOut" ? "Sign in" : "Add cases"}</button>
+      </div>
+    );
+  }
+  const matches = findMatchingStyleReferences(lib.candidates, settings, DEFAULT_STYLE_REFERENCE_LIMIT);
+  const on = settings.libraryStyle;
+  const thumbs = matches.map(m => cases.find(c => c.id === m.id)).filter(c => c?.thumbnailUrl);
+  return (
+    <label className={`style-switch${on ? " is-on" : ""}`}>
+      <span className="style-switch-text">
+        <strong>In my style</strong>
+        <span>{!on ? "Off. Your Case Library is not used" : matches.length ? `${matches.length} of your cases guide this design` : "None of your cases match this design yet"}</span>
+        {on && thumbs.length > 0 && <span className="style-switch-thumbs" aria-hidden="true">{thumbs.map(c => <img key={c!.id} src={c!.thumbnailUrl!} alt="" />)}</span>}
+      </span>
+      <input type="checkbox" role="switch" className="studio-switch" aria-label="Design in my style" checked={on}
+        onChange={e => onChange({ ...settings, libraryStyle: e.target.checked })} />
+    </label>
+  );
+}
+
+/** Whether Generate will actually send style references for this design (the button's label says so). */
+export function useStyleInUse(settings: SmileSettings): boolean {
+  // The studio also renders on its own (previews and checks), where there is no Case Library.
+  const lib = useContext(CaseLibraryContext);
+  if (!lib || !settings.libraryStyle || !styleApplies(settings) || !lib.cases?.length) return false;
+  return findMatchingStyleReferences(lib.candidates, settings, DEFAULT_STYLE_REFERENCE_LIMIT).length > 0;
+}
+

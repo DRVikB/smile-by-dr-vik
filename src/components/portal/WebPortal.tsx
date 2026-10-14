@@ -12,6 +12,7 @@ import { PortalCase } from "./PortalCase";
 import { LabNotifications, LabsProvider, LabsView, useLabs } from "./labs";
 import { AdminView, useAdmin } from "./AdminView";
 import { photoForSlot, relativeDate, usePortalCases, type PortalCaseCard, type SlotPhotos } from "./portalData";
+import { features } from "@/config/features";
 
 type View = { name: "home" } | { name: "cases" } | { name: "labs" } | { name: "admin" } | { name: "new"; files?: File[] } | { name: "case"; id: string; tab?: "lab" };
 type Filter = "all" | CaseStatus | "fav";
@@ -60,7 +61,7 @@ function Portal({ onOpenStudio }: { onOpenStudio: (caseId: string, start: Portal
         {nav("home", "Home", Home)}
         {nav("cases", "Cases", CalendarDays, cases?.length)}
         <button className="pt-nav-item" onClick={() => caseLibrary.open()}><LibraryBig size={19} strokeWidth={1.7} />Case Library</button>
-        {nav("labs", "Labs", FlaskConical, openLabs)}
+        {features.labExport && nav("labs", "Labs", FlaskConical, openLabs)}
         {admin.isAdmin && nav("admin", "Admin", ShieldCheck, view.name === "admin" ? 0 : admin.unseen)}
         <hr />
         <button className="pt-nav-item" onClick={() => account.openSettings("profile")}><UserRound size={19} strokeWidth={1.7} />Account</button>
@@ -83,7 +84,7 @@ function Portal({ onOpenStudio }: { onOpenStudio: (caseId: string, start: Portal
             : <p className="pt-hint">No cases match “{query}”.</p>}</div>}
         </label>
         <AllowancePill className="pt-allowance" />
-        <LabNotifications onOpenCase={id => go({ name: "case", id, tab: "lab" })} />
+        {features.labExport && <LabNotifications onOpenCase={id => go({ name: "case", id, tab: "lab" })} />}
         <button className="pt-me" onClick={() => account.openSettings("profile")}>
           {account.avatarUrl ? <img src={account.avatarUrl} alt="" /> : <span className="pt-av">{account.initials}</span>}
           <span><b>{account.displayName || "Your account"}</b><small>{account.user?.email}</small></span>
@@ -92,7 +93,7 @@ function Portal({ onOpenStudio }: { onOpenStudio: (caseId: string, start: Portal
       <div className="pt-page">
         {view.name === "home" && <HomeView cases={cases} onOpen={id => go({ name: "case", id })} onNew={files => go({ name: "new", files })} name={account.displayName ?? ""} repository={repository} />}
         {view.name === "cases" && <CasesView cases={cases} onOpen={id => go({ name: "case", id })} onNew={() => go({ name: "new" })} />}
-        {view.name === "labs" && <LabsView onOpenCase={id => go({ name: "case", id })} />}
+        {view.name === "labs" && features.labExport && <LabsView onOpenCase={id => go({ name: "case", id })} />}
         {view.name === "admin" && admin.isAdmin && <AdminView />}
         {view.name === "new" && <NewCaseView initialFiles={view.files} onCancel={() => go({ name: "home" })} repository={repository}
           onSaved={id => go({ name: "case", id })} onDesign={(id, start) => onOpenStudio(id, start)} />}
@@ -129,7 +130,7 @@ function HomeView({ cases, onOpen, onNew, name, repository }: { cases: PortalCas
   const [over, setOver] = useState(false);
   const shown = (cases ?? []).filter(c => (filter === "all" || (filter === "fav" ? c.favourite : c.status === filter)) && (!tag || c.labels.includes(tag)));
   const usedTags = [...new Set((cases ?? []).flatMap(c => c.labels))];
-  const filters: [Filter, string][] = [["all", "All"], ["progress", "In progress"], ["lab", "With lab"], ["done", "Completed"], ["fav", "Favourites"]];
+  const filters: [Filter, string][] = [["all", "All"], ["progress", "In progress"], ...(features.labExport ? [["lab", "With lab"] as [Filter, string]] : []), ["done", "Completed"], ["fav", "Favourites"]];
   return <section className="pt-view">
     <div className="pt-row pt-between">
       <div><h1 className="pt-h1">{greeting(name)}</h1><p className="pt-sub">Pick up where you left off, or drop in a new patient’s photos to start.</p></div>
@@ -225,7 +226,7 @@ function NewCaseView({ initialFiles, onCancel, onSaved, onDesign, repository }: 
   return <section className="pt-view">
     <button className="pt-back" onClick={onCancel}><ArrowRight size={15} className="pt-flip" />Home</button>
     <h1 className="pt-h1">New case</h1>
-    <p className="pt-sub">Add the photos you have. Only the smile front is needed to design; the rest stay with the case and can go to the lab.</p>
+    <p className="pt-sub">Add the photos you have. Only the smile front is needed to design; the rest stay with the case{features.labExport ? " and can go to the lab" : ""}.</p>
     <div className="pt-newgrid">
       <div className="pt-card pt-pad">
         <PhotoSet thumbs={photos} layout="large" busy={busy} onAdd={change}
