@@ -75,11 +75,20 @@ export function Onboarding({ appReady, onCreateFirst }: {
   }, [local, userId, save, account]);
 
   const ready = appReady && account.ready && local !== null && deviceHasCases !== null;
+  // Never trap anyone behind "Loading your workspace…": after a short wait the app opens anyway, and any
+  // onboarding still due is shown on a later launch.
+  const [waitedTooLong, setWaitedTooLong] = useState(false);
+  const statusLoading = statusState === "loading" || statusState === "idle";
+  useEffect(() => {
+    if (!statusLoading) { setWaitedTooLong(false); return; }
+    const timer = window.setTimeout(() => setWaitedTooLong(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [statusLoading]);
   const decision = ready ? onboardingDecision({
     accountsConfigured: configured,
     userId,
     statusLoaded: statusState === "loaded",
-    statusFailed: statusState === "failed",
+    statusFailed: statusState === "failed" || waitedTooLong,
     profile: status?.profile ?? null,
     hasPro: hasProAccess,
     deviceHasCases: Boolean(deviceHasCases),

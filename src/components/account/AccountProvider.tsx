@@ -276,11 +276,10 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
       return;
     }
     setStatusState("loading");
-    void (async () => {
-      const info = await identifyPurchaser(userId).catch(() => null);
-      if (!cancelled) setCustomerInfo(info);
-      if (!cancelled) await refreshStatus();
-    })();
+    // The account's own status never waits on the App Store: a purchases sign-in that is slow or never
+    // answers (the simulator, a poor connection) must not hold the app on "Loading your workspace…".
+    void refreshStatus();
+    void identifyPurchaser(userId).catch(() => null).then(info => { if (!cancelled) setCustomerInfo(info); });
     return () => { cancelled = true; };
   }, [userId, refreshStatus]);
 

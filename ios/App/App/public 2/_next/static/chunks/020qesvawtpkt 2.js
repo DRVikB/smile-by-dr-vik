@@ -1,0 +1,1 @@
+(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,41243,e=>{"use strict";e.s(["downloadBlob",0,function(e,o){let t=URL.createObjectURL(e),c=document.createElement("a");c.href=t,c.download=o,document.body.appendChild(c),c.click(),c.remove(),setTimeout(()=>URL.revokeObjectURL(t),6e4)}])}]);
