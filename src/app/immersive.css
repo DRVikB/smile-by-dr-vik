@@ -386,15 +386,22 @@
   .composing-line { margin-top: 8px; }
   .generation-splash-copy { padding-bottom: 150px; }
 }
-/* iPad upright: the whole composition (mark, heading, note, dots, stage and line) is one block on the
-   screen's centre, not split between the top and the foot. */
+/* iPad upright: composed as on the open iPhone Duo, on the screen's centre line. The mark, a one-line
+   heading and the note at the top, the smile clear in the middle, and the dots, stage and a long gold line
+   along the foot. */
 @media (min-width: 700px) and (min-height: 600px) and (orientation: portrait) {
-  html:not([data-side-bar]) .generation-splash-content { align-items: center; padding-top: 0; padding-bottom: 0; }
-  html:not([data-side-bar]) .generation-splash-copy { justify-content: center; gap: clamp(30px, 4.2vh, 56px); margin: auto; padding-bottom: 0; }
-  /* The words now sit over the middle of the photograph, so the shade is even across it. */
-  html:not([data-side-bar]) .generation-splash::before { background: radial-gradient(ellipse 70% 55% at 50% 50%, rgba(14, 12, 11, .74) 0%, rgba(14, 12, 11, .56) 55%, rgba(14, 12, 11, .42) 100%); }
-  html:not([data-side-bar]) .composing-progress { position: static; width: min(460px, 100%); margin-inline: auto; }
-  html:not([data-side-bar]) .composing-line { width: 100%; }
+  html:not([data-side-bar]) .generation-splash-content { align-items: stretch; padding: clamp(10px, 2.4vh, 32px) clamp(28px, 6vw, 64px) 12px; }
+  html:not([data-side-bar]) .generation-splash-copy { display: flex; flex-direction: column; justify-content: space-between; gap: 24px; width: 100%; margin: 0 auto; padding-bottom: 0; }
+  html:not([data-side-bar]) :is(.generation-splash-intro, .generation-splash-status) { text-align: center; }
+  html:not([data-side-bar]) .generation-splash .composing-mark { width: clamp(80px, 8.5vh, 110px); margin: 0 auto clamp(12px, 1.8vh, 22px); }
+  html:not([data-side-bar]) .generation-splash-copy h2 br { display: none; }
+  html:not([data-side-bar]) .generation-splash-copy h2 { font-size: clamp(44px, 6.6vw, 64px); }
+  html:not([data-side-bar]) .generation-splash-intro > .composing-note { max-width: 52ch; min-height: 1.6em; margin: 12px auto 0; }
+  html:not([data-side-bar]) .composing-progress { position: static; display: block; text-align: center; }
+  html:not([data-side-bar]) .composing-dots { justify-content: center; margin: 0 0 16px; gap: 11px; }
+  html:not([data-side-bar]) .composing-stage { font-size: 18px; }
+  html:not([data-side-bar]) .composing-line { width: 100%; height: 3px; margin: 22px auto 0; }
+  html:not([data-side-bar]) .generation-splash-status { margin-top: 0; padding-bottom: max(18px, calc(var(--safe-bottom) + 8px)); }
 }
 /* iPad on its side: a larger mark, carrying the left of the screen. */
 @media (min-width: 700px) and (min-height: 600px) and (orientation: landscape) {
