@@ -25,7 +25,11 @@ export const NON_RENDER_FIELDS = {
 export function normalizeGenerationContract(s: SmileSettings, context: RenderContext = {}) {
   const fullArch = s.treatmentMode === "full_arch" ? { ...(s.fullArch ?? DEFAULT_FULL_ARCH), arch: "both" as const, restorationType: "zirconia" as const, prostheticGingiva: s.fullArch?.prostheticGingiva === "include" ? "include" as const : "exclude" as const } : undefined;
   const mode: ContractMode = fullArch ? "full_arch" : s.alignment?.only ? "alignment" : s.treatment === "Whitening" ? "whitening" : "restorative";
-  const teeth = fullArch || mode === "alignment" ? [] : activeToothPlans(s).map(p => ({ ...p, intent: resolvedToothIntent(s, p), targetShade: p.targetShade ?? s.targetShade }));
+  const upper = fullArch || mode === "alignment" ? [] : activeToothPlans(s).map(p => ({ ...p, intent: resolvedToothIntent(s, p), targetShade: p.targetShade ?? s.targetShade }));
+  // "Include lower teeth": each selected upper tooth's partner in the lower arch, with the same plan.
+  const teeth = mode === "restorative" && s.lowerTeeth && !isToothMatch(s)
+    ? [...upper, ...upper.filter(p => p.tooth < 30).map(p => ({ ...p, tooth: p.tooth < 20 ? p.tooth + 30 : p.tooth + 10 }))]
+    : upper;
   const contour = mode === "full_arch" || (mode === "restorative" && teeth.some(p => p.intent !== "Shade only"));
   const arcActive = contour && s.shotType === "Full face" && (fullArch ? true : canGuideSmileArc(s));
   return {
@@ -51,7 +55,7 @@ function shadeInstruction(shade: TargetShade): string {
   if (shade === "The same") return "No intentional shade change from the source appearance. Do not whiten or brighten, regardless of intensity, material or reference shade. Photographic colour is not calibrated shade matching.";
   if (shade === "Whiten") return "Gently whiten relative to the photographed shade, retaining warmth, depth and shadows.";
   if (shade === "Bleach") return "A brighter bleached-white appearance, retaining natural depth and shadows.";
-  return `Clinician-selected target: ${shade} shade. This is an illustrative shade preference, not calibrated colour prediction.`;
+  return `Clinician-selected target: ${shade} shade. This is an illustrative shade preference, not calibrated colour prediction. Never make a tooth darker or more yellow than it is in the photo: a tooth already lighter than ${shade} keeps at least its photographed lightness.`;
 }
 export function toothDesignInstruction(p: ToothPlan): string {
   const parts: string[] = [];
@@ -105,7 +109,7 @@ export function renderGenerationContract(c: GenerationContract, format: "canonic
   if (fullArch) {
     const arch = "upper and lower";
     instructions.push(`TREATMENT: ${arch} full-arch fixed ${fullArch.restorationType} restorative concept. This is a visual restorative concept only. Reconstruct the visible selected arch as a coherent fixed prosthesis; replace compromised, broken-down, discoloured, irregular, spaced or missing visible teeth only within this selected arch.`);
-    instructions.push(fullArch.restorationType === "zirconia" ? "Material: layered, characterised zirconia as a skilled laboratory would finish it: slightly deeper, warmer colour near the gum, the chosen shade through the body of each tooth, and gentle translucency with a faint bright halo at the biting edges. Fine surface texture (soft vertical ridges and growth lines) with a natural, not mirror-like, glaze. Never flat, uniform, opaque or paper white; never a denture or a row of identical blocks. Material does not grant gingival permission." : "Material: provisional (PMMA), slightly more uniform acrylic appearance and lower lustre than final ceramic, still natural and believable.");
+    instructions.push(fullArch.restorationType === "zirconia" ? "Material: high-end layered zirconia finished to the standard of the best porcelain veneers: clean, bright and lifelike, the chosen shade through the body of each tooth, gentle translucency and a faint bright halo at the biting edges, and a natural lustre with fine surface texture (soft vertical ridges and growth lines). Upper and lower teeth match in shade and finish. Never dull, grey, beige or yellowed; never flat, chalky or opaque; never a denture or a row of identical blocks. Material does not grant gingival permission." : "Material: provisional (PMMA), slightly more uniform acrylic appearance and lower lustre than final ceramic, still natural and believable.");
   } else if (mode === "alignment") instructions.push(alignmentInstruction(c.alignment!));
   else if (mode === "whitening") instructions.push("TREATMENT: WHITENING: dental colour/shade change only. Preserve tooth position, width, length, morphology, incisal edges, surface texture, contacts, spacing and wear, except for separately selected alignment positioning if present. Shape, texture, length and width preferences cannot authorise geometric changes.");
   else instructions.push(`TREATMENT: ${c.treatment}. ${resolveDesignPlan({ treatment: c.treatment } as SmileSettings).material}`);
@@ -116,7 +120,7 @@ export function renderGenerationContract(c: GenerationContract, format: "canonic
     instructions.push("REGION: visible upper and lower arch. Both arches are selected only where visible; never draw hidden portions.");
   } else if (mode === "alignment") instructions.push("REGION: only the selected alignment arches. Other teeth are contextual references, not intentional edit targets.");
   else {
-    instructions.push(`REGION: Modify only visible existing selected teeth (FDI: ${c.teeth.map(p => p.tooth).join(", ")}). FDI left/right is the patient's. Never add or remove teeth. Preserve untreated teeth in both arches${c.alignment ? ", except for the separate positioning permission in the selected alignment arches" : ""}.${mode === "restorative" ? ` UNTREATED TEETH: every tooth not listed, the lower teeth included, keeps its photographed colour, brightness, shape${c.alignment ? " and length" : ", length and position"}, however much whiter or more regular the treated teeth become: never whiten, ${c.alignment ? "" : "straighten, "}tidy or rebuild them to match. A visible difference in shade between treated and untreated teeth is expected and correct.` : ""} Skip uncertain teeth. Missing or obscured identities must be skipped; do not invent replacements. Neighbouring teeth are contextual references, not intentional edit targets.${c.alignment ? "" : " Preserve the existing dental midline. Preserve tooth positions, axes, rotations and arch form."}`);
+    instructions.push(`REGION: Modify only visible existing selected teeth (FDI: ${c.teeth.map(p => p.tooth).join(", ")}). FDI left/right is the patient's. Never add or remove teeth. Preserve untreated teeth in both arches${c.alignment ? ", except for the separate positioning permission in the selected alignment arches" : ""}.${mode === "restorative" ? ` UNTREATED TEETH: every tooth not listed${c.teeth.some(p => p.tooth > 30) ? "" : ", the lower teeth included"}, keeps its photographed colour, brightness, shape${c.alignment ? " and length" : ", length and position"}, however much whiter or more regular the treated teeth become: never whiten, ${c.alignment ? "" : "straighten, "}tidy or rebuild them to match. A visible difference in shade between treated and untreated teeth is expected and correct.` : ""} Skip uncertain teeth. Missing or obscured identities must be skipped; do not invent replacements. Neighbouring teeth are contextual references, not intentional edit targets.${c.alignment ? "" : " Preserve the existing dental midline. Preserve tooth positions, axes, rotations and arch form."}`);
     for (const p of c.preservedTeeth) instructions.push(`FDI ${p.tooth}: ${p.condition}, preserve unchanged.`);
   }
   // Veneers and bonding are done on the teeth as they stand: nothing moves sideways.
@@ -126,7 +130,7 @@ export function renderGenerationContract(c: GenerationContract, format: "canonic
   }
   // 4. Design: normalised values only; report fields never become render commands.
   if (c.currentShade && mode !== "alignment") instructions.push(`${c.currentShade.source === "clinician" ? "Clinician-confirmed" : "Estimated visual"} current shade: ${c.currentShade.value}. Context only; do not override visible source appearance. Target shade defines intended output where change is selected.`);
-  if (fullArch) instructions.push(`Shade: ${shadeInstruction(c.targetShade)} For the new teeth this is the overall shade, built with natural variation: canines a touch warmer than incisors, slightly more colour at the gum and translucency at the edges. Not one flat white. The new teeth are never darker or more yellow than the photographed teeth: where those are already light, the new teeth are at least as light.`);
+  if (fullArch) instructions.push(`Shade: ${shadeInstruction(c.targetShade)} For the new teeth this is the overall shade, built with natural variation: canines a touch warmer than incisors and translucency at the edges. Not one flat white.${["The same", "Whiten", "Bleach"].includes(c.targetShade) ? " The new teeth are never darker or more yellow than the photographed teeth: where those are already light, the new teeth are at least as light." : ""}`);
   else if (mode === "alignment") instructions.push(`Shade: ${shadeInstruction(c.targetShade)}`);
   else {
     const shadeGroups = new Map<TargetShade, number[]>();

@@ -112,3 +112,8 @@ test('identical tooth rules are grouped to keep paid prompt input small', () => 
   assert.equal(prompt.split("SHADE ONLY: Change only").length - 1, 1);
   assert.match(prompt, /FDI 11, 12, 13, 14, 21, 22, 23, 24: Natural/);
 });
+
+test("the teeth summary counts the matching lower teeth when they're included", () => {
+  assert.equal(toothSummary({ selectedTeeth: [14, 13, 12, 11, 21, 22, 23, 24], lowerTeeth: true, treatment: "Porcelain" }), "8 upper + 8 lower teeth");
+  assert.equal(toothSummary({ selectedTeeth: [14, 13, 12, 11, 21, 22, 23, 24], lowerTeeth: true, treatment: "Whitening" }), "8 upper teeth");
+});

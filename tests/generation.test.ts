@@ -313,3 +313,21 @@ test("style references never change how large the patient's teeth appear", () =>
   assert.match(prompt, /each treated tooth keeps its photographed width/);
 });
 
+
+test("Include lower teeth: the matching lower teeth get the same plan, and the untreated rule no longer names them", () => {
+  const settings = { ...defaultSettings, treatment: "Porcelain" as const, lowerTeeth: true };
+  assert.equal(settingsSchema.safeParse(settings).success, true);
+  const prompt = buildSmileInstruction(settings, false);
+  assert.match(prompt, /FDI: 14, 13, 12, 11, 21, 22, 23, 24, 44, 43, 42, 41, 31, 32, 33, 34\b/);
+  assert.match(prompt, /UNTREATED TEETH: every tooth not listed, keeps/);
+  const upperOnly = buildSmileInstruction({ ...settings, lowerTeeth: undefined }, false);
+  assert.match(upperOnly, /FDI: 14, 13, 12, 11, 21, 22, 23, 24\)/);
+  assert.match(upperOnly, /the lower teeth included/);
+  // Whitening and alignment-only ignore it.
+  assert.doesNotMatch(buildSmileInstruction({ ...settings, treatment: "Whitening" }, false), /\b44\b/);
+});
+
+test("a named shade never darkens a tooth that is already lighter", () => {
+  const prompt = buildSmileInstruction({ ...defaultSettings, targetShade: "A1" }, false);
+  assert.match(prompt, /Never make a tooth darker or more yellow than it is in the photo: a tooth already lighter than A1 keeps at least its photographed lightness/);
+});

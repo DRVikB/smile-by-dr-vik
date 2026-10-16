@@ -290,6 +290,13 @@ export function DesignStudio({
               {INTERNAL_SINGLE_TOOTH && <button type="button" aria-pressed={individual || Boolean(settings.toothPlans)} className={individual || settings.toothPlans ? "selected" : ""}
                 onClick={() => { setIndividual(true); toothMap?.setPicking(true); }}>Custom</button>}
             </div>
+            {!match && <label className="studio-switch-row studio-lower">
+              <span className="studio-treatment-text">
+                <strong>Include lower teeth</strong>
+                <small>The matching lower teeth get the same treatment and shade</small>
+              </span>
+              <input type="checkbox" role="switch" className="studio-switch" checked={Boolean(settings.lowerTeeth)} onChange={e => { haptic("select"); change("lowerTeeth", e.target.checked || undefined); }} />
+            </label>}
             {match ? <OneToothPlan settings={settings} onChange={onChange} guideStatus={guide?.status} onAdjust={() => go("shape")} />
               : <SelectedTeethSummary settings={settings} notFound={INTERNAL_SINGLE_TOOTH && toothMap?.map ? settings.selectedTeeth.filter(t => !mappedTeeth(toothMap.map).includes(t)) : []} />}
             {INTERNAL_SINGLE_TOOTH && toothMap?.map && <ToothPicking controller={toothMap} />}

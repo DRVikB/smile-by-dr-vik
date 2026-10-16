@@ -129,6 +129,8 @@ export interface SmileSettings {
   teeth: TeethCount;
   selectedTeeth: number[];
   toothPlans?: ToothPlan[];
+  /** Veneers and bonding: the matching lower teeth (4x for 1x, 3x for 2x) get the same treatment and shade. Off when absent. */
+  lowerTeeth?: boolean;
   /** One upper front tooth rebuilt on the device as a mirror of its partner (chipped, worn or missing). */
   toothMatch?: import("./smileDesign/toothMatch").ToothMatch;
   caseFeatures?: CaseFeature[];

@@ -10,11 +10,11 @@ export function updateToothPlan(s: SmileSettings, plan: ToothPlan): SmileSetting
   const toothPlans = [...plans.filter(p => p.tooth !== plan.tooth), plan].sort((a,b) => a.tooth-b.tooth);
   return { ...s, toothPlans, selectedTeeth: toothPlans.filter(p => p.intent !== "Preserve" && p.condition !== "Missing").map(p => p.tooth) };
 }
-export function toothSummary(s: Pick<SmileSettings, "selectedTeeth"> & Partial<Pick<SmileSettings, "treatmentMode" | "fullArch">>): string {
+export function toothSummary(s: Pick<SmileSettings, "selectedTeeth"> & Partial<Pick<SmileSettings, "treatmentMode" | "fullArch" | "lowerTeeth" | "treatment" | "toothMatch">>): string {
   // Full-arch: the arch is the selection.
   if (s.treatmentMode === "full_arch" && s.fullArch) return s.fullArch.arch === "both" ? "Upper + lower full arch" : `${s.fullArch.arch === "upper" ? "Upper" : "Lower"} full arch`;
   const upper = s.selectedTeeth.filter(id => id < 30).length;
-  const lower = s.selectedTeeth.length - upper;
+  const lower = s.selectedTeeth.length - upper + (s.lowerTeeth && s.treatment !== "Whitening" && !s.toothMatch ? upper : 0);
   if (!upper && !lower) return "No teeth selected";
   return [upper && `${upper} upper`, lower && `${lower} lower`].filter(Boolean).join(" + ") + " teeth";
 }

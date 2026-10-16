@@ -4,7 +4,7 @@ import { compositeMasked, measureProtectedRegionChange, editableRegionRange } fr
 import { detectFace, detectFaceDetailed } from "./landmarks";
 import { planMouthLock, pixelLockPlan, mouthTransitionMask, lipsCanBeFollowed, type MouthLockFailure } from "./lock";
 import { alignByPixels, pixelMatchAccepted, samePhotograph } from "./pixelAlign";
-import { OUTER_LIP, pick } from "./geometry";
+import { INNER_LIP, OUTER_LIP, pick, pointInPolygon } from "./geometry";
 
 export interface MouthLockResult {
   image: string;
@@ -16,6 +16,23 @@ export interface MouthLockResult {
   /** The source has a face but the returned image cannot be aligned to it. */
   invalidAlignment?: boolean;
   failureReason?: MouthLockFailure;
+}
+
+/** Mean brightness difference over the lips (outer lip outline less the opening), generated shifted by dx, dy. */
+function lipDifference(a: Uint8ClampedArray, b: Uint8ClampedArray, width: number, height: number, points: [number, number][], dx: number, dy: number): number | null {
+  const outer = pick(points, OUTER_LIP), inner = pick(points, INNER_LIP);
+  const xs = outer.map(p => p[0]), ys = outer.map(p => p[1]);
+  const step = Math.max(1, Math.round((Math.max(...xs) - Math.min(...xs)) / 160));
+  const luma = (d: Uint8ClampedArray, i: number) => 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  let sum = 0, n = 0;
+  for (let y = Math.max(0, Math.floor(Math.min(...ys))); y <= Math.min(height - 1, Math.ceil(Math.max(...ys))); y += step)
+    for (let x = Math.max(0, Math.floor(Math.min(...xs))); x <= Math.min(width - 1, Math.ceil(Math.max(...xs))); x += step) {
+      if (!pointInPolygon([x, y], outer) || pointInPolygon([x, y], inner)) continue;
+      const xb = x - dx, yb = y - dy;
+      if (xb < 0 || yb < 0 || xb >= width || yb >= height) continue;
+      sum += Math.abs(luma(a, (y * width + x) * 4) - luma(b, (yb * width + xb) * 4)); n++;
+    }
+  return n >= 50 ? sum / n : null;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -101,7 +118,14 @@ export async function lockFaceOutsideLips(
           const warped = pctx.getImageData(0, 0, width, height).data;
           const asDrawn = alignByPixels(source, drawn, width, height, face, mouthBox, Math.max(8, 0.015 * Math.max(width, height)));
           const throughWarp = alignByPixels(source, warped, width, height, face, mouthBox, 2);
-          if (pixelMatchAccepted(asDrawn) && (!throughWarp || asDrawn.meanDifference < throughWarp.meanDifference)) plan = pixelLockPlan(origPoints, asDrawn.dx, asDrawn.dy);
+          if (pixelMatchAccepted(asDrawn) && (!throughWarp || asDrawn.meanDifference < throughWarp.meanDifference)) {
+            plan = pixelLockPlan(origPoints, asDrawn.dx, asDrawn.dy);
+            // The same unreliable landmarks also report "moved" lips, which would clip the new teeth along
+            // the landmarks' lip line. Where the lips themselves match the photograph pixel for pixel, the
+            // redraw kept them, and the usual softer join applies.
+            const lips = lipDifference(source, drawn, width, height, origPoints, asDrawn.dx, asDrawn.dy);
+            if (lips !== null && lips <= Math.max(asDrawn.meanDifference * 2, asDrawn.meanDifference + 8)) plan = { ...plan, lipsMoved: false };
+          }
         }
       } catch { /* No pixel check available: the landmark plan stands. */ }
       finally { releaseCanvas(probe); }

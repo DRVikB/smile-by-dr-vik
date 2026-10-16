@@ -36,6 +36,7 @@ export const settingsSchema = z
     }).optional(),
     teeth: z.union([z.literal(4), z.literal(6), z.literal(8), z.literal(10)]),
     selectedTeeth: z.array(toothId).max(28),
+    lowerTeeth: z.boolean().optional(),
     caseFeatures: z.array(z.enum(caseFeatures)).max(6).optional(),
     toothPlans: z.array(z.object({
       tooth: toothId,

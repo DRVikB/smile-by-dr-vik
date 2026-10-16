@@ -186,10 +186,15 @@ export function ToothControls({ fdi, settings, onChange, onClose }: {
 /** "6 teeth selected" and "13 · 12 · 11 · 21 · 22 · 23". */
 export function SelectedTeethSummary({ settings, notFound }: { settings: SmileSettings; notFound: number[] }) {
   const teeth = fdiOrder(settings.selectedTeeth);
+  // "Include lower teeth" adds each upper tooth's lower partner (4x for 1x, 3x for 2x).
+  const lower = settings.lowerTeeth && settings.treatment !== "Whitening" && !settings.toothMatch
+    ? fdiOrder(teeth.filter(t => t < 30).map(t => (t < 20 ? t + 30 : t + 10))) : [];
+  const count = teeth.length + lower.length;
   return (
     <p className="studio-summary tooth-selection-summary">
-      <strong>{teeth.length === 1 ? "1 tooth selected" : `${teeth.length} teeth selected`}</strong>
+      <strong>{count === 1 ? "1 tooth selected" : lower.length ? `${count} teeth selected, upper and lower` : `${count} teeth selected`}</strong>
       <span>{teeth.join(" · ") || "Tap teeth on the photo to select them."}</span>
+      {lower.length > 0 && <span>{lower.join(" · ")}</span>}
       {notFound.length > 0 && <small>{fdiOrder(notFound).join(", ")} {notFound.length === 1 ? "isn’t" : "aren’t"} in this photo’s tooth map, so {notFound.length === 1 ? "it stays" : "they stay"} unchanged. Add {notFound.length === 1 ? "it" : "them"} in Edit if visible.</small>}
     </p>
   );
