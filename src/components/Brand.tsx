@@ -2,7 +2,7 @@ import { SMILECOMPOSE } from "@/lib/brand";
 
 export function CreatorSignature({ inverse = false, className = "" }: { inverse?: boolean; className?: string }) {
   return <span className={`sc-creator${inverse ? " sc-creator-inverse" : ""} ${className}`}>
-    <span>Designed By</span>
+    <span>Designed by</span>
     <img src="/dr-vik-logo.png" alt="Dr Vik" width={1086} height={447} />
   </span>;
 }
@@ -38,7 +38,7 @@ export function BrandLaunch() {
     </span>
     <span className="sc-wordmark">{SMILECOMPOSE.wordmark}</span>
     <span className="sc-creator sc-launch-creator">
-      <span>Designed By</span>
+      <span>Designed by</span>
       <img src="/brand/dr-vik-logo-bronze.png" alt="Dr Vik" width={1080} height={453} fetchPriority="high" />
     </span>
   </div>;

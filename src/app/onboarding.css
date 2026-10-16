@@ -388,21 +388,6 @@
 .profile-button:focus-visible { outline: 2px solid var(--sc-gold); outline-offset: 2px; }
 .start-profile { position: absolute; z-index: 3; top: max(16px, calc(var(--safe-top) + 12px)); right: max(18px, var(--safe-right)); }
 .nav-avatar { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--sc-gold); color: var(--sc-charcoal); font-size: 11px; font-weight: 700; letter-spacing: .02em; }
-.recent-cases { width: min(440px, 100%); margin-top: 22px; }
-.recent-cases-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.recent-cases h2 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0; color: rgba(250, 249, 246, .72); }
-.recent-cases-all { display: inline-flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 2px; background: none; border: 0; color: rgba(250, 249, 246, .88); font-size: 13px; cursor: pointer; }
-.recent-cases ul { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
-.recent-case {
-  display: grid; gap: 6px; width: 100%; padding: 6px; border-radius: 12px; text-align: left; cursor: pointer;
-  background: rgba(250, 249, 246, .12); border: 1px solid rgba(250, 249, 246, .24); color: var(--sc-ivory);
-  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-}
-.recent-case:focus-visible { outline: 2px solid var(--sc-gold); outline-offset: 2px; }
-.recent-case img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; }
-.recent-case span { display: grid; min-width: 0; padding: 0 2px 2px; }
-.recent-case strong { overflow: hidden; font-size: 12px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
-.recent-case small { font-size: 11px; color: rgba(250, 249, 246, .7); }
 
 /* iPhone: the card never scrolls. It takes the height its content needs (sized by the screen's height
    as well as its width) and the picture fills whatever is left above it. */

@@ -1596,6 +1596,7 @@ export default function Smile() {
               </div>
               <div className="portrait-top">
                 <BrandLockup inverse />
+                <span className="sc-brand-rule" aria-hidden="true" />
                 <CreatorSignature inverse />
               </div>
               <ProfileButton className="start-profile" />
@@ -1620,9 +1621,9 @@ export default function Smile() {
                       Case Library
                     </button>
                   </div>
+                  <RecentCases refreshKey={logOpen} onOpen={id => { setLogEntry(id); setLogOpen(true); }} onSeeAll={() => { setLogEntry(undefined); setLogOpen(true); }} />
                 </div>
                 <AllowancePill className="on-photo" />
-                <RecentCases refreshKey={logOpen} onOpen={id => { setLogEntry(id); setLogOpen(true); }} onSeeAll={() => { setLogEntry(undefined); setLogOpen(true); }} />
               </div>
               <div className="hero-footer">
                 <p className="splash-tagline">

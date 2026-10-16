@@ -146,11 +146,11 @@
 }
 /* The main gold actions also deepen a shade under the finger. */
 :is(.primary-button, .compact-dock-save, .photo-primary, .splash-primary):active:not(:disabled) { filter: brightness(.93); }
-:is(.log-row, .settings-row, .cl-item, .version-open, .recent-case):active:not(:disabled) {
+:is(.log-row, .settings-row, .cl-item, .version-open, .recent-card):active:not(:disabled) {
   transform: scale(.98);
   transition: transform 90ms var(--ease-soft);
 }
-:is(.log-row, .settings-row, .cl-item, .version-open, .recent-case) {
+:is(.log-row, .settings-row, .cl-item, .version-open, .recent-card) {
   transition: transform 320ms var(--spring), background-color 200ms var(--ease-soft), box-shadow 200ms var(--ease-soft);
 }
 
@@ -204,7 +204,7 @@
   .cl-notice, .settings-toast, .save-status, .scale-notice { animation: none; }
   :is(.primary-button, .secondary-button, .splash-primary, .splash-outline, .nav-back, .app-menu > summary, .icon-button,
       .profile-button, .compact-dock-save, .compact-dock-options, .action-button, .adjust-button, .case-rename-button,
-      .cl-sidebar-add, .version-star, .log-row, .settings-row, .cl-item, .version-open, .recent-case):active { transform: none; }
+      .cl-sidebar-add, .version-star, .log-row, .settings-row, .cl-item, .version-open, .recent-card):active { transform: none; }
   .settings-scroll, .settings-detail-body, .cl-main, .log-list, .version-grid, .floating-panel-body, .onboarding { scroll-behavior: auto; }
 }
 

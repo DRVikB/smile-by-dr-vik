@@ -174,10 +174,6 @@ input[type="checkbox"][role="switch"],
 .splash-pair .splash-outline { min-width: 0; gap: 8px; padding: 0 12px; font-size: 15px; white-space: nowrap; }
 .splash-pair .splash-outline svg { flex: none; }
 .splash-tagline { font-size: 12px; font-weight: 600; letter-spacing: .06em; color: rgba(250, 247, 242, .6); }
-.recent-cases h2 { font-family: var(--font-display); font-size: 22px; font-weight: 400; letter-spacing: -0.01em; color: #FAF7F2; }
-.recent-cases-all { font-size: 15px; color: rgba(250, 247, 242, .86); }
-.recent-case strong { font-size: 13px; font-weight: 600; }
-.recent-case img { border-radius: 12px; }
 .nav-avatar { background: var(--accent); color: var(--on-accent); letter-spacing: 0; }
 
 @media (max-width: 700px) and (max-height: 700px) and (orientation: portrait) {

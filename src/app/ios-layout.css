@@ -131,12 +131,8 @@ body:has(.app-shell[data-screen="photo"]) { overflow: hidden; }
   .app-shell[data-screen="photo"] .app-header { padding-bottom: 20px; }
 }
 @media (max-width: 700px) and (max-height: 700px) and (orientation: portrait) {
-  /* Home on short iPhones (SE-class): keep Recent Cases clear of the bottom edge. */
-  .start-screen .hero-footer { display: none; }
-  .start-screen .start-copy { padding-bottom: max(18px, var(--app-safe-bottom)); }
-  .start-screen .start-copy .splash-rule { margin-top: 16px; margin-bottom: 12px; }
-  .start-screen .start-copy .splash-actions { margin-top: 22px; }
-  .start-screen .start-copy .recent-cases { margin-top: 16px; }
+  /* Home on short iPhones (SE-class) and the closed Duo: a tighter rhythm, tagline kept. */
+  .start-screen .start-copy .splash-actions { margin-top: 16px; }
   .generation-splash-content { padding-block: 16px; }
   .generation-splash-copy h2 { font-size: 34px; }
   .generation-splash-intro > p { margin-top: 12px; }
