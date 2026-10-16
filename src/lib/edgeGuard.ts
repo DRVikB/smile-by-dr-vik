@@ -54,7 +54,7 @@ const median = (values: number[]) => {
  * upper teeth can't be told apart from what lies below (they reach the bottom
  * of the opening, for example meeting the lower teeth).
  */
-export function upperTeethRuns(weights: Float32Array, opening: Uint8Array, w: number, h: number, x0: number, x1: number): (Run | null)[] {
+export function upperTeethRuns(weights: Float32Array, opening: Uint8Array, w: number, h: number, x0: number, x1: number, allowBottom = false): (Run | null)[] {
   const runs: (Run | null)[] = [];
   for (let x = x0; x <= x1; x++) {
     let top = -1, bottom = -1;
@@ -70,7 +70,8 @@ export function upperTeethRuns(weights: Float32Array, opening: Uint8Array, w: nu
       if (weights[y * w + x] > 0.5) { end = y; gap = 0; }
       else if (++gap > maxGap) break;
     }
-    runs.push(end >= bottom - Math.max(2, height * 0.06) ? null : [start, end]);
+    // (allowBottom: measure teeth that run to the bottom of the opening too, for quality control.)
+    runs.push(!allowBottom && end >= bottom - Math.max(2, height * 0.06) ? null : [start, end]);
   }
   return runs;
 }

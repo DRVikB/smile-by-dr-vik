@@ -15,7 +15,7 @@ const at = (m: { x0: number; y0: number; width: number; height: number; alpha: F
   return mx >= 0 && my >= 0 && mx < m.width && my < m.height ? m.alpha[my * m.width + mx] : 0;
 };
 
-test("full arch: parted lips in the result are kept, with a soft edge into the face", () => {
+test("lips the result parted are kept, with a soft edge into the face", () => {
   const p = plan(48);
   assert.equal(lipsCanBeFollowed(p), true);
   const strict = mouthTransitionMask(p, 400, 300), followed = mouthTransitionMask(p, 400, 300, { followLips: true });
@@ -29,14 +29,22 @@ test("full arch: parted lips in the result are kept, with a soft edge into the f
   assert.equal(at(followed, 30, 150), 0);
 });
 
-test("other treatments, unmoved lips and lips that moved too far keep the photographed opening", () => {
+test("lips not asked to follow, or moved too far, keep the photographed opening", () => {
   const p = plan(48);
-  // Not asked to follow (veneers, bonding, alignment).
+  // Not asked to follow.
   assert.equal(at(mouthTransitionMask(p, 400, 300), 200, 180), 0);
   // The result's lips have gone somewhere implausible: more than a third of the mouth's width.
   const far = plan(120);
   assert.equal(lipsCanBeFollowed(far), false);
   assert.equal(at(mouthTransitionMask(far, 400, 300, { followLips: true }), 200, 180), 0);
-  // No result contour to follow.
-  assert.equal(lipsCanBeFollowed({ ...p, generatedOuter: undefined }), false);
+});
+
+test("a pixel-verified result with no lip landmarks follows within a band around the patient's lips", () => {
+  const p = { ...plan(48), generatedOuter: undefined };
+  assert.equal(lipsCanBeFollowed(p), true);
+  const m = mouthTransitionMask(p, 400, 300, { followLips: true });
+  // Just below the photographed lips: included; well away from the mouth: the patient's face.
+  assert.equal(at(m, 200, 150 + 22 + 5), 1);
+  assert.equal(at(m, 200, 280), 0);
+  assert.equal(at(m, 20, 150), 0);
 });

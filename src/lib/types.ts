@@ -247,6 +247,8 @@ export interface GenerationResult {
   lipsFollowed?: boolean;
   /** Tooth Map protection: only these teeth could change; everything else is the original photo. */
   toothProtection?: ToothProtection;
+  /** Quality control on the final image (see qualityCheck.ts). Unset when it couldn't be measured. */
+  quality?: { passed: boolean; issues: import("./qualityCheck").QualityIssue[]; notes: import("./qualityCheck").QualityIssue[] };
 }
 export interface ToothProtection {
   /** Selected teeth that were found in the photo and allowed to change. */

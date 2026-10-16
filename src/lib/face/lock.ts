@@ -51,7 +51,7 @@ const MAX_SCALE = 1.18;
 const MAX_ANGLE = (8 * Math.PI) / 180;
 
 /** Invalidate reusable results made with the older, lip-inclusive mask. */
-export const MOUTH_LOCK_VERSION = "2026-10-16-pixel-check-v11";
+export const MOUTH_LOCK_VERSION = "2026-10-16-lips-follow-v12";
 
 /** Categorical device QA only; never capture image content or browser errors. */
 export const MOUTH_LOCK_FAILURE_CODES = [
@@ -159,24 +159,31 @@ export function mouthOpeningMask(plan: LockPlan, width: number, height: number):
 }
 
 /**
- * Full arch only. A whole-arch restoration on a mouth that shows little tooth (a worn or
- * overclosed bite) comes back with the lips parted to show the new teeth; pasting that through
- * the photographed opening leaves a thin strip of tooth. Here the lips may follow the result,
+ * When the image service moves the lips to show the new smile (a full arch on a mouth that shows
+ * little tooth, or veneers drawn a touch longer), pasting the result through the photographed
+ * opening crops the new teeth against the old lip line. The face outside the mouth has already been
+ * verified as this photograph, so the lips may follow the result,
  * as long as they stay close to where they were: each point of the outer lip within a third of
  * the mouth's width of its original place.
  */
 export function lipsCanBeFollowed(plan: LockPlan): boolean {
-  const moved = plan.generatedOuter;
-  if (!moved || moved.length !== plan.outerBoundary.length || moved.length < 3) return false;
   const xs = plan.outerBoundary.map(p => p[0]);
   const mouthWidth = Math.max(...xs) - Math.min(...xs);
-  return mouthWidth >= 20 && moved.every((p, i) => p.every(Number.isFinite) && distance(p, plan.outerBoundary[i]) <= mouthWidth / 3);
+  if (!(mouthWidth >= 20)) return false;
+  const moved = plan.generatedOuter;
+  // A pixel-verified edit (no reliable landmarks on the result) follows within a band around the lips.
+  if (!moved) return plan.outerBoundary.length >= 3;
+  if (moved.length !== plan.outerBoundary.length || moved.length < 3) return false;
+  return moved.every((p, i) => p.every(Number.isFinite) && distance(p, plan.outerBoundary[i]) <= mouthWidth / 3);
 }
 
 /** The original lips and the result's lips together, with a soft edge that fades into the skin around them. */
 function followedLipsMask(plan: LockPlan, width: number, height: number): Mask {
   const grow = plan.feather * 8, feather = plan.feather * 8;
-  const masks = [polygonMask(plan.outerBoundary, width, height, grow, feather), polygonMask(plan.generatedOuter!, width, height, grow, feather)];
+  // Without the result's lip landmarks, a wider band around the patient's lips holds the moved lips.
+  const masks = plan.generatedOuter
+    ? [polygonMask(plan.outerBoundary, width, height, grow, feather), polygonMask(plan.generatedOuter, width, height, grow, feather)]
+    : [polygonMask(plan.outerBoundary, width, height, grow * 2.5, feather * 1.5)];
   const x0 = Math.min(...masks.map(m => m.x0)), y0 = Math.min(...masks.map(m => m.y0));
   const x1 = Math.max(...masks.map(m => m.x0 + m.width)), y1 = Math.max(...masks.map(m => m.y0 + m.height));
   const w = x1 - x0, h = y1 - y0, alpha = new Float32Array(w * h);

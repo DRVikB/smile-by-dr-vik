@@ -89,6 +89,7 @@ import { generateSmileImage } from "@/services/ai/smileImageService";
 import { startGenerationDiagnostic, type GenerationStage } from "@/services/ai/generationDiagnostics";
 import { earliestGenerationStage } from "@/lib/generation/progress";
 import { EditAreaRequiredError, sourceProtectionPoints } from "@/lib/generation/sourceProtection";
+import { QUALITY_MESSAGES } from "@/lib/qualityCheck";
 import { isOnDeviceWhitening, ON_DEVICE_WHITENING_VERSION, whitenOnDevice } from "@/lib/whiteningDevice";
 import { isMatchTooth, isToothMatch, matchWhitens, partnerOf, toothLabel, withToothMatch } from "@/lib/smileDesign/toothMatch";
 import { onWorkspaceDetach, type WorkspaceLease } from "@/lib/workspace";
@@ -154,8 +155,8 @@ async function lockFace(
   const { lockFaceOutsideLips } = await import("@/lib/face/mouthLock");
   scope.assert();
   stage("mouth_composite");
-  // Full arch: the lips may follow the result when it parts them to show the new teeth (see lock.ts).
-  const r = await lockFaceOutsideLips(photo.dataUrl, image, alignment, { followLips: settings.treatmentMode === "full_arch" });
+  // The lips may follow the result when it moves them to show the new teeth, rather than crop them (see lock.ts).
+  const r = await lockFaceOutsideLips(photo.dataUrl, image, alignment, { followLips: true });
   scope.assert();
   if (r.invalidAlignment)
     throw new SmileGenerationError("The image service returned a preview that does not match your original photo's framing. It has not been shown or saved. Please generate again; your photo and selections are unchanged.", r.failureReason ?? "mouth_alignment_rejected");
@@ -164,7 +165,8 @@ async function lockFace(
   if (!r.locked && !photo.editMask && !preciseTooth)
     throw new SmileGenerationError("This preview could not be aligned and protected against your original face. It has not been presented. Your photo is safe; use Protect edit area or a clearer photo before trying again.", r.failureReason ?? "stage_failed");
   if (photo.editMask) stage("edit_area_composite");
-  let imageOut = photo.editMask ? await (await import("@/lib/editMask")).protectOutsideEditMask(photo.dataUrl, r.image, photo.editMask) : r.image;
+  // A close-up (no face to lock): the painted area, reaching to the lips when the design kept the rest of the photo.
+  let imageOut = photo.editMask ? await (await import("@/lib/editMask")).protectOutsideEditMask(photo.dataUrl, r.image, photo.editMask, { followService: !r.locked }) : r.image;
   let toothProtection: GenerationResult["toothProtection"];
   const archOnly = settings.treatmentMode === "full_arch" && settings.fullArch && settings.fullArch.arch !== "both" ? settings.fullArch.arch : null;
   const arch = archOnly ? await import("@/lib/toothMap/arch") : null;
@@ -1054,6 +1056,10 @@ export default function Smile() {
           ).catch(() => null);
           if (assessment) next = { ...next, scaleFlag: assessment.flag };
         }
+        // Quality control on what will be shown, against the photo and the service's own result.
+        const quality = await (await import("@/lib/qualityCheckImage")).assessResultQuality(photoIn, alignedImage, next.image, settingsIn).catch(() => null);
+        repository.scope.assert();
+        if (quality) next = { ...next, quality: { passed: quality.passed, issues: quality.issues, notes: quality.notes } };
         // Veneers and bonding can't move teeth: flag a result whose teeth (and midline) have slid sideways.
         if (settingsIn.treatmentMode !== "full_arch" && !settingsIn.alignment && settingsIn.treatment !== "Whitening" && !settingsIn.toothMatch) {
           const positions = await (await import("@/lib/positionCheck")).assessToothPositionsFromDataUrls(photoIn.dataUrl, next.image).catch(() => null);
@@ -1876,6 +1882,16 @@ export default function Smile() {
                 </span>
                 <span className="analysis-row-state" aria-hidden="true">{analysisOn ? "On" : "Off"}</span>
               </button>
+              {result.quality && !result.quality.passed && (
+                <p className="scale-notice quality-notice" role="alert">
+                  <span>Didn’t pass the quality check</span>{result.quality.issues.map(i => QUALITY_MESSAGES[i]).join(" ")} Generate again before presenting this version.
+                </p>
+              )}
+              {result.quality && result.quality.notes.length > 0 && (
+                <p className="scale-notice" role="status">
+                  <span>Beyond your selection</span>{result.quality.notes.map(i => QUALITY_MESSAGES[i]).join(" ")}{result.quality.notes.includes("lowerChanged") ? " If you prefer it, turn on Include lower teeth so it’s part of the design." : ""}
+                </p>
+              )}
               {result.scaleFlag === "grew" && (
                 <p className="scale-notice" role="status">
                   <span>Check the size</span>This result may show the teeth
@@ -1908,7 +1924,7 @@ export default function Smile() {
               )}
               {result.lipsFollowed && (
                 <p className="scale-notice" role="status">
-                  <span>Lips parted to show the teeth</span>This photo shows little tooth, so the full-arch concept is drawn with the lips slightly apart. Everything around the mouth is the original photograph. Check the smile suits the face before presenting it.
+                  <span>Lips adjusted to show the teeth</span>The design moved the lips slightly to show the new teeth, so the lips come from the design. Everything around the mouth is the original photograph. Check the smile suits the face before presenting it.
                 </p>
               )}
               {result.lipsMoved && !result.lipsFollowed && (
