@@ -147,8 +147,12 @@ function peaks(score: Float64Array, valid: (i: number) => boolean, threshold: nu
 
 /**
  * For a close-up (no face landmarks): the teeth's own region, so skin and
- * highlights elsewhere in the photo are never read as teeth. The largest
- * wide cluster of confident tooth pixels, with a margin; null if none.
+ * highlights elsewhere in the photo are never read as teeth. Pale skin can
+ * score as brightly as teeth, so each cluster of tooth-like pixels is ranked
+ * by its size, how white it is and how many edges it holds (the gaps between
+ * teeth; skin is smooth). Clusters beside the best one in the same row (teeth
+ * split by a gap or a missing tooth) join it. A margin is added; null if no
+ * wide region is found.
  */
 export function findTeethRegion(rgba: Uint8ClampedArray, w: number, h: number): Point[] | null {
   const score = new Float64Array(w * h);
@@ -156,27 +160,51 @@ export function findTeethRegion(rgba: Uint8ClampedArray, w: number, h: number): 
   const t = Math.max(otsu(score), quantile(Array.from(score.filter((_, i) => i % 7 === 0)), 0.98) * 0.5);
   const on = despeckle(Uint8Array.from(score, v => (v > t ? 1 : 0)), w, h);
   const seen = new Uint8Array(w * h);
-  let best: { area: number; x0: number; x1: number; y0: number; y1: number } | null = null;
+  type Cluster = { area: number; x0: number; x1: number; y0: number; y1: number; whiteness: number; rank: number };
+  const clusters: Cluster[] = [];
   const stack: number[] = [];
   for (let start = 0; start < w * h; start++) {
     if (!on[start] || seen[start]) continue;
-    let area = 0, x0 = w, x1 = 0, y0 = h, y1 = 0;
+    let area = 0, x0 = w, x1 = 0, y0 = h, y1 = 0, total = 0, edges = 0;
     stack.push(start);
     seen[start] = 1;
     while (stack.length) {
       const i = stack.pop()!;
       area++;
+      total += score[i];
       const x = i % w, y = (i - x) / w;
+      if (x > 0 && x < w - 1 && Math.abs(score[i + 1] - score[i - 1]) > 28) edges++;
       x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
       for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1])
         if (j >= 0 && on[j] && !seen[j]) { seen[j] = 1; stack.push(j); }
     }
-    const wide = (x1 - x0 + 1) / Math.max(1, y1 - y0 + 1) >= 1.4;
-    if (wide && (!best || area > best.area)) best = { area, x0, x1, y0, y1 };
+    if (area < w * h * 0.002) continue;
+    const whiteness = total / area;
+    clusters.push({ area, x0, x1, y0, y1, whiteness, rank: edges * whiteness });
   }
-  if (!best || best.area < w * h * 0.01) return null;
-  const mx = (best.x1 - best.x0) * 0.12, my = (best.y1 - best.y0) * 0.25;
-  const x0 = Math.max(0, best.x0 - mx), x1 = Math.min(w - 1, best.x1 + mx), y0 = Math.max(0, best.y0 - my), y1 = Math.min(h - 1, best.y1 + my);
+  if (!clusters.length) return null;
+  const best = clusters.reduce((a, b) => (b.rank > a.rank ? b : a));
+  // Grow along the row: a neighbour joins when it shares most of the region's height, sits
+  // close beside it, and is nearly as white.
+  const region = { ...best };
+  let area = best.area;
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const c of clusters) {
+      if (c === best || (c.x0 >= region.x0 && c.x1 <= region.x1 && c.y0 >= region.y0 && c.y1 <= region.y1)) continue;
+      const overlap = Math.min(c.y1, region.y1) - Math.max(c.y0, region.y0);
+      const gap = Math.max(c.x0 - region.x1, region.x0 - c.x1);
+      if (overlap < 0.5 * Math.min(c.y1 - c.y0, region.y1 - region.y0) || gap > w * 0.12 || c.whiteness < best.whiteness * 0.6) continue;
+      region.x0 = Math.min(region.x0, c.x0); region.x1 = Math.max(region.x1, c.x1);
+      region.y0 = Math.min(region.y0, c.y0); region.y1 = Math.max(region.y1, c.y1);
+      area += c.area;
+      grew = true;
+    }
+  }
+  const wide = (region.x1 - region.x0 + 1) / Math.max(1, region.y1 - region.y0 + 1) >= 1.4;
+  if (!wide || area < w * h * 0.01) return null;
+  const mx = (region.x1 - region.x0) * 0.12, my = (region.y1 - region.y0) * 0.25;
+  const x0 = Math.max(0, region.x0 - mx), x1 = Math.min(w - 1, region.x1 + mx), y0 = Math.max(0, region.y0 - my), y1 = Math.min(h - 1, region.y1 + my);
   return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
 }
 

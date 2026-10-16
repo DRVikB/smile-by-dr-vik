@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { fillPolygon, otsu, segmentTeeth, toothScore, type Point } from "../src/lib/toothMap/segment";
+import { fillPolygon, findTeethRegion, otsu, segmentTeeth, toothScore, type Point } from "../src/lib/toothMap/segment";
 import { buildEditRegion, compositeWithAlpha, influenceOutline, measureChange, toothEditRule, dilate, erode } from "../src/lib/toothMap/masks";
 import { protectionPlan } from "../src/lib/toothMap/protect";
 import { toothGeometry } from "../src/lib/toothMap/geometry";
@@ -453,4 +453,40 @@ test("smile design guides and worksheet guides are on by default; an explicit ch
   assert.deepEqual(readToothMapPrefs(store({ guides: { design: false } })).guides, { design: false, proportions: true, proportion: "natural" });
   assert.equal(readToothMapPrefs(store({ guides: { proportions: false, proportion: "golden" } })).guides.proportions, false);
   assert.equal(readToothMapPrefs({ getItem: () => "not json" }).guides.design, true, "unreadable storage falls back to on");
+});
+
+/** A close-up: warm skin, pale smooth skin above the lip, red lips, and a row of teeth with gaps between them. */
+function closeUp(missing: [number, number] | null = null) {
+  const w = 200, h = 120, rgba = new Uint8ClampedArray(w * h * 4);
+  const put = (x: number, y: number, [r, g, b]: number[]) => { const p = (y * w + x) * 4; rgba[p] = r; rgba[p + 1] = g; rgba[p + 2] = b; rgba[p + 3] = 255; };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let c = [200, 140, 120];                                                   // skin
+    if (y >= 8 && y < 48 && x >= 20 && x < 180) c = [235, 215, 200];           // pale, smooth skin above the lip
+    if (y >= 60 && y < 98 && x >= 30 && x < 170) c = [180, 80, 90];            // lips
+    if (y >= 68 && y < 90 && x >= 40 && x < 160) {
+      c = [245, 245, 240];                                                     // teeth
+      if ((x - 40) % 15 === 14 && y < 84) c = [150, 140, 135];                // the gaps between them
+      if (missing && x >= missing[0] && x < missing[1]) c = [70, 40, 45];      // a missing tooth
+    }
+    put(x, y, c);
+  }
+  return { rgba, w, h };
+}
+
+test("a close-up's teeth are found below pale skin that is brighter and larger than them", () => {
+  const { rgba, w, h } = closeUp();
+  const region = findTeethRegion(rgba, w, h);
+  assert.ok(region);
+  const ys = region.map(p => p[1]), xs = region.map(p => p[0]);
+  assert.ok(Math.min(...ys) > 55 && Math.max(...ys) < 100, `region rows ${Math.min(...ys)}–${Math.max(...ys)}`);
+  assert.ok(Math.min(...xs) <= 40 && Math.max(...xs) >= 159);
+});
+
+test("teeth split by a missing tooth are found as one row", () => {
+  const { rgba, w, h } = closeUp([92, 112]);
+  const region = findTeethRegion(rgba, w, h);
+  assert.ok(region);
+  const xs = region.map(p => p[0]), ys = region.map(p => p[1]);
+  assert.ok(Math.min(...ys) > 55 && Math.max(...ys) < 100, `region rows ${Math.min(...ys)}–${Math.max(...ys)}`);
+  assert.ok(Math.min(...xs) <= 40 && Math.max(...xs) >= 159, `region columns ${Math.min(...xs)}–${Math.max(...xs)}`);
 });

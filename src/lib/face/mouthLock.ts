@@ -84,6 +84,28 @@ export async function lockFaceOutsideLips(
       } catch { /* No pixel check available: the landmark rejection stands. */ }
       finally { releaseCanvas(probe); }
     }
+    if (plan?.warp && origPoints && face && mouthBox) {
+      // Landmarks on a face cut off by the frame (a mouth close-up that still shows the nose) can
+      // disagree with a faithful redraw and fit a shift or scale that isn't there, which squeezes the
+      // new teeth against the patient's lips. When the face outside the mouth lines up better as it
+      // was drawn (allowing a plain shift) than through the fitted warp, the pixels are trusted.
+      let probe: HTMLCanvasElement | undefined;
+      try {
+        probe = document.createElement("canvas"); probe.width = width; probe.height = height;
+        const pctx = probe.getContext("2d", { willReadFrequently: true });
+        if (pctx) {
+          pctx.drawImage(o, 0, 0, width, height); const source = pctx.getImageData(0, 0, width, height).data;
+          pctx.clearRect(0, 0, width, height); pctx.drawImage(g, 0, 0, width, height); const drawn = pctx.getImageData(0, 0, width, height).data;
+          const { a, b, tx, ty } = plan.transform;
+          pctx.clearRect(0, 0, width, height); pctx.setTransform(a, b, -b, a, tx, ty); pctx.drawImage(g, 0, 0, width, height); pctx.setTransform(1, 0, 0, 1, 0, 0);
+          const warped = pctx.getImageData(0, 0, width, height).data;
+          const asDrawn = alignByPixels(source, drawn, width, height, face, mouthBox, Math.max(8, 0.015 * Math.max(width, height)));
+          const throughWarp = alignByPixels(source, warped, width, height, face, mouthBox, 2);
+          if (pixelMatchAccepted(asDrawn) && (!throughWarp || asDrawn.meanDifference < throughWarp.meanDifference)) plan = pixelLockPlan(origPoints, asDrawn.dx, asDrawn.dy);
+        }
+      } catch { /* No pixel check available: the landmark plan stands. */ }
+      finally { releaseCanvas(probe); }
+    }
     if (!plan) return { ...untouched, invalidAlignment: Boolean(origPoints),
       failureReason: origPoints ? "mouth_alignment_rejected" : "mouth_source_landmarks_unavailable" };
     failureReason = "mouth_canvas_unavailable";
