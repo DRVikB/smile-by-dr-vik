@@ -1973,6 +1973,7 @@ export default function Smile() {
       )}
 
       {editAreaOpen && photo && <EditArea photo={photo} requiredBeforeGeneration={editAreaRequired} shotType={settings.shotType}
+        suggest={{ selectedTeeth: settings.selectedTeeth, wholeMouth: settings.treatmentMode === "full_arch" || Boolean(settings.alignment) || Boolean(settings.lowerTeeth) }}
         onShotTypeChange={shotType => setSettings(s => ({ ...s, shotType }))}
         onClose={() => setEditAreaOpen(false)} onSave={(mask) => { setPhoto({ ...photo, editMask: mask }); setEditAreaOpen(false); }} />}
       {camera && (

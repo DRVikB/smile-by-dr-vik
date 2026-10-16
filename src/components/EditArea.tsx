@@ -3,9 +3,11 @@ import { SideRailLayer } from "@/components/sideRail/SideRail";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Photo, ShotType } from "@/lib/types";
 
-export function EditArea({ photo, onSave, onClose, requiredBeforeGeneration = false, shotType, onShotTypeChange }: {
+export function EditArea({ photo, onSave, onClose, requiredBeforeGeneration = false, shotType, onShotTypeChange, suggest }: {
   photo: Photo; onSave: (mask: string | undefined) => void; onClose: () => void;
   requiredBeforeGeneration?: boolean; shotType?: ShotType; onShotTypeChange?: (value: ShotType) => void;
+  /** The design's teeth, so a close-up's area can be suggested from the teeth found on the device. */
+  suggest?: { selectedTeeth: number[]; wholeMouth: boolean };
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
@@ -23,6 +25,40 @@ export function EditArea({ photo, onSave, onClose, requiredBeforeGeneration = fa
   const [zoom, setZoom] = useState(100);
   const [error, setError] = useState("");
   const [ready, setReady] = useState(!photo.editMask);
+  const [suggested, setSuggested] = useState<"none" | "finding" | "drawn" | "not-found">("none");
+  // A close-up with no area yet: paint a suggestion from the teeth found on the device. It is only a
+  // starting point; nothing is used until the clinician saves it.
+  useEffect(() => {
+    if (photo.editMask || !suggest || shotType !== "Close-up") return;
+    let active = true;
+    setSuggested("finding");
+    void (async () => {
+      const { detectToothMap } = await import("@/lib/toothMap/detect");
+      const map = await detectToothMap(photo, "Close-up").catch(() => null);
+      const c = canvas.current, ctx = c?.getContext("2d");
+      if (!active || !c || !ctx) return;
+      const teeth = (map?.teeth ?? []).filter(t => t.visible);
+      const chosen = suggest.wholeMouth ? teeth : teeth.filter(t => t.fdi !== null && suggest.selectedTeeth.includes(t.fdi));
+      const use = chosen.length ? chosen : teeth;
+      if (!use.length) { setSuggested("not-found"); return; }
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = ctx.strokeStyle = "#35bfba"; ctx.lineJoin = ctx.lineCap = "round"; ctx.lineWidth = c.width * 0.028;
+      for (const t of use) {
+        ctx.beginPath();
+        t.outline.forEach(([x, y], i) => (i ? ctx.lineTo(x * c.width, y * c.height) : ctx.moveTo(x * c.width, y * c.height)));
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+      if (suggest.wholeMouth) {
+        // Alignment and full arch reach the lower teeth: extend the area down to the lower lip.
+        const ys = use.flatMap(t => t.outline.map(p => p[1])), xs = use.flatMap(t => t.outline.map(p => p[0]));
+        const top = Math.min(...ys), bottom = Math.max(...ys), h = bottom - top;
+        ctx.fillRect(Math.min(...xs) * c.width, (top + h * 0.3) * c.height, (Math.max(...xs) - Math.min(...xs)) * c.width, h * 1.1 * c.height);
+      }
+      setSuggested("drawn");
+    })();
+    return () => { active = false; };
+  // Suggested once, when the sheet opens.
+  }, [photo.dataUrl]);
   useEffect(() => {
     let active = true;
     requestAnimationFrame(centreView);
@@ -76,7 +112,10 @@ export function EditArea({ photo, onSave, onClose, requiredBeforeGeneration = fa
         <img src={photo.dataUrl} alt="Original photo: paint the teeth that may change" draggable={false} onLoad={centreView} />
         <canvas ref={canvas} width={photo.width} height={photo.height} aria-label="Paint allowed changes on the photo" style={{ touchAction: tool === "Move" ? "auto" : "none", pointerEvents: tool === "Move" ? "none" : "auto" }} onPointerDown={(e) => paint(e, true)} onPointerMove={(e) => paint(e)} onPointerUp={() => { last.current = null; }} onPointerCancel={() => { last.current = null; }} onLostPointerCapture={() => { last.current = null; }} />
       </div></div>
-      <p className="control-hint">Use Zoom for detail and Move to scroll the photo. Include the space for an intended edge addition, gap closure or planned alignment. The area applies to your next generation. This is your boundary, not automatic tooth detection. Review it whenever the selected teeth or goal changes.</p>
+      <p className="control-hint">Use Zoom for detail and Move to scroll the photo. Include the space for an intended edge addition, gap closure or planned alignment. The area applies to your next generation. This is your boundary: any suggested area is only a starting point for you to check. Review it whenever the selected teeth or goal changes.</p>
+      {suggested === "finding" && <p className="control-hint" role="status">Finding the teeth to suggest an area…</p>}
+      {suggested === "drawn" && <p className="control-hint" role="status">A suggested area is painted from the teeth found in this photo. Check it covers every tooth that may change, with no lips or untreated teeth, then use Paint or Erase to adjust it.</p>}
+      {suggested === "not-found" && <p className="control-hint" role="status">The teeth couldn’t be found in this photo, so paint the area yourself.</p>}
       {error && <p role="alert">{error}</p>}
       <div className="edit-area-actions"><button type="button" className="text-button" disabled={!ready} onClick={() => { canvas.current?.getContext("2d")?.clearRect(0, 0, photo.width, photo.height); setError(""); }}>Clear paint</button><button type="button" className="text-button" onClick={() => onSave(undefined)}>Remove edit area</button><button type="button" className="primary-button" disabled={!ready} onClick={save}>Use this edit area</button></div>
     </section>
