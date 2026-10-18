@@ -4,7 +4,7 @@ import { RailButton, RailItems, SheetClose, SideRailLayer, useSideRail } from "@
 import { PatientSyncStatus } from "./PatientSyncStatus";
 import { CaseMediaStatus } from "./CaseMediaStatus";
 import { useCaseMedia } from "./useCaseMedia";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Archive, Check, ChevronLeft, ChevronRight, CircleCheck, PenLine, Pencil, ScanEye, Search, Share2, Star, Trash2, X } from "lucide-react";
 import { AnalysisSymbol, SmileSymbol } from "@/components/icons/SmileIcons";
 import { AI_CONCEPT_DISCLAIMER } from "@/lib/brand";
@@ -60,9 +60,24 @@ const coverThumbs = (group: CaseGroup) =>
 const timeOf = (ms: number) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 const versionTitle = (entry: CaseLogEntry, index: number, total: number) => entry.label || `Version ${total - index}`;
 
-export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClose: () => void; initialEntryId?: string; onReopen?: (caseId:string)=>Promise<void>; onSignIn?: () => void }) {
+export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSignIn }: {
+  onClose: () => void; initialEntryId?: string;
+  /** Opened from Recent cases: that sheet's top edge. This sheet grows up from there instead of rising from the foot. */
+  continueFrom?: number;
+  onReopen?: (caseId:string)=>Promise<void>; onSignIn?: () => void;
+}) {
   // iPhone Duo: Back and Close sit in the side bar.
   const rail = useSideRail();
+  const panel = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = panel.current;
+    if (!el || continueFrom === undefined) return;
+    // Where the sheet rests, from layout (offsetTop ignores the entrance transform already applied to it).
+    const restingTop = (el.offsetParent?.getBoundingClientRect().top ?? 0) + el.offsetTop;
+    el.style.setProperty("--continue-from", `${Math.max(0, continueFrom - restingTop)}px`);
+  }, [continueFrom]);
+  // Which way the last move between the list and a case went, so each slides in from its side.
+  const [nav, setNav] = useState<"push" | "pop" | null>(null);
   const [repository] = useState(getCaseRepository);
   // Cases made since the list was last open settle in at the top.
   const [seenAt] = useState(() => casesSeenAt);
@@ -70,7 +85,8 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
   const { listActiveLog, moveAllToRecentlyDeleted, moveToRecentlyDeleted, purgeRecentlyDeleted, renameCase, setCaseArchived, setFavourite } = repository;
   const [entries, setEntries] = useState<CaseLogEntry[] | null>(null);
   const [query, setQuery] = useState("");
-  const [openCase, setOpenCase] = useState<string | null>(null);
+  const [openCase, setOpenCaseNow] = useState<string | null>(null);
+  const setOpenCase = useCallback((key: string | null) => { setNav(key ? "push" : "pop"); setOpenCaseNow(key); }, []);
   const [onlyFavourites, setOnlyFavourites] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [detail, setOpen] = useState<{ entry: CaseLogEntry; media: CaseLogMedia | null } | null>(null);
@@ -122,7 +138,7 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
 
   // Leaving a case (or it emptying) resets its per-case state.
   useEffect(() => {
-    if (openCase && entries && !current) setOpenCase(null);
+    if (openCase && entries && !current) setOpenCaseNow(null);
   }, [openCase, entries, current]);
   useEffect(() => { setOnlyFavourites(false); setRenaming(null); setConfirmCase(false); }, [openCase]);
 
@@ -143,8 +159,10 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
     if (openedInitial || !initialEntryId || !entries) return;
     setOpenedInitial(true);
     const entry = entries.find(e => e.id === initialEntryId);
-    if (entry) setOpenCase(caseIdOf(entry));
+    if (entry) setOpenCaseNow(caseIdOf(entry));
   }, [entries, initialEntryId, openedInitial]);
+  // Until that case is found, the list stays out of sight rather than flashing up first.
+  const awaitingInitial = Boolean(initialEntryId) && !openedInitial;
 
   async function toggleFavourite(entry: CaseLogEntry) {
     const next = !entry.favourite;
@@ -235,11 +253,11 @@ export function CaseLog({ onClose, initialEntryId, onReopen, onSignIn }: { onClo
 
   return (
     <SideRailLayer>
-    <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-label="Cases" onClick={onClose}>
-      <div className="log-panel" onClick={(e) => e.stopPropagation()}>
+    <div className={`sheet-backdrop${continueFrom !== undefined ? " is-continued" : ""}`} role="dialog" aria-modal="true" aria-label="Cases" onClick={onClose}>
+      <div ref={panel} className={`log-panel${continueFrom !== undefined ? " continues" : ""}`} data-nav={nav ?? undefined} onClick={(e) => e.stopPropagation()}>
         <PatientSyncStatus showPending={false} />
-        {current ? (
-          <div className="case-page" key={current.key}>
+        {awaitingInitial ? null : current ? (
+          <div className={`case-page${nav === "push" ? " push" : ""}`} key={current.key}>
             <div className="case-page-head">
               {rail ? <RailItems order={0}>
                 <RailButton label="Back to Cases" onClick={() => setOpenCase(null)}><ChevronLeft size={22} strokeWidth={1.8} /></RailButton>

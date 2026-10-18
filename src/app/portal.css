@@ -490,7 +490,7 @@
 .ad-embedded button { font: inherit; color: inherit; }
 .ad-embedded .ad-tabs { max-width: none; }
 .settings-panel.split.admin { width: min(1280px, calc(100vw - 48px - var(--safe-left) - var(--safe-right))); }
-.settings-detail-body > .ad-root, .settings-scroll > .ad-root { max-width: none; }
+.settings-detail-body > .settings-page > .ad-root, .settings-scroll > .settings-page > .ad-root { max-width: none; }
 .settings-sidebar-count { margin-left: auto; min-width: 22px; padding: 2px 7px; border-radius: 999px; background: var(--accent-gradient, var(--accent)); color: var(--on-gold); font-size: 12px; font-weight: 700; text-align: center; }
 @container ad (max-width: 800px) {
   .ad-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }

@@ -451,7 +451,7 @@ body { background: var(--background); }
    ============================================================ */
 @media (min-width: 700px) {
   :root { --page-gutter: 32px; --card-gap: 24px; }
-  .settings-scroll > * { max-width: 620px; }
+  .settings-scroll > .settings-page > * { max-width: 620px; }
 }
 
 /* Treatment: full-arch controls open under their row, inside the same group */

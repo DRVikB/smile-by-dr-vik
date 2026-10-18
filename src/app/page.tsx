@@ -20,7 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { AnalysisSymbol, CasesSymbol, IconTile, LibrarySymbol } from "@/components/icons/SmileIcons";
-import { BrandLaunch, BrandLockup, CreatorSignature } from "@/components/Brand";
+import { BrandLaunch, BrandLockup } from "@/components/Brand";
 import { AppShell } from "@/components/AppShell";
 import { FloatingPanel } from "@/components/FloatingPanel";
 import { PhotoUploader } from "@/components/PhotoUploader";
@@ -349,6 +349,8 @@ export default function Smile() {
   const [goalsOpen, setGoalsOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [logEntry, setLogEntry] = useState<string | undefined>();
+  // Opened from Recent cases: the top edge of that sheet, so Cases grows up from it.
+  const [logFrom, setLogFrom] = useState<number | undefined>();
   const [presenting, setPresenting] = useState(false);
   const [validationCaseId, setValidationCaseId] = useState<string>();
   // Device builds only: the older pin / validation / import tools for the on-device library.
@@ -1605,8 +1607,6 @@ export default function Smile() {
               </div>
               <div className="portrait-top">
                 <BrandLockup inverse />
-                <span className="sc-brand-rule" aria-hidden="true" />
-                <CreatorSignature inverse />
               </div>
               <ProfileButton className="start-profile" />
               <div className="start-copy">
@@ -1630,7 +1630,7 @@ export default function Smile() {
                       Case Library
                     </button>
                   </div>
-                  <RecentCases refreshKey={logOpen} onOpen={id => { setLogEntry(id); setLogOpen(true); }} onSeeAll={() => { setLogEntry(undefined); setLogOpen(true); }} />
+                  <RecentCases refreshKey={logOpen} onOpen={(id, from) => { setLogEntry(id); setLogFrom(from); setLogOpen(true); }} onSeeAll={from => { setLogEntry(undefined); setLogFrom(from); setLogOpen(true); }} />
                 </div>
                 <AllowancePill className="on-photo" />
               </div>
@@ -2158,7 +2158,7 @@ export default function Smile() {
         </p>
       )}
       {goalsOpen && photo && <PatientGoalsSheet consultation={consultation} onChange={setConsultation} onClose={() => setGoalsOpen(false)} hasPreferred={Boolean(caseRecord.preferredDesignId)} />}
-      {logOpen && <CaseLog onSignIn={() => { setLogOpen(false); account.openAuth("signIn"); }} initialEntryId={logEntry} onReopen={async id=>{await designMore(id);setLogOpen(false);setLogEntry(undefined);}} onClose={() => { setLogOpen(false); setLogEntry(undefined); }} />}
+      {logOpen && <CaseLog onSignIn={() => { setLogOpen(false); setLogFrom(undefined); account.openAuth("signIn"); }} initialEntryId={logEntry} continueFrom={logFrom} onReopen={async id=>{await designMore(id);setLogOpen(false);setLogEntry(undefined);setLogFrom(undefined);}} onClose={() => { setLogOpen(false); setLogEntry(undefined); setLogFrom(undefined); }} />}
       {libraryOpen && (
         <CaseLibrary
           onClose={() => { setLibraryOpen(false); void caseLibrary.refresh(); }}

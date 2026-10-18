@@ -1,0 +1,131 @@
+/* ============================================================
+   Motion — how surfaces arrive, move between pages and leave.
+
+   One curve family throughout, after iOS:
+     --ease-sheet  arrivals and page moves: quick to start, long gentle settle
+     --ease-exit   leaving: already moving, slowing as it goes
+   On iPhone-sized screens sheets rise from the foot and sink back to it;
+   on wider screens panels settle in from just below and fade back out.
+   Leaving is played by src/lib/motionExits.ts, which keeps a removed
+   surface for a moment as `.is-leaving`. Loaded last, so it decides.
+   Reduce Motion turns all of it off (end of file).
+   ============================================================ */
+:root {
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-exit: cubic-bezier(0.25, 0.8, 0.35, 1);
+  --sheet-in: 480ms;
+  --sheet-out: 300ms;
+  --page-move: 360ms;
+  /* A dragged sheet leaves from where it was let go (set on the sheet by sheetMotion.ts). */
+  --drag-from: 0px;
+  /* A row under the finger. */
+  --row-pressed: color-mix(in srgb, var(--text-primary) 7%, transparent);
+}
+
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes sheet-down { from { transform: translateY(var(--drag-from)); } to { transform: translateY(104%); } }
+@keyframes sheet-continue { from { transform: translateY(var(--continue-from, 40%)); } to { transform: none; } }
+@keyframes settle-in { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes settle-out { from { opacity: 1; } to { opacity: 0; transform: translateY(10px) scale(.985); } }
+@keyframes scrim-out { to { background-color: transparent; } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes push-in { from { opacity: 0; transform: translateX(36px); } to { opacity: 1; transform: none; } }
+@keyframes pop-in { from { opacity: 0; transform: translateX(-36px); } to { opacity: 1; transform: none; } }
+@keyframes swap-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes card-in { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
+@keyframes row-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes check-pop { 0% { transform: scale(.6); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+
+/* ---------- arriving ----------
+   `backwards` fill: once settled, nothing lingers on the element, so iOS keeps
+   routing touch scrolling inside it and a drag can move it. */
+.sheet-backdrop > :is(.sheet, .log-panel, .camera-sheet), .log-detail, .settings-panel.split, .action-sheet, .avatar-cropper {
+  animation: settle-in 420ms var(--ease-sheet) backwards;
+}
+@media (min-width: 768px) { .cl-sheet { animation: settle-in 420ms var(--ease-sheet) backwards; } }
+@media (max-width: 700px) {
+  .sheet-backdrop > :is(.sheet, .log-panel, .camera-sheet), .action-sheet,
+  .settings-panel.stack, .cl-sheet {
+    animation: sheet-up var(--sheet-in) var(--ease-sheet) backwards;
+  }
+}
+
+/* Recent cases → a case: the Cases sheet grows up from where Recent cases stood, over a dim already in place. */
+.sheet-backdrop.is-continued { animation: none; }
+@media (max-width: 700px) {
+  .sheet-backdrop > .log-panel.continues { animation: sheet-continue 460ms var(--ease-sheet) backwards; }
+}
+
+/* Recent cases: the cards slide in one after another. */
+.recent-row > li { animation: card-in 440ms var(--ease-sheet) backwards; animation-delay: calc(120ms + var(--i, 0) * 45ms); }
+
+/* ---------- moving between pages ---------- */
+/* Cases: a case slides in from the right; Back brings the list in from the left. */
+.case-page.push { animation: push-in var(--page-move) var(--ease-sheet) backwards; }
+.log-panel[data-nav="pop"] > :is(.log-head, .log-search, .log-list, .log-foot, .empty-state) { animation: pop-in var(--page-move) var(--ease-sheet) backwards; }
+.log-list > li:not(.is-new) { animation: row-in 360ms var(--ease-sheet) backwards; }
+.log-list > li:not(.is-new):nth-child(2) { animation-delay: 25ms; }
+.log-list > li:not(.is-new):nth-child(3) { animation-delay: 50ms; }
+.log-list > li:not(.is-new):nth-child(4) { animation-delay: 75ms; }
+.log-list > li:not(.is-new):nth-child(5) { animation-delay: 100ms; }
+.log-list > li:not(.is-new):nth-child(6) { animation-delay: 125ms; }
+.log-list > li:not(.is-new):nth-child(n+7) { animation-delay: 150ms; }
+.log-panel[data-nav="pop"] .log-list > li { animation: none; }
+
+/* Settings: pages push in from the right and pop back from the left; sections swap with a soft rise. */
+.settings-page.is-push { animation: push-in var(--page-move) var(--ease-sheet) backwards; }
+.settings-page.is-pop { animation: pop-in var(--page-move) var(--ease-sheet) backwards; }
+.settings-page.is-swap { animation: swap-in 280ms var(--ease-sheet) backwards; }
+
+/* Review & refine on an iPhone: rises in over the photo and sinks away again. */
+@media (max-width: 959px), (orientation: portrait) {
+  .app-shell .preview-screen .review-drawer {
+    transition: opacity 260ms var(--ease-exit), translate 340ms var(--ease-sheet), display 340ms allow-discrete;
+  }
+  .app-shell .preview-screen > .preview-layout .review-drawer:not(.is-open) { opacity: 0; translate: 0 16px; }
+  @starting-style { .app-shell .preview-screen .review-drawer.is-open { opacity: 0; translate: 0 16px; } }
+}
+/* A panel's body fades as it opens and closes. */
+.floating-panel-body { transition: opacity 240ms var(--ease-sheet), display 240ms allow-discrete; }
+.floating-panel:not(.is-open) > .floating-panel-body { opacity: 0; }
+@starting-style { .floating-panel.is-open > .floating-panel-body { opacity: 0; } }
+
+/* "More options" opens with its contents settling in. */
+.studio-more[open] > .studio-more-body { animation: swap-in 300ms var(--ease-sheet) backwards; }
+
+/* ---------- leaving ---------- */
+:is(.sheet-backdrop, .settings-backdrop, .cl-backdrop, .action-sheet-backdrop, .log-detail-backdrop).is-leaving {
+  pointer-events: none;
+  animation: scrim-out var(--sheet-out) var(--ease-exit) forwards;
+}
+.is-leaving > :is(.sheet, .log-panel, .camera-sheet, .settings-panel, .cl-sheet, .action-sheet, .log-detail, .avatar-cropper) {
+  animation: settle-out 220ms var(--ease-exit) forwards;
+}
+@media (max-width: 700px) {
+  .is-leaving > :is(.sheet, .log-panel, .camera-sheet, .settings-panel.stack, .cl-sheet, .action-sheet) {
+    animation: sheet-down var(--sheet-out) var(--ease-exit) forwards;
+  }
+}
+.settings-toast.is-leaving { animation: fade-out 220ms var(--ease-exit) forwards; }
+
+/* ---------- small touches ---------- */
+/* Rows answer a touch with the system highlight rather than shrinking. */
+:is(.settings-row, .log-row, .studio-treatment) { transition: background-color 240ms var(--ease-soft), transform 320ms var(--spring); }
+:is(.settings-row, .log-row, .studio-treatment):active:not(:disabled) { transform: none; background-color: var(--row-pressed); transition-duration: 60ms; }
+/* A choice's tick pops in. */
+.studio-treatment[aria-checked="true"] .studio-check svg { animation: check-pop 360ms var(--spring) both; }
+/* Thumbnails fade in once loaded, instead of appearing half-drawn. */
+:is(.recent-card, .version-open, .case-cover, .cl-item, .log-row, .case-photo-set) img { transition: opacity 360ms var(--ease-soft); }
+:is(.recent-card, .version-open, .case-cover, .cl-item, .log-row, .case-photo-set) img:not([data-loaded]) { opacity: 0; }
+/* Chevrons and disclosure arrows turn smoothly. */
+:is(.panel-chevron, .case-chevron, .splash-recent-arrow) { transition: transform 280ms var(--ease-sheet); }
+.splash-recent:active .splash-recent-arrow { transform: translateX(3px); }
+
+/* ---------- Reduce Motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .sheet-backdrop > :is(.sheet, .log-panel, .camera-sheet), .log-detail, .settings-panel, .action-sheet, .avatar-cropper, .cl-sheet,
+  .recent-row > li, .case-page.push, .log-panel[data-nav="pop"] > *, .log-list > li, .settings-page,
+  .studio-more-body, .studio-check svg, .is-leaving, .is-leaving > * { animation: none !important; }
+  .app-shell .preview-screen .review-drawer, .floating-panel-body, :is(.settings-row, .log-row, .studio-treatment) { transition: none; }
+  :is(.recent-card, .version-open, .case-cover, .cl-item, .log-row, .case-photo-set) img { transition: none; opacity: 1; }
+}

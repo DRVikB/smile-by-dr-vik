@@ -201,7 +201,6 @@ input[type="checkbox"][role="switch"],
   .sheet-backdrop > :is(.sheet, .log-panel, .camera-sheet) {
     width: 100%;
     border-radius: 22px;
-    animation-name: sheet-rise;
   }
   /* Cases is a destination, not a prompt: a full-height page sheet. */
   .sheet-backdrop > .log-panel { height: 100%; max-height: none; padding: 22px 18px 18px; }

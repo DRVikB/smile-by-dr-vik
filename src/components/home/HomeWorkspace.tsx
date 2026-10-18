@@ -9,6 +9,7 @@ import { useAccount } from "@/components/account/AccountProvider";
 import { recentCasePages, recentCaseTreatment, type RecentCase } from "@/lib/recentCases";
 import { greeting } from "@/lib/profile";
 import { UserAvatar } from "@/components/profile/UserAvatar";
+import { useDragToDismiss } from "@/components/sheetMotion";
 
 /**
  * The Home headline: "Good morning," above "Dr Vik." once the clinician has a
@@ -58,7 +59,7 @@ function frameSmile(image: HTMLImageElement) {
  * patient's photo there. A pill under Cases and Case Library opens them in a
  * panel; nothing shows until there is a case.
  */
-export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unknown; onOpen: (id: string) => void; onSeeAll: () => void }) {
+export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unknown; onOpen: (id: string, from: number) => void; onSeeAll: (from: number) => void }) {
   const [cases, setCases] = useState<RecentCase[]>([]);
   const [open, setOpen] = useState(false);
   const [syncIndicators, setSyncIndicators] = useState<Record<string, string>>({});
@@ -85,23 +86,31 @@ export function RecentCases({ refreshKey, onOpen, onSeeAll }: { refreshKey: unkn
       </button>
       {open && createPortal(
         <RecentCasesPanel cases={cases} syncIndicators={syncIndicators} onClose={close}
-          onOpen={id => { setOpen(false); onOpen(id); }} onSeeAll={() => { setOpen(false); onSeeAll(); }} />,
+          onOpen={(id, from) => { setOpen(false); onOpen(id, from); }} onSeeAll={from => { setOpen(false); onSeeAll(from); }} />,
         document.body)}
     </>
   );
 }
 
-/** The newest cases, ready to open. Closes on ✕, a tap outside, Escape, a swipe down, or when SmileCompose leaves the screen. */
+/**
+ * The newest cases, ready to open. Slides up from the foot; slides away on ✕, a tap outside, Escape or a
+ * drag down (it follows the finger), and is gone at once when SmileCompose leaves the screen. Opening a
+ * case (or All cases) hands over to the Cases sheet, which grows up from where this one stands (`from`).
+ */
 function RecentCasesPanel({ cases, syncIndicators, onOpen, onSeeAll, onClose }: {
   cases: RecentCase[];
   syncIndicators: Record<string, string>;
-  onOpen: (id: string) => void;
-  onSeeAll: () => void;
+  onOpen: (id: string, from: number) => void;
+  onSeeAll: (from: number) => void;
   onClose: () => void;
 }) {
   const closeButton = useRef<HTMLButtonElement>(null);
-  const swipe = useRef<{ x: number; y: number } | null>(null);
-  useEffect(() => { closeButton.current?.focus(); }, []);
+  const backdrop = useRef<HTMLDivElement>(null);
+  const sheet = useRef<HTMLDivElement>(null);
+  const drag = useDragToDismiss(sheet, onClose);
+  // Handing over to Cases: this sheet doesn't play out, the next one grows from its top edge.
+  const handOver = () => { if (backdrop.current) backdrop.current.dataset.noExit = ""; return sheet.current?.getBoundingClientRect().top ?? window.innerHeight; };
+  useEffect(() => { closeButton.current?.focus({ preventScroll: true }); }, []);
   useEffect(() => {
     // Patient photos never stay on screen once SmileCompose is out of sight.
     const hidden = () => { if (document.visibilityState === "hidden") onClose(); };
@@ -116,15 +125,8 @@ function RecentCasesPanel({ cases, syncIndicators, onOpen, onSeeAll, onClose }: 
     };
   }, [onClose]);
   return (
-    <div className="sheet-backdrop recent-backdrop" role="dialog" aria-modal="true" aria-labelledby="recent-cases-title" onClick={onClose}>
-      <div className="sheet recent-sheet" onClick={e => e.stopPropagation()}
-        onTouchStart={e => { swipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
-        onTouchEnd={e => {
-          const from = swipe.current; swipe.current = null;
-          if (!from) return;
-          const dx = e.changedTouches[0].clientX - from.x, dy = e.changedTouches[0].clientY - from.y;
-          if (dy > 90 && dy > Math.abs(dx) * 1.5) onClose();
-        }}>
+    <div ref={backdrop} className="sheet-backdrop recent-backdrop" role="dialog" aria-modal="true" aria-labelledby="recent-cases-title" onClick={onClose}>
+      <div ref={sheet} className="sheet recent-sheet" onClick={e => e.stopPropagation()} {...drag}>
         <span className="recent-grab" aria-hidden="true" />
         <div className="sheet-heading">
           <h2 id="recent-cases-title">Recent cases</h2>
@@ -132,8 +134,8 @@ function RecentCasesPanel({ cases, syncIndicators, onOpen, onSeeAll, onClose }: 
         </div>
         <p className="sheet-sub recent-note"><Lock size={13} strokeWidth={1.9} aria-hidden="true" />Hidden again when you close this or leave SmileCompose.</p>
         <ul className="recent-row" aria-label="Recent cases, newest first">
-          {cases.map(entry => <li key={entry.id}>
-            <button type="button" className="recent-card" onClick={() => onOpen(entry.id)}>
+          {cases.map((entry, index) => <li key={entry.id} style={{ "--i": Math.min(index, 6) } as React.CSSProperties}>
+            <button type="button" className="recent-card" onClick={() => onOpen(entry.id, handOver())}>
               {entry.thumb ? <img src={entry.thumb} alt="" decoding="async" onLoad={e => frameSmile(e.currentTarget)} /> : <span className="recent-card-placeholder" aria-hidden="true" />}
               <span className="recent-card-text">
                 <strong>{entry.patientName || "Unnamed case"}</strong>
@@ -144,7 +146,7 @@ function RecentCasesPanel({ cases, syncIndicators, onOpen, onSeeAll, onClose }: 
             </button>
           </li>)}
         </ul>
-        <button type="button" className="secondary-button recent-all" onClick={onSeeAll}><CasesSymbol size={18} /> All cases</button>
+        <button type="button" className="secondary-button recent-all" onClick={() => onSeeAll(handOver())}><CasesSymbol size={18} /> All cases</button>
       </div>
     </div>
   );

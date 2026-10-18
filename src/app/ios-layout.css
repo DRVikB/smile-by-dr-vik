@@ -141,7 +141,6 @@ body:has(.app-shell[data-screen="photo"]) { overflow: hidden; }
 @media (orientation: landscape) and (max-height: 500px) {
   :root { --app-top-space: calc(var(--app-safe-top) + 8px); }
   .portrait-top { padding-bottom: 8px; gap: 5px; }
-  .portrait-top .sc-creator img { height: 20px; width: 49px; }
   .consult .consult-practice { display: none; }
   .app-shell .preview-screen > .variant-picker { left: max(16px, var(--app-safe-left)); }
   .compact-preview-dock {

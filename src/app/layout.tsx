@@ -18,6 +18,7 @@ import "./surfaces.css";
 import "./home.css";
 import "./portal.css";
 import "./side-rail.css";
+import "./motion.css";
 import { WebAppSetup } from "@/components/WebAppSetup";
 import { AppProviders } from "@/components/AppProviders";
 import { AppearanceController } from "@/components/AppearanceController";

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { CreatorSignature } from "@/components/Brand";
 import { ChevronRight, KeyRound, LogOut, Mail, ShieldCheck, UserRound } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { NAME_LIMITS, isPrivateRelayEmail, maskEmail, normaliseName, providerLabel } from "@/lib/profile";
@@ -112,6 +113,11 @@ export function SignInMethodsPage() {
       ))}
     </Group>
   );
+}
+
+/** The foot of Settings, under Sign out: who designed SmileCompose. */
+export function SettingsCredit() {
+  return <footer className="settings-credit"><CreatorSignature /></footer>;
 }
 
 /** The last row of Settings when signed in. */

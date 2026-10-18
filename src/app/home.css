@@ -23,8 +23,6 @@
 .start-screen .portrait-top {
   padding: max(16px, calc(var(--app-safe-top) + 14px)) var(--home-pad-r) 16px var(--home-pad-l);
 }
-/* A short gold line between the wordmark and "Designed by". */
-.start-screen .sc-brand-rule { display: block; width: 26px; height: 1.5px; border-radius: 1px; background: var(--sc-gold); opacity: .9; }
 .start-screen .start-profile {
   top: max(16px, calc(var(--app-safe-top) + 12px));
   right: max(18px, calc(var(--app-safe-right) + 8px));
@@ -191,7 +189,7 @@
   .recent-backdrop { align-items: end; padding: calc(var(--app-safe-top) + 12px) var(--app-safe-right) 0 var(--app-safe-left); }
   .recent-backdrop > .recent-sheet {
     width: 100%; max-height: 88dvh; border-radius: 28px 28px 0 0; border-bottom: 0;
-    padding-bottom: calc(var(--app-safe-bottom) + 16px); animation: recent-rise var(--mid) both;
+    padding-bottom: calc(var(--app-safe-bottom) + 16px);
   }
   .recent-grab { display: block; width: 38px; height: 5px; margin: -6px auto 12px; border-radius: 3px; background: var(--border-strong, rgba(127, 127, 127, .35)); }
 }
@@ -205,5 +203,4 @@
   .recent-card-text { padding: 7px 6px 3px; }
   .recent-all { min-height: 44px; margin-top: 12px; }
 }
-@keyframes recent-rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .recent-backdrop > .recent-sheet { animation: none; } }
+/* Its motion (rising from the foot, cards arriving, leaving) is in motion.css. */

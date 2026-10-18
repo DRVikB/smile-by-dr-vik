@@ -1,10 +1,10 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BadgeCheck, Check, ChevronLeft, FolderOpen, Info, LayoutDashboard, Palette, PlayCircle, ShieldCheck, UserRound } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { CasesSection, ManageCasesPage } from "./CasesSettings";
 import { DataPrivacyPage, PermissionsPage, ManageDataPage, PrivacySection } from "./PrivacySettings";
-import { AccountSection, EditProfilePage, ProfileHeader, SignInMethodsPage, SignOutSection } from "./ProfileSettings";
+import { AccountSection, EditProfilePage, ProfileHeader, SettingsCredit, SignInMethodsPage, SignOutSection } from "./ProfileSettings";
 import { PlanCard, PlanDetailsPage } from "./SubscriptionSettings";
 import { AboutPage, HelpAboutSection, HelpPage } from "./SupportSettings";
 import { AppearanceSection } from "./AppearanceSettings";
@@ -59,7 +59,7 @@ function AdminSection({ withDashboard }: { withDashboard: boolean }) {
 
 function SectionContent({ section, withHeader }: { section: SettingsSection; withHeader: boolean }) {
   switch (section) {
-    case "profile": return <>{withHeader && <ProfileHeader />}<AccountSection />{withHeader && <SignOutSection />}</>;
+    case "profile": return <>{withHeader && <ProfileHeader />}<AccountSection />{withHeader && <><SignOutSection /><SettingsCredit /></>}</>;
     case "subscription": return <PlanCard />;
     case "cases": return <CasesSection />;
     case "appearance": return <AppearanceSection detailed={withHeader} />;
@@ -90,15 +90,26 @@ export function SettingsView({ initialSection, onClose, onSectionChange }: {
   const wide = useMediaQuery("(min-width: 768px)");
   const online = useOnline();
   const [chosen, setSection] = useState<SettingsSection>(initialSection ?? "profile");
+  const scroller = useRef<HTMLDivElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
   // The Admin section exists only for administrators; anyone else lands on Account.
   const section = chosen === "admin" && !admin.isAdmin ? "profile" : chosen;
   const sections = admin.isAdmin ? [...SECTIONS, ADMIN_SECTION] : SECTIONS;
   const stackOrder = admin.isAdmin ? [...STACK_ORDER, ADMIN_SECTION.key] : STACK_ORDER;
-  const [page, setPage] = useState<SettingsPage | null>(null);
+  const [page, setPageNow] = useState<SettingsPage | null>(null);
+  // Pages slide in from the side they lead to (iOS push and pop); the list comes back where it was left.
+  const [motion, setMotion] = useState<"push" | "pop" | "swap" | null>(null);
+  const listScroll = useRef(0);
+  const shownPage = useRef(page);
+  shownPage.current = page;
+  const setPage = useCallback((next: SettingsPage | null) => {
+    const current = shownPage.current;
+    if (next && !current) listScroll.current = scroller.current?.scrollTop ?? 0;
+    setMotion(next && !current ? "push" : !next && current ? "pop" : "swap");
+    setPageNow(next);
+  }, []);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
   const [message, setMessage] = useState("");
-  const scroller = useRef<HTMLDivElement>(null);
-  const heading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => { heading.current?.focus(); }, []);
   useEffect(() => {
@@ -115,11 +126,15 @@ export function SettingsView({ initialSection, onClose, onSectionChange }: {
 
   const select = useCallback((next: SettingsSection) => {
     setSection(next);
-    setPage(null);
+    setPageNow(null);
+    setMotion("swap");
     onSectionChange?.(next);
   }, [onSectionChange]);
+  useLayoutEffect(() => {
+    if (motion === "pop" && !page && scroller.current) scroller.current.scrollTop = listScroll.current;
+  }, [motion, page]);
 
-  const back = useCallback(() => setPage(null), []);
+  const back = useCallback(() => setPage(null), [setPage]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -137,7 +152,7 @@ export function SettingsView({ initialSection, onClose, onSectionChange }: {
     confirm: setConfirm,
     say: setMessage,
     online,
-  }), [online]);
+  }), [online, setPage]);
 
   const pageBody = page && (
     page.kind === "editProfile" ? <EditProfilePage onDone={back} />
@@ -152,6 +167,7 @@ export function SettingsView({ initialSection, onClose, onSectionChange }: {
                     : <HelpPage />
   );
   const detailTitle = page ? pageTitle(page) : sections.find(s => s.key === section)?.label ?? "Settings";
+  const pageKey = page ? `${page.kind}:${"filter" in page ? page.filter : ""}` : `list:${wide ? section : ""}`;
   const showsAdmin = page ? page.kind === "admin" : wide && section === "admin";
   const planLine = !account.user ? (account.configured ? "Not signed in" : "On this device") : account.hasProAccess ? "SmileCompose Pro" : "Free";
 
@@ -193,7 +209,9 @@ export function SettingsView({ initialSection, onClose, onSectionChange }: {
                   {!rail && <button type="button" className="settings-done" onClick={onClose}>Done</button>}
                 </header>
                 <div className="settings-detail-body" ref={scroller}>
-                  {pageBody ?? <SectionContent section={section} withHeader />}
+                  <div key={pageKey} className={`settings-page${motion ? ` is-${motion}` : ""}`}>
+                    {pageBody ?? <SectionContent section={section} withHeader />}
+                  </div>
                 </div>
               </section>
             </>
@@ -205,13 +223,16 @@ export function SettingsView({ initialSection, onClose, onSectionChange }: {
                 {!rail && <button type="button" className="settings-done" onClick={onClose}>Done</button>}
               </header>
               <div className="settings-scroll" ref={scroller}>
-                {pageBody ?? (
-                  <>
-                    <ProfileHeader />
-                    {stackOrder.map(key => <SectionContent key={key} section={key} withHeader={false} />)}
-                    <SignOutSection />
-                  </>
-                )}
+                <div key={pageKey} className={`settings-page${motion ? ` is-${motion}` : ""}`}>
+                  {pageBody ?? (
+                    <>
+                      <ProfileHeader />
+                      {stackOrder.map(key => <SectionContent key={key} section={key} withHeader={false} />)}
+                      <SignOutSection />
+                      <SettingsCredit />
+                    </>
+                  )}
+                </div>
               </div>
             </>
           )}
