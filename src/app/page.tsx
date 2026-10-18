@@ -150,7 +150,7 @@ async function lockFace(
   stage: (value: GenerationStage) => void = () => {},
   alignment?: (diagnostic: MouthAlignmentDiagnostic) => void,
   automaticMap?: import("@/lib/toothMap/types").ToothMap | null,
-): Promise<Pick<GenerationResult, "image" | "faceLocked" | "lipsMoved" | "lipsFollowed" | "editAreaProtected" | "toothProtection">> {
+): Promise<Pick<GenerationResult, "image" | "faceLocked" | "lipsMoved" | "lipsFollowed" | "editAreaProtected" | "toothProtection"> & { qualityReference?: string }> {
   scope.assert();
   const { lockFaceOutsideLips } = await import("@/lib/face/mouthLock");
   scope.assert();
@@ -210,7 +210,7 @@ async function lockFace(
     scope.assert();
     if (guarded) imageOut = guarded.image;
   }
-  return { image: imageOut, editAreaProtected: Boolean(photo.editMask), faceLocked: r.locked, lipsMoved: r.lipsMoved, ...(r.lipsFollowed ? { lipsFollowed: true } : {}), ...(toothProtection ? { toothProtection } : {}) };
+  return { image: imageOut, editAreaProtected: Boolean(photo.editMask), faceLocked: r.locked, lipsMoved: r.lipsMoved, ...(r.lipsFollowed ? { lipsFollowed: true } : {}), ...(toothProtection ? { toothProtection } : {}), ...(r.reference ? { qualityReference: r.reference } : {}) };
 }
 
 const ignoreCount = () => {};
@@ -860,7 +860,8 @@ export default function Smile() {
       if (controller.signal.aborted) throw controller.signal.reason;
       const { alignPreview } = await import("@/lib/photos");
       onStage("align");
-      const locked = await lockFace(photoIn, await alignPreview(demoImage, photoIn), settingsIn, repository.scope, onStage);
+      const { qualityReference, ...locked } = await lockFace(photoIn, await alignPreview(demoImage, photoIn), settingsIn, repository.scope, onStage);
+      void qualityReference; // Only the live path checks quality.
       onStage("complete");
       return {
         ...locked,
@@ -1045,7 +1046,8 @@ export default function Smile() {
       repository.scope.assert();
       next = { ...next, image: alignedImage };
       if (next.mode === "live") {
-        next = { ...next, ...(await lockFace(photoIn, alignedImage, settingsIn, repository.scope, reportStage, diagnostic.alignment, automaticMap)) };
+        const { qualityReference, ...locked } = await lockFace(photoIn, alignedImage, settingsIn, repository.scope, reportStage, diagnostic.alignment, automaticMap);
+        next = { ...next, ...locked };
         reportStage("quality_check");
         // Advisory only, and only when there's a trustworthy anchor to check
         // against — an uploaded photo has no capture guide to measure from.
@@ -1058,7 +1060,7 @@ export default function Smile() {
           if (assessment) next = { ...next, scaleFlag: assessment.flag };
         }
         // Quality control on what will be shown, against the photo and the service's own result.
-        const quality = await (await import("@/lib/qualityCheckImage")).assessResultQuality(photoIn, alignedImage, next.image, settingsIn, { lipsRestored: Boolean(next.lipsMoved && next.faceLocked && !next.lipsFollowed) }).catch(() => null);
+        const quality = await (await import("@/lib/qualityCheckImage")).assessResultQuality(photoIn, qualityReference ?? alignedImage, next.image, settingsIn, { lipsRestored: Boolean(next.lipsMoved && next.faceLocked && !next.lipsFollowed) }).catch(() => null);
         repository.scope.assert();
         if (quality) next = { ...next, quality: { passed: quality.passed, issues: quality.issues, notes: quality.notes } };
         // Veneers and bonding can't move teeth: flag a result whose teeth (and midline) have slid sideways.

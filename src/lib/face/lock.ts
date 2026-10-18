@@ -47,13 +47,16 @@ const ALIGN_TOLERANCE = 0.012;
 const LIP_TOLERANCE = 0.04;
 // INNER_LIP runs corner (0), upper lip (1–9), corner (10), lower lip (11–19).
 const INNER_UPPER_END = 10;
+// A lower lip dropped by less than this share of the mouth width is landmark noise; the lift never exceeds the cap.
+const LIFT_MIN = 0.015;
+const LIFT_MAX = 0.1;
 // Beyond these the model has reframed the face; don't try to rescue it.
 const MIN_SCALE = 0.85;
 const MAX_SCALE = 1.18;
 const MAX_ANGLE = (8 * Math.PI) / 180;
 
 /** Invalidate reusable results made with the older, lip-inclusive mask. */
-export const MOUTH_LOCK_VERSION = "2026-10-18-own-lips-v14";
+export const MOUTH_LOCK_VERSION = "2026-10-18-lift-v15";
 
 /** Categorical device QA only; never capture image content or browser errors. */
 export const MOUTH_LOCK_FAILURE_CODES = [
@@ -138,6 +141,33 @@ export function planMouthLock(
     generatedOuter: pick(generated, OUTER_LIP).map(p => applySimilarity(transform, p)),
     grow: 0,
     feather: Math.max(1, 0.005 * mouthWidth),
+  };
+}
+
+/**
+ * The image service often lowers the lower lip to show more of the new teeth. The patient's own lip is
+ * restored over the result, which would hide the new biting edges behind it. Lifting the result's mouth
+ * by the amount its lower lip dropped puts the biting edges where the service drew them relative to the
+ * lip (only the tops of the teeth go under the upper lip, as in a natural smile). Returns the lift in
+ * pixels for a column x: zero at the mouth corners, following the lower lip between them; null when
+ * the lower lip did not clearly drop.
+ */
+export function lowerLipLift(original: Point[], generated: Point[], transform: Similarity): ((x: number) => number) | null {
+  const mouthWidth = distance(...pick(original, COMMISSURES) as [Point, Point]);
+  if (!(mouthWidth >= 20)) return null;
+  const lower = INNER_LIP.slice(INNER_UPPER_END + 1);
+  const drops = lower.map(i => applySimilarity(transform, generated[i])[1] - original[i][1]);
+  if (!drops.every(Number.isFinite) || median(drops) < LIFT_MIN * mouthWidth) return null;
+  const cap = LIFT_MAX * mouthWidth;
+  const corners = [original[INNER_LIP[0]], original[INNER_LIP[INNER_UPPER_END]]];
+  const knots: Point[] = [...corners.map(p => [p[0], 0] as Point), ...lower.map((i, k) => [original[i][0], Math.min(cap, Math.max(0, drops[k]))] as Point)]
+    .sort((a, b) => a[0] - b[0]);
+  return (x: number) => {
+    if (x <= knots[0][0] || x >= knots[knots.length - 1][0]) return 0;
+    let k = 1;
+    while (knots[k][0] < x) k++;
+    const [xa, ya] = knots[k - 1], [xb, yb] = knots[k];
+    return xb > xa ? ya + (yb - ya) * (x - xa) / (xb - xa) : yb;
   };
 }
 

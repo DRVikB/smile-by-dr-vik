@@ -62,3 +62,13 @@ test("a close-up whose painted edge meets a very different redraw fails as a joi
   const clean = assessQuality(o.rgba, f.rgba, o.W, o.H, o.opening, { ...defaultSettings, treatment: "Porcelain", shotType: "Close-up" }, f.rgba);
   assert.ok(!clean.issues.includes("join"), JSON.stringify(clean));
 });
+
+test("on a face photo, biting edges that disappear behind the lower lip fail", () => {
+  // The photo shows the upper edges well above the lower lip; the final's teeth run on to the lip.
+  const o = mouth({ toothBottom: 80 }), hidden = mouth({ toothBottom: 110, tooth: [240, 238, 232] }), shown = mouth({ toothBottom: 80, tooth: [240, 238, 232] });
+  const settings = { ...defaultSettings, treatment: "Porcelain" as const, treatmentMode: "full_arch" as const, fullArch: { arch: "upper" as const, restorationType: "zirconia" as const, prostheticGingiva: "exclude" as const } };
+  const r = assessQuality(o.rgba, hidden.rgba, o.W, o.H, o.opening, settings, hidden.rgba, true);
+  assert.ok(r.issues.includes("edgesHidden"), JSON.stringify(r));
+  const ok = assessQuality(o.rgba, shown.rgba, o.W, o.H, o.opening, settings, shown.rgba, true);
+  assert.ok(!ok.issues.includes("edgesHidden"), JSON.stringify(ok));
+});

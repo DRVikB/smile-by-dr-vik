@@ -181,6 +181,30 @@ test("a stable lip transition keeps the patient's lips and does not cut teeth at
   assert.equal(at(50, 4), 0, "outer lip contour and surrounding face remain protected");
 });
 
+test("a dropped lower lip gives a lift that follows it and is zero at the mouth corners", async () => {
+  const { lowerLipLift } = await import("../src/lib/face/lock");
+  const original = face(), generated = original.map((p) => [...p] as Point);
+  INNER_LIP.slice(11).forEach((i) => { generated[i] = [generated[i][0], generated[i][1] + 12]; });
+  const lift = lowerLipLift(original, generated, { a: 1, b: 0, tx: 0, ty: 0 })!;
+  assert.ok(Math.abs(lift(500) - 12) < 0.5, String(lift(500)));
+  assert.equal(lift(410), 0);
+  assert.equal(lift(395), 0);
+  // 2 px on a 200 px mouth is landmark noise: no lift.
+  const still = original.map((p) => [...p] as Point);
+  INNER_LIP.slice(11).forEach((i) => { still[i] = [still[i][0], still[i][1] + 2]; });
+  assert.equal(lowerLipLift(original, still, { a: 1, b: 0, tx: 0, ty: 0 }), null);
+});
+
+test("lifting columns moves their content up by the lift and leaves other columns alone", async () => {
+  const { liftColumns } = await import("../src/lib/face/geometry");
+  const w = 3, h = 10, px = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) px.set([y * 10, 0, 0, 255], (y * w + x) * 4);
+  liftColumns(px, w, h, 1, 1, 0, 5, () => 3);
+  assert.equal(px[(2 * w + 1) * 4], 50); // row 2 now holds row 5
+  assert.equal(px[(2 * w + 0) * 4], 20); // column 0 untouched
+  assert.equal(px[(8 * w + 1) * 4], 80); // below the band untouched
+});
+
 test("provider lip movement keeps the patient's lips, with the same narrow margin over the old teeth", async () => {
   const { mouthTransitionMask } = await import("../src/lib/face/lock");
   const original = face(), generated = original.map(p => [...p] as Point);

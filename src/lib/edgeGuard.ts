@@ -76,6 +76,25 @@ export function upperTeethRuns(weights: Float32Array, opening: Uint8Array, w: nu
   return runs;
 }
 
+/**
+ * Per column x0..x1: the row of the upper teeth's biting edge, where their run ends above the bottom of
+ * the opening or, where the arches touch, the darkest row between them. NaN where it can't be told.
+ */
+export function upperEdgeLine(rgba: Uint8ClampedArray, weights: Float32Array, opening: Uint8Array, w: number, h: number, x0: number, x1: number): number[] {
+  const ends = upperTeethRuns(weights, opening, w, h, x0, x1);
+  const touching = upperTeethRuns(weights, opening, w, h, x0, x1, true);
+  const lum = (i: number) => 0.299 * rgba[i * 4] + 0.587 * rgba[i * 4 + 1] + 0.114 * rgba[i * 4 + 2];
+  return touching.map((r, c) => {
+    const end = ends[c];
+    if (end) return end[1];
+    if (!r || r[1] - r[0] < 12) return NaN;
+    const x = x0 + c, from = Math.round(r[0] + (r[1] - r[0]) * 0.4), to = Math.round(r[0] + (r[1] - r[0]) * 0.85);
+    let darkest = -1, low = Infinity, sum = 0, k = 0;
+    for (let y = from; y <= to; y++) { const v = lum(y * w + x); sum += v; k++; if (v < low) { low = v; darkest = y; } }
+    return k && low < (sum / k) * 0.85 ? darkest : NaN;
+  });
+}
+
 export function guardUpperEdges(
   original: Uint8ClampedArray, result: Uint8ClampedArray, w: number, h: number, opening: Uint8Array, options: EdgeGuardOptions = {},
 ): EdgeGuardResult {

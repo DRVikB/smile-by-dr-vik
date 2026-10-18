@@ -237,3 +237,20 @@ export function editableRegionRange(pixels: Uint8ClampedArray, imageWidth: numbe
   }
   return samples ? Math.max(...high.map((n, c) => n - low[c])) : null;
 }
+
+/**
+ * Moves the content of each column x in [x0, x1] up by lift(x) pixels, between rows y0 and y1 (the
+ * rows below are read as the source). Linear between rows; pixels outside the band are unchanged.
+ */
+export function liftColumns(pixels: Uint8ClampedArray, width: number, height: number, x0: number, x1: number, y0: number, y1: number, lift: (x: number) => number): void {
+  const source = new Uint8ClampedArray(pixels);
+  for (let x = Math.max(0, Math.floor(x0)); x <= Math.min(width - 1, Math.ceil(x1)); x++) {
+    const d = lift(x);
+    if (!(d > 0)) continue;
+    for (let y = Math.max(0, Math.floor(y0)); y <= Math.min(height - 1, Math.ceil(y1)); y++) {
+      const sy = Math.min(height - 1, y + d), ya = Math.floor(sy), yb = Math.min(height - 1, ya + 1), t = sy - ya;
+      const o = (y * width + x) * 4, a = (ya * width + x) * 4, b = (yb * width + x) * 4;
+      for (let c = 0; c < 4; c++) pixels[o + c] = Math.round(source[a + c] * (1 - t) + source[b + c] * t);
+    }
+  }
+}

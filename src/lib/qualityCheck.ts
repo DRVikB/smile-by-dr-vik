@@ -1,6 +1,6 @@
 import type { SmileSettings } from "./types";
 import { rgbToLab, toothWeights } from "./whitening";
-import { upperTeethRuns } from "./edgeGuard";
+import { upperEdgeLine, upperTeethRuns } from "./edgeGuard";
 
 /**
  * Quality control on a finished result, before it is shown. Each check compares the final image with
@@ -20,12 +20,14 @@ import { upperTeethRuns } from "./edgeGuard";
  *  - join:         on a close-up, the edge of the painted area shows: just outside it the final keeps the
  *                  photo, but the service redrew that strip quite differently (a lower lip it moved down,
  *                  teeth it added), so the two pictures meet in a visible edge;
+ *  - edgesHidden:  face photos: the photo shows the upper biting edges above the lower lip, but in the
+ *                  final the upper teeth run on under the lip with no edge in sight;
  *  - smudged:      the teeth lost most of their surface detail;
  *  - merged:       the separations between teeth largely disappeared (a band rather than teeth).
  * Thresholds were set on the clinic's test photos so the results the clinician judged poor fail and
  * the good ones pass. Pure pixel work; exported for tests.
  */
-export type QualityIssue = "seam" | "join" | "longer" | "darker" | "yellow" | "shade" | "lowerChanged" | "othersChanged" | "smudged" | "merged";
+export type QualityIssue = "seam" | "join" | "edgesHidden" | "longer" | "darker" | "yellow" | "shade" | "lowerChanged" | "othersChanged" | "smudged" | "merged";
 export interface QualityReport {
   /** No defect that should stop the result being presented as it is. */
   passed: boolean;
@@ -41,6 +43,7 @@ export interface QualityReport {
 export const QUALITY_MESSAGES: Record<QualityIssue, string> = {
   seam: "Part of the new teeth was cut off where they meet the lips.",
   join: "The edge of the painted area shows, because the lips were redrawn beyond it.",
+  edgesHidden: "The biting edges of the new teeth are hidden behind the lower lip.",
   longer: "The new teeth look longer than the patient’s own.",
   darker: "The teeth came out darker or more yellow than the photo.",
   shade: "The shade changed although Keep was chosen.",
@@ -227,16 +230,37 @@ export function assessQuality(
   // Lower teeth: below the photographed upper edge, tooth pixels shouldn't get much lighter. Where the
   // arches touch (no gap), the edge is the thin darker line between them.
   const touching = upperTeethRuns(before, opening, W, H, x0, x1, true);
-  const lum = (i: number) => 0.299 * original[i * 4] + 0.587 * original[i * 4 + 1] + 0.114 * original[i * 4 + 2];
-  const split = touching.map((r, c) => {
-    if (runsBefore[c]) return runsBefore[c]![1];
-    if (!r || r[1] - r[0] < 12) return NaN;
-    const x = x0 + c, from = Math.round(r[0] + (r[1] - r[0]) * 0.4), to = Math.round(r[0] + (r[1] - r[0]) * 0.85);
-    let darkest = -1, low = Infinity, sum = 0, k = 0;
-    for (let y = from; y <= to; y++) { const v = lum(y * W + x); sum += v; k++; if (v < low) { low = v; darkest = y; } }
-    return k && low < (sum / k) * 0.85 ? darkest : NaN;
-  });
+  const split = upperEdgeLine(original, before, opening, W, H, x0, x1);
   metrics.splitCols = split.filter(v => !Number.isNaN(v)).length / Math.max(1, split.length);
+
+  // Biting edges (face photos): where the photo shows the upper edge clearly above the lower lip, the final
+  // should too, as a run end or the darker line where the arches meet, rather than tooth all the way down.
+  if (lipLine) {
+    const lumF = (i: number) => 0.299 * final[i * 4] + 0.587 * final[i * 4 + 1] + 0.114 * final[i * 4 + 2];
+    const touchingAfter = upperTeethRuns(after, opening, W, H, x0, x1, true);
+    const endsAfter = upperTeethRuns(after, opening, W, H, x0, x1);
+    let shown = 0, hidden = 0;
+    for (let c = 0; c < split.length; c++) {
+      const x = x0 + c;
+      let bottom = -1;
+      for (let y = H - 1; y >= 0; y--) if (opening[y * W + x]) { bottom = y; break; }
+      const e = split[c];
+      if (bottom < 0 || Number.isNaN(e)) continue;
+      const r = touchingAfter[c];
+      const tol = Math.max(2, (r ? r[1] - r[0] : toothHeight) * 0.12);
+      if (bottom - e < tol * 2) continue;
+      shown++;
+      if (endsAfter[c] || !r) continue;
+      // The final's teeth run to the lip: an edge still shows as a darker line across them.
+      const from = Math.round(r[0] + (r[1] - r[0]) * 0.4), to = Math.round(r[0] + (r[1] - r[0]) * 0.9);
+      let low = Infinity, sum = 0, k = 0;
+      for (let y = from; y <= to; y++) { const v = lumF(y * W + x); sum += v; k++; if (v < low) low = v; }
+      if (!(k && low < (sum / k) * 0.85)) hidden++;
+    }
+    metrics.edgesShown = shown;
+    metrics.edgesHidden = shown ? hidden / shown : 0;
+    if (shown >= Math.max(15, (x1 - x0 + 1) * 0.1) && metrics.edgesHidden > 0.5) issues.push("edgesHidden");
+  }
   metrics.touchCols = touching.filter(Boolean).length / Math.max(1, touching.length);
   if (veneers && !settings.lowerTeeth && split.some(v => !Number.isNaN(v))) {
     const edgeAt = (c: number) => split[c];

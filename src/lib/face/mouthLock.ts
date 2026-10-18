@@ -2,9 +2,12 @@ import type { MouthAlignmentDiagnostic } from "./alignmentDiagnostic";
 import { releaseCanvas } from "../canvasMemory";
 import { compositeMasked, measureProtectedRegionChange, editableRegionRange } from "./geometry";
 import { detectFace, detectFaceDetailed } from "./landmarks";
-import { planMouthLock, pixelLockPlan, mouthTransitionMask, lipsCanBeFollowed, type MouthLockFailure } from "./lock";
+import { planMouthLock, pixelLockPlan, mouthTransitionMask, lipsCanBeFollowed, lowerLipLift, type MouthLockFailure } from "./lock";
 import { alignByPixels, pixelMatchAccepted, samePhotograph } from "./pixelAlign";
-import { INNER_LIP, OUTER_LIP, pick, pointInPolygon } from "./geometry";
+import { INNER_LIP, OUTER_LIP, pick, pointInPolygon, liftColumns, applySimilarity, median, type Point, type Similarity } from "./geometry";
+import { toothWeights } from "../whitening";
+import { upperEdgeLine } from "../edgeGuard";
+import { fillPolygon } from "../toothMap/segment";
 
 export interface MouthLockResult {
   image: string;
@@ -13,6 +16,10 @@ export interface MouthLockResult {
   lipsMoved: boolean;
   /** Full arch: the result's parted lips were kept, blended into the original face (see lock.ts). */
   lipsFollowed?: boolean;
+  /** The result's mouth was lifted to the patient's lower lip so the new biting edges stay visible. */
+  lifted?: boolean;
+  /** When lifted: the result as used (aligned and lifted), for the quality check to compare against. */
+  reference?: string;
   /** The source has a face but the returned image cannot be aligned to it. */
   invalidAlignment?: boolean;
   failureReason?: MouthLockFailure;
@@ -33,6 +40,23 @@ function lipDifference(a: Uint8ClampedArray, b: Uint8ClampedArray, width: number
       sum += Math.abs(luma(a, (y * width + x) * 4) - luma(b, (yb * width + xb) * 4)); n++;
     }
   return n >= 50 ? sum / n : null;
+}
+
+/**
+ * How far below the patient's biting edges the result's edges sit (px, the median over the front teeth),
+ * each found where the upper teeth end or meet the lower teeth; null when too few columns can be measured.
+ */
+function edgeDrop(original: Uint8ClampedArray, edited: Uint8ClampedArray, width: number, height: number, origPoints: Point[], genPoints: Point[], transform: Similarity): number | null {
+  const origOpening = fillPolygon(pick(origPoints, INNER_LIP), width, height);
+  const genOpening = fillPolygon(pick(genPoints, INNER_LIP).map(p => applySimilarity(transform, p)), width, height);
+  const xs = pick(origPoints, INNER_LIP).map(p => p[0]);
+  const left = Math.min(...xs), right = Math.max(...xs), inset = (right - left) * 0.2;
+  const x0 = Math.max(0, Math.round(left + inset)), x1 = Math.min(width - 1, Math.round(right - inset));
+  if (x1 - x0 < 10) return null;
+  const before = upperEdgeLine(original, toothWeights(original, width, height, origOpening).weights, origOpening, width, height, x0, x1);
+  const after = upperEdgeLine(edited, toothWeights(edited, width, height, genOpening).weights, genOpening, width, height, x0, x1);
+  const drops = before.map((e, c) => after[c] - e).filter(Number.isFinite);
+  return drops.length >= (x1 - x0 + 1) * 0.2 ? median(drops) : null;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -155,6 +179,21 @@ export async function lockFaceOutsideLips(
     // (Too small a face to compare leaves the landmark decision standing.)
     if (identity && !samePhotograph(identity)) return { ...untouched, invalidAlignment: true, failureReason: "mouth_alignment_rejected" };
 
+    const following = Boolean(plan.lipsMoved && options.followLips && lipsCanBeFollowed(plan));
+    // The patient's lips go back over a result whose lower lip dropped: lift its mouth by that drop so the
+    // new biting edges stay visible above the patient's lower lip (see lowerLipLift).
+    const lipDrop = !following && plan.lipsMoved && origPoints && scaledPoints && scaledPoints.length >= 468 ? lowerLipLift(origPoints, scaledPoints, plan.transform) : null;
+    // Lift no further than puts the new biting edges back on the patient's edge line: lifting by the whole
+    // lip drop would tuck the tops of the teeth under the upper lip and show too much of the lower teeth.
+    const edges = lipDrop ? edgeDrop(originalPixels.data, editedPixels.data, width, height, origPoints!, scaledPoints!, plan.transform) : null;
+    const lift = lipDrop && edges !== null && edges > 0 ? (x: number) => Math.min(lipDrop(x), edges) : null;
+    let reference: string | undefined;
+    if (lift && mouthBox) {
+      liftColumns(editedPixels.data, width, height, mouthBox.x0, mouthBox.x1, mouthBox.y0, mouthBox.y1, lift);
+      // The quality check compares the final with the result as it was used, lifted.
+      ctx.putImageData(editedPixels, 0, 0);
+      reference = canvas.toDataURL("image/jpeg", 0.92);
+    }
     const mask = mouthTransitionMask(plan, width, height, options);
     const editableRange = editableRegionRange(editedPixels.data, width, mask);
     emit({ ...lastDiagnostic, ...(editableRange !== null ? { editableRange } : {}) });
@@ -176,7 +215,8 @@ export async function lockFaceOutsideLips(
       image,
       locked: true,
       lipsMoved: plan.lipsMoved,
-      lipsFollowed: Boolean(plan.lipsMoved && options.followLips && lipsCanBeFollowed(plan)),
+      lipsFollowed: following,
+      ...(reference ? { lifted: true, reference } : {}),
     };
   } catch {
     return { ...untouched, failureReason };
