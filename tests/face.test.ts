@@ -181,13 +181,20 @@ test("a stable lip transition keeps the patient's lips and does not cut teeth at
   assert.equal(at(50, 4), 0, "outer lip contour and surrounding face remain protected");
 });
 
-test("provider lip movement retains the strict original opening", async () => {
+test("provider lip movement keeps the patient's lips, with the same narrow margin over the old teeth", async () => {
   const { mouthTransitionMask } = await import("../src/lib/face/lock");
   const original = face(), generated = original.map(p => [...p] as Point);
   for (const i of OUTER_LIP) generated[i][1] += 25;
   const plan = planMouthLock(original, generated)!;
   assert.equal(plan.lipsMoved, true);
   const mask = mouthTransitionMask(plan, 800, 900);
-  // Strictly inside the original opening (the lips stay the patient's), fading over 1.2% of the mouth's width.
-  assert.deepEqual(mask, polygonMask(plan.polygon, 800, 900, 0, plan.feather * 2.4, true));
+  // The moved lips change nothing: the original opening plus the margin that covers the old teeth at the lip line.
+  assert.deepEqual(mask, mouthTransitionMask({ ...plan, lipsMoved: false }, 800, 900));
+  // Never past the patient's own outer lip, wherever the result put its lips.
+  const outer = polygonMask(plan.outerBoundary, 800, 900, 0, plan.feather * 2.4, true);
+  for (let y = 0; y < mask.height; y++) for (let x = 0; x < mask.width; x++) {
+    if (mask.alpha[y * mask.width + x] === 0) continue;
+    const ox = mask.x0 + x - outer.x0, oy = mask.y0 + y - outer.y0;
+    assert.ok(ox >= 0 && oy >= 0 && ox < outer.width && oy < outer.height && outer.alpha[oy * outer.width + ox] > 0);
+  }
 });

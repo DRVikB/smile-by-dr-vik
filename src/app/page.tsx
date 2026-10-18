@@ -155,8 +155,9 @@ async function lockFace(
   const { lockFaceOutsideLips } = await import("@/lib/face/mouthLock");
   scope.assert();
   stage("mouth_composite");
-  // The lips may follow the result when it moves them to show the new teeth, rather than crop them (see lock.ts).
-  const r = await lockFaceOutsideLips(photo.dataUrl, image, alignment, { followLips: true });
+  // The lips are always the patient's, even where the result moved them to show more of the new teeth
+  // (see lock.ts): the smile keeps its own shape and only the teeth change.
+  const r = await lockFaceOutsideLips(photo.dataUrl, image, alignment);
   scope.assert();
   if (r.invalidAlignment)
     throw new SmileGenerationError("The image service returned a preview that does not match your original photo's framing. It has not been shown or saved. Please generate again; your photo and selections are unchanged.", r.failureReason ?? "mouth_alignment_rejected");
@@ -1057,7 +1058,7 @@ export default function Smile() {
           if (assessment) next = { ...next, scaleFlag: assessment.flag };
         }
         // Quality control on what will be shown, against the photo and the service's own result.
-        const quality = await (await import("@/lib/qualityCheckImage")).assessResultQuality(photoIn, alignedImage, next.image, settingsIn).catch(() => null);
+        const quality = await (await import("@/lib/qualityCheckImage")).assessResultQuality(photoIn, alignedImage, next.image, settingsIn, { lipsRestored: Boolean(next.lipsMoved && next.faceLocked && !next.lipsFollowed) }).catch(() => null);
         repository.scope.assert();
         if (quality) next = { ...next, quality: { passed: quality.passed, issues: quality.issues, notes: quality.notes } };
         // Veneers and bonding can't move teeth: flag a result whose teeth (and midline) have slid sideways.

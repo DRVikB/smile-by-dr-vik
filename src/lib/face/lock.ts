@@ -53,7 +53,7 @@ const MAX_SCALE = 1.18;
 const MAX_ANGLE = (8 * Math.PI) / 180;
 
 /** Invalidate reusable results made with the older, lip-inclusive mask. */
-export const MOUTH_LOCK_VERSION = "2026-10-18-each-lip-v13";
+export const MOUTH_LOCK_VERSION = "2026-10-18-own-lips-v14";
 
 /** Categorical device QA only; never capture image content or browser errors. */
 export const MOUTH_LOCK_FAILURE_CODES = [
@@ -205,11 +205,11 @@ function followedLipsMask(plan: LockPlan, width: number, height: number): Mask {
 /**
  * Where the edit is used: the patient's own mouth opening. The lips are always the
  * patient's: an image service that thins or lifts the upper lip to show more tooth
- * would otherwise make the new teeth look larger than they would be. A narrow
- * margin (2% of the mouth's width) beyond the inner-lip landmarks, which sit a
- * little inside the true lip edge, avoids leaving a sliver of the old teeth at the
- * lip line; it never reaches past the outer lip contour. Lips that clearly moved
- * keep the strict opening with no margin.
+ * would otherwise make the new teeth look larger than they would be, and a lower lip
+ * it drops to show more teeth would change the smile. A narrow margin (2% of the
+ * mouth's width) beyond the inner-lip landmarks, which sit a little inside the true
+ * lip edge, avoids leaving a sliver of the old teeth at the lip line, whether or not
+ * the lips moved; it never reaches past the outer lip contour.
  */
 export function mouthTransitionMask(plan: LockPlan, width: number, height: number, options: { followLips?: boolean } = {}): Mask {
   if (plan.lipsMoved && options.followLips && lipsCanBeFollowed(plan)) return followedLipsMask(plan, width, height);
@@ -217,7 +217,6 @@ export function mouthTransitionMask(plan: LockPlan, width: number, height: numbe
   // (it was half that, a few pixels on a close-up, which read as a hard cut). The fade sits inside the lip
   // line, so the lips themselves are always the patient's.
   const blend = plan.feather * 2.4;
-  if (plan.lipsMoved) return polygonMask(plan.polygon, width, height, 0, blend, true);
   const opening = polygonMask(plan.polygon, width, height, plan.feather * 4, plan.feather);
   const strict = polygonMask(plan.polygon, width, height, 0, blend, true);
   const outer = polygonMask(plan.outerBoundary, width, height, 0, blend, true);

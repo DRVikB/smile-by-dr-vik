@@ -11,7 +11,7 @@ const load = (src: string) => new Promise<HTMLImageElement>((resolve, reject) =>
  * aligned to it, and the final image shown. The mouth opening comes from the face landmarks, or a
  * close-up's painted area. Null when it can't be measured (no face and no painted area).
  */
-export async function assessResultQuality(photo: Pick<Photo, "dataUrl" | "editMask">, serviceImage: string, finalImage: string, settings: SmileSettings): Promise<QualityReport | null> {
+export async function assessResultQuality(photo: Pick<Photo, "dataUrl" | "editMask">, serviceImage: string, finalImage: string, settings: SmileSettings, options: { lipsRestored?: boolean } = {}): Promise<QualityReport | null> {
   const { detectFace } = await import("./face/landmarks");
   const points = await detectFace(photo.dataUrl).catch(() => null);
   if (!points && !photo.editMask) return null;
@@ -26,6 +26,6 @@ export async function assessResultQuality(photo: Pick<Photo, "dataUrl" | "editMa
     let opening: Uint8Array;
     if (points) opening = fillPolygon(pick(points, INNER_LIP), W, H);
     else { const m = read(images[3]); opening = new Uint8Array(W * H); for (let i = 0; i < opening.length; i++) opening[i] = m[i * 4 + 3] > 128 ? 1 : 0; }
-    return assessQuality(original, final, W, H, opening, settings, service, Boolean(points));
+    return assessQuality(original, final, W, H, opening, settings, service, Boolean(points), Boolean(points) && options.lipsRestored);
   } finally { releaseCanvas(canvas); }
 }

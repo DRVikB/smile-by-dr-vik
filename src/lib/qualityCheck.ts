@@ -118,7 +118,7 @@ function separations(weights: Float32Array, W: number, y: number, x0: number, x1
 
 export function assessQuality(
   original: Uint8ClampedArray, final: Uint8ClampedArray, W: number, H: number, opening: Uint8Array, settings: SmileSettings,
-  raw?: Uint8ClampedArray | null, lipLine = false,
+  raw?: Uint8ClampedArray | null, lipLine = false, lipsRestored = false,
 ): QualityReport {
   const n = W * H, issues: QualityIssue[] = [], metrics: Record<string, number> = {};
   const veneers = settings.treatmentMode !== "full_arch" && !settings.alignment?.only && settings.treatment !== "Whitening";
@@ -160,8 +160,9 @@ export function assessQuality(
     }
     metrics.edgeLost = edgeDrawn ? edgeLost / edgeDrawn : 0;
     // Just outside the lip line (face photos): teeth the service drew where the photo shows lip are cut
-    // off by the patient's restored lip, which reads as clipped teeth when the line is off.
-    if (lipLine) {
+    // off by the patient's restored lip, which reads as clipped teeth when the line is off. Not when the
+    // service moved the lips to show more teeth: the patient's own lips then cover them, as intended.
+    if (lipLine && !lipsRestored) {
       const ring = new Uint8Array(n);
       const r = edge * 2;
       for (let y = r; y < H - r; y++) for (let x = r; x < W - r; x++) {
