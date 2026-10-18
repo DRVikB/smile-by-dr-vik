@@ -4,7 +4,7 @@ import { isNoChangeDesign } from "./designPlan";
 import { generationUnavailable } from "./availability";
 import { GenerationError } from "./errors";
 import { generationSchema } from "@/lib/generation/schema";
-import { AI_CONSENT_VERSION } from "@/lib/aiConsent";
+import { ACCEPTED_AI_CONSENT_VERSIONS } from "@/lib/aiConsent";
 import { isNativeAppOrigin } from "./cors";
 import { generateSmile, getSmileProvider, providerDataTermsRequirement } from "@/lib/generation/provider";
 import { accountsMode, readServerEnvironment, type ServerEnvironment } from "@/server/env";
@@ -138,7 +138,8 @@ export async function handleGenerationRequest(
     if (terms && serverEnv[terms.variable] !== terms.value)
       return Response.json({ error: "AI processing terms have not been confirmed on the server. No provider request was sent.", code: "provider_terms_unconfirmed" }, { status: 503, headers });
     if (isNoChangeDesign(parsed.data.settings)) return Response.json({ error: "No change selected. Choose teeth and a goal or shade that makes a change." }, { status: 400, headers });
-    if (provider.name !== "mock" && request.headers.get("X-Smile-AI-Consent") !== AI_CONSENT_VERSION)
+    const consentVersion = request.headers.get("X-Smile-AI-Consent") ?? "";
+    if (provider.name !== "mock" && !ACCEPTED_AI_CONSENT_VERSIONS.includes(consentVersion))
       return Response.json({ error: "Clinician permission is required before sending this photo for AI processing. No provider request was sent.", code: "ai_consent_required" }, { status: 428, headers });
     const id = request.headers.get("X-Smile-Request-Id");
     if (provider.name !== "mock" && !id) return Response.json({ error: "Refresh SmileCompose to update the app before generating. No AI request was sent.", code: "missing_request_id" }, { status: 400, headers });
@@ -181,7 +182,7 @@ export async function handleGenerationRequest(
     }
     if (reservation && accountUserId) {
       // Accountability record of the clinician's AI-processing confirmation (no patient data).
-      await reservation.services.store.recordConsent(accountUserId, "ai_processing", AI_CONSENT_VERSION, parsed.data.caseId ?? null).catch(() => {});
+      await reservation.services.store.recordConsent(accountUserId, "ai_processing", consentVersion, parsed.data.caseId ?? null).catch(() => {});
     }
     // AI input minimisation: the provider receives the images and design
     // parameters only; the case ID, account and billing data stay here.

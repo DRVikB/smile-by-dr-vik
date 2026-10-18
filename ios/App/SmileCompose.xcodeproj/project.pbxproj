@@ -26,6 +26,7 @@
 		5C11A0000000000000000102 /* Launch/LaunchSignature@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 5C11A0000000000000000202 /* Launch/LaunchSignature@2x.png */; };
 		5C11A0000000000000000103 /* Launch/LaunchSignature@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = 5C11A0000000000000000203 /* Launch/LaunchSignature@3x.png */; };
 		5C33C0000000000000000004 /* SmileComposeWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C33C0000000000000000001 /* SmileComposeWidget.swift */; };
+		5C33C0000000000000000021 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5C33C0000000000000000020 /* PrivacyInfo.xcprivacy */; };
 		5C33C0000000000000000005 /* SmileComposeWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5C33C0000000000000000003 /* SmileComposeWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		5C33C0000000000000000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5C33C0000000000000000011 /* Assets.xcassets */; };
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
@@ -78,6 +79,7 @@
 		5C11A0000000000000000202 /* Launch/LaunchSignature@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Launch/LaunchSignature@2x.png"; sourceTree = "<group>"; };
 		5C11A0000000000000000203 /* Launch/LaunchSignature@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Launch/LaunchSignature@3x.png"; sourceTree = "<group>"; };
 		5C33C0000000000000000001 /* SmileComposeWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmileComposeWidget.swift; sourceTree = "<group>"; };
+		5C33C0000000000000000020 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		5C33C0000000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		5C33C0000000000000000003 /* SmileComposeWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SmileComposeWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		5C33C0000000000000000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -157,6 +159,7 @@
 				5C33C0000000000000000001 /* SmileComposeWidget.swift */,
 				5C33C0000000000000000011 /* Assets.xcassets */,
 				5C33C0000000000000000002 /* Info.plist */,
+				5C33C0000000000000000020 /* PrivacyInfo.xcprivacy */,
 			);
 			path = SmileComposeWidget;
 			sourceTree = "<group>";
@@ -269,6 +272,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5C33C0000000000000000012 /* Assets.xcassets in Resources */,
+				5C33C0000000000000000021 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

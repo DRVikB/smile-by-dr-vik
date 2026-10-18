@@ -52,3 +52,15 @@ for (const name of ["Alignment", "Full Arch preserve gingiva", "Full Arch includ
     assert.ok((await response.json()).image);
   });
 }
+
+for (const [version, status] of [["smilecompose-ai-v3", 401], ["smilecompose-ai-v2", 401], ["smilecompose-ai-v1", 428], ["", 428]] as const) {
+  test(`AI-processing confirmation "${version || "missing"}" is ${status === 428 ? "refused" : "accepted"} before any provider use`, async () => {
+    const response = await handleGenerationRequest(new Request("https://staging.test/api/generate-smile", {
+      method: "POST", headers: { "Content-Type": "application/json", "X-Smile-Request-Id": crypto.randomUUID(), ...(version ? { "X-Smile-AI-Consent": version } : {}) },
+      body: JSON.stringify({ originalImage: image, settings: contractExamples.Composite, resolution: "1K" }),
+    }), { SMILE_PROVIDER: "gemini", GEMINI_API_KEY: "synthetic-test-key", SMILE_GEMINI_DATA_TERMS: "paid" }, async () => true,
+    { store: { verifyAccessToken: async () => null } } as unknown as AccountServices);
+    // Accepted confirmations reach the account check (no token here: 401); refused ones stop at 428.
+    assert.equal(response.status, status);
+  });
+}

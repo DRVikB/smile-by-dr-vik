@@ -1,4 +1,7 @@
-export const AI_CONSENT_VERSION = "smilecompose-ai-v2";
+/** v3 (2026-10-18): names the processing as a third-party AI provider (App Review 5.1.2(i)) and describes private account sync. */
+export const AI_CONSENT_VERSION = "smilecompose-ai-v3";
+/** Versions the generation service accepts: the current one, and the one builds already installed still send. */
+export const ACCEPTED_AI_CONSENT_VERSIONS: readonly string[] = [AI_CONSENT_VERSION, "smilecompose-ai-v2"];
 
 /** A local record that the clinician confirmed permission for this photo. */
 export interface AiProcessingConsent {

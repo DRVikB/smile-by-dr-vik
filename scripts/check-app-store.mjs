@@ -13,6 +13,7 @@ const action = (done, label) => results.push({ ok: done, label, action: true });
 const plist = await read("ios/App/App/Info.plist");
 const pbx = await read("ios/App/SmileCompose.xcodeproj/project.pbxproj");
 const manifest = await read("ios/App/App/PrivacyInfo.xcprivacy");
+const widgetManifest = await read("ios/App/SmileComposeWidget/PrivacyInfo.xcprivacy").catch(() => "");
 const entitlements = await read("ios/App/App/SmileCompose.entitlements");
 const pkg = JSON.parse(await read("package.json"));
 const subscriptions = await read("src/config/subscriptions.ts");
@@ -37,6 +38,8 @@ check(entitlements.includes("com.apple.developer.applesignin"), "Sign in with Ap
 check(pbx.includes("CODE_SIGN_ENTITLEMENTS = App/SmileCompose.entitlements;"), "Entitlements file linked to the App target");
 check(pbx.includes("PrivacyInfo.xcprivacy in Resources"), "Privacy manifest bundled");
 check(manifest.includes("NSPrivacyAccessedAPICategoryFileTimestamp") && manifest.includes("C617.1"), "Required-reason API declared: file timestamps");
+check(manifest.includes("NSPrivacyAccessedAPICategoryUserDefaults") && manifest.includes("CA92.1") && manifest.includes("1C8F.1"), "Required-reason API declared: UserDefaults (app and app group)");
+check(widgetManifest.includes("NSPrivacyAccessedAPICategoryUserDefaults") && pbx.includes("5C33C0000000000000000021 /* PrivacyInfo.xcprivacy in Resources */,"), "Widget extension has its own privacy manifest (UserDefaults, app group)");
 check(/NSPrivacyTracking<\/key>\s*<false\/>/.test(manifest), "No tracking declared");
 check(appDelegate.includes("isExcludedFromBackup = true"), "Patient data excluded from iCloud backup (5.1.3)");
 check(entitlements.includes("NSFileProtectionComplete") && appDelegate.includes("FileProtectionType.complete"), "Complete Data Protection configured; physical lock/unlock verification required");
