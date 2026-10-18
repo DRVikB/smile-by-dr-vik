@@ -45,13 +45,15 @@ const ALIGN_TOLERANCE = 0.012;
 // A teeth-only edit shouldn't move the lip border by more than this share of
 // the mouth width.
 const LIP_TOLERANCE = 0.04;
+// INNER_LIP runs corner (0), upper lip (1–9), corner (10), lower lip (11–19).
+const INNER_UPPER_END = 10;
 // Beyond these the model has reframed the face; don't try to rescue it.
 const MIN_SCALE = 0.85;
 const MAX_SCALE = 1.18;
 const MAX_ANGLE = (8 * Math.PI) / 180;
 
 /** Invalidate reusable results made with the older, lip-inclusive mask. */
-export const MOUTH_LOCK_VERSION = "2026-10-16-lips-follow-v12";
+export const MOUTH_LOCK_VERSION = "2026-10-18-each-lip-v13";
 
 /** Categorical device QA only; never capture image content or browser errors. */
 export const MOUTH_LOCK_FAILURE_CODES = [
@@ -114,10 +116,16 @@ export function planMouthLock(
     if (diagnostic.anchorOutlierCount > diagnostic.allowedOutlierCount) return reject("anchor_outliers_excessive");
     const genLips = pick(generated, OUTER_LIP).map((p) => applySimilarity(transform, p));
     const origLips = pick(original, OUTER_LIP);
+    const innerMoves = pick(generated, INNER_LIP).map((p, i) => distance(applySimilarity(transform, p), original[INNER_LIP[i]]));
+    // Each lip on its own as well: a redraw that lowers only the lower lip (to show more of the new
+    // teeth) moves half the points, which the median over both lips hides. Restoring the patient's
+    // lower lip over that redraw cuts the new teeth off along it.
     lipsMoved =
       median(genLips.map((p, i) => distance(p, origLips[i]))) >
       LIP_TOLERANCE * mouthWidth ||
-      median(pick(generated, INNER_LIP).map((p, i) => distance(applySimilarity(transform, p), original[INNER_LIP[i]]))) > LIP_TOLERANCE * mouthWidth;
+      median(innerMoves) > LIP_TOLERANCE * mouthWidth ||
+      median(innerMoves.slice(1, INNER_UPPER_END)) > LIP_TOLERANCE * mouthWidth ||
+      median(innerMoves.slice(INNER_UPPER_END + 1)) > LIP_TOLERANCE * mouthWidth;
   }
 
   emit();

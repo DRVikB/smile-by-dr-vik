@@ -12,16 +12,20 @@ import { upperTeethRuns } from "./edgeGuard";
  *                  teeth where the photo showed a gap (veneers and bonding have no length permission);
  *  - darker:       the teeth came out darker or more yellow than photographed when a lighter shade
  *                  (or no change) was asked for;
- *  - yellow:       the new teeth came out yellower than the photographed ones, or beige for full arch;
+ *  - yellow:       the new teeth came out yellower than the photographed ones (a slight warm shift is
+ *                  allowed when they are also clearly lighter), or beige for full arch;
  *  - othersChanged: upper teeth outside a 4- or 6-tooth design were whitened too;
  *  - shade:        the shade changed noticeably although Keep was chosen;
  *  - lowerChanged: the lower teeth were whitened although only upper teeth were chosen;
+ *  - join:         on a close-up, the edge of the painted area shows: just outside it the final keeps the
+ *                  photo, but the service redrew that strip quite differently (a lower lip it moved down,
+ *                  teeth it added), so the two pictures meet in a visible edge;
  *  - smudged:      the teeth lost most of their surface detail;
  *  - merged:       the separations between teeth largely disappeared (a band rather than teeth).
  * Thresholds were set on the clinic's test photos so the results the clinician judged poor fail and
  * the good ones pass. Pure pixel work; exported for tests.
  */
-export type QualityIssue = "seam" | "longer" | "darker" | "yellow" | "shade" | "lowerChanged" | "othersChanged" | "smudged" | "merged";
+export type QualityIssue = "seam" | "join" | "longer" | "darker" | "yellow" | "shade" | "lowerChanged" | "othersChanged" | "smudged" | "merged";
 export interface QualityReport {
   /** No defect that should stop the result being presented as it is. */
   passed: boolean;
@@ -36,6 +40,7 @@ export interface QualityReport {
 
 export const QUALITY_MESSAGES: Record<QualityIssue, string> = {
   seam: "Part of the new teeth was cut off where they meet the lips.",
+  join: "The edge of the painted area shows, because the lips were redrawn beyond it.",
   longer: "The new teeth look longer than the patient’s own.",
   darker: "The teeth came out darker or more yellow than the photo.",
   shade: "The shade changed although Keep was chosen.",
@@ -47,6 +52,27 @@ export const QUALITY_MESSAGES: Record<QualityIssue, string> = {
 };
 
 const SPILL_LIMIT = 0.06;
+/** Share of the strip just outside a close-up's painted area where the photo kept meets a very different redraw. */
+const JOIN_LIMIT = 0.08;
+
+/** Two-pass chamfer distance (px) from each pixel to the nearest pixel of `area`, capped at `cap`. */
+function distanceTo(area: Uint8Array, W: number, H: number, cap: number): Float32Array {
+  const d = new Float32Array(W * H), D = Math.SQRT2;
+  for (let i = 0; i < d.length; i++) d[i] = area[i] ? 0 : cap;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x; let v = d[i]; if (v === 0) continue;
+    if (x > 0) v = Math.min(v, d[i - 1] + 1);
+    if (y > 0) { v = Math.min(v, d[i - W] + 1); if (x > 0) v = Math.min(v, d[i - W - 1] + D); if (x < W - 1) v = Math.min(v, d[i - W + 1] + D); }
+    d[i] = v;
+  }
+  for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
+    const i = y * W + x; let v = d[i]; if (v === 0) continue;
+    if (x < W - 1) v = Math.min(v, d[i + 1] + 1);
+    if (y < H - 1) { v = Math.min(v, d[i + W] + 1); if (x < W - 1) v = Math.min(v, d[i + W + 1] + D); if (x > 0) v = Math.min(v, d[i + W - 1] + D); }
+    d[i] = v;
+  }
+  return d;
+}
 const NOTE_ISSUES = new Set<QualityIssue>(["lowerChanged", "othersChanged", "shade"]);
 const lighterShades = new Set(["Whiten", "Bleach", "A1", "B1", "BL3", "BL2", "BL1"]);
 
@@ -148,6 +174,23 @@ export function assessQuality(
       for (let i = 0; i < n; i++) if (ring[i]) { ringPixels++; if (rawRing[i] > 0.7 && finalRing[i] < 0.3) spilled++; }
       metrics.spill = ringPixels ? spilled / ringPixels : 0;
     }
+    if (!lipLine) {
+      // A close-up's painted area: in a strip just outside it, where the final kept the photo but the
+      // service drew something very different, the two pictures meet in a visible edge.
+      const reach = Math.max(3, Math.round((maxX - minX) * 0.03));
+      const near = distanceTo(opening, W, H, reach + 1);
+      const lum = (a: Uint8ClampedArray, i: number) => 0.299 * a[i * 4] + 0.587 * a[i * 4 + 1] + 0.114 * a[i * 4 + 2];
+      let strip = 0, mismatched = 0;
+      for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
+        const i = y * W + x;
+        if (opening[i] || near[i] > reach) continue;
+        strip++;
+        const p = lum(original, i), s = lum(raw, i), f = lum(final, i);
+        if (Math.abs(f - p) < Math.abs(f - s) && Math.abs(s - p) > 30) mismatched++;
+      }
+      metrics.joinMismatch = strip ? mismatched / strip : 0;
+      if (strip > 200 && metrics.joinMismatch > JOIN_LIMIT) issues.push("join");
+    }
     if ((drawn > 200 && metrics.seamLost > 0.04) || (edgeDrawn > 200 && metrics.edgeLost > 0.25) || (metrics.spill ?? 0) > SPILL_LIMIT) issues.push("seam");
   }
 
@@ -172,7 +215,9 @@ export function assessQuality(
     metrics.dL = cAfter.L - cBefore.L; metrics.db = cAfter.b - cBefore.b; metrics.L = cAfter.L; metrics.b = cAfter.b;
     const lighter = lighterShades.has(settings.targetShade) || settings.treatmentMode === "full_arch";
     if (settings.treatment !== "Whitening" && !settings.alignment?.only && (lighter ? metrics.dL < -3 : metrics.dL < -6)) issues.push("darker");
-    if (lighter && settings.treatment !== "Whitening" && !settings.alignment?.only && (metrics.db > 2.5 || (settings.treatmentMode === "full_arch" && cAfter.b > 20))) issues.push("yellow");
+    // Teeth made clearly lighter with a slight warm shift read as brighter natural teeth, not yellow.
+    const yellower = (metrics.db > 2.5 && metrics.dL < 6) || metrics.db > 5;
+    if (lighter && settings.treatment !== "Whitening" && !settings.alignment?.only && (yellower || (settings.treatmentMode === "full_arch" && cAfter.b > 20))) issues.push("yellow");
     // Alignment alone moves teeth; it keeps their shade.
     if (settings.alignment?.only && settings.treatmentMode !== "full_arch" && Math.abs(metrics.dL) > 7) issues.push("shade");
     if (settings.targetShade === "The same" && settings.treatment !== "Whitening" && !settings.whitening && (Math.abs(metrics.dL) > 6 || metrics.db < -6)) issues.push("shade");

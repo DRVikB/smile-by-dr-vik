@@ -124,6 +124,14 @@ test("an edit that moved the lips themselves is flagged", () => {
   assert.equal(planMouthLock(original, generated)!.lipsMoved, true);
 });
 
+test("an edit that lowered only the lower lip is flagged as moved lips", () => {
+  const original = face();
+  const generated = original.map((p) => [...p] as Point);
+  // INNER_LIP 11–19 is the lower lip: 10 px is 5% of this 200 px mouth; the other 11 points stay.
+  INNER_LIP.slice(11).forEach((i) => { generated[i] = [generated[i][0], generated[i][1] + 10]; });
+  assert.equal(planMouthLock(original, generated)!.lipsMoved, true);
+});
+
 test("an opened AI smile cannot replace original lips, covered lower teeth or surrounding face pixels", () => {
   const original = face();
   const generated = original.map(p => [...p] as Point);

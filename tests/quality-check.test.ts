@@ -40,3 +40,25 @@ test("teeth darker than photographed fail when a lighter shade was asked for", (
   const r = assessQuality(o.rgba, f.rgba, o.W, o.H, o.opening, { ...defaultSettings, targetShade: "Whiten" }, f.rgba);
   assert.ok(r.issues.includes("darker") || r.issues.includes("yellow"), JSON.stringify(r));
 });
+
+test("much lighter teeth with a slight warm shift are not called yellow", () => {
+  const o = mouth({ tooth: [200, 198, 192] }), f = mouth({ tooth: [240, 236, 224] });
+  const r = assessQuality(o.rgba, f.rgba, o.W, o.H, o.opening, { ...defaultSettings, treatment: "Porcelain", targetShade: "Whiten" }, f.rgba);
+  assert.ok(!r.issues.includes("yellow"), JSON.stringify(r));
+});
+
+test("teeth made yellower at the same lightness are called yellow", () => {
+  const o = mouth(), f = mouth({ tooth: [230, 220, 178] });
+  const r = assessQuality(o.rgba, f.rgba, o.W, o.H, o.opening, { ...defaultSettings, treatment: "Porcelain", targetShade: "Whiten" }, f.rgba);
+  assert.ok(r.issues.includes("yellow"), JSON.stringify(r));
+});
+
+test("a close-up whose painted edge meets a very different redraw fails as a join", () => {
+  // The painted area is the mouth; below it the service drew teeth where the photo has lip.
+  const o = mouth(), service = mouth({ tooth: [240, 238, 232] }), f = mouth({ tooth: [240, 238, 232] });
+  for (let y = 110; y < 118; y++) for (let x = 30; x < 210; x++) service.rgba.set([240, 238, 232, 255], (y * o.W + x) * 4);
+  const r = assessQuality(o.rgba, f.rgba, o.W, o.H, o.opening, { ...defaultSettings, treatment: "Porcelain", shotType: "Close-up" }, service.rgba);
+  assert.ok(r.issues.includes("join"), JSON.stringify(r));
+  const clean = assessQuality(o.rgba, f.rgba, o.W, o.H, o.opening, { ...defaultSettings, treatment: "Porcelain", shotType: "Close-up" }, f.rgba);
+  assert.ok(!clean.issues.includes("join"), JSON.stringify(clean));
+});
