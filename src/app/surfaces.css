@@ -314,7 +314,7 @@ body { background: var(--background); }
 .photo-tips-disclosure > summary { min-height: 76px; gap: 16px; font-size: 16px; font-weight: 400; }
 .photo-tips-disclosure[open] > ul, .photo-tips-disclosure[open] > p { margin-left: 60px; }
 
-@media (min-width: 700px) {
+@media (min-width: 600px) {
   .photo-start { padding-top: 8px; }
   .photo-option-text strong { font-size: 27px; }
 }
@@ -380,7 +380,7 @@ body { background: var(--background); }
 .version-text { padding: 10px 12px 12px; }
 .case-rename-button { background: var(--surface-elevated); border: 1px solid var(--card-border); box-shadow: var(--shadow-sm); }
 /* On iPhone Cases is a page, not a floating sheet: it sits on the canvas. */
-@media (max-width: 700px) {
+@media (max-width: 599px) {
   .sheet-backdrop > .log-panel { background: var(--background); box-shadow: none; border: 0; }
 }
 .library-tip { background: var(--inset-bg); border: 1px solid var(--card-border); }
@@ -449,7 +449,7 @@ body { background: var(--background); }
 /* ============================================================
    iPad and desktop: comfortable containers, more outer whitespace
    ============================================================ */
-@media (min-width: 700px) {
+@media (min-width: 600px) {
   :root { --page-gutter: 32px; --card-gap: 24px; }
   .settings-scroll > .settings-page > * { max-width: 620px; }
 }

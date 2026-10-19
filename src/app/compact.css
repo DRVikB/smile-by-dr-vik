@@ -7,7 +7,7 @@
 .photo-mobile-menu { display: none; }
 .design-touch-compare { display: none; }
 
-@media (any-pointer: coarse), (max-width: 700px) {
+@media (any-pointer: coarse), (max-width: 599px) {
   .photo-desktop-actions { display: none; }
   .photo-mobile-menu { display: block; }
   .app-shell[data-screen="photo"] .app-header { display: flex; flex-wrap: nowrap; gap: 8px; padding: 10px 16px; }
@@ -196,7 +196,7 @@
 }
 
 @media (any-pointer: coarse) and (orientation: landscape) and (max-height: 500px),
-       (max-width: 700px) and (orientation: landscape) and (max-height: 500px) {
+       (max-width: 599px) and (orientation: landscape) and (max-height: 500px) {
   .app-shell .preview-screen > .variant-picker { top: calc(var(--photo-header) + 3px); left: 16px; }
   .compact-preview-dock { width: min(380px, calc(100% - 32px)); right: 16px; left: auto; transform: none; bottom: max(10px, var(--safe-bottom)); }
   .compact-preview-dock > button { min-height: 44px; }

@@ -55,7 +55,7 @@ input[type="range"] { accent-color: var(--accent); }
 .photo-heading { font-family: var(--font-sans); font-size: clamp(29px, 4vw, 42px); font-weight: 400; letter-spacing: -.025em; }
 .generation-splash .sc-wordmark { font-size: 17px; }
 
-@media (max-width: 700px) {
+@media (max-width: 599px) {
   .sc-lockup { gap: 7px; }
   .sc-symbol { width: 25px; height: 25px; }
   .sc-wordmark { font-size: 16px; }

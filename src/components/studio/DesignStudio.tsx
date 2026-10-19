@@ -233,7 +233,7 @@ export function DesignStudio({
   const rail = useSideRail();
   const styleInUse = useStyleInUse(settings);
   // iPad, and the open iPhone Duo on its side, have the room for every option at once.
-  const roomForAll = useMediaQuery("(min-width: 700px) and (min-height: 600px)");
+  const roomForAll = useMediaQuery("(min-width: 600px) and (min-height: 600px)");
   const steps = (
     <div className="studio-tabs" role="tablist" aria-label="Design steps" aria-orientation={rail ? "vertical" : undefined}>
       {/* iPhone Duo: Review is where Next leads and Generate Smile lives, so the side bar keeps only the four design steps. */}

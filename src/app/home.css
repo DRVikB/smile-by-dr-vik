@@ -25,7 +25,7 @@
 }
 /* The app's name leads the Home screen: larger than the 13 pt wordmark used on other screens, with the same wide tracking. */
 .start-screen .portrait-top .sc-wordmark { font-size: clamp(19px, 5.4vw, 23px); letter-spacing: .3em; margin-right: -.3em; }
-@media (min-width: 701px) { .start-screen .portrait-top .sc-wordmark { font-size: clamp(25px, 2.5vw, 31px); } }
+@media (min-width: 600px) { .start-screen .portrait-top .sc-wordmark { font-size: clamp(25px, 2.5vw, 31px); } }
 @media (orientation: landscape) and (max-height: 500px) { .start-screen .portrait-top .sc-wordmark { font-size: 19px; } }
 .start-screen .start-profile {
   top: max(16px, calc(var(--app-safe-top) + 12px));
@@ -48,7 +48,7 @@
 
 /* iPad and the open iPhone Duo in landscape: the smile fills the right, the welcome and the
    buttons sit in a column at the lower left, sized for the wide display. */
-@media (min-width: 701px) and (min-height: 501px) and (orientation: landscape) {
+@media (min-width: 600px) and (min-height: 501px) and (orientation: landscape) {
   .start-screen .start-copy { justify-content: flex-end; max-width: none; padding-top: clamp(10px, 4vh, 40px); padding-bottom: clamp(8px, 2vh, 24px); }
   .start-screen .start-copy > * { max-width: min(48vw, 600px); }
   .start-screen .start-greeting { font-size: clamp(20px, 2.2vw, 27px); }
@@ -60,25 +60,25 @@
   .start-screen .allowance-pill { margin-top: 10px; }
 }
 /* Shorter wide screens (11-inch iPads, iPad mini, the open Duo): a tighter rhythm keeps everything on one screen. */
-@media (min-width: 701px) and (min-height: 501px) and (max-height: 900px) and (orientation: landscape) {
+@media (min-width: 600px) and (min-height: 501px) and (max-height: 900px) and (orientation: landscape) {
   .start-screen .portrait-top { padding-bottom: 6px; }
   .start-screen .splash-heading { font-size: min(7.4vw, 9.6vh, 96px); }
   .start-screen .splash-actions { gap: 12px; }
   .start-screen .splash-pair { gap: 12px; }
   .start-screen .splash-primary, .start-screen .splash-outline { min-height: clamp(48px, 7.2vh, 60px); font-size: clamp(16px, 2.4vh, 19px); }
 }
-@media (min-width: 701px) and (min-height: 501px) and (max-height: 760px) and (orientation: landscape) {
+@media (min-width: 600px) and (min-height: 501px) and (max-height: 760px) and (orientation: landscape) {
   .start-screen .splash-heading { font-size: min(6.6vw, 9vh, 80px); }
   .start-screen .splash-sub { margin-top: 8px; font-size: clamp(16px, 2.6vh, 19px); }
   .start-screen .splash-actions { margin-top: 18px; gap: 10px; }
   .start-screen .splash-pair { gap: 10px; }
 }
 /* The open Duo: the column stays on the left half, clear of the fold. */
-@media (min-width: 701px) and (min-height: 501px) and (orientation: landscape) {
+@media (min-width: 600px) and (min-height: 501px) and (orientation: landscape) {
   html[data-side-bar] .start-screen .splash-actions { width: min(46vw, 500px, calc(var(--fold-left, 50vw) - var(--home-pad-l) - 24px)); }
 }
 /* iPad portrait: the photograph above, then the welcome and full-width buttons across the foot. */
-@media (min-width: 701px) and (orientation: portrait) {
+@media (min-width: 600px) and (orientation: portrait) {
   .start-screen .start-copy { justify-content: flex-end; max-width: none; padding-bottom: clamp(8px, 1.6vh, 20px); }
   .start-screen .start-greeting { font-size: clamp(22px, 3vw, 28px); }
   .start-screen .splash-heading { font-size: clamp(56px, 7.8vw, 96px); }
@@ -89,7 +89,7 @@
 }
 
 /* ---------- iPhone portrait: hero photograph above, the welcome below ---------- */
-@media (max-width: 700px) and (orientation: portrait) {
+@media (max-width: 599px) and (orientation: portrait) {
   /* The photograph fills the whole screen, as on iPad, so the frosted pills show it through them;
      a darker foot keeps the welcome and buttons legible. */
   .start-screen .portrait-image { background-position: 74% 18%; }
@@ -120,7 +120,7 @@
   .start-screen .splash-tagline { font-size: 11px; }
 }
 /* Phones: a long renewal note wraps tidily rather than squeezing the pill. */
-@media (max-width: 700px), (orientation: landscape) and (max-height: 500px) {
+@media (max-width: 599px), (orientation: landscape) and (max-height: 500px) {
   .start-screen .allowance-pill { max-width: 100%; border-radius: 22px; padding-block: 8px; font-size: 13px; text-align: left; line-height: 1.35; }
   .start-screen .allowance-pill small { font-size: 12px; }
 }
@@ -181,7 +181,7 @@
 }
 .recent-row::-webkit-scrollbar { display: none; }
 .recent-row > li { min-width: 0; scroll-snap-align: start; }
-@media (min-width: 701px) { .recent-row { grid-auto-columns: calc((100% - 20px) / 3); } }
+@media (min-width: 600px) { .recent-row { grid-auto-columns: calc((100% - 20px) / 3); } }
 .recent-card {
   display: flex; flex-direction: column; width: 100%; height: 100%; padding: 5px; border-radius: 16px; text-align: left;
   background: var(--card); color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--border);
@@ -193,7 +193,7 @@
 .recent-card .recent-card-treatment { font-size: 13px; color: var(--text-primary); }
 .recent-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .recent-all { width: 100%; min-height: 50px; margin-top: 16px; border-radius: 999px; }
-@media (max-width: 700px) and (orientation: portrait) {
+@media (max-width: 599px) and (orientation: portrait) {
   /* Edge to edge along the foot, clear of a side strip (the closed iPhone Duo's camera). */
   .recent-backdrop { align-items: end; padding: calc(var(--app-safe-top) + 12px) var(--app-safe-right) 0 var(--app-safe-left); }
   .recent-backdrop > .recent-sheet {

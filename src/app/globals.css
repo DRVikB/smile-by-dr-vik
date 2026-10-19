@@ -1130,7 +1130,7 @@ main {
 @keyframes saved-note { 0% { opacity: 0; transform: translateY(6px); } 10%, 84% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
 @keyframes saved-tick { to { stroke-dashoffset: 0; } }
 /* Touch layouts have no Slide/Overlay switch on the photograph: the note takes its corner, level with Whole photo. */
-@media (any-pointer: coarse), (max-width: 700px) { .app-shell .preview-screen .saved-note { top: calc(var(--photo-header, 56px) + 9px); left: max(16px, var(--app-safe-left, 0px)); } }
+@media (any-pointer: coarse), (max-width: 599px) { .app-shell .preview-screen .saved-note { top: calc(var(--photo-header, 56px) + 9px); left: max(16px, var(--app-safe-left, 0px)); } }
 @media (prefers-reduced-motion: reduce) {
   .saved-note { animation-delay: 300ms; }
   .saved-note path { stroke-dashoffset: 0; animation: none; }

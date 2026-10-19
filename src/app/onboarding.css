@@ -243,7 +243,7 @@
 
 /* iPad portrait: the picture across the top and a floating card rising over it, the picture's dark
    ground continuing round and below it */
-@media (min-width: 700px) and (orientation: portrait) {
+@media (min-width: 600px) and (orientation: portrait) {
   .has-hero.ob-frame { background: #141210; }
   .ob-visual, .ob-welcome .ob-visual { --inset: 40px; --inset-top: calc(var(--safe-top) + 32px); --lift: 140px; height: min(62dvh, 800px); }
   .has-hero .ob-visual { -webkit-mask-image: linear-gradient(180deg, #000 78%, transparent); mask-image: linear-gradient(180deg, #000 78%, transparent); }
@@ -277,7 +277,7 @@
 
 /* iPad landscape (and phones sideways): the picture on the left, fading into its dark ground, and the
    content on a floating card to the right, over the picture's edge */
-@media (min-width: 700px) and (orientation: landscape) {
+@media (min-width: 600px) and (orientation: landscape) {
   .has-hero.ob-frame { background: #141210; }
   .ob-visual { --inset: max(clamp(24px, 3vw, 40px), var(--safe-left)); --inset-top: calc(var(--safe-top) + var(--inset)); }
   /* The card sits on the right; the picture fills the space to its left, so the face and the Before / Concept line are centred in what you can see. */
@@ -341,7 +341,7 @@
   cursor: pointer; box-shadow: var(--shadow-sm);
 }
 .ob-dismiss:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
-@media (min-width: 700px) and (orientation: landscape) {
+@media (min-width: 600px) and (orientation: landscape) {
   .onboarding[data-step="subscription"] .ob-sheet { min-height: calc(100dvh - 48px); gap: 12px; padding: 24px 30px; }
   .onboarding[data-step="subscription"] .ob-title { font-size: 32px; }
   .onboarding[data-step="subscription"] .ob-head { gap: 8px; }
@@ -353,7 +353,7 @@
   .ob-dismiss { top: calc(var(--safe-top) + 36px); right: max(36px, calc(var(--safe-right) + 12px)); }
 }
 
-@media (min-width: 700px) and (orientation: landscape) and (max-height: 520px) {
+@media (min-width: 600px) and (orientation: landscape) and (max-height: 520px) {
   .ob-display { font-size: 40px; }
   .ob-title { font-size: 30px; }
 }

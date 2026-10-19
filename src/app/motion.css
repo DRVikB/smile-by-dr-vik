@@ -42,8 +42,8 @@
 .sheet-backdrop > :is(.sheet, .log-panel, .camera-sheet), .log-detail, .settings-panel.split, .action-sheet, .avatar-cropper {
   animation: settle-in 420ms var(--ease-sheet) backwards;
 }
-@media (min-width: 768px) { .cl-sheet { animation: settle-in 420ms var(--ease-sheet) backwards; } }
-@media (max-width: 700px) {
+@media (min-width: 600px) { .cl-sheet { animation: settle-in 420ms var(--ease-sheet) backwards; } }
+@media (max-width: 599px) {
   .sheet-backdrop > :is(.sheet, .log-panel, .camera-sheet), .action-sheet,
   .settings-panel.stack, .cl-sheet {
     animation: sheet-up var(--sheet-in) var(--ease-sheet) backwards;
@@ -52,7 +52,7 @@
 
 /* Recent cases → a case: the Cases sheet grows up from where Recent cases stood, over a dim already in place. */
 .sheet-backdrop.is-continued { animation: none; }
-@media (max-width: 700px) {
+@media (max-width: 599px) {
   .sheet-backdrop > .log-panel.continues { animation: sheet-continue 460ms var(--ease-sheet) backwards; }
 }
 
@@ -101,7 +101,7 @@
 .is-leaving > :is(.sheet, .log-panel, .camera-sheet, .settings-panel, .cl-sheet, .action-sheet, .log-detail, .avatar-cropper) {
   animation: settle-out 220ms var(--ease-exit) forwards;
 }
-@media (max-width: 700px) {
+@media (max-width: 599px) {
   .is-leaving > :is(.sheet, .log-panel, .camera-sheet, .settings-panel.stack, .cl-sheet, .action-sheet) {
     animation: sheet-down var(--sheet-out) var(--ease-exit) forwards;
   }

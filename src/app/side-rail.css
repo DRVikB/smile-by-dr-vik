@@ -51,7 +51,7 @@ html[data-side-bar] .settings-detail-head { grid-template-columns: minmax(0, 1fr
   html[data-side-bar="right"] :is(.sheet-backdrop, .log-detail-backdrop, .action-sheet-backdrop, .cs-layer, .cl-backdrop) { padding-right: max(10px, var(--safe-right)); }
   html[data-side-bar="left"] :is(.sheet-backdrop, .log-detail-backdrop, .action-sheet-backdrop, .cs-layer, .cl-backdrop) { padding-left: max(10px, var(--safe-left)); }
 }
-@media (min-width: 700px) {
+@media (min-width: 600px) {
   html[data-side-bar] :is(.sheet-backdrop, .log-detail-backdrop, .action-sheet-backdrop, .cs-layer, .cl-backdrop, .settings-backdrop) { padding-inline: max(10px, var(--side-bar-inset)); }
   html[data-side-bar] .settings-panel.split, html[data-side-bar] .settings-panel.split.admin { width: min(1040px, calc(100vw - 2 * var(--side-bar-inset) - 24px)); }
 }
@@ -148,7 +148,7 @@ html[data-side-bar] .app-shell .app-header .sc-brand-header-start:not(:has(*)), 
 }
 /* Smile analysis on iPhone Duo, open and on its side: the brand line would sit over the Before / After
    switch, so it steps aside (Back and More are in the side bar) and the switch and panel move up. */
-@media (min-width: 700px) and (orientation: landscape) {
+@media (min-width: 600px) and (orientation: landscape) {
   html[data-side-bar] .app-shell[data-screen="preview"]:has(.comparison.has-guides) .app-header { display: none; }
   html[data-side-bar] .app-shell .preview-screen .analysis-view { top: 16px; }
   html[data-side-bar] .app-shell .preview-screen .analysis-panel { top: 72px; max-height: calc(100% - 72px - max(16px, var(--safe-bottom))); }
@@ -156,7 +156,7 @@ html[data-side-bar] .app-shell .app-header .sc-brand-header-start:not(:has(*)), 
 
 
 /* The open display has more height: the step buttons get full-size targets and more air between them. */
-@media (min-width: 700px) {
+@media (min-width: 600px) {
   .side-rail .studio-tabs { gap: 8px; }
   .side-rail .studio-tabs button { width: 44px; height: 44px; }
 }
@@ -201,7 +201,7 @@ html[data-side-bar] .side-rail .studio-tabs button svg { width: min(26px, calc(v
 
 /* iPhone Duo, partly folded with the open display on its side: the studio splits at the fold, the
    photograph on the near half and the steps on the far half, so nothing sits across the crease. */
-@media (min-width: 700px) and (orientation: landscape) {
+@media (min-width: 600px) and (orientation: landscape) {
   html[data-fold="vertical"] .studio { gap: calc(var(--fold-width) + 4px); }
   html[data-fold="vertical"] .studio-stage { flex: 0 0 calc(var(--fold-left) - max(20px, var(--app-safe-left, 0px)) - 12px); }
   html[data-fold="vertical"] .studio-dock { flex: 1 1 auto; min-width: 0; }

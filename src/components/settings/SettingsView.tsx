@@ -87,7 +87,7 @@ export function SettingsView({ initialSection, onClose, onSectionChange }: {
   const admin = useAdmin();
   // iPhone Duo: Back and Done sit in the side bar; the bar across the top keeps the title.
   const rail = useSideRail();
-  const wide = useMediaQuery("(min-width: 768px)");
+  const wide = useMediaQuery("(min-width: 600px)");
   const online = useOnline();
   const [chosen, setSection] = useState<SettingsSection>(initialSection ?? "profile");
   const scroller = useRef<HTMLDivElement>(null);
