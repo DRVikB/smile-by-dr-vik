@@ -174,7 +174,6 @@
   .case-version-row { gap: 12px; }
   .case-version-row > li { flex-basis: calc((100% - 48px) / 5.2); }
   .case-actions { grid-template-columns: repeat(2, minmax(0, 220px)); justify-content: start; }
-  .log-detail { width: min(720px, 100%); }
   /* Two groups side by side under the comparison: open and share on the left, archive and delete on the right. */
   .log-detail-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .log-detail-actions > .primary-button { grid-column: 1 / -1; }
@@ -197,4 +196,18 @@
   .case-page > .case-hero .case-hero-open img, .case-page > .case-hero .case-hero-open .version-thumb-empty { height: 100%; aspect-ratio: auto; }
   .case-page .case-design-more { min-height: 50px; }
   .case-page .case-actions .secondary-button { min-height: 46px; }
+}
+
+/* A version opens in the same card as its case: the same place and size, slid in from the side (motion.css),
+   with no second dim behind it. */
+.log-detail-backdrop { background: transparent; }
+.log-detail-backdrop > .log-detail .log-head h2 {
+  font-size: clamp(23px, 6.6vw, 28px); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+@media (max-width: 599px) {
+  .log-detail-backdrop { place-items: end center; padding: calc(var(--app-safe-top, 0px) + 12px) 8px calc(var(--app-safe-bottom, 0px) + 8px); }
+  .log-detail-backdrop > .log-detail { width: 100%; height: 100%; max-height: none; border-radius: 22px; padding: 22px 18px 18px; background: var(--background); box-shadow: none; border: 0; }
+}
+@media (min-width: 600px) {
+  .log-detail-backdrop > .log-detail { width: min(780px, calc(100vw - 64px)); height: min(940px, calc(100dvh - 72px)); max-height: none; padding: 26px 28px 24px; }
 }

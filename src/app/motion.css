@@ -34,6 +34,9 @@
 @keyframes swap-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes card-in { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
 @keyframes row-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* Slid by its own width and cut back by the same amount, so it never shows past the case card it covers. */
+@keyframes card-push-in { from { transform: translateX(100%); clip-path: inset(0 100% 0 0 round 22px); } to { transform: none; clip-path: inset(0 0 0 0 round 22px); } }
+@keyframes card-push-out { from { transform: none; clip-path: inset(0 0 0 0 round 22px); } to { transform: translateX(100%); clip-path: inset(0 100% 0 0 round 22px); } }
 @keyframes check-pop { 0% { transform: scale(.6); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
 
 /* ---------- arriving ----------
@@ -55,6 +58,14 @@
 @media (max-width: 599px) {
   .sheet-backdrop > .log-panel.continues { animation: sheet-continue 460ms var(--ease-sheet) backwards; }
 }
+
+/* A version slides in over its case, in the same card, like the next page; Close slides it back. */
+.log-detail-backdrop { animation: none; }
+.log-detail-backdrop > .log-detail { animation: card-push-in 440ms var(--ease-sheet) backwards; }
+.log-detail-backdrop.is-leaving > .log-detail { animation: card-push-out 300ms var(--ease-exit) forwards; }
+/* The case underneath eases a little to the left and dims, as the page before does on iOS. */
+.sheet-backdrop > .log-panel > * { transition: transform 440ms var(--ease-sheet), opacity 440ms var(--ease-sheet); }
+.sheet-backdrop:has(> .log-detail-backdrop:not(.is-leaving)) > .log-panel > * { transform: translateX(-18%); opacity: .35; }
 
 /* Recent cases: the cards slide in one after another. */
 .recent-row > li { animation: card-in 440ms var(--ease-sheet) backwards; animation-delay: calc(120ms + var(--i, 0) * 45ms); }
@@ -126,6 +137,6 @@
   .sheet-backdrop > :is(.sheet, .log-panel, .camera-sheet), .log-detail, .settings-panel, .action-sheet, .avatar-cropper, .cl-sheet,
   .recent-row > li, .case-page.push, .log-panel[data-nav="pop"] > *, .log-list > li, .settings-page,
   .studio-more-body, .studio-check svg, .is-leaving, .is-leaving > * { animation: none !important; }
-  .app-shell .preview-screen .review-drawer, .floating-panel-body, :is(.settings-row, .log-row, .studio-treatment, .action-row) { transition: none; }
+  .sheet-backdrop > .log-panel > *, .app-shell .preview-screen .review-drawer, .floating-panel-body, :is(.settings-row, .log-row, .studio-treatment, .action-row) { transition: none; }
   :is(.recent-card, .version-open, .case-cover, .cl-item, .log-row, .case-photo-set, .case-hero, .case-version-tile) img { transition: none; opacity: 1; }
 }
