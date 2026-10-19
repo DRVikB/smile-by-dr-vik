@@ -23,6 +23,10 @@
 .start-screen .portrait-top {
   padding: max(16px, calc(var(--app-safe-top) + 14px)) var(--home-pad-r) 16px var(--home-pad-l);
 }
+/* The app's name leads the Home screen: larger than the 13 pt wordmark used on other screens, with the same wide tracking. */
+.start-screen .portrait-top .sc-wordmark { font-size: clamp(19px, 5.4vw, 23px); letter-spacing: .3em; margin-right: -.3em; }
+@media (min-width: 701px) { .start-screen .portrait-top .sc-wordmark { font-size: clamp(25px, 2.5vw, 31px); } }
+@media (orientation: landscape) and (max-height: 500px) { .start-screen .portrait-top .sc-wordmark { font-size: 19px; } }
 .start-screen .start-profile {
   top: max(16px, calc(var(--app-safe-top) + 12px));
   right: max(18px, calc(var(--app-safe-right) + 8px));
