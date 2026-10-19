@@ -110,13 +110,13 @@
 
 /* ---------- small touches ---------- */
 /* Rows answer a touch with the system highlight rather than shrinking. */
-:is(.settings-row, .log-row, .studio-treatment) { transition: background-color 240ms var(--ease-soft), transform 320ms var(--spring); }
-:is(.settings-row, .log-row, .studio-treatment):active:not(:disabled) { transform: none; background-color: var(--row-pressed); transition-duration: 60ms; }
+:is(.settings-row, .log-row, .studio-treatment, .action-row) { transition: background-color 240ms var(--ease-soft), transform 320ms var(--spring); }
+:is(.settings-row, .log-row, .studio-treatment, .action-row):active:not(:disabled) { transform: none; background-color: var(--row-pressed); transition-duration: 60ms; }
 /* A choice's tick pops in. */
 .studio-treatment[aria-checked="true"] .studio-check svg { animation: check-pop 360ms var(--spring) both; }
 /* Thumbnails fade in once loaded, instead of appearing half-drawn. */
-:is(.recent-card, .version-open, .case-cover, .cl-item, .log-row, .case-photo-set) img { transition: opacity 360ms var(--ease-soft); }
-:is(.recent-card, .version-open, .case-cover, .cl-item, .log-row, .case-photo-set) img:not([data-loaded]) { opacity: 0; }
+:is(.recent-card, .version-open, .case-cover, .cl-item, .log-row, .case-photo-set, .case-hero, .case-version-tile) img { transition: opacity 360ms var(--ease-soft); }
+:is(.recent-card, .version-open, .case-cover, .cl-item, .log-row, .case-photo-set, .case-hero, .case-version-tile) img:not([data-loaded]) { opacity: 0; }
 /* Chevrons and disclosure arrows turn smoothly. */
 :is(.panel-chevron, .case-chevron, .splash-recent-arrow) { transition: transform 280ms var(--ease-sheet); }
 .splash-recent:active .splash-recent-arrow { transform: translateX(3px); }
@@ -126,6 +126,6 @@
   .sheet-backdrop > :is(.sheet, .log-panel, .camera-sheet), .log-detail, .settings-panel, .action-sheet, .avatar-cropper, .cl-sheet,
   .recent-row > li, .case-page.push, .log-panel[data-nav="pop"] > *, .log-list > li, .settings-page,
   .studio-more-body, .studio-check svg, .is-leaving, .is-leaving > * { animation: none !important; }
-  .app-shell .preview-screen .review-drawer, .floating-panel-body, :is(.settings-row, .log-row, .studio-treatment) { transition: none; }
-  :is(.recent-card, .version-open, .case-cover, .cl-item, .log-row, .case-photo-set) img { transition: none; opacity: 1; }
+  .app-shell .preview-screen .review-drawer, .floating-panel-body, :is(.settings-row, .log-row, .studio-treatment, .action-row) { transition: none; }
+  :is(.recent-card, .version-open, .case-cover, .cl-item, .log-row, .case-photo-set, .case-hero, .case-version-tile) img { transition: none; opacity: 1; }
 }

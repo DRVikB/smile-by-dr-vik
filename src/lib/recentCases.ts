@@ -23,3 +23,13 @@ export function recentCaseTreatment(summary: string | undefined): string | null 
   const parts = (summary ?? "").split(" · ").map(part => part.trim()).filter(Boolean);
   return parts.length >= 2 ? parts[1] : null;
 }
+
+/**
+ * A case's name: the clinician's reference when there is one, otherwise the first design's treatment
+ * and the day it was made ("Porcelain · 18 Oct"). Nothing about the patient goes into it.
+ */
+export function caseDisplayName(name: string | undefined, summary: string | undefined, createdAt: number): string {
+  if (name?.trim()) return name.trim();
+  const day = new Date(createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return `${recentCaseTreatment(summary) ?? "Smile design"} · ${day}`;
+}

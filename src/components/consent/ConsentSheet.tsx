@@ -1,7 +1,7 @@
 "use client";
 import { SheetClose } from "@/components/sideRail/SideRail";
 import { useEffect, useRef, useState } from "react";
-import { Check, Download, FileSignature, RotateCcw } from "lucide-react";
+import { Check, ChevronRight, Download, FileSignature, RotateCcw } from "lucide-react";
 import { CONSENT_ITEMS, CONSENT_VERSION, SHOWN_CONSENT_ITEMS, type CaseConsent, type ConsentItem } from "@/lib/portal";
 import { signedOn } from "@/lib/consentRecord";
 import { features } from "@/config/features";
@@ -139,13 +139,30 @@ export function ConsentView({ consent, caseLabel, onClose, onRemove }: { consent
 }
 
 /** The consent line on a case: who signed and when, or a button to hand the device to the patient. */
-export function ConsentStatus({ consent, patientName, caseLabel, onSave }: {
+export function ConsentStatus({ consent, patientName, caseLabel, onSave, row = false }: {
   consent?: CaseConsent;
   patientName: string;
   caseLabel: string;
   onSave: (consent: CaseConsent | null) => Promise<void>;
+  /** As a row of a grouped list (the app's case page). */
+  row?: boolean;
 }) {
   const [open, setOpen] = useState<"sign" | "view" | null>(null);
+  const signedDay = consent ? new Date(consent.signedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
+  const sheets = <>
+    {open === "sign" && <ConsentSheet patientName={patientName} onCancel={() => setOpen(null)} onSigned={c => onSave(c)} />}
+    {open === "view" && consent && <ConsentView consent={consent} caseLabel={caseLabel} onClose={() => setOpen(null)}
+      onRemove={async () => { await onSave(null); setOpen(null); }} />}
+  </>;
+  if (row) return <>
+    <button type="button" className="action-row" onClick={() => setOpen(consent ? "view" : "sign")}>
+      <span className="action-icon" aria-hidden="true">{consent ? <Check size={15} /> : <FileSignature size={15} />}</span>
+      <span className="action-label">Patient consent</span>
+      <span className="action-value">{consent ? `Signed ${signedDay}` : <><span className="action-dot" aria-hidden="true" />Not recorded</>}</span>
+      <ChevronRight className="action-chevron" size={17} aria-hidden="true" />
+    </button>
+    {sheets}
+  </>;
   return <div className="cs-status">
     {consent ? <button type="button" className="cs-status-row signed" onClick={() => setOpen("view")}>
       <span className="cs-status-mark"><Check size={14} /></span>

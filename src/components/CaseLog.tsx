@@ -23,6 +23,7 @@ import { caseIdOf } from "@/models/case";
 import { useCaseRecord } from "./useCaseRecord";
 import { CasePhotoSet } from "./CasePhotoSet";
 import { RECENTLY_DELETED_DAYS } from "@/config/cases";
+import { caseDisplayName, recentCaseTreatment } from "@/lib/recentCases";
 
 /** When the list of cases was last looked at: anything made since arrives with a small welcome. */
 let casesSeenAt = Date.now();
@@ -135,6 +136,9 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
   const shown = all.filter(group => !query.trim() || group.versions.some(v => matchesQuery(v, query)));
   const current = openCase ? all.find(g => g.key === openCase) ?? null : null;
   const versions = current ? current.versions.filter(v => !onlyFavourites || v.favourite) : [];
+  // The patient's preferred version leads the case page, otherwise the newest; the rest scroll beneath it.
+  const hero = current ? current.versions.find(v => v.id === pageRecord.preferredDesignId) ?? current.versions[0] : null;
+  const others = hero ? versions.filter(v => v.id !== hero.id) : [];
 
   // Leaving a case (or it emptying) resets its per-case state.
   useEffect(() => {
@@ -243,7 +247,8 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
     }
   }
 
-  const caseName = (group: CaseGroup) => group.name || "Unnamed case";
+  const caseName = (group: CaseGroup) => { const first = group.versions[group.versions.length - 1]; return caseDisplayName(group.name, first?.summary, first?.createdAt ?? group.updatedAt); };
+  const entryCaseName = (entry: CaseLogEntry) => { const group = all.find(g => g.key === caseIdOf(entry)); return group ? caseName(group) : caseDisplayName(entry.patientName, entry.summary, entry.createdAt); };
   const errorBanner = error && (
     <p className="error-message" role="alert">
       {error}
@@ -290,70 +295,83 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
               <div className="case-title">
                 <h2>{caseName(current)}</h2>
                 <button type="button" className="case-rename-button" onClick={() => setRenaming(current.name)} aria-label="Rename case">
-                  <Pencil size={15} strokeWidth={1.8} aria-hidden="true" />Rename
+                  <Pencil size={14} strokeWidth={1.9} aria-hidden="true" />
                 </button>
               </div>
             )}
             <p className="case-meta">
               {current.versions.length} {current.versions.length === 1 ? "version" : "versions"}
-              {current.favourites > 0 && ` · ${current.favourites} ${current.favourites === 1 ? "favourite" : "favourites"}`}
               {` · updated ${formatLogDate(current.updatedAt)}`}
             </p>
-            <p className="control-hint case-hint">Use initials or a practice reference, not the patient’s full name.</p>
+            {renaming !== null && <p className="control-hint case-hint">Use initials or a practice reference, not the patient’s full name.</p>}
 
             {errorBanner}
             {onReopen&&<button type="button" className="primary-button case-design-more" disabled={reopening} onClick={()=>void reopenDesign(current.key)}><PenLine size={17} strokeWidth={1.9} aria-hidden="true" />{reopening ? "Opening the studio…" : "Design more"}</button>}
             {syncIndicators[current.key] && <p className="control-hint" role="status">{syncIndicators[current.key]}</p>}
-            <CasePhotoSet caseId={current.key} />
 
-            {current.favourites > 0 && (
-              <div className="settings-segment case-filter" role="tablist" aria-label="Show versions">
-                <button type="button" role="tab" aria-selected={!onlyFavourites} onClick={() => setOnlyFavourites(false)}>All</button>
-                <button type="button" role="tab" aria-selected={onlyFavourites} onClick={() => setOnlyFavourites(true)}>Favourites</button>
+            {hero && (
+              <div className="case-hero">
+                <button type="button" className="case-hero-open" onClick={() => void openEntry(hero)} aria-label={`Open ${versionTitle(hero, current.versions.indexOf(hero), current.versions.length)}`}>
+                  {hero.thumb ? <img src={hero.thumb} alt="" draggable={false} /> : <span className="version-thumb-empty" aria-hidden="true" />}
+                  <span className="case-hero-caption">
+                    <strong>{versionTitle(hero, current.versions.indexOf(hero), current.versions.length)}</strong>
+                    <span>{[recentCaseTreatment(hero.summary), timeOf(hero.createdAt)].filter(Boolean).join(" · ")}{(hero.testMode || hero.mode === "mock") ? " · Test" : ""}</span>
+                  </span>
+                </button>
+                {pageRecord.preferredDesignId === hero.id && <span className="case-hero-badge"><CircleCheck size={13} strokeWidth={2} aria-hidden="true" />Patient’s preferred</span>}
+                <button type="button" className={`version-star${hero.favourite ? " on" : ""}`} aria-pressed={Boolean(hero.favourite)}
+                  aria-label={hero.favourite ? "Remove from favourites" : "Add to favourites"} onClick={() => void toggleFavourite(hero)}>
+                  <Star size={17} strokeWidth={1.9} fill={hero.favourite ? "currentColor" : "none"} />
+                </button>
               </div>
             )}
 
-            <ul className="version-grid">
-              {versions.map((entry) => {
-                const index = current.versions.indexOf(entry);
-                return (
-                  <li key={entry.id} className="version-tile">
-                    <button type="button" className="version-open" onClick={() => void openEntry(entry)}>
-                      {entry.thumb ? <img src={entry.thumb} alt="" draggable={false} /> : <span className="version-thumb-empty" aria-hidden="true" />}
-                      <span className="version-text">
-                        <strong>{versionTitle(entry, index, current.versions.length)}</strong>
-                        <span>{timeOf(entry.createdAt)}{(entry.testMode || entry.mode === "mock") ? " · Test" : ""}</span>
-                        {pageRecord.preferredDesignId === entry.id && <span className="version-preferred">Patient preferred</span>}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`version-star${entry.favourite ? " on" : ""}`}
-                      aria-pressed={Boolean(entry.favourite)}
-                      aria-label={entry.favourite ? "Remove from favourites" : "Add to favourites"}
-                      onClick={() => void toggleFavourite(entry)}
-                    >
-                      <Star size={17} strokeWidth={1.9} fill={entry.favourite ? "currentColor" : "none"} />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            {current.versions.length > 1 && (
+              <section className="case-versions" aria-label="All versions">
+                <div className="case-versions-head">
+                  <h3>All versions</h3>
+                  {current.favourites > 0 && (
+                    <div className="settings-segment case-filter" role="tablist" aria-label="Show versions">
+                      <button type="button" role="tab" aria-selected={!onlyFavourites} onClick={() => setOnlyFavourites(false)}>All</button>
+                      <button type="button" role="tab" aria-selected={onlyFavourites} onClick={() => setOnlyFavourites(true)}>Favourites</button>
+                    </div>
+                  )}
+                </div>
+                {others.length ? (
+                  <ul className="case-version-row">
+                    {others.map(entry => {
+                      const index = current.versions.indexOf(entry);
+                      return (
+                        <li key={entry.id}>
+                          <button type="button" className="case-version-tile" onClick={() => void openEntry(entry)}>
+                            {entry.thumb ? <img src={entry.thumb} alt="" draggable={false} /> : <span className="version-thumb-empty" aria-hidden="true" />}
+                            {entry.favourite && <Star className="case-version-fav" size={13} strokeWidth={1.9} fill="currentColor" aria-label="Favourite" />}
+                            <span className="case-version-label">{versionTitle(entry, index, current.versions.length)} · {timeOf(entry.createdAt)}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : <p className="control-hint">No other favourites yet.</p>}
+              </section>
+            )}
 
-            <div className="log-foot case-foot">
-              {confirmCase ? (
-                <span className="log-confirm">
-                  Move this case to Recently Deleted?
-                  <button className="text-button danger" onClick={() => void forWholeCase(current, "delete")}>Move</button>
-                  <button className="text-button" onClick={() => setConfirmCase(false)}>Cancel</button>
-                </span>
-              ) : (
-                <>
-                  <button className="text-button" onClick={() => void forWholeCase(current, "archive")}><Archive size={15} strokeWidth={1.6} />Archive case</button>
-                  <button className="text-button danger" onClick={() => setConfirmCase(true)}><Trash2 size={15} strokeWidth={1.6} />Delete case</button>
-                </>
-              )}
-            </div>
+            <CasePhotoSet caseId={current.key} />
+
+            {confirmCase ? (
+              <div className="case-confirm" role="alert">
+                <p>Move this case to Recently Deleted?</p>
+                <div className="case-actions">
+                  <button type="button" className="secondary-button" onClick={() => setConfirmCase(false)}>Cancel</button>
+                  <button type="button" className="secondary-button danger" onClick={() => void forWholeCase(current, "delete")}>Move</button>
+                </div>
+              </div>
+            ) : (
+              <div className="case-actions">
+                <button type="button" className="secondary-button" onClick={() => void forWholeCase(current, "archive")}><Archive size={16} strokeWidth={1.7} aria-hidden="true" />Archive</button>
+                <button type="button" className="secondary-button danger" onClick={() => setConfirmCase(true)}><Trash2 size={16} strokeWidth={1.7} aria-hidden="true" />Delete case</button>
+              </div>
+            )}
           </div>
         ) : (
           <>
@@ -457,12 +475,12 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
           onClick={() => setOpen(null)}
           role="dialog"
           aria-modal="true"
-          aria-label={`${open.entry.patientName || "Unnamed case"} version`}
+          aria-label={`${entryCaseName(open.entry)} version`}
         >
           <div className="log-detail" onClick={(e) => e.stopPropagation()}>
             <div className="log-head">
               <div>
-                <h2>{open.entry.patientName || "Unnamed case"}</h2>
+                <h2>{entryCaseName(open.entry)}</h2>
                 <p className="log-date">{formatLogDate(open.entry.createdAt)} · {open.entry.summary}</p>
               </div>
               <span className="log-detail-head-actions">
@@ -509,22 +527,22 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
               <button className="primary-button" disabled={!open.media} onClick={() => setViewing("compare")}>
                 <ScanEye size={18} /> Reopen comparison
               </button>
-              <button className="secondary-button" disabled={!open.media} onClick={() => setViewing("analysis")}>
-                <AnalysisSymbol size={18} />
-                Smile analysis
-              </button>
-              <button className="secondary-button" disabled={!open.media} onClick={() => setSharing({})}>
-                <Share2 size={16} strokeWidth={1.6} />
-                Share with patient
-              </button>
-              <button className="text-button" onClick={() => void archiveVersion(open.entry.id)}>
-                <Archive size={15} strokeWidth={1.6} />
-                Archive version
-              </button>
-              <button className="text-button danger" onClick={() => void removeVersion(open.entry.id)}>
-                <Trash2 size={15} strokeWidth={1.6} />
-                Delete version
-              </button>
+              <div className="action-list">
+                <button type="button" className="action-row" disabled={!open.media} onClick={() => setViewing("analysis")}>
+                  <span className="action-icon" aria-hidden="true"><AnalysisSymbol size={17} /></span><span className="action-label">Smile analysis</span><ChevronRight className="action-chevron" size={17} aria-hidden="true" />
+                </button>
+                <button type="button" className="action-row" disabled={!open.media} onClick={() => setSharing({})}>
+                  <span className="action-icon" aria-hidden="true"><Share2 size={16} strokeWidth={1.7} /></span><span className="action-label">Share with patient</span><ChevronRight className="action-chevron" size={17} aria-hidden="true" />
+                </button>
+              </div>
+              <div className="action-list">
+                <button type="button" className="action-row" onClick={() => void archiveVersion(open.entry.id)}>
+                  <span className="action-icon" aria-hidden="true"><Archive size={16} strokeWidth={1.7} /></span><span className="action-label">Archive version</span>
+                </button>
+                <button type="button" className="action-row danger" onClick={() => void removeVersion(open.entry.id)}>
+                  <span className="action-icon" aria-hidden="true"><Trash2 size={16} strokeWidth={1.7} /></span><span className="action-label">Delete version</span>
+                </button>
+              </div>
             </div>
             {open.entry.exports && open.entry.exports.length > 0 && (
               <section className="log-exports" aria-label="Shared with patient">

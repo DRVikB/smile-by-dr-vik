@@ -46,22 +46,7 @@
 .case-filter { margin-top: 4px; }
 
 /* Versions */
-.version-grid {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
-  margin: 4px 0 0; padding: 0; list-style: none; overflow: visible;
-}
-.version-tile { position: relative; animation: case-in var(--mid) both; }
-.version-open {
-  display: grid; width: 100%; padding: 0; overflow: hidden; border-radius: 16px; text-align: left; cursor: pointer;
-  background: var(--surface-solid); border: 1px solid var(--border); color: inherit; font: inherit;
-  transition: transform var(--fast), box-shadow var(--fast);
-}
-.version-open:active { transform: scale(.98); }
-.version-open img, .version-thumb-empty { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; background: #141312; }
 .version-thumb-empty { background: var(--surface-subtle, rgba(127, 127, 127, .14)); }
-.version-text { display: grid; gap: 2px; padding: 9px 11px 11px; }
-.version-text strong { overflow: hidden; font-size: 14px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
-.version-text span { font-size: 12px; color: var(--text-secondary); }
 
 .version-star {
   display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%;
@@ -69,7 +54,6 @@
   -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4);
   cursor: pointer; transition: transform var(--fast), color var(--fast), background var(--fast);
 }
-.version-tile .version-star { position: absolute; top: 8px; right: 8px; }
 .version-star:active { transform: scale(.95); }
 .version-star.on { color: var(--sc-gold); background: rgba(18, 17, 16, .6); }
 .version-star.on svg { animation: star-pop 360ms cubic-bezier(0.32, 0.72, 0, 1); }
@@ -77,10 +61,8 @@
 .log-detail-head-actions .version-star { color: var(--text-primary); background: var(--control-background); border-color: var(--border); }
 .log-detail-head-actions .version-star.on { color: var(--accent-text); }
 
-.case-foot { justify-content: flex-start; gap: 18px; flex-wrap: wrap; }
 
 @media (min-width: 768px) {
-  .version-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* A case made since the list was last open settles in at the top, outlined in gold for a moment. */
@@ -93,7 +75,7 @@
 @keyframes star-pop { 0% { transform: scale(1); } 45% { transform: scale(1.35); } 100% { transform: scale(1); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .case-page, .version-tile, .version-star.on svg { animation: none; }
+  .case-page, .version-star.on svg { animation: none; }
 }
 
 /* The patient's preferred direction: set only by this deliberate action, distinct from a favourite. */
@@ -121,3 +103,63 @@
 /* The case page: back into the studio for more results in this case, its main action. */
 .case-design-more { display: inline-flex; align-items: center; justify-content: center; gap: 8px; align-self: flex-start; min-height: 48px; padding: 0 22px; }
 
+
+/* Grouped rows, as in Settings: the version page and the case page. */
+.action-list { display: grid; overflow: hidden; border-radius: 16px; background: var(--card); box-shadow: inset 0 0 0 1px var(--border); }
+.action-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 0 14px;
+  border: 0; background: none; color: var(--text-primary); font: inherit; font-size: 15.5px; text-align: left; cursor: pointer;
+}
+.action-list > * + * { border-top: 1px solid var(--separator); }
+.action-icon { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--accent-soft); color: var(--accent-text); }
+.action-label { flex: 1; min-width: 0; }
+.action-value { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 13.5px; white-space: nowrap; }
+.action-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warning); }
+.action-chevron { flex: none; color: var(--text-tertiary); transition: transform 280ms var(--ease-sheet); }
+.action-chevron.open { transform: rotate(180deg); }
+.action-row.danger { color: var(--destructive); }
+.action-row.danger .action-icon { background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--destructive); }
+.action-row:disabled { opacity: .45; cursor: default; }
+.action-row:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+
+/* Version page: the comparison leads, then grouped rows. */
+.log-detail-actions { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; align-items: stretch; gap: 12px; width: 100%; }
+.log-detail-actions > .primary-button { width: 100%; }
+
+/* Case page: the preferred (or newest) design leads, the others scroll beneath it. */
+.case-title .case-rename-button { width: 32px; height: 32px; min-height: 32px; padding: 0; justify-content: center; border-radius: 50%; }
+.case-page .case-design-more { align-self: stretch; width: 100%; min-height: 54px; }
+.case-hero { position: relative; border-radius: 20px; overflow: hidden; background: #141312; box-shadow: var(--shadow-sm); }
+.case-hero-open { position: relative; display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; }
+.case-hero-open img, .case-hero-open .version-thumb-empty { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; }
+@media (min-width: 701px) { .case-hero-open img, .case-hero-open .version-thumb-empty { aspect-ratio: 4 / 3; } }
+.case-hero-open::after, .case-version-tile::after { content: ""; position: absolute; inset: 55% 0 0; background: linear-gradient(transparent, rgba(0, 0, 0, .55)); pointer-events: none; }
+.case-hero-caption { position: absolute; left: 14px; right: 60px; bottom: 12px; z-index: 1; display: grid; gap: 2px; color: #fff; text-align: left; text-shadow: 0 1px 8px rgba(0, 0, 0, .45); }
+.case-hero-caption strong { font-size: 17px; font-weight: 600; }
+.case-hero-caption span { font-size: 13px; opacity: .92; }
+.case-hero .version-star { position: absolute; top: 10px; right: 10px; z-index: 1; }
+.case-hero-badge {
+  position: absolute; top: 12px; left: 12px; z-index: 1; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+  border-radius: 999px; background: rgba(20, 18, 16, .62); color: #F3E2BF; font-size: 12px; font-weight: 600;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.case-versions-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
+.case-versions-head h3 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-secondary); }
+.case-versions-head .case-filter { margin: 0; }
+.case-version-row {
+  display: flex; gap: 9px; margin: 8px -4px 0; padding: 0 4px 4px; list-style: none;
+  overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.case-version-row::-webkit-scrollbar { display: none; }
+/* A little over three tiles show, so a longer row is plainly scrollable. */
+.case-version-row > li { flex: 0 0 calc((100% - 18px) / 3.2); scroll-snap-align: start; }
+.case-version-tile { position: relative; display: block; width: 100%; padding: 0; border: 0; border-radius: 14px; overflow: hidden; background: #141312; cursor: pointer; }
+.case-version-tile img, .case-version-tile .version-thumb-empty { display: block; width: 100%; aspect-ratio: 1 / 1.15; object-fit: cover; }
+.case-version-label { position: absolute; left: 7px; right: 7px; bottom: 6px; z-index: 1; overflow: hidden; color: #fff; font-size: 11.5px; font-weight: 600; text-align: left; white-space: nowrap; text-overflow: ellipsis; text-shadow: 0 1px 6px rgba(0, 0, 0, .6); }
+.case-version-fav { position: absolute; top: 6px; right: 6px; z-index: 1; color: var(--sc-gold); filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .5)); }
+.case-photo-set.action-list { margin: 0; }
+.case-photo-body { padding: 10px 14px 14px; }
+.case-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.case-actions .secondary-button { min-height: 48px; gap: 8px; }
+.secondary-button.danger { color: var(--destructive); }
+.case-confirm p { margin: 0 0 10px; color: var(--text-secondary); font-size: 14px; text-align: center; }

@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Images } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { PhotoSet, PhotoViewer } from "@/components/portal/PhotoSet";
 import { getCaseRepository } from "@/services/cases/caseRepository";
@@ -44,19 +44,20 @@ export function CasePhotoSet({ caseId }: { caseId: string }) {
   const loadFull = (slot: PhotoSlot) => slot === "front" && designFront ? repository.portalDesignPhoto(caseId) : repository.portalPhoto(caseId, slot);
   const filled = PHOTO_SLOTS.map(s => s.id).filter(id => thumbs[id] || (id === "front" && designFront && designThumb));
 
-  return <section className="case-photo-set" aria-label="Photo set">
-    <button type="button" className="case-photo-head case-photo-toggle" aria-expanded={open} onClick={() => setOpen(o => !o)}>
-      <h3>Photo set</h3>
-      <span className="control-hint">{filled.length} of {MAX_PHOTOS}</span>
-      <ChevronDown size={17} strokeWidth={1.8} aria-hidden="true" className={open ? "open" : ""} />
+  return <section className="case-photo-set action-list" aria-label="Photo set and consent">
+    <button type="button" className="action-row" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+      <span className="action-icon" aria-hidden="true"><Images size={15} strokeWidth={1.8} /></span>
+      <span className="action-label">Photo set</span>
+      <span className="action-value">{filled.length} of {MAX_PHOTOS}</span>
+      <ChevronDown size={17} strokeWidth={1.8} aria-hidden="true" className={`action-chevron${open ? " open" : ""}`} />
     </button>
-    {open && <>
+    {open && <div className="case-photo-body">
       <PhotoSet thumbs={thumbs} designThumb={designFront ? designThumb : undefined}
         onAdd={photos => void save({ photos }, "Photo added")}
         onSwap={(a, b) => void save({ swap: [a, b] }, "Photo set saved")} onOpen={setViewing} />
       <p className="control-hint">{status || "Tap a photo to see it full size. Only small previews are kept here; full photos download when you open them."}</p>
-    </>}
-    <ConsentStatus consent={consent} patientName={name} caseLabel={reference || name || "Case"}
+    </div>}
+    <ConsentStatus row consent={consent} patientName={name} caseLabel={reference || name || "Case"}
       onSave={async c => { await repository.updatePortal(caseId, { consent: c, ...(c && !name ? { name: c.patientName } : {}) }); setConsent(c ?? undefined); }} />
     {viewing && <PhotoViewer slot={viewing} filled={filled} load={loadFull} onClose={() => setViewing(null)} onMove={setViewing}
       onReplace={(slot, photo) => void save({ photos: { [slot]: photo } }, "Photo replaced")}

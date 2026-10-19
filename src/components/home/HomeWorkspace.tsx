@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronRight, Lock, Settings } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
-import { recentCasePages, recentCaseTreatment, type RecentCase } from "@/lib/recentCases";
+import { caseDisplayName, recentCasePages, recentCaseTreatment, type RecentCase } from "@/lib/recentCases";
 import { greeting } from "@/lib/profile";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { useDragToDismiss } from "@/components/sheetMotion";
@@ -138,7 +138,7 @@ function RecentCasesPanel({ cases, syncIndicators, onOpen, onSeeAll, onClose }: 
             <button type="button" className="recent-card" onClick={() => onOpen(entry.id, handOver())}>
               {entry.thumb ? <img src={entry.thumb} alt="" decoding="async" onLoad={e => frameSmile(e.currentTarget)} /> : <span className="recent-card-placeholder" aria-hidden="true" />}
               <span className="recent-card-text">
-                <strong>{entry.patientName || "Unnamed case"}</strong>
+                <strong>{caseDisplayName(entry.patientName, entry.summary, entry.createdAt)}</strong>
                 {recentCaseTreatment(entry.summary) && <small className="recent-card-treatment">{recentCaseTreatment(entry.summary)}</small>}
                 <small>{entry.draftOnly ? "Draft" : entry.testMode || entry.mode === "mock" ? "Demo concept" : "AI concept"} · {new Date(entry.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}{entry.versions > 1 ? ` · ${entry.versions} versions` : ""}</small>
                 {syncIndicators[entry.caseId ?? entry.id] && <small>{syncIndicators[entry.caseId ?? entry.id]}</small>}
