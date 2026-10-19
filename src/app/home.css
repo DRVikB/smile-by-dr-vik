@@ -90,25 +90,14 @@
 
 /* ---------- iPhone portrait: hero photograph above, the welcome below ---------- */
 @media (max-width: 700px) and (orientation: portrait) {
-  /* The photograph fills the top of the screen and fades into the page, with the smile clear of the text. */
-  .start-screen .start-visual {
-    bottom: auto; height: min(66svh, 640px);
-    /* The sharp photograph fades into the soft one below it (::before), with no line between them. */
-    -webkit-mask-image: linear-gradient(180deg, #000 58%, transparent 100%); mask-image: linear-gradient(180deg, #000 58%, transparent 100%);
-  }
-  .start-screen .portrait-image { background-position: 82% 38%; }
+  /* The photograph fills the whole screen, as on iPad, so the frosted pills show it through them;
+     a darker foot keeps the welcome and buttons legible. */
+  .start-screen .portrait-image { background-position: 74% 18%; }
   .start-screen .start-visual::after {
     content: ""; position: absolute; inset: 0;
-    background: linear-gradient(180deg, rgba(14, 11, 9, .55) 0%, rgba(14, 11, 9, 0) 22%, rgba(14, 11, 9, 0) 44%, rgba(18, 17, 16, .45) 80%, rgba(18, 17, 16, .6) 100%);
+    background: linear-gradient(180deg, rgba(14, 11, 9, .5) 0%, rgba(14, 11, 9, 0) 16%, rgba(14, 11, 9, 0) 40%, rgba(14, 11, 9, .55) 62%, rgba(14, 11, 9, .78) 80%, rgba(14, 11, 9, .86) 100%);
   }
   .start-screen::after { background: linear-gradient(90deg, rgba(14, 11, 9, .5) 0%, rgba(14, 11, 9, 0) 70%); }
-  /* Below the photograph, a soft, dim blur of it carries on behind the welcome and the buttons, so the
-     frosted pills show the photograph through them as they do on iPad. */
-  .start-screen::before {
-    content: ""; position: absolute; left: -10%; right: -10%; bottom: -6%; height: 72svh; z-index: -3;
-    background: url("/smile-hero-dr-vik-v2.webp") 78% 88% / cover no-repeat;
-    filter: blur(26px) brightness(.36) saturate(1.15);
-  }
   /* Everything on one screen: the welcome and actions sit at the foot and the
      photograph takes whatever height is left above them. */
   .start-screen .start-copy { justify-content: flex-end; max-width: none; padding-top: 0; padding-bottom: 6px; }
