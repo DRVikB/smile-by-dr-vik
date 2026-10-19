@@ -213,3 +213,8 @@
   .recent-all { min-height: 44px; margin-top: 12px; }
 }
 /* Its motion (rising from the foot, cards arriving, leaving) is in motion.css. */
+/* iPhone: the tagline would peek out half-hidden under the foot of an open sheet, so it fades away meanwhile. */
+@media (max-width: 599px) {
+  .start-screen .hero-footer { transition: opacity 280ms var(--ease-soft, ease); }
+  body:has(.sheet-backdrop, .cl-backdrop, .settings-backdrop) .start-screen .hero-footer { opacity: 0; }
+}

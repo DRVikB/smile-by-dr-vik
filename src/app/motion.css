@@ -34,9 +34,8 @@
 @keyframes swap-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes card-in { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
 @keyframes row-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-/* Slid by its own width and cut back by the same amount, so it never shows past the case card it covers. */
-@keyframes card-push-in { from { transform: translateX(100%); clip-path: inset(0 100% 0 0 round 22px); } to { transform: none; clip-path: inset(0 0 0 0 round 22px); } }
-@keyframes card-push-out { from { transform: none; clip-path: inset(0 0 0 0 round 22px); } to { transform: translateX(100%); clip-path: inset(0 100% 0 0 round 22px); } }
+@keyframes card-push-in { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes card-push-out { from { transform: none; } to { transform: translateX(100%); } }
 @keyframes check-pop { 0% { transform: scale(.6); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
 
 /* ---------- arriving ----------
@@ -61,8 +60,8 @@
 
 /* A version slides in over its case, in the same card, like the next page; Close slides it back. */
 .log-detail-backdrop { animation: none; }
-.log-detail-backdrop > .log-detail { animation: card-push-in 440ms var(--ease-sheet) backwards; }
-.log-detail-backdrop.is-leaving > .log-detail { animation: card-push-out 300ms var(--ease-exit) forwards; }
+.log-detail-frame > .log-detail { animation: card-push-in 440ms var(--ease-sheet) backwards; }
+.log-detail-backdrop.is-leaving .log-detail { animation: card-push-out 300ms var(--ease-exit) forwards; }
 /* The case underneath eases a little to the left and dims, as the page before does on iOS. */
 .sheet-backdrop > .log-panel > * { transition: transform 440ms var(--ease-sheet), opacity 440ms var(--ease-sheet); }
 .sheet-backdrop:has(> .log-detail-backdrop:not(.is-leaving)) > .log-panel > * { transform: translateX(-18%); opacity: .35; }

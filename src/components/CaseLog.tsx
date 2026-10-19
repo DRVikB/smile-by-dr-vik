@@ -3,7 +3,7 @@ import { ComposingMark } from "@/components/ComposingMark";
 import { RailButton, RailItems, SheetClose, SideRailLayer, useSideRail } from "@/components/sideRail/SideRail";
 import { PatientSyncStatus } from "./PatientSyncStatus";
 import { CaseMediaStatus } from "./CaseMediaStatus";
-import { useCaseMedia } from "./useCaseMedia";
+import { type CaseMediaPreload, useCaseMedia } from "./useCaseMedia";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Archive, Check, ChevronLeft, ChevronRight, CircleCheck, PenLine, Pencil, ScanEye, Search, Share2, Star, Trash2, X } from "lucide-react";
 import { AnalysisSymbol, SmileSymbol } from "@/components/icons/SmileIcons";
@@ -91,7 +91,42 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
   const [onlyFavourites, setOnlyFavourites] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [detail, setOpen] = useState<{ entry: CaseLogEntry; media: CaseLogMedia | null } | null>(null);
-  const { media, status: mediaStatus, retry: retryMedia } = useCaseMedia(repository, detail?.entry.id);
+  // Full images already read (most recent few), so a version slides in with its photographs in place
+  // and the lead design on a case page is the full image, not the list thumbnail.
+  const fullMedia = useRef(new Map<string, CaseMediaPreload>());
+  const readFull = useCallback(async (id: string): Promise<CaseMediaPreload | null> => {
+    const known = fullMedia.current.get(id);
+    if (known?.media) return known;
+    const [media, status] = await Promise.all([repository.readPresentationMedia(id).catch(() => null), repository.mediaStatus(id).catch(() => null)]);
+    if (!media) return null;
+    await Promise.all([media.image, media.originalImage].filter(Boolean).map((src) => { const img = new Image(); img.src = src; return img.decode().catch(() => {}); }));
+    const read = { id, media, status };
+    fullMedia.current.delete(id);
+    fullMedia.current.set(id, read);
+    if (fullMedia.current.size > 6) fullMedia.current.delete(fullMedia.current.keys().next().value!);
+    return read;
+  }, [repository]);
+  const [preload, setPreload] = useState<CaseMediaPreload | null>(null);
+  // A version takes the case card's exact place: the frame copies where the Cases panel rests (offsets ignore
+  // its entrance or drag transforms), its size and corners, and follows it if the screen changes (the Duo opening).
+  const frame = useRef<HTMLDivElement>(null);
+  const detailOpen = !!detail;
+  useLayoutEffect(() => {
+    if (!detailOpen) return;
+    const place = () => {
+      const p = panel.current, f = frame.current;
+      if (!p || !f) return;
+      let x = 0, y = 0;
+      for (let n: HTMLElement | null = p; n; n = n.offsetParent as HTMLElement | null) { x += n.offsetLeft; y += n.offsetTop; }
+      Object.assign(f.style, { left: `${x}px`, top: `${y}px`, width: `${p.offsetWidth}px`, height: `${p.offsetHeight}px`, borderRadius: getComputedStyle(p).borderTopLeftRadius });
+    };
+    place();
+    const watch = new ResizeObserver(place);
+    if (panel.current) watch.observe(panel.current);
+    window.addEventListener("resize", place);
+    return () => { watch.disconnect(); window.removeEventListener("resize", place); };
+  }, [detailOpen]);
+  const { media, status: mediaStatus, retry: retryMedia } = useCaseMedia(repository, detail?.entry.id, preload);
   const open = detail ? { ...detail, media } : null;
   const openRecord = useCaseRecord(detail ? caseIdOf(detail.entry) : undefined);
   const pageRecord = useCaseRecord(openCase ?? undefined);
@@ -139,6 +174,15 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
   // The patient's preferred version leads the case page, otherwise the newest; the rest scroll beneath it.
   const hero = current ? current.versions.find(v => v.id === pageRecord.preferredDesignId) ?? current.versions[0] : null;
   const others = hero ? versions.filter(v => v.id !== hero.id) : [];
+  const [heroFull, setHeroFull] = useState<{ id: string; src: string } | null>(null);
+  const heroId = hero?.id;
+  useEffect(() => {
+    if (!heroId) return;
+    let live = true;
+    void readFull(heroId).then((read) => { if (live && read?.media?.image) setHeroFull({ id: heroId, src: read.media.image }); });
+    return () => { live = false; };
+  }, [heroId, readFull]);
+  const heroImage = hero ? (heroFull?.id === hero.id ? heroFull.src : hero.thumb) : undefined;
 
   // Leaving a case (or it emptying) resets its per-case state.
   useEffect(() => {
@@ -148,6 +192,9 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
 
   async function openEntry(entry: CaseLogEntry) {
     if(entry.draftOnly){await reopenDesign(caseIdOf(entry));return;}
+    // Wait briefly for the photographs so the card doesn't arrive empty; a slow download opens it anyway.
+    const read = await Promise.race([readFull(entry.id), new Promise<null>((done) => window.setTimeout(() => done(null), 450))]);
+    setPreload(read);
     setOpen({ entry, media: null });
   }
   async function reopenDesign(id: string) {
@@ -312,7 +359,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
             {hero && (
               <div className="case-hero">
                 <button type="button" className="case-hero-open" onClick={() => void openEntry(hero)} aria-label={`Open ${versionTitle(hero, current.versions.indexOf(hero), current.versions.length)}`}>
-                  {hero.thumb ? <img src={hero.thumb} alt="" draggable={false} /> : <span className="version-thumb-empty" aria-hidden="true" />}
+                  {heroImage ? <img src={heroImage} alt="" draggable={false} /> : <span className="version-thumb-empty" aria-hidden="true" />}
                   <span className="case-hero-caption">
                     <strong>{versionTitle(hero, current.versions.indexOf(hero), current.versions.length)}</strong>
                     <span>{[recentCaseTreatment(hero.summary), timeOf(hero.createdAt)].filter(Boolean).join(" · ")}{(hero.testMode || hero.mode === "mock") ? " · Test" : ""}</span>
@@ -477,6 +524,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
           aria-modal="true"
           aria-label={`${entryCaseName(open.entry)} version`}
         >
+          <div ref={frame} className="log-detail-frame">
           <div className="log-detail" onClick={(e) => e.stopPropagation()}>
             <div className="log-head">
               <div>
@@ -558,6 +606,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
                 </ul>
               </section>
             )}
+          </div>
           </div>
         </div>
       )}
