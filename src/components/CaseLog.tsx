@@ -356,6 +356,8 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
             {onReopen&&<button type="button" className="primary-button case-design-more" disabled={reopening} onClick={()=>void reopenDesign(current.key)}><PenLine size={17} strokeWidth={1.9} aria-hidden="true" />{reopening ? "Opening the studio…" : "Design more"}</button>}
             {syncIndicators[current.key] && <p className="control-hint" role="status">{syncIndicators[current.key]}</p>}
 
+            {/* On a landscape iPad the lead design and the rest sit side by side; elsewhere these wrappers don't box anything. */}
+            <div className="case-body">
             {hero && (
               <div className="case-hero">
                 <button type="button" className="case-hero-open" onClick={() => void openEntry(hero)} aria-label={`Open ${versionTitle(hero, current.versions.indexOf(hero), current.versions.length)}`}>
@@ -373,6 +375,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
               </div>
             )}
 
+            <div className="case-side">
             {current.versions.length > 1 && (
               <section className="case-versions" aria-label="All versions">
                 <div className="case-versions-head">
@@ -419,6 +422,8 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
                 <button type="button" className="secondary-button danger" onClick={() => setConfirmCase(true)}><Trash2 size={16} strokeWidth={1.7} aria-hidden="true" />Delete case</button>
               </div>
             )}
+            </div>
+            </div>
           </div>
         ) : (
           <>
@@ -544,6 +549,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
                 <SheetClose onClose={() => setOpen(null)} />
               </span>
             </div>
+            <div className="log-detail-meta">
             {!open.entry.testMode && open.entry.mode !== "mock" && (
               <div className="log-detail-preferred">
                 <button type="button" className={`preferred-toggle${openRecord.preferredDesignId === open.entry.id ? " on" : ""}`}
@@ -556,6 +562,9 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
             {errorBanner}
             {preferredError && <p className="error-message" role="alert">{preferredError}</p>}
             <CaseMediaStatus status={mediaStatus} onRetry={retryMedia} onSignIn={onSignIn} />
+            </div>
+            {/* Landscape iPad: the comparison on the left, the note and actions beside it; elsewhere these box nothing. */}
+            <div className="log-detail-body">
             {open.media ? (
               <div className="log-pair">
                 <figure>
@@ -570,6 +579,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
             ) : (
               <p className="control-hint">{mediaStatus?.state === "MISSING" ? "If these images are still on another device, keep that copy. This saved version needs both images for comparison and export." : "Comparison, analysis and exports will be available when the images are downloaded."}</p>
             )}
+            <div className="log-detail-side">
             <p className="share-concept-note">{AI_CONCEPT_DISCLAIMER}</p>
             <div className="log-detail-actions">
               <button className="primary-button" disabled={!open.media} onClick={() => setViewing("compare")}>
@@ -606,6 +616,8 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
                 </ul>
               </section>
             )}
+            </div>
+            </div>
           </div>
           </div>
         </div>

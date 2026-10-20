@@ -218,3 +218,12 @@
   .start-screen .hero-footer { transition: opacity 280ms var(--ease-soft, ease); }
   body:has(.sheet-backdrop, .cl-backdrop, .settings-backdrop) .start-screen .hero-footer { opacity: 0; }
 }
+
+/* Landscape iPad and the open Duo on its side: Recent cases opens wider, with larger cards. */
+@media (min-width: 900px) and (min-height: 600px) and (orientation: landscape) {
+  .recent-sheet { width: min(1100px, calc(100vw - 96px)); padding: 22px 26px 24px; }
+  .recent-sheet .sheet-heading h2 { font-size: 30px; }
+  .recent-row { grid-auto-columns: calc((100% - 30px) / 3.3); gap: 14px; margin-inline: -26px; padding-inline: 26px; scroll-padding-inline: 26px; }
+  .recent-card strong { font-size: 16px; }
+  .recent-card .recent-card-treatment { font-size: 14px; }
+}
