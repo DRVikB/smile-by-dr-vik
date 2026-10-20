@@ -196,15 +196,81 @@ html[data-side-bar] .side-rail .studio-tabs button { width: var(--rail-item); he
 html[data-side-bar] .side-rail:has(.studio-tabs) .rail-button > svg,
 html[data-side-bar] .side-rail .studio-tabs button svg { width: min(26px, calc(var(--rail-item) * .6)); height: min(26px, calc(var(--rail-item) * .6)); }
 
-/* iPhone Duo, partly folded with the open display on its side: the studio splits at the fold, the
-   photograph on the near half and the steps on the far half, so nothing sits across the crease. */
+/* ============================================================
+   iPhone Duo, partly folded: nothing sits across the crease (html[data-fold], set from the system's
+   division region in any pose). Layouts with two parts meet at the fold; single cards move to one side
+   of it. The change plays as a short view transition (SideRail.tsx), so folding reads as a small move.
+   ============================================================ */
+/* On its side (a book): the fold runs top to bottom. */
 @media (min-width: 600px) and (orientation: landscape) {
+  /* Studio: the photo on the near half, the steps on the far half. */
   html[data-fold="vertical"] .studio { gap: calc(var(--fold-width) + 4px); }
-  html[data-fold="vertical"] .studio-stage { flex: 0 0 calc(var(--fold-left) - max(20px, var(--app-safe-left, 0px)) - 12px); }
+  html[data-fold="vertical"] .studio-stage, html[data-fold="vertical"] .studio-stage[data-photo-shape] {
+    flex: none; align-self: stretch; height: auto; aspect-ratio: auto;
+    width: calc(var(--fold-left) - max(20px, var(--app-safe-left, 0px)) - 12px);
+  }
   html[data-fold="vertical"] .studio-dock { flex: 1 1 auto; min-width: 0; }
   /* Smile analysis: the readings stay on the near half. */
   html[data-fold="vertical"] .analysis-panel { max-width: calc(var(--fold-left) - 32px); }
+
+  /* Cases: the card spans the screen and its two columns meet at the fold, the lead design on the near
+     half and the name, versions and actions on the far half. A version's card does the same. */
+  html[data-fold="vertical"] { --fold-near: calc(var(--fold-left) - 12px - 28px - 12px); }
+  html[data-fold="vertical"][data-side-bar="right"] :is(.sheet-backdrop:has(> .log-panel), .log-detail-backdrop) { padding-left: 12px; }
+  html[data-fold="vertical"] .sheet-backdrop > .log-panel { width: 100%; }
+  html[data-fold="vertical"] .case-page {
+    display: grid; grid-template-columns: var(--fold-near) minmax(0, 1fr); grid-template-rows: repeat(7, auto) 1fr;
+    column-gap: calc(var(--fold-width) + 24px); row-gap: 12px; align-content: stretch;
+  }
+  html[data-fold="vertical"] .case-page > *, html[data-fold="vertical"] .case-side > * { grid-column: 2; }
+  html[data-fold="vertical"] :is(.case-body, .case-side) { display: contents; }
+  html[data-fold="vertical"] .case-body > .case-hero { grid-column: 1; grid-row: 1 / -1; height: 100%; min-height: 0; }
+  html[data-fold="vertical"] .case-body > .case-hero .case-hero-open { height: 100%; }
+  html[data-fold="vertical"] .case-body > .case-hero :is(img, .version-thumb-empty) { height: 100%; aspect-ratio: auto; }
+  html[data-fold="vertical"] .case-side .case-version-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; overflow: visible; margin: 0; padding: 0; }
+  html[data-fold="vertical"] .log-detail-body { grid-template-columns: var(--fold-near) minmax(0, 1fr) !important; column-gap: calc(var(--fold-width) + 24px); }
+
+  /* Other sheets (Recent cases and the like) move to the far half, beside the side bar. */
+  html[data-fold="vertical"] .sheet-backdrop:not(:has(> .log-panel)) { padding-left: calc(var(--fold-left) + var(--fold-width) + 12px); }
+  html[data-fold="vertical"] .sheet-backdrop:not(:has(> .log-panel)) > .sheet { width: 100%; max-height: 100%; overflow-y: auto; }
+  html[data-fold="vertical"] .recent-row { grid-auto-columns: calc((100% - 14px) / 1.6); }
 }
+/* Upright (a laptop): the fold runs across the middle. */
+@media (min-width: 600px) and (orientation: portrait) {
+  /* Studio: the photo ends above the fold and the steps start below it. */
+  html[data-fold="horizontal"] .studio-stage { height: calc(var(--fold-top) - var(--studio-top, 72px) - 12px); min-height: 0; }
+  html[data-fold="horizontal"] .studio-dock { margin-top: calc(var(--fold-height) + 12px); }
+
+  /* A case: the lead design fills the top half; the name, versions and actions sit below the fold. */
+  html[data-fold="horizontal"] { --fold-card-top: calc((100dvh - min(940px, 100dvh - 72px)) / 2); --fold-card-bottom: calc((100dvh + min(940px, 100dvh - 72px)) / 2); }
+  html[data-fold="horizontal"] .case-page > .case-page-head { order: -3; }
+  html[data-fold="horizontal"] .case-body > .case-hero {
+    order: -2; flex: none; min-height: 0;
+    /* From the card's top: its padding, the Cases / Close row and the gap under it. */
+    height: calc(var(--fold-top) - var(--fold-card-top) - 85px - 12px);
+    margin-bottom: calc(var(--fold-height) + 14px);
+  }
+  /* A version: the comparison above the fold, the note and actions below it. */
+  html[data-fold="horizontal"] .log-detail-side {
+    height: calc(var(--fold-card-bottom) - 24px - var(--fold-top) - var(--fold-height) - 12px);
+    margin-top: calc(var(--fold-height) + 10px); overflow-y: auto; overscroll-behavior: contain;
+  }
+
+  /* Other sheets move to the lower half. */
+  html[data-fold="horizontal"] .sheet-backdrop:not(:has(> .log-panel)) { padding-top: calc(var(--fold-top) + var(--fold-height) + 12px); }
+  html[data-fold="horizontal"] .sheet-backdrop:not(:has(> .log-panel)) > .sheet { max-height: 100%; overflow-y: auto; }
+}
+/* While the fold changes (html.fold-moving, a moment either side), pieces that keep their shape ease to
+   their new size and place; content that rearranges settles in with a slight fade. */
+html { --fold-ease: cubic-bezier(0.4, 0, 0.2, 1); }
+html.fold-moving :is(.studio, .studio-stage, .studio-dock, .sheet-backdrop, .log-detail-backdrop, .sheet-backdrop > :is(.log-panel, .sheet), .log-detail-side) {
+  transition: width 460ms var(--fold-ease), height 460ms var(--fold-ease), margin 460ms var(--fold-ease), padding 460ms var(--fold-ease), gap 460ms var(--fold-ease);
+}
+html.fold-moving .log-detail-frame { transition: left 460ms var(--fold-ease), top 460ms var(--fold-ease), width 460ms var(--fold-ease), height 460ms var(--fold-ease); }
+/* The rest of a rearranged page fades up in its new place while the photo glides there (SideRail.tsx). */
+html.fold-moving :is(.case-page, .log-detail-body) > :not(.case-body), html.fold-moving .case-side > *, html.fold-moving .log-detail-side { animation: fold-settle 380ms var(--fold-ease) both; }
+@keyframes fold-settle { from { opacity: .35; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { html.fold-moving * { transition: none !important; animation: none !important; } }
 
 /* The closed iPhone Duo on its side: the system's column starts at the very top edge, in the screen's
    rounded corner. The first control starts level with the top of a sheet's card (16pt) instead, on every page. */

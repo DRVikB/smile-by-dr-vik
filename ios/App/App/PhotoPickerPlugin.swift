@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import AVKit
 import CoreMotion
 import Vision
 import Capacitor
@@ -301,6 +302,15 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
     private let pitchDirection = PitchDirection()
     private var device: AVCaptureDevice?
     private var rotationCoordinator: AnyObject?
+    /// iPhone Duo: which way each camera faces right now (AVCaptureDeviceDirectionCoordinator, iOS 27.1).
+    private var directionCoordinator: AnyObject?
+    /// A specific camera chosen after the Duo opened or closed; nil means the usual front or back camera.
+    private var chosenCameraID: String?
+    /// The physical camera the system's virtual front camera streams from, so a switch between displays shows.
+    private var constituentWatch: NSKeyValueObservation?
+    /// How far each control is moved to keep clear of the inner camera while it's in use.
+    private var regionShifts: [ObjectIdentifier: CGVector] = [:]
+    private let switchNote = UILabel()
     /// The zoom factor that reads as 1× (the wide lens), and the most we allow.
     private var zoomBase: CGFloat = 1
     private var zoomMax: CGFloat = 5
@@ -440,6 +450,17 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
             motion.startDeviceMotionUpdates()
         }
         haptic.prepare()
+        switchNote.font = .systemFont(ofSize: 14, weight: .semibold)
+        switchNote.textColor = .black
+        switchNote.backgroundColor = UIColor(white: 1, alpha: 0.92)
+        switchNote.textAlignment = .center
+        switchNote.layer.cornerRadius = 17
+        switchNote.layer.masksToBounds = true
+        switchNote.alpha = 0
+        switchNote.isUserInteractionEnabled = false
+        view.addSubview(switchNote)
+        // The inner camera's reserved area becomes active once the camera runs: lay out again to keep clear of it.
+        centre.addObserver(self, selector: #selector(sessionStarted), name: AVCaptureSession.didStartRunningNotification, object: session)
         configureSession()
     }
 
@@ -489,6 +510,104 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         view.viewWithTag(42)?.frame = shutter.frame.insetBy(dx: -7, dy: -7)
         view.viewWithTag(42)?.layer.cornerRadius = (shutter.frame.width + 14) / 2
         flipButton.frame = CGRect(x: safe.maxX - 76, y: safe.maxY - 82, width: 44, height: 44)
+        let noteWidth = min((switchNote.text as NSString?)?.size(withAttributes: [.font: switchNote.font as Any]).width ?? 0, previewHost.frame.width - 40) + 32
+        switchNote.frame = CGRect(x: previewHost.frame.midX - noteWidth / 2, y: previewHost.frame.minY + 14, width: noteWidth, height: 34)
+        avoidCameraRegions()
+    }
+
+    // MARK: iPhone Duo
+
+    /// On the inner display the front camera sits behind the screen and only shows while it's in use. Any
+    /// control under its reserved area slides aside (from where it's drawn now, so the move is smooth).
+    private func avoidCameraRegions() {
+        guard #available(iOS 27.1, *) else { return }
+        let regions = view.reservedRegions(kind: .occlusion).filter(\.isActive).map(\.frame)
+        let free = view.bounds.inset(by: view.safeAreaInsets)
+        var changed = false
+        var targets: [(UIView, CGRect)] = []
+        for control in [closeButton, flipButton, zoomBar, shutter, hintBar] as [UIView] {
+            let base = control.frame
+            var shift = CGVector.zero
+            if let region = regions.first(where: { $0.intersects(base) }) {
+                if region.maxX + 8 + base.width <= free.maxX { shift.dx = region.maxX + 8 - base.minX }
+                else if region.minX - 8 - base.width >= free.minX { shift.dx = region.minX - 8 - base.maxX }
+                else { shift.dy = region.maxY + 8 - base.minY }
+            }
+            if regionShifts[ObjectIdentifier(control)] != shift { changed = true }
+            regionShifts[ObjectIdentifier(control)] = shift
+            targets.append((control, base.offsetBy(dx: shift.dx, dy: shift.dy)))
+        }
+        let apply = {
+            targets.forEach { $0.0.frame = $0.1 }
+            self.view.viewWithTag(42)?.frame = self.shutter.frame.insetBy(dx: -7, dy: -7)
+        }
+        if changed && view.window != nil {
+            UIView.animate(withDuration: 0.32, delay: 0, options: [.beginFromCurrentState, .curveEaseOut], animations: apply)
+        } else { apply() }
+    }
+
+    @objc private func sessionStarted() {
+        DispatchQueue.main.async { self.view.setNeedsLayout() }
+    }
+
+    /// Fades the preview while the camera changes, so frames from the old camera don't flash, and says which one is in use.
+    private func maskPreview(note: String?) {
+        UIView.animate(withDuration: 0.16, delay: 0, options: [.beginFromCurrentState, .curveEaseOut]) { self.previewHost.alpha = 0.25 }
+        UIView.animate(withDuration: 0.3, delay: 0.42, options: [.beginFromCurrentState, .curveEaseInOut]) { self.previewHost.alpha = 1 }
+        guard let note else { return }
+        switchNote.text = note
+        view.setNeedsLayout(); view.layoutIfNeeded()
+        switchNote.transform = CGAffineTransform(translationX: 0, y: -6)
+        UIView.animate(withDuration: 0.28, delay: 0.1, options: [.beginFromCurrentState, .curveEaseOut]) {
+            self.switchNote.alpha = 1; self.switchNote.transform = .identity
+        } completion: { _ in
+            UIView.animate(withDuration: 0.35, delay: 1.6, options: [.curveEaseIn]) { self.switchNote.alpha = 0 }
+        }
+    }
+
+    /// iPhone Duo: opening or closing it moves the app to the other display, and a camera can then face the
+    /// other way. The front camera is the system's virtual front camera, which follows the app by itself; a
+    /// camera chosen to face the patient that now faces the person holding the phone is swapped for one that
+    /// faces away. Every other iPhone reports each camera once, facing the way it always does.
+    private func watchCameraDirections() {
+        guard #available(iOS 27.1, *), directionCoordinator == nil else { return }
+        let types: [AVCaptureDevice.DeviceType] = [.builtInTripleCamera, .builtInDualWideCamera, .builtInDualCamera, .builtInWideAngleCamera, .builtInOuterUltraWideCamera, .builtInInnerUltraWideCamera]
+        directionCoordinator = AVCaptureDeviceDirectionCoordinator(view: previewHost, deviceTypes: types) { [weak self] map in
+            self?.cameraDirectionsChanged(map)
+        }
+    }
+
+    @available(iOS 27.1, *)
+    private func cameraDirectionsChanged(_ map: AVCaptureDeviceDirectionMap) {
+        guard !front, let device else { return }
+        let away = map.backwardFacingDeviceDescriptors
+        guard !away.isEmpty, !away.contains(where: { $0.uniqueID == device.uniqueID }) else { return }
+        let preference: [AVCaptureDevice.DeviceType] = [.builtInTripleCamera, .builtInDualWideCamera, .builtInDualCamera, .builtInWideAngleCamera, .builtInOuterUltraWideCamera, .builtInInnerUltraWideCamera]
+        guard let pick = away.min(by: { (preference.firstIndex(of: $0.deviceType) ?? 99) < (preference.firstIndex(of: $1.deviceType) ?? 99) }) else { return }
+        chosenCameraID = pick.uniqueID
+        latestFace = nil
+        maskPreview(note: "Now using the camera facing away from you")
+        configureSession()
+    }
+
+    /// The virtual front camera switches between the outer and inner cameras as the Duo opens and closes:
+    /// the same short fade and a note, so the change doesn't look like a glitch.
+    private func watchFrontCamera(_ device: AVCaptureDevice) {
+        constituentWatch = nil
+        guard device.isVirtualDevice, device.position == .front else { return }
+        var last = device.activePrimaryConstituent?.uniqueID
+        constituentWatch = device.observe(\.activePrimaryConstituent, options: [.new]) { [weak self] device, _ in
+            let now = device.activePrimaryConstituent
+            guard let id = now?.uniqueID, id != last else { return }
+            let first = last == nil
+            last = id
+            if first { return }
+            var note: String?
+            if #available(iOS 27.1, *) {
+                note = now?.deviceType == .builtInInnerUltraWideCamera ? "Now using the inner camera" : now?.deviceType == .builtInOuterUltraWideCamera ? "Now using the outer camera" : nil
+            }
+            DispatchQueue.main.async { self?.maskPreview(note: note) }
+        }
     }
 
     // MARK: Orientation
@@ -541,7 +660,8 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
                 self.session.isMultitaskingCameraAccessEnabled = true
             }
             self.session.inputs.forEach { self.session.removeInput($0) }
-            guard let device = Self.camera(front: front), let input = try? AVCaptureDeviceInput(device: device), self.session.canAddInput(input) else {
+            let chosen = self.chosenCameraID.flatMap { AVCaptureDevice(uniqueID: $0) }
+            guard let device = chosen ?? Self.camera(front: front), let input = try? AVCaptureDeviceInput(device: device), self.session.canAddInput(input) else {
                 self.session.commitConfiguration()
                 DispatchQueue.main.async { self.finish(.failed("The camera couldn’t be started.")) }
                 return
@@ -579,7 +699,14 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
                 if #available(iOS 17.0, *) {
                     self.rotationCoordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: self.previewLayer)
                 }
+                // Mirror what faces the person holding the phone, whichever camera that is (not where it sits).
+                if let c = self.previewLayer.connection, c.isVideoMirroringSupported {
+                    c.automaticallyAdjustsVideoMirroring = false
+                    c.isVideoMirrored = front
+                }
                 self.applyRotation()
+                self.watchCameraDirections()
+                self.watchFrontCamera(device)
             }
             if !self.session.isRunning { self.session.startRunning() }
         }
@@ -733,6 +860,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
 
     @objc private func flip() {
         front.toggle()
+        chosenCameraID = nil
         latestFace = nil
         configureSession()
     }

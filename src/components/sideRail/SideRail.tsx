@@ -1,8 +1,8 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
-import { createPortal } from "react-dom";
-import { watchSideBar, type SideBar } from "@/native/sideBar";
+import { createPortal, flushSync } from "react-dom";
+import { watchSideBar, type Fold, type SideBar } from "@/native/sideBar";
 
 interface RailState {
   bar: SideBar | null;
@@ -12,6 +12,9 @@ interface RailState {
   enter(id: string, opened: number): void;
   leave(id: string): void;
 }
+/** Pieces that move to a new place when iPhone Duo folds or unfolds (see the fold handling below). */
+const FOLD_GLIDE = [".case-body > .case-hero", ".log-detail-frame .log-pair"];
+
 /** Counts surfaces as they first render, so a sheet always outranks the screen it opened over. */
 let opened = 0;
 const RailContext = createContext<RailState>({ bar: null, host: null, top: null, enter: () => {}, leave: () => {} });
@@ -25,19 +28,48 @@ const LayerContext = createContext<string | null>(null);
  */
 export function SideRailProvider({ children }: { children: React.ReactNode }) {
   const [bar, setBar] = useState<SideBar | null>(null);
+  const [fold, setFold] = useState<Fold | null>(null);
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [layers, setLayers] = useState<{ id: string; opened: number }[]>([]);
 
   useEffect(() => {
     let stop = () => {}, live = true;
-    void watchSideBar(next => { if (live) setBar(next); }).then(off => { if (live) stop = off; else off(); });
+    let lastFold: string | null = null, settle = 0;
+    void watchSideBar((next, folded) => {
+      if (!live) return;
+      const apply = () => { setBar(next); setFold(folded); };
+      // Folding or unfolding: for a moment the layout's pieces ease to their new places (side-rail.css,
+      // html.fold-moving). The class goes on a frame before the change so the transitions catch it.
+      const key = folded ? `${folded.axis}:${folded.x}:${folded.y}` : null;
+      const changed = key !== lastFold;
+      lastFold = key;
+      if (!changed || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { apply(); return; }
+      const root = document.documentElement;
+      root.classList.add("fold-moving");
+      window.clearTimeout(settle);
+      requestAnimationFrame(() => {
+        // Pieces that change place inside a rearranged layout glide from where they were (FLIP), resizing
+        // rather than stretching, so a photo re-crops smoothly instead of jumping.
+        const before = FOLD_GLIDE.flatMap(selector => Array.from(document.querySelectorAll<HTMLElement>(selector))).map(el => ({ el, box: el.getBoundingClientRect() }));
+        flushSync(apply);
+        for (const { el, box } of before) {
+          const now = el.getBoundingClientRect();
+          if (!el.isConnected || !now.width || (Math.abs(now.left - box.left) < 1 && Math.abs(now.top - box.top) < 1 && Math.abs(now.width - box.width) < 1)) continue;
+          el.animate([
+            { transform: `translate(${box.left - now.left}px, ${box.top - now.top}px)`, width: `${box.width}px`, height: `${box.height}px` },
+            { transform: "none", width: `${now.width}px`, height: `${now.height}px` },
+          ], { duration: 460, easing: "cubic-bezier(0.4, 0, 0.2, 1)" });
+        }
+        settle = window.setTimeout(() => root.classList.remove("fold-moving"), 600);
+      });
+    }).then(off => { if (live) stop = off; else off(); });
     return () => { live = false; stop(); };
   }, []);
 
   // CSS lays the rail out, and lets any screen adapt (html[data-side-bar]).
   useLayoutEffect(() => {
     const root = document.documentElement;
-    const names = ["--rail-left", "--rail-top", "--rail-width", "--rail-height", "--side-bar-inset", "--fold-left", "--fold-width"];
+    const names = ["--rail-left", "--rail-top", "--rail-width", "--rail-height", "--side-bar-inset"];
     if (!bar) return;
     root.dataset.sideBar = bar.edge;
     // Closed and turned on its side the column is short (about 350pt): layouts that fill the rail tighten up.
@@ -47,13 +79,18 @@ export function SideRailProvider({ children }: { children: React.ReactNode }) {
     root.style.setProperty("--rail-width", `${bar.rail.width}px`);
     root.style.setProperty("--rail-height", `${bar.rail.height}px`);
     root.style.setProperty("--side-bar-inset", `${bar.inset}px`);
-    // Partly folded: the band content keeps clear of. Only an upright fold (the open display on its side) splits a layout.
-    if (bar.fold) {
-      root.dataset.fold = bar.fold.height >= bar.fold.width ? "vertical" : "horizontal";
-      root.style.setProperty("--fold-left", `${bar.fold.x}px`); root.style.setProperty("--fold-width", `${bar.fold.width}px`);
-    }
-    return () => { delete root.dataset.sideBar; delete root.dataset.railShort; delete root.dataset.fold; names.forEach(name => root.style.removeProperty(name)); };
+    return () => { delete root.dataset.sideBar; delete root.dataset.railShort; names.forEach(name => root.style.removeProperty(name)); };
   }, [bar]);
+
+  // Partly folded, in any pose: the band content keeps clear of (html[data-fold] in side-rail.css).
+  useLayoutEffect(() => {
+    if (!fold) return;
+    const root = document.documentElement;
+    const values = { "--fold-left": fold.x, "--fold-width": fold.width, "--fold-top": fold.y, "--fold-height": fold.height };
+    root.dataset.fold = fold.axis;
+    Object.entries(values).forEach(([name, value]) => root.style.setProperty(name, `${value}px`));
+    return () => { delete root.dataset.fold; Object.keys(values).forEach(name => root.style.removeProperty(name)); };
+  }, [fold]);
 
   const enter = useCallback((id: string, at: number) => setLayers(current => [...current.filter(x => x.id !== id), { id, opened: at }]), []);
   const leave = useCallback((id: string) => setLayers(current => current.filter(x => x.id !== id)), []);

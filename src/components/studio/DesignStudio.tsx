@@ -3,7 +3,7 @@ import { haptic } from "@/native/haptics";
 import { RailItems, useSideRail } from "@/components/sideRail/SideRail";
 import { useMediaQuery } from "@/components/settings/settingsParts";
 import { generationUnavailable, INTERNAL_SINGLE_TOOTH, INTERNAL_ALIGNMENT, INTERNAL_FULL_ARCH } from "@/lib/generation/availability";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, ImagePlus, X } from "lucide-react";
 import type { CurrentShade, FaceShape, FullArchPlan, Photo, ShotType, SmileCharacter, SmileSettings, TargetShade, TeethCount, TextureLevel, Treatment } from "@/lib/types";
 import { upperTeeth, smileArcs, biteContexts, isFullArch } from "@/lib/types";
@@ -180,6 +180,16 @@ export function DesignStudio({
   guide?: SmileGuideState;
 }) {
   const [tab, setTab] = useState<StudioTab>("teeth");
+  // Where the studio starts on screen, so a partly folded iPhone Duo can end the photo just above the fold (side-rail.css).
+  const studio = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = studio.current;
+    if (!el) return;
+    const measure = () => el.style.setProperty("--studio-top", `${el.getBoundingClientRect().top}px`);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [individual, setIndividual] = useState(INTERNAL_SINGLE_TOOTH && Boolean(settings.toothPlans));
   const change = <K extends keyof SmileSettings>(key: K, value: SmileSettings[K]) => onChange({ ...settings, [key]: value });
@@ -249,7 +259,7 @@ export function DesignStudio({
     </div>
   );
   return (
-    <div className="studio">
+    <div className="studio" ref={studio}>
       <div className="studio-stage" data-photo-shape={photoAspect ? (photoAspect > 1 ? "landscape" : "portrait") : undefined}
         style={photoAspect ? { "--photo-aspect": photoAspect } as React.CSSProperties : undefined}>{typeof stage === "function" ? stage(tab === "teeth", guideStep) : stage}</div>
 

@@ -124,7 +124,10 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
     const watch = new ResizeObserver(place);
     if (panel.current) watch.observe(panel.current);
     window.addEventListener("resize", place);
-    return () => { watch.disconnect(); window.removeEventListener("resize", place); };
+    // A partly folded iPhone Duo moves the case card without resizing it.
+    const posture = new MutationObserver(place);
+    posture.observe(document.documentElement, { attributes: true, attributeFilter: ["data-fold", "data-side-bar"] });
+    return () => { watch.disconnect(); posture.disconnect(); window.removeEventListener("resize", place); };
   }, [detailOpen]);
   const { media, status: mediaStatus, retry: retryMedia } = useCaseMedia(repository, detail?.entry.id, preload);
   const open = detail ? { ...detail, media } : null;

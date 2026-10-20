@@ -29,6 +29,15 @@ interface SideBarPlugin {
 /** Local plugin: SideBarPlugin in ios/App/App/SmileComposeBridgeViewController.swift. */
 const SmileSideBar = registerPlugin<SideBarPlugin>("SmileSideBar");
 
+/** Where the fold divides the screen while iPhone Duo is partly folded, in any pose (with or without a side bar). */
+export interface Fold { x: number; y: number; width: number; height: number; axis: "vertical" | "horizontal" }
+
+export function foldFrom(state: NativeState | null | undefined): Fold | null {
+  const f = state?.fold;
+  if (!f || ![f.x, f.y, f.width, f.height].every(n => typeof n === "number" && Number.isFinite(n)) || f.width <= 0 || f.height <= 0) return null;
+  return { x: f.x, y: f.y, width: f.width, height: f.height, axis: f.height >= f.width ? "vertical" : "horizontal" };
+}
+
 export function sideBarFrom(state: NativeState | null | undefined): SideBar | null {
   if (!state || (state.edge !== "left" && state.edge !== "right")) return null;
   const { x, y, width, height, inset, viewWidth, viewHeight } = state;
@@ -38,19 +47,26 @@ export function sideBarFrom(state: NativeState | null | undefined): SideBar | nu
 }
 
 /**
- * Reports the side bar now and whenever the device opens, closes, turns or folds. `null` means there
- * is none (every other device, and iPhone Duo's inner display in portrait).
- * In a browser there is never one, except a simulated device set up by the layout checks.
+ * Reports the side bar and the fold now and whenever the device opens, closes, turns or folds. A `null`
+ * bar means there is none (every other device, and iPhone Duo's inner display in portrait); a `null`
+ * fold means the screen isn't divided. In a browser there are neither, except a simulated device set up
+ * by the layout checks.
  */
-export async function watchSideBar(onChange: (bar: SideBar | null) => void): Promise<() => void> {
+export async function watchSideBar(onChange: (bar: SideBar | null, fold: Fold | null) => void): Promise<() => void> {
   if (!isNativeApp()) {
-    const simulated = (window as { __SMILE_SIDE_BAR__?: NativeState }).__SMILE_SIDE_BAR__;
-    if (simulated) onChange(sideBarFrom(simulated));
-    return () => {};
+    const read = () => {
+      const simulated = (window as { __SMILE_SIDE_BAR__?: NativeState }).__SMILE_SIDE_BAR__;
+      if (simulated) onChange(sideBarFrom(simulated), foldFrom(simulated));
+    };
+    read();
+    // The layout checks change the simulated device (open, fold) and say so with this event.
+    window.addEventListener("smile:side-bar", read);
+    return () => window.removeEventListener("smile:side-bar", read);
   }
   try {
-    const handle = await SmileSideBar.addListener("change", state => onChange(sideBarFrom(state)));
-    onChange(sideBarFrom(await SmileSideBar.get()));
+    const handle = await SmileSideBar.addListener("change", state => onChange(sideBarFrom(state), foldFrom(state)));
+    const now = await SmileSideBar.get();
+    onChange(sideBarFrom(now), foldFrom(now));
     return () => { void handle.remove(); };
   } catch {
     return () => {}; // an older app shell without the plugin
