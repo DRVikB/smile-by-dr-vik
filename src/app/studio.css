@@ -1047,3 +1047,19 @@ input[type="checkbox"][role="switch"],
   .photo-start .photo-option-gallery img, .photo-start .photo-option-gallery img:nth-child(n) { height: 100%; aspect-ratio: auto; }
   .photo-start .photo-option-gallery img:nth-child(5) { display: none; }
 }
+
+/* ============================================================
+   Studio dock: only the step scrolls. The step tabs and the Generate area (In my style, Back, Next or
+   Generate) stay put, even when the step is pulled past its end.
+   ============================================================ */
+.studio-dock { overflow-y: hidden; }
+.studio-dock > .studio-tabs { flex: none; }
+.studio-dock > .studio-cards {
+  flex: 1 1 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch;
+  /* Room for the cards' shadows, and for the last card to scroll clear of the Generate area's fade. */
+  margin-inline: -10px; padding: 4px 10px 34px;
+}
+.studio-dock > .studio-generate { flex: none; margin-top: -22px; }
+@media (min-width: 600px) and (orientation: portrait) {
+  .studio-dock > .studio-cards { width: calc(100% + 20px); max-width: 900px; margin-inline: auto; }
+}
