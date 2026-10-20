@@ -1715,6 +1715,7 @@ export default function Smile() {
                 Patient Smile Design
               </h1>
               <DesignStudio
+                photoAspect={photo.width && photo.height ? photo.width / photo.height : undefined}
                 toothMap={toothMap}
                 goals={testMode ? undefined : { summary: goalsSummary(consultation), onEdit: () => setGoalsOpen(true) }}
                 guide={guide}

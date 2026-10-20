@@ -160,6 +160,7 @@ export function PhotoUploader({
   return (
     <div
       className={photo ? "photo-step" : "photo-start"}
+      style={photo?.width && photo.height ? { "--photo-aspect": photo.width / photo.height } as React.CSSProperties : undefined}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
@@ -212,8 +213,11 @@ export function PhotoUploader({
               </button>
             </div>
             <p className="photo-filename">{photo.isSample ? "Sample photograph" : photo.name}</p>
-            {details}
-            <PhotoTips />
+            {/* On an iPad these two sit side by side; elsewhere the wrapper boxes nothing. */}
+            <div className="photo-extras">
+              {details}
+              <PhotoTips />
+            </div>
             {errorMessage}
           </div>
         </>
@@ -246,19 +250,22 @@ export function PhotoUploader({
                 <small>Use the camera, with a guide for the smile.</small>
               </span>
               <span className="photo-option-visual photo-option-capture" aria-hidden="true">
-                <img {...EXAMPLE_PORTRAITS.man} sizes="(min-width: 700px) 600px, 100vw" alt="" draggable={false} decoding="async" />
+                {/* The portrait and its smile guide move together, so the guide stays on the smile however the preview is cropped. */}
+                <span className="photo-option-scene">
+                  <img {...EXAMPLE_PORTRAITS.man} sizes="(min-width: 700px) 600px, 100vw" alt="" draggable={false} decoding="async" />
+                  <span
+                    className="photo-option-guide"
+                    style={{
+                      left: `${SMILE_GUIDE.x * 100}%`,
+                      top: `${SMILE_GUIDE.y * 100}%`,
+                      width: `${SMILE_GUIDE.width * 100}%`,
+                      height: `${SMILE_GUIDE.height * 100}%`,
+                    }}
+                  />
+                </span>
                 <span className="photo-option-corner tl" /><span className="photo-option-corner tr" />
                 <span className="photo-option-corner bl" /><span className="photo-option-corner br" />
                 <span className="photo-option-shutter" />
-                <span
-                  className="photo-option-guide"
-                  style={{
-                    left: `${SMILE_GUIDE.x * 100}%`,
-                    top: `${SMILE_GUIDE.y * 100}%`,
-                    width: `${SMILE_GUIDE.width * 100}%`,
-                    height: `${SMILE_GUIDE.height * 100}%`,
-                  }}
-                />
               </span>
               <span className="photo-option-go" aria-hidden="true"><ChevronRight size={20} strokeWidth={1.7} /></span>
             </button>

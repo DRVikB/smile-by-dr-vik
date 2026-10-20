@@ -151,8 +151,10 @@ export function TreatmentOptions({ settings, onChange }: { settings: SmileSettin
 
 export function DesignStudio({
   stage, caseBar, costs, onEditArea, hasEditArea, settings, onChange, onGenerate, onCompare, onCompareMaterials, onHarmonise,
-  busy, reference, onAddReference, onClearReference, toothMap, goals, guide,
+  busy, reference, onAddReference, onClearReference, toothMap, goals, guide, photoAspect,
 }: {
+  /** Width ÷ height of the patient photo: on a landscape iPad the frame takes this shape. */
+  photoAspect?: number;
   /** The photograph (or before/after) shown in the studio frame; told when the Teeth step is open and when the smile guide should be drawn. */
   stage: React.ReactNode | ((teethStep: boolean, guideStep: boolean) => React.ReactNode);
   /** The photo's tooth map: outlines on the photo, confirmation and corrections. */
@@ -248,7 +250,8 @@ export function DesignStudio({
   );
   return (
     <div className="studio">
-      <div className="studio-stage">{typeof stage === "function" ? stage(tab === "teeth", guideStep) : stage}</div>
+      <div className="studio-stage" data-photo-shape={photoAspect ? (photoAspect > 1 ? "landscape" : "portrait") : undefined}
+        style={photoAspect ? { "--photo-aspect": photoAspect } as React.CSSProperties : undefined}>{typeof stage === "function" ? stage(tab === "teeth", guideStep) : stage}</div>
 
       <div className="studio-dock">
         {/* iPhone Duo: the steps are the rail's tab bar, beside the camera, so the card gets the height. */}
