@@ -183,12 +183,9 @@ html[data-side-bar] .side-rail:has(.studio-tabs) {
   html[data-side-bar] .side-rail:has(.studio-tabs) { --rail-span: calc(100dvh - var(--rail-start) - max(8px, var(--app-safe-bottom, var(--safe-bottom)))); }
 }
 /* The closed iPhone Duo on its side: the camera sits in the strip just below the system's column, so the
-   bar ends where the column does, and the Next / Generate pill ends on the same line (the space below
-   it is the camera's). */
+   bar ends where the column does. The Next / Generate pill isn't in the strip, so it stays at the foot of
+   the screen, level with the foot of the photo. */
 html[data-rail-short] .side-rail:has(.studio-tabs) { --rail-span: calc(var(--rail-top) + var(--rail-height) - var(--rail-start)); }
-@media (orientation: landscape) and (max-height: 500px) {
-  html[data-rail-short] .studio-generate { padding-bottom: calc(100dvh - var(--rail-top) - var(--rail-height)); }
-}
 html[data-side-bar] .side-rail:has(.studio-tabs) .rail-group { gap: var(--rail-gap); }
 html[data-side-bar] .side-rail:has(.studio-tabs) :is(.rail-button, .nav-tool) { width: var(--rail-item); height: var(--rail-item); min-width: 0; min-height: 0; }
 html[data-side-bar] .side-rail:has(.studio-tabs) .nav-history { gap: var(--rail-gap); }
