@@ -1,4 +1,5 @@
 "use client";
+import { useSwipeBack } from "@/components/appGestures";
 import { SheetClose, SideRailLayer } from "@/components/sideRail/SideRail";
 import type { MouthAlignmentDiagnostic } from "@/lib/face/alignmentDiagnostic";
 import { normalizeTreatmentScope, standardTreatmentSummary } from "@/lib/fullArch";
@@ -421,6 +422,21 @@ export default function Smile() {
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
       e.preventDefault();
       if (e.shiftKey) redoSettings(); else undoSettings();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+  // Back from each step of a design: the header's Back button, the left-edge swipe and ⌘[ all use it.
+  const screenBack = screen === "photo" ? () => setScreen("start") : screen === "design" ? () => setScreen("photo") : screen === "preview" ? () => setScreen("design") : undefined;
+  useSwipeBack(true, busy ? undefined : screenBack, () => document.querySelector<HTMLElement>(".app-shell > main > section"), { screen: true });
+  // ⌘N, ⌘F and ⌘, with an iPad keyboard (from the iOS shell's shortcut list, or a keyboard in a browser).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey) return;
+      const key = e.key.toLowerCase();
+      if (key === "n" && !busy) { e.preventDefault(); startNewSmile(); }
+      else if (key === "f") { e.preventDefault(); setLogEntry(undefined); setLogOpen(true); window.setTimeout(() => document.getElementById("log-search")?.focus(), 450); }
+      else if (key === ",") { e.preventDefault(); account.openSettings(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1539,15 +1555,7 @@ export default function Smile() {
           </button>
         </div>
       ) : undefined}
-      onBack={
-        screen === "photo"
-          ? () => setScreen("start")
-          : screen === "design"
-            ? () => setScreen("photo")
-            : screen === "preview"
-              ? () => setScreen("design")
-              : undefined
-      }
+      onBack={screenBack}
       step={
         screen === "photo"
           ? { current: 1, total: 3 }

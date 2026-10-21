@@ -39,6 +39,13 @@ class SmileComposeBridgeViewController: CAPBridgeViewController {
         // Warm ivory in Light and deep charcoal in Dark behind the web view, so
         // launch, rotation and overscroll never flash white.
         view.backgroundColor = SmileComposeColors.background
+        // Feel like an app, not a web page: no link or image previews on a long press, no pinch-zoom of the
+        // whole interface, no Safari bar (‹ › Done) above the keyboard, and text that follows the size the
+        // person chose in Settings › Display & Brightness › Text Size.
+        webView?.allowsLinkPreview = false
+        hideKeyboardAccessoryBar()
+        applyTextSize()
+        NotificationCenter.default.addObserver(self, selector: #selector(textSizeChanged), name: UIContentSizeCategory.didChangeNotification, object: nil)
         webView?.isOpaque = false
         webView?.backgroundColor = SmileComposeColors.background
         webView?.scrollView.backgroundColor = SmileComposeColors.background
@@ -58,9 +65,93 @@ class SmileComposeBridgeViewController: CAPBridgeViewController {
         launchCover = cover
         loadingObservation = webView?.observe(\.isLoading, options: [.new]) { [weak self] webView, _ in
             guard !webView.isLoading else { return }
+            self?.applyTextSize()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { self?.hideLaunchCover() }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in self?.hideLaunchCover() }
+    }
+
+    // MARK: App feel
+
+    /// The page keeps its own scale: no pinch-zoom of the interface and no zoom into a text field on focus.
+    /// (Only in the app; the website stays zoomable.) Also tells the page that the keys below come from here.
+    private static let appViewportScript = """
+    (function () {
+      var meta = document.querySelector('meta[name="viewport"]');
+      if (meta && meta.content.indexOf('maximum-scale') < 0) meta.content += ', maximum-scale=1, user-scalable=no';
+      window.__SMILE_NATIVE_KEYS__ = true;
+    })();
+    """
+
+    /// The bar Safari puts above the keyboard (‹ › Done) has no place in an app: the web view's content view
+    /// is given a subclass whose input accessory view is empty.
+    private func hideKeyboardAccessoryBar() {
+        guard let content = webView?.scrollView.subviews.first(where: { NSStringFromClass(type(of: $0)).hasPrefix("WKContent") }) else { return }
+        let base: AnyClass = type(of: content)
+        let name = "SmileNoAccessory_" + NSStringFromClass(base)
+        var subclass: AnyClass? = NSClassFromString(name)
+        if subclass == nil, let made = objc_allocateClassPair(base, name, 0) {
+            let selector = #selector(getter: UIResponder.inputAccessoryView)
+            let none: @convention(block) (AnyObject) -> AnyObject? = { _ in nil }
+            if let method = class_getInstanceMethod(UIResponder.self, selector) {
+                class_addMethod(made, selector, imp_implementationWithBlock(none), method_getTypeEncoding(method))
+            }
+            objc_registerClassPair(made)
+            subclass = made
+        }
+        if let subclass { object_setClass(content, subclass) }
+    }
+
+    /// Larger Text in Settings makes the app's text larger and the layout reflows around it, as native apps
+    /// do with Dynamic Type; smaller settings keep the designed size.
+    private func applyTextSize() {
+        let percent: Int
+        switch traitCollection.preferredContentSizeCategory {
+        case .extraLarge: percent = 108
+        case .extraExtraLarge: percent = 116
+        case .extraExtraExtraLarge: percent = 124
+        case .accessibilityMedium, .accessibilityLarge, .accessibilityExtraLarge, .accessibilityExtraExtraLarge, .accessibilityExtraExtraExtraLarge: percent = 132
+        default: percent = 100
+        }
+        webView?.evaluateJavaScript("document.documentElement.style.webkitTextSizeAdjust = '\(percent)%'", completionHandler: nil)
+    }
+
+    @objc private func textSizeChanged() { applyTextSize() }
+
+    /// iPad keyboard shortcuts as native commands, so they appear in the list iPadOS shows while ⌘ is held.
+    /// Each one reaches the page as the key press it stands for (the page's own handlers act on it).
+    override var keyCommands: [UIKeyCommand]? {
+        func command(_ title: String?, _ input: String, _ flags: UIKeyModifierFlags) -> UIKeyCommand {
+            let key = UIKeyCommand(input: input, modifierFlags: flags, action: #selector(pageKey(_:)))
+            if let title { key.title = title; key.discoverabilityTitle = title }
+            return key
+        }
+        return [
+            command("New Smile Design", "n", .command),
+            command("Find a Case", "f", .command),
+            command("Settings", ",", .command),
+            command("Undo", "z", .command),
+            command("Redo", "z", [.command, .shift]),
+            command("Back", "[", .command),
+            command(nil, UIKeyCommand.inputEscape, []),
+        ]
+    }
+
+    @objc private func pageKey(_ key: UIKeyCommand) {
+        let input = key.input == UIKeyCommand.inputEscape ? "Escape" : (key.input ?? "")
+        let meta = key.modifierFlags.contains(.command), shift = key.modifierFlags.contains(.shift)
+        let script = "window.smileKey && window.smileKey(\(Self.jsString(input)), \(meta), \(shift))"
+        webView?.evaluateJavaScript(script, completionHandler: nil)
+    }
+
+    private static func jsString(_ text: String) -> String {
+        let data = try? JSONSerialization.data(withJSONObject: [text])
+        return data.flatMap { String(data: $0, encoding: .utf8) }.map { String($0.dropFirst().dropLast()) } ?? "\"\""
+    }
+
+    override func traitCollectionDidChange(_ previous: UITraitCollection?) {
+        super.traitCollectionDidChange(previous)
+        if previous?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory { applyTextSize() }
     }
 
     // MARK: iPhone Duo side bar
@@ -140,6 +231,9 @@ class SmileComposeBridgeViewController: CAPBridgeViewController {
         configuration.userContentController.addUserScript(
             WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true)
         )
+        configuration.userContentController.addUserScript(
+            WKUserScript(source: Self.appViewportScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        )
         return super.webView(with: frame, configuration: configuration)
     }
 }
@@ -181,6 +275,7 @@ public class HapticsPlugin: CAPPlugin, CAPBridgedPlugin {
     private let selection = UISelectionFeedbackGenerator()
     private let soft = UIImpactFeedbackGenerator(style: .soft)
     private let light = UIImpactFeedbackGenerator(style: .light)
+    private let notice = UINotificationFeedbackGenerator()
 
     @objc func play(_ call: CAPPluginCall) {
         let kind = call.getString("kind") ?? ""
@@ -190,6 +285,7 @@ public class HapticsPlugin: CAPPlugin, CAPBridgedPlugin {
             case "tick": self.selection.selectionChanged()
             case "select": self.light.impactOccurred(intensity: 0.7)
             case "press": self.light.impactOccurred(intensity: 0.45)
+            case "success": self.notice.notificationOccurred(.success)
             default: break
             }
             call.resolve()

@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useSwipeBack } from "@/components/appGestures";
 import { BadgeCheck, Check, ChevronLeft, FolderOpen, Info, LayoutDashboard, Palette, PlayCircle, ShieldCheck, UserRound } from "lucide-react";
 import { useAccount } from "@/components/account/AccountProvider";
 import { CasesSection, ManageCasesPage } from "./CasesSettings";
@@ -135,6 +136,8 @@ export function SettingsView({ initialSection, onClose, onSectionChange }: {
   }, [motion, page]);
 
   const back = useCallback(() => setPage(null), [setPage]);
+  // Swipe in from the left edge: a Settings page back to the list (the list itself closes with Close).
+  useSwipeBack(true, page ? back : undefined, () => document.querySelector<HTMLElement>(".settings-panel .settings-page"));
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

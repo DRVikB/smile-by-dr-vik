@@ -65,6 +65,6 @@ test("the app's haptics are the ones the native bridge plays", () => {
   assert.match(swift, /jsName = "SmileHaptics"/);
   const source = readFileSync("src/native/haptics.ts", "utf8");
   const kinds = /export type Haptic = ([^;]+);/.exec(source)![1].match(/"(\w+)"/g)!.map(k => k.slice(1, -1));
-  assert.deepEqual(kinds, ["ready", "tick", "select", "press"]);
+  assert.deepEqual(kinds, ["ready", "tick", "select", "press", "success"]);
   for (const kind of kinds) assert.match(swift, new RegExp(`case "${kind}":`), `${kind} is handled natively`);
 });

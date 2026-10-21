@@ -4,6 +4,8 @@ import { RailButton, RailItems, SheetClose, SideRailLayer, useSideRail } from "@
 import { PatientSyncStatus } from "./PatientSyncStatus";
 import { CaseMediaStatus } from "./CaseMediaStatus";
 import { type CaseMediaPreload, useCaseMedia } from "./useCaseMedia";
+import { openContextMenu, Pressable, SwipeRow, useSwipeBack, type MenuItem } from "./appGestures";
+import { haptic } from "@/native/haptics";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Archive, Check, ChevronLeft, ChevronRight, CircleCheck, PenLine, Pencil, ScanEye, Search, Share2, Star, Trash2, X } from "lucide-react";
 import { AnalysisSymbol, SmileSymbol } from "@/components/icons/SmileIcons";
@@ -135,6 +137,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
   const pageRecord = useCaseRecord(openCase ?? undefined);
   const [preferredError, setPreferredError] = useState("");
   async function togglePreferred(entry: CaseLogEntry) {
+    haptic("select");
     setPreferredError("");
     try { await repository.setPreferredDesign(caseIdOf(entry), openRecord.preferredDesignId === entry.id ? null : entry.id); }
     catch { setPreferredError("The preferred version couldn’t be saved. Please try again."); }
@@ -187,11 +190,41 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
   }, [heroId, readFull]);
   const heroImage = hero ? (heroFull?.id === hero.id ? heroFull.src : hero.thumb) : undefined;
 
+  // Swipe in from the left edge: a version back to its case, a case back to the list. On the list itself
+  // the swipe does nothing (Cases is a sheet; it closes with a pull down or Close).
+  useSwipeBack(true, open ? () => setOpen(null) : current ? () => setOpenCase(null) : undefined,
+    () => (open ? frame.current : document.querySelector<HTMLElement>(".sheet-backdrop > .log-panel .case-page")));
+
+  // Long-press menus, the way Photos and Files offer actions on an item.
+  const caseMenu = (group: CaseGroup): MenuItem[] => [
+    { label: "Open", onSelect: () => setOpenCase(group.key) },
+    { label: "Rename", onSelect: () => { renameOnOpen.current = group.name ?? ""; setOpenCase(group.key); } },
+    { label: "Archive", onSelect: () => void forWholeCase(group, "archive") },
+    { label: "Delete", destructive: true, onSelect: () => void forWholeCase(group, "delete") },
+  ];
+  const versionMenu = (entry: CaseLogEntry): MenuItem[] => {
+    const preferred = pageRecord.preferredDesignId === entry.id;
+    return [
+      { label: "Open", onSelect: () => void openEntry(entry) },
+      { label: entry.favourite ? "Remove from Favourites" : "Add to Favourites", onSelect: () => void toggleFavourite(entry) },
+      ...(!entry.testMode && entry.mode !== "mock" ? [{ label: preferred ? "Not the Patient’s Preferred" : "Mark as Patient’s Preferred", onSelect: () => {
+        haptic("select");
+        void repository.setPreferredDesign(caseIdOf(entry), preferred ? null : entry.id).catch(() => setPreferredError("The preferred version couldn’t be saved. Please try again."));
+      } }] : []),
+      { label: "Delete Version", destructive: true, onSelect: () => void removeVersion(entry.id) },
+    ];
+  };
+
   // Leaving a case (or it emptying) resets its per-case state.
   useEffect(() => {
     if (openCase && entries && !current) setOpenCaseNow(null);
   }, [openCase, entries, current]);
-  useEffect(() => { setOnlyFavourites(false); setRenaming(null); setConfirmCase(false); }, [openCase]);
+  // "Rename" from a case's long-press menu opens the case with its name ready to edit.
+  const renameOnOpen = useRef<string | null>(null);
+  useEffect(() => {
+    setOnlyFavourites(false); setConfirmCase(false);
+    setRenaming(renameOnOpen.current); renameOnOpen.current = null;
+  }, [openCase]);
 
   async function openEntry(entry: CaseLogEntry) {
     if(entry.draftOnly){await reopenDesign(caseIdOf(entry));return;}
@@ -220,6 +253,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
 
   async function toggleFavourite(entry: CaseLogEntry) {
     const next = !entry.favourite;
+    haptic("select");
     // Optimistic: the star responds instantly; revert if the save fails.
     const apply = (value: boolean) => setEntries(list => list?.map(e => (e.id === entry.id ? { ...e, favourite: value || undefined } : e)) ?? list);
     apply(next);
@@ -247,6 +281,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
     try {
       await moveToRecentlyDeleted(id);
       setOpen(null);
+      haptic("success");
       setNotice(`Version moved to Recently Deleted. You can restore it from Settings › Cases for ${RECENTLY_DELETED_DAYS} days.`);
       refresh();
     } catch {
@@ -258,6 +293,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
     try {
       await setCaseArchived(id, true);
       setOpen(null);
+      haptic("success");
       setNotice("Version archived. Find it in Settings › Cases › Archived Cases.");
       refresh();
     } catch {
@@ -272,6 +308,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
         else await moveToRecentlyDeleted(v.id);
       }
       setOpenCase(null);
+      haptic("success");
       setNotice(action === "archive"
         ? "Case archived. Find it in Settings › Cases › Archived Cases."
         : `Case moved to Recently Deleted. You can restore it from Settings › Cases for ${RECENTLY_DELETED_DAYS} days.`);
@@ -363,13 +400,15 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
             <div className="case-body">
             {hero && (
               <div className="case-hero">
-                <button type="button" className="case-hero-open" onClick={() => void openEntry(hero)} aria-label={`Open ${versionTitle(hero, current.versions.indexOf(hero), current.versions.length)}`}>
+                <Pressable onLong={(el) => openContextMenu(el, versionMenu(hero), { image: hero.thumb, title: versionTitle(hero, current.versions.indexOf(hero), current.versions.length), subtitle: [recentCaseTreatment(hero.summary), timeOf(hero.createdAt)].filter(Boolean).join(" · ") })}>{(press) => (
+                <button type="button" className="case-hero-open" {...press} onClick={() => void openEntry(hero)} aria-label={`Open ${versionTitle(hero, current.versions.indexOf(hero), current.versions.length)}`}>
                   {heroImage ? <img src={heroImage} alt="" draggable={false} /> : <span className="version-thumb-empty" aria-hidden="true" />}
                   <span className="case-hero-caption">
                     <strong>{versionTitle(hero, current.versions.indexOf(hero), current.versions.length)}</strong>
                     <span>{[recentCaseTreatment(hero.summary), timeOf(hero.createdAt)].filter(Boolean).join(" · ")}{(hero.testMode || hero.mode === "mock") ? " · Test" : ""}</span>
                   </span>
                 </button>
+                )}</Pressable>
                 {pageRecord.preferredDesignId === hero.id && <span className="case-hero-badge"><CircleCheck size={13} strokeWidth={2} aria-hidden="true" />Patient’s preferred</span>}
                 <button type="button" className={`version-star${hero.favourite ? " on" : ""}`} aria-pressed={Boolean(hero.favourite)}
                   aria-label={hero.favourite ? "Remove from favourites" : "Add to favourites"} onClick={() => void toggleFavourite(hero)}>
@@ -396,11 +435,13 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
                       const index = current.versions.indexOf(entry);
                       return (
                         <li key={entry.id}>
-                          <button type="button" className="case-version-tile" onClick={() => void openEntry(entry)}>
+                          <Pressable onLong={(el) => openContextMenu(el, versionMenu(entry), { image: entry.thumb, title: versionTitle(entry, index, current.versions.length), subtitle: timeOf(entry.createdAt) })}>{(press) => (
+                          <button type="button" className="case-version-tile" {...press} onClick={() => void openEntry(entry)}>
                             {entry.thumb ? <img src={entry.thumb} alt="" draggable={false} /> : <span className="version-thumb-empty" aria-hidden="true" />}
                             {entry.favourite && <Star className="case-version-fav" size={13} strokeWidth={1.9} fill="currentColor" aria-label="Favourite" />}
                             <span className="case-version-label">{versionTitle(entry, index, current.versions.length)} · {timeOf(entry.createdAt)}</span>
                           </button>
+                          )}</Pressable>
                         </li>
                       );
                     })}
@@ -468,7 +509,12 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
               <ul className="log-list">
                 {shown.map((group) => (
                   <li key={group.key} className={group.updatedAt > seenAt ? "is-new" : undefined}>
-                    <button className="log-row case-row" onClick={() => setOpenCase(group.key)}>
+                    <SwipeRow actions={[
+                      { label: "Archive", icon: <Archive size={18} strokeWidth={1.8} aria-hidden="true" />, onSelect: () => void forWholeCase(group, "archive") },
+                      { label: "Delete", tone: "destructive", icon: <Trash2 size={18} strokeWidth={1.8} aria-hidden="true" />, onSelect: () => void forWholeCase(group, "delete") },
+                    ]}>
+                    <Pressable onLong={(el) => openContextMenu(el, caseMenu(group), { image: coverThumbs(group)[0]?.thumb, title: caseName(group), subtitle: `${group.versions.length} ${group.versions.length === 1 ? "version" : "versions"} · ${formatLogDate(group.updatedAt)}` })}>{(press) => (
+                    <button className="log-row case-row" {...press} onClick={() => setOpenCase(group.key)}>
                       <span className={`case-cover count-${Math.min(3, group.versions.length)}`} aria-hidden="true">
                         {coverThumbs(group).map(v => v.thumb ? <img key={v.id} src={v.thumb} alt="" draggable={false} /> : <SmileSymbol key={v.id} size={26} />)}
                       </span>
@@ -484,6 +530,8 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
                       {group.test && <span className="log-pill">Test</span>}
                       <ChevronRight className="case-chevron" size={18} strokeWidth={2} aria-hidden="true" />
                     </button>
+                    )}</Pressable>
+                    </SwipeRow>
                   </li>
                 ))}
               </ul>

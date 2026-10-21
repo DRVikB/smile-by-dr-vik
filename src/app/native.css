@@ -1,0 +1,76 @@
+/* ============================================================
+   App feel: what makes SmileCompose behave like an iOS app rather than a web page.
+   ============================================================ */
+/* No grey flash on tap (controls show their own pressed state), no text selection or loupe on a long
+   press except where people type, and no "Save Image" or link preview callouts. */
+* { -webkit-tap-highlight-color: transparent; }
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+:is(input, textarea, select, [contenteditable="true"]) { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+:is(img, a, svg) { -webkit-touch-callout: none; -webkit-user-drag: none; }
+:is(button, a, [role="button"], summary, label) { touch-action: manipulation; }
+
+/* ---------- long-press menu (appGestures.tsx) ---------- */
+.cm-layer {
+  position: fixed; inset: 0; z-index: 400;
+  background: color-mix(in srgb, #000 22%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(120%); backdrop-filter: blur(14px) saturate(120%);
+  animation: cm-dim 220ms var(--ease-sheet) both;
+}
+.cm-preview {
+  position: absolute; display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 10px 14px 10px 10px;
+  border-radius: 18px; background: var(--card, #fff); color: var(--text-primary); box-shadow: 0 18px 50px rgba(0, 0, 0, .22);
+  animation: cm-lift 360ms cubic-bezier(.34, 1.4, .64, 1) both; transform-origin: 50% 50%;
+}
+.cm-preview img { width: 56px; height: 56px; flex: none; border-radius: 12px; object-fit: cover; }
+.cm-preview span { display: grid; gap: 2px; min-width: 0; }
+.cm-preview strong { overflow: hidden; font-size: 16px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.cm-preview small { overflow: hidden; font-size: 13px; color: var(--text-secondary); white-space: nowrap; text-overflow: ellipsis; }
+.cm-menu {
+  position: absolute; display: grid; padding: 4px; border-radius: 16px; overflow: hidden;
+  background: color-mix(in srgb, var(--card, #fff) 86%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .22); transform-origin: 20% 0;
+  animation: cm-open 300ms cubic-bezier(.32, .72, 0, 1) both;
+}
+.cm-menu button {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 14px;
+  border: 0; border-radius: 12px; background: none; color: var(--text-primary); font: inherit; font-size: 16px; text-align: left;
+}
+.cm-menu button + button { box-shadow: inset 0 .5px 0 var(--separator, rgba(0, 0, 0, .1)); }
+.cm-menu button:active { background: var(--row-pressed); }
+.cm-menu button.is-destructive { color: var(--destructive); }
+.cm-menu button:disabled { opacity: .4; }
+.cm-layer.is-leaving { animation: cm-undim 180ms var(--ease-exit) both; }
+.cm-layer.is-leaving .cm-preview, .cm-layer.is-leaving .cm-menu { animation: cm-close 160ms var(--ease-exit) both; }
+@keyframes cm-dim { from { background-color: transparent; -webkit-backdrop-filter: blur(0); backdrop-filter: blur(0); } }
+@keyframes cm-undim { to { background-color: transparent; -webkit-backdrop-filter: blur(0); backdrop-filter: blur(0); } }
+@keyframes cm-lift { from { transform: scale(.97); } 60% { transform: scale(1.025); } to { transform: scale(1); } }
+@keyframes cm-open { from { opacity: 0; transform: scale(.88); } to { opacity: 1; transform: none; } }
+@keyframes cm-close { to { opacity: 0; transform: scale(.94); } }
+
+/* ---------- a row that swipes left to show its actions ---------- */
+.swipe-row { position: relative; overflow: hidden; border-radius: 16px; touch-action: pan-y; }
+.swipe-actions { position: absolute; top: 0; right: 0; bottom: 0; display: flex; }
+.swipe-actions button {
+  flex: 1; display: grid; place-items: center; align-content: center; gap: 4px; border: 0; margin: 0;
+  background: #8e8e93; color: #fff; font: inherit; font-size: 12.5px; font-weight: 600;
+}
+.swipe-actions button.is-destructive { background: var(--destructive, #d1453b); }
+.swipe-actions button:last-child { border-radius: 0 16px 16px 0; }
+.swipe-content { position: relative; z-index: 1; background: var(--background); transition: transform 380ms cubic-bezier(.32, .72, 0, 1); }
+.swipe-content.is-dragging { transition: none; }
+.log-list > li > .swipe-row { margin: 0; }
+
+/* ---------- iPad with a trackpad or mouse: things under the pointer answer it ---------- */
+@media (hover: hover) and (pointer: fine) {
+  :is(button, a, summary, [role="button"], label[for]):not(:disabled) { cursor: pointer; }
+  :is(.log-row, .settings-row, .action-row, .recent-card, .cl-item, .case-version-tile, .case-hero-open, .studio-treatment, .quick-smile-goal, .photo-option, .photo-sample, .cm-menu button):not(:disabled):hover { filter: brightness(.97); }
+  :is(.primary-button, .splash-primary, .photo-primary, .studio-next):not(:disabled):hover { filter: brightness(1.04); }
+  :is(.secondary-button, .splash-outline, .nav-tool, .nav-action, .rail-button, .icon-button, .text-button, .segmented button, .studio-tabs button):not(:disabled):hover { opacity: .82; }
+  :is(.log-row, .settings-row, .action-row, .recent-card, .cl-item, .case-version-tile, .primary-button, .secondary-button, .splash-outline, .nav-tool, .rail-button) { transition: filter 160ms ease, opacity 160ms ease, background-color 240ms var(--ease-soft), transform 320ms var(--spring); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-layer, .cm-preview, .cm-menu, .cm-layer.is-leaving, .cm-layer.is-leaving * { animation: none !important; }
+  .swipe-content { transition: none; }
+}
