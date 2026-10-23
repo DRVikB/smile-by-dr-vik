@@ -7,7 +7,7 @@ import { type CaseMediaPreload, useCaseMedia } from "./useCaseMedia";
 import { openContextMenu, Pressable, SwipeRow, useSwipeBack, type MenuItem } from "./appGestures";
 import { haptic } from "@/native/haptics";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Archive, Check, ChevronLeft, ChevronRight, CircleCheck, PenLine, Pencil, ScanEye, Search, Share2, Star, Trash2, X } from "lucide-react";
+import { Archive, Check, ChevronLeft, ChevronRight, CircleCheck, Maximize2, PenLine, Pencil, ScanEye, Search, Share2, Star, Trash2, X } from "lucide-react";
 import { AnalysisSymbol, SmileSymbol } from "@/components/icons/SmileIcons";
 import { AI_CONCEPT_DISCLAIMER } from "@/lib/brand";
 import { savedCaseExport } from "@/lib/savedCaseExport";
@@ -407,6 +407,8 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
                     <strong>{versionTitle(hero, current.versions.indexOf(hero), current.versions.length)}</strong>
                     <span>{[recentCaseTreatment(hero.summary), timeOf(hero.createdAt)].filter(Boolean).join(" · ")}{(hero.testMode || hero.mode === "mock") ? " · Test" : ""}</span>
                   </span>
+                  {/* Says the photo opens: the version's before and after, analysis and sharing. */}
+                  <span className="case-hero-expand" aria-hidden="true"><Maximize2 size={18} strokeWidth={2} /></span>
                 </button>
                 )}</Pressable>
                 {pageRecord.preferredDesignId === hero.id && <span className="case-hero-badge"><CircleCheck size={13} strokeWidth={2} aria-hidden="true" />Patient’s preferred</span>}
