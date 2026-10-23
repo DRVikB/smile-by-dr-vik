@@ -15,6 +15,15 @@ interface SmilePhotoPickerPlugin {
   pickPhoto(): Promise<PickedPhoto>;
   takePhoto(options: { camera: "back" | "front"; guide: Framing }): Promise<PickedPhoto>;
   releasePhoto(options: { path: string }): Promise<void>;
+  takePhotoSet(options: { views: NativeSetView[] }): Promise<{ cancelled: boolean; photos?: (PickedPhoto & { id: string })[] }>;
+}
+
+/** One view of the guided photo set, as the native camera shows it. */
+export interface NativeSetView {
+  id: string; title: string; hint: string; step: string;
+  /** The see-through guide, a white-on-clear PNG (base64) in the preview's 3:4 frame; `guideLower` for the jaws motion. */
+  guide: string; guideLower?: string;
+  motion: "top" | "centre" | "jaws"; midlines: boolean; mirror: boolean; light: boolean; zoom: number;
 }
 
 /** Local plugin: ios/App/App/PhotoPickerPlugin.swift. */
@@ -75,4 +84,23 @@ function validGuide(g: Framing | undefined): Framing | null {
   if (!g) return null;
   const values = [g.x, g.y, g.width, g.height];
   return values.every(v => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1) && g.width > 0 && g.height > 0 && g.x + g.width <= 1 && g.y + g.height <= 1 ? g : null;
+}
+
+/**
+ * The guided photo set in the iOS app: the iPhone camera, view after view, each with its own see-through guide
+ * (ios/App/App/PhotoPickerPlugin.swift, PhotoSetCameraViewController). Returns the photos taken, by view; views
+ * that were skipped are left out. Cancelling keeps the photos already taken.
+ */
+export async function takeNativePhotoSet(views: NativeSetView[]): Promise<{ id: string; file: File }[]> {
+  if (!isNativeApp()) throw new Error("The camera is only available in the app.");
+  let result: Awaited<ReturnType<SmilePhotoPickerPlugin["takePhotoSet"]>>;
+  try {
+    result = await SmilePhotoPicker.takePhotoSet({ views });
+  } catch (error) {
+    const denied = (error as { code?: string })?.code === "camera_denied";
+    throw new Error(denied ? "Camera access is turned off. Turn it on in Settings › SmileCompose › Camera." : "The camera couldn’t be opened. Please try again.", { cause: error });
+  }
+  const out: { id: string; file: File }[] = [];
+  for (const photo of result.photos ?? []) { const file = await readPicked({ ...photo, cancelled: false }); if (file) out.push({ id: photo.id, file }); }
+  return out;
 }

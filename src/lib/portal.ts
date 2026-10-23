@@ -4,17 +4,24 @@ import { features } from "@/config/features";
  * clinical photo set. They sync with the case (state.portal); photos become CLINICAL_PHOTO assets.
  */
 export const PHOTO_SLOTS = [
-  { id: "front", label: "Smile front", short: "Front" },
-  { id: "right", label: "Smile right", short: "Right" },
-  { id: "left", label: "Smile left", short: "Left" },
-  // "retracted" is the original id, kept so earlier photo sets still load.
-  { id: "retracted", label: "Retracted front", short: "Retr. front" },
-  { id: "retractedRight", label: "Retracted right", short: "Retr. right" },
-  { id: "retractedLeft", label: "Retracted left", short: "Retr. left" },
-  { id: "upper", label: "Upper arch", short: "Upper" },
-  { id: "lower", label: "Lower arch", short: "Lower" },
+  // The guided photo set, in the order it is taken. Ids are kept from the earlier set, so saved photos stay
+  // where they were: "front" (the smile front, and the design photo) is Smiling; "retracted" is Front teeth.
+  { id: "profile", label: "Profile", short: "Profile", group: "face" },
+  { id: "rest", label: "At rest", short: "At rest", group: "face" },
+  { id: "front", label: "Smiling", short: "Smiling", group: "face" },
+  { id: "smile", label: "Smile close-up", short: "Close-up", group: "smile" },
+  { id: "retractedRight", label: "Right side", short: "Right", group: "teeth" },
+  { id: "retracted", label: "Front teeth", short: "Front", group: "teeth" },
+  { id: "retractedLeft", label: "Left side", short: "Left", group: "teeth" },
+  { id: "upper", label: "Upper arch", short: "Upper", group: "arches" },
+  { id: "lower", label: "Lower arch", short: "Lower", group: "arches" },
+  // From the earlier set (three-quarter smiles): kept, and shown under Other photos when present.
+  { id: "right", label: "Smile right", short: "Smile R", group: "other" },
+  { id: "left", label: "Smile left", short: "Smile L", group: "other" },
 ] as const;
-export const MAX_PHOTOS = PHOTO_SLOTS.length;
+/** The views of the guided set (Other photos are extra). */
+export const PHOTO_SET_VIEWS = PHOTO_SLOTS.filter(s => s.group !== "other");
+export const MAX_PHOTOS = PHOTO_SET_VIEWS.length;
 export type PhotoSlot = typeof PHOTO_SLOTS[number]["id"];
 export const CASE_STATUSES = [
   { id: "progress", label: "In progress" },
