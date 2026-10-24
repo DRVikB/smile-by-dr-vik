@@ -23,6 +23,7 @@ class SmileComposeBridgeViewController: CAPBridgeViewController {
         // App-local plugins: permission-free photo picker, native Sign in with Apple,
         // Keychain storage for the sign-in session and the appearance bridge.
         bridge?.registerPluginInstance(PhotoPickerPlugin())
+        bridge?.registerPluginInstance(CaseMediaPlugin())
         bridge?.registerPluginInstance(ShortcutsPlugin.shared)
         bridge?.registerPluginInstance(AppleSignInPlugin())
         bridge?.registerPluginInstance(SecureStoragePlugin())

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Video recording">
+<defs>
+  <linearGradient id="gold" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="512"><stop offset="0%" stop-color="#C8923B"/><stop offset="55%" stop-color="#B67B26"/><stop offset="100%" stop-color="#C58C32"/></linearGradient>
+</defs>
+<g fill="none" stroke="url(#gold)" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M113 64 H64 V114 M399 64 H448 V114 M64 397 V448 H113 M399 448 H448 V397" stroke-width="5.3" />
+  <path d="M130 160 H318 C340 160 354 177 354 200 V318 C354 340 339 357 318 357 H129 C107 357 90 340 90 318 V200 C90 178 106 160 130 160 Z" stroke-width="7.5"/>
+  <path d="M354 226 L416 184 Q425 178 425 190 V327 Q425 336 417 332 L354 291" stroke-width="7.5" />
+  <path d="M190 220 Q190 211 198 215 L273 253 Q282 257 273 262 L198 301 Q190 306 190 296 Z" stroke-width="7.2" />
+</g>
+</svg>

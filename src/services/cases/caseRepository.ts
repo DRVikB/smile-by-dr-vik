@@ -11,6 +11,9 @@ import { caseMediaStatus } from "./sync/mediaStatus";
 import { stableJson, uuidValid, type Json, type PatientApi } from "./sync/types";
 import { PHOTO_SLOTS, cleanTags, isCaseStatus, isPhotoSlot, validConsent, type CaseConsent, mergePortal, type PhotoSlot, type PortalDetails, type PortalPatch } from "@/lib/portal";
 
+/** A case's speech video and face scan are kept by the iOS app itself, outside this store: removed with the case. */
+const dropNativeMedia=(caseId:string)=>{if(typeof window!=="undefined"&&(window as {Capacitor?:{isNativePlatform?:()=>boolean}}).Capacitor?.isNativePlatform?.())void import("@/native/caseMedia").then(m=>m.removeCaseMediaFor(caseId)).catch(()=>{});};
+
 /** UI -> this session-bound repository -> immediate local working copy + durable cloud outbox. */
 export function createCaseRepository(scope: WorkspaceLease) {
  const log=createCaseLogStore(scope),drafts=createDraftStore(scope),local=createPatientLocalStore(scope);
@@ -128,12 +131,12 @@ export function createCaseRepository(scope: WorkspaceLease) {
   async setPreferredDesign(id:string,designId:string|null){return write(async()=>{await snapshot(id);const c=await local.getCase(id);if(!c)return;if(designId&&!c.state.entries.some(e=>e&&typeof e==="object"&&!Array.isArray(e)&&e.id===designId))throw new Error("Choose a version from this case.");await sync.enqueue(id,{...c.state,preferredDesignId:designId},c.summary);});},
   async deleteCase(id:string){return write(async()=>{
    await snapshot(id);const c=await local.getCase(id);if(c&&!c.deletedAt)await sync.enqueue(id,c.state,c.summary,[],true);
-   await log.replaceCaseMetadata(id,[]);const d=await drafts.readCase();if(d?.caseId===id){await drafts.persistCase(null);workingChange(null);}change();
+   await log.replaceCaseMetadata(id,[]);const d=await drafts.readCase();if(d?.caseId===id){await drafts.persistCase(null);workingChange(null);}dropNativeMedia(id);change();
   });},
   async deleteLogEntry(id:string){return write(async()=>{
    const entry=(await log.listAllLog()).find(e=>e.id===id);await log.deleteLogEntry(id);if(!entry)return;
    const caseId=caseIdOf(entry),remaining=(await log.listAllLog()).filter(e=>caseIdOf(e)===caseId);
-   if(remaining.length)await snapshot(caseId);else{const c=await local.getCase(caseId);if(c&&!c.deletedAt)await sync.enqueue(caseId,c.state,c.summary,[],true);const d=await drafts.readCase();if(d?.caseId===caseId){await drafts.persistCase(null);workingChange(null);}}change();
+   if(remaining.length)await snapshot(caseId);else{const c=await local.getCase(caseId);if(c&&!c.deletedAt)await sync.enqueue(caseId,c.state,c.summary,[],true);const d=await drafts.readCase();if(d?.caseId===caseId){await drafts.persistCase(null);workingChange(null);}dropNativeMedia(caseId);}change();
   });},
   async moveAllToRecentlyDeleted(now=Date.now()){for(const e of await log.listLog())await methods.moveToRecentlyDeleted(e.id,now);},
   async emptyRecentlyDeleted(){const entries=await log.listLog(["deleted"]);for(const e of entries)await methods.deleteLogEntry(e.id);return entries.length;},

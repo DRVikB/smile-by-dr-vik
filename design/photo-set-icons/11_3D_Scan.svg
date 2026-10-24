@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="3D scan">
+<defs>
+  <linearGradient id="gold" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="512" y2="512"><stop offset="0%" stop-color="#C8923B"/><stop offset="55%" stop-color="#B67B26"/><stop offset="100%" stop-color="#C58C32"/></linearGradient>
+</defs>
+<g fill="none" stroke="url(#gold)" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M113 64 H64 V114 M399 64 H448 V114 M64 397 V448 H113 M399 448 H448 V397" stroke-width="5.3" />
+  <!-- broken vertical registration guide, kept behind the isometric volume -->
+  <path d="M254 88 V117 M254 126 V145 M254 372 V394 M254 408 V441" stroke-width="4.8" stroke-dasharray="11 13" />
+  <!-- isometric wireframe 3D object -->
+  <path d="M254 146 L356 199 L254 259 L152 199 Z" stroke-width="7.6" />
+  <path d="M152 199 V292 M152 331 V334 L254 374 L356 334 V330 M356 292 V199" stroke-width="7.6" />
+  <path d="M254 259 V374" stroke-width="7.6" />
+  <!-- continuous, open orbital scan strokes -->
+  <path d="M125 220 C79 232 69 254 71 267 C77 295 122 308 193 318" stroke-width="5.6" />
+  <path d="M384 220 C431 230 441 253 439 266 C434 297 385 309 315 318" stroke-width="5.6" />
+</g>
+</svg>

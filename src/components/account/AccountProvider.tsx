@@ -373,11 +373,14 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
     }
     sessionLease.assert();
     const localData = deleteLocalData ? await import("@/lib/localData") : null;
+    // This account's speech videos and face scans are kept by the iOS app itself, by case.
+    const mediaCases = deleteLocalData && isNativeApp() ? (await (await import("@/services/cases/caseRepository")).getCaseRepository().syncStatuses().catch(() => [])).map(c => c.id) : [];
     sessionLease.assert();
     await requestAccountDeletion(token, appleCode);
     sessionLease.assert();
     signingOut.current = true;
-    const cleanup = localData ? localData.deleteWorkspaceData(sessionLease) : Promise.resolve();
+    const cleanup = localData ? Promise.all([localData.deleteWorkspaceData(sessionLease),
+      mediaCases.length ? import("@/native/caseMedia").then(m => Promise.all(mediaCases.map(m.removeCaseMediaFor))) : null]) : Promise.resolve();
     applyUser(null);
     try {
       await Promise.all([cleanup, (async () => { await supabase()?.auth.signOut({ scope: "local" }); await resetPurchaser(); })()]);

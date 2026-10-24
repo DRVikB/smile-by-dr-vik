@@ -305,12 +305,12 @@
 /* Three even rows: Face, Teeth, then the Smile close-up beside the two arches. */
 .ps-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; align-content: start; }
 .ps-face, .ps-teeth, .ps-other { grid-column: 1 / -1; }
-.ps-teeth { order: 1; } .ps-smile { order: 2; } .ps-arches { order: 2; grid-column: span 2; } .ps-other { order: 3; }
+.ps-teeth { order: 1; } .ps-smile { order: 2; } .ps-arches { order: 2; grid-column: span 2; } .ps-media { order: 3; grid-column: 1 / -1; } .ps-other { order: 4; }
 .ps-group h3 { display: flex; justify-content: space-between; margin: 0 2px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-secondary); white-space: nowrap; }
 .ps-group h3 em { font-style: normal; letter-spacing: 0; text-transform: none; font-weight: 500; color: var(--text-tertiary); }
 .ps-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .ps-smile .ps-tiles { grid-template-columns: minmax(0, 1fr); }
-.ps-arches .ps-tiles, .ps-other .ps-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ps-arches .ps-tiles, .ps-media .ps-tiles, .ps-other .ps-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .ps-other .ps-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ps-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; aspect-ratio: 1 / .92; padding: 4px 4px 0; border: 1px solid var(--card-border); border-radius: 16px; background: color-mix(in srgb, var(--card) 70%, #f7f1e8); overflow: hidden; color: var(--text-primary); }
 .ps-art { display: block; height: 80%; aspect-ratio: 1; }
@@ -332,3 +332,45 @@
 }
 @media (min-width: 600px) and (orientation: portrait) { .ps-hero { height: clamp(160px, 18svh, 240px); } .ps-tiles { gap: 10px; } .ps-name { font-size: 13px; } }
 :root[data-theme="dark"] .ps-tile { background: var(--card); }
+/* Speech video and face scan (admin preview): a compact row, so the page still fits one screen. */
+.ps-media-tile { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 56px; padding: 5px 10px 5px 5px; border: 1px solid var(--card-border); border-radius: 16px; background: color-mix(in srgb, var(--card) 70%, #f7f1e8); color: var(--text-primary); text-align: left; font: inherit; overflow: hidden; }
+.ps-media-tile:active:not(:disabled) { background-color: var(--row-pressed); }
+.ps-media-art { position: relative; flex: none; width: 46px; height: 46px; border-radius: 11px; overflow: hidden; }
+.ps-media-art .ps-art { position: absolute; inset: -6px; height: auto; aspect-ratio: auto; }
+.ps-media-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ps-media-mark { position: absolute; right: 3px; bottom: 3px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .92); color: #7a5a2a; }
+.ps-media-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ps-media-text strong { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ps-media-text small { font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:root[data-theme="dark"] .ps-media-tile { background: var(--card); }
+@media (orientation: portrait) and (max-width: 599px) {
+  .ps-body:has(.ps-media) .ps-hero { height: clamp(96px, 12svh, 150px); }
+  .ps-groups:has(.ps-media) { gap: 10px 8px; }
+  .ps-groups:has(.ps-media) .ps-tile { aspect-ratio: 1 / .84; }
+}
+
+/* Speech video and 3D face scan viewers (admin preview), on the photo viewer's dark sheet. */
+.pt-viewer.media-viewer { background: #0f0e0d; }
+.media-viewer .pt-viewer-actions { flex-wrap: wrap; justify-content: flex-end; }
+.media-viewer .pt-viewer-actions .mv-armed { background: #c0392b; }
+.mv-body { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 18px max(18px, var(--safe-bottom)); }
+.mv-video { display: block; width: 100%; max-height: 50svh; border-radius: 14px; background: #000; object-fit: contain; }
+.mv-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.mv-step { display: flex; flex-direction: column; gap: 4px; padding: 0; border: 0; background: none; color: rgba(255, 255, 255, .7); font: 600 11px/1.2 var(--font-sans, system-ui); text-align: center; cursor: pointer; }
+.mv-step img, .mv-step-blank { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 10px; border: 2px solid transparent; background: #1a1714; }
+.mv-step[aria-selected="true"] { color: #fff; }
+.mv-step[aria-selected="true"] img { border-color: #D0A466; }
+.mv-note { padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, .08); }
+.mv-note strong { font-size: 14px; }
+.mv-note p { margin: 4px 0 0; color: rgba(255, 255, 255, .78); font-size: 13.5px; line-height: 1.4; }
+.mv-note .primary-button { margin-top: 10px; min-height: 42px; }
+.mv-hint { margin: 0; color: rgba(255, 255, 255, .62); font-size: 12.5px; line-height: 1.4; }
+.mv-note .mv-hint { margin-top: 8px; }
+.mv-privacy { margin: 0; color: rgba(255, 255, 255, .5); font-size: 12px; line-height: 1.4; }
+.mv-scans { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.mv-scan { margin: 0; border-radius: 14px; overflow: hidden; background: rgba(255, 255, 255, .06); }
+.mv-scan img, .mv-scan .mv-step-blank { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border: 0; border-radius: 0; }
+.mv-scan figcaption { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 10px; font-size: 12px; color: rgba(255, 255, 255, .7); }
+.mv-scan strong { color: #fff; font-size: 13.5px; }
+.mv-open { align-self: center; min-height: 48px; gap: 8px; padding: 0 24px; }
+@media (max-width: 520px) { .media-viewer .mv-label { display: none; } }

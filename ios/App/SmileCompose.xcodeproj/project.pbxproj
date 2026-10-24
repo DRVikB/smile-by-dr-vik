@@ -17,6 +17,7 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		5C0A3E1F2A7B4C9D8E6F1A2B /* SmileComposeBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A3E1F2A7B4C9D8E6F1A2C /* SmileComposeBridgeViewController.swift */; };
 		5C0A3E1F2A7B4C9D8E6F1A2D /* PhotoPickerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A3E1F2A7B4C9D8E6F1A2E /* PhotoPickerPlugin.swift */; };
+		7A1C2E3F4B5D6A7B8C9D0E1F /* CaseMediaPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1C2E3F4B5D6A7B8C9D0E20 /* CaseMediaPlugin.swift */; };
 		5C0A3E1F2A7B4C9D8E6F1A2F /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5C0A3E1F2A7B4C9D8E6F1A30 /* PrivacyInfo.xcprivacy */; };
 		5C0A3E1F2A7B4C9D8E6F1A31 /* AppleSignInPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A3E1F2A7B4C9D8E6F1A32 /* AppleSignInPlugin.swift */; };
 		5C0A3E1F2A7B4C9D8E6F1A34 /* SecureStoragePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A3E1F2A7B4C9D8E6F1A35 /* SecureStoragePlugin.swift */; };
@@ -69,6 +70,7 @@
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		5C0A3E1F2A7B4C9D8E6F1A2C /* SmileComposeBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmileComposeBridgeViewController.swift; sourceTree = "<group>"; };
 		5C0A3E1F2A7B4C9D8E6F1A2E /* PhotoPickerPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoPickerPlugin.swift; sourceTree = "<group>"; };
+		7A1C2E3F4B5D6A7B8C9D0E20 /* CaseMediaPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaseMediaPlugin.swift; sourceTree = "<group>"; };
 		5C0A3E1F2A7B4C9D8E6F1A30 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		5C0A3E1F2A7B4C9D8E6F1A32 /* AppleSignInPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInPlugin.swift; sourceTree = "<group>"; };
 		5C0A3E1F2A7B4C9D8E6F1A33 /* SmileCompose.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SmileCompose.entitlements; sourceTree = "<group>"; };
@@ -132,6 +134,7 @@
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				5C0A3E1F2A7B4C9D8E6F1A2C /* SmileComposeBridgeViewController.swift */,
 				5C0A3E1F2A7B4C9D8E6F1A2E /* PhotoPickerPlugin.swift */,
+				7A1C2E3F4B5D6A7B8C9D0E20 /* CaseMediaPlugin.swift */,
 				5C0A3E1F2A7B4C9D8E6F1A32 /* AppleSignInPlugin.swift */,
 				5C0A3E1F2A7B4C9D8E6F1A35 /* SecureStoragePlugin.swift */,
 				5C0A3E1F2A7B4C9D8E6F1A37 /* AppearancePlugin.swift */,
@@ -287,6 +290,7 @@
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				5C0A3E1F2A7B4C9D8E6F1A2B /* SmileComposeBridgeViewController.swift in Sources */,
 				5C0A3E1F2A7B4C9D8E6F1A2D /* PhotoPickerPlugin.swift in Sources */,
+				7A1C2E3F4B5D6A7B8C9D0E1F /* CaseMediaPlugin.swift in Sources */,
 				5C0A3E1F2A7B4C9D8E6F1A31 /* AppleSignInPlugin.swift in Sources */,
 				5C0A3E1F2A7B4C9D8E6F1A34 /* SecureStoragePlugin.swift in Sources */,
 				5C0A3E1F2A7B4C9D8E6F1A36 /* AppearancePlugin.swift in Sources */,

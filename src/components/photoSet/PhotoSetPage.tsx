@@ -9,6 +9,8 @@ import { PHOTO_SET_VIEWS, PHOTO_SLOTS, type PhotoSlot } from "@/lib/portal";
 import { isNativeApp } from "@/native/platform";
 import { haptic } from "@/native/haptics";
 import { buildTile, guideSvg, GUIDES, hasArt, svgToPng as guidePng, type SetView } from "./art";
+import { useAdmin } from "@/components/portal/AdminView";
+import { CaseMediaGroup } from "./CaseMedia";
 
 const GROUPS: { id: string; title: string; note?: string }[] = [
   { id: "face", title: "Face" }, { id: "smile", title: "Smile" },
@@ -49,6 +51,9 @@ export function PhotoSetPage({ caseId, before, concept, onBack, onClose }: {
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const native = isNativeApp();
+  // The speech video and face scan are previews for administrators, recorded in the iOS app.
+  const { isAdmin } = useAdmin();
+  const [reference, setReference] = useState("");
   // The concept arrives a moment after the page opens: show it as soon as it does.
   const hadConcept = useRef(!!concept);
   useEffect(() => { if (concept && !hadConcept.current) { hadConcept.current = true; setShown("concept"); } }, [concept]);
@@ -58,7 +63,7 @@ export function PhotoSetPage({ caseId, before, concept, onBack, onClose }: {
   const load = useCallback(async () => {
     const d = await repository.portalDetails(caseId).catch(() => null);
     const set = d?.portal.thumbs ?? {};
-    setThumbs(set); setDesignThumb(d?.designThumb ?? ""); setDesignFront(!set.front && Boolean(d?.hasDesignPhoto));
+    setThumbs(set); setDesignThumb(d?.designThumb ?? ""); setDesignFront(!set.front && Boolean(d?.hasDesignPhoto)); setReference(d?.portal.reference ?? "");
   }, [caseId, repository]);
   useEffect(() => { void load(); return repository.subscribe(() => void load()); }, [load, repository]);
 
@@ -146,6 +151,7 @@ export function PhotoSetPage({ caseId, before, concept, onBack, onClose }: {
           <h3>{g.title}{g.note && <em>{g.note}</em>}</h3>
           <div className="ps-tiles">{PHOTO_SET_VIEWS.filter(v => v.group === g.id).map(v => tile(v.id))}</div>
         </section>)}
+        {isAdmin && native && <CaseMediaGroup caseId={caseId} reference={reference || undefined} disabled={busy} delay={80 + PHOTO_SET_VIEWS.length * 120} onStatus={setStatus} />}
         {others.length > 0 && <section className="ps-group ps-other" aria-label="Other photos">
           <h3>Other photos</h3><div className="ps-tiles">{others.map(o => tile(o.id))}</div>
         </section>}

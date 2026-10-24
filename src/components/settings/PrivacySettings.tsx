@@ -157,10 +157,10 @@ export function ManageDataPage() {
         })} />
         <Row label="Delete all data on this device" destructive onClick={() => nav.confirm({
           title: "Delete all data on this device?",
-          body: <p className="control-hint">Removes every account’s local case cache, unowned cases, patient photos, generated results and preferences stored by SmileCompose on this device, including any library cases kept on this device. Your account (including your Case Library and profile photo) and subscription are not affected. This can’t be undone.</p>,
+          body: <p className="control-hint">Removes every account’s local case cache, unowned cases, patient photos, speech videos and face scans, generated results and preferences stored by SmileCompose on this device, including any library cases kept on this device. Your account (including your Case Library and profile photo) and subscription are not affected. This can’t be undone.</p>,
           confirmLabel: "Delete device data",
           destructive: true,
-          onConfirm: async () => { await (await import("@/lib/localData")).deleteAllLocalData(indexedDB, localStorage, scope); window.location.reload(); },
+          onConfirm: async () => { await (await import("@/lib/localData")).deleteAllLocalData(indexedDB, localStorage, scope); await (await import("@/native/caseMedia")).removeAllCaseMedia(); window.location.reload(); },
         })} />
       </Group>
       {configured && user && (

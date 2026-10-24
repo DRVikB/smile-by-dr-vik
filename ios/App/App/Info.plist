@@ -38,7 +38,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>SmileCompose uses the camera to take the patient smile photograph you design with.</string>
+	<string>SmileCompose uses the camera to take the patient photos, speech videos and face scans you design with.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SmileCompose records sound with the speech video, so the lab can hear how the patient says each sound.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>SmileCompose saves before-and-after images and videos you export to your photo library.</string>
 	<key>UIApplicationSceneManifest</key>
