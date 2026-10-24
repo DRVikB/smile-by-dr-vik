@@ -862,6 +862,9 @@ struct FaceScanResult {
     let tilted: (up: Float, down: Float)
     /// The share of the face seen closely enough, 0–1.
     let coverage: Float
+    /// How well the frames fitted the face (mm) and the share kept: a patient who moved shows here.
+    var tracking: (rms: Float, kept: Float) = (0, 1)
+    var trackingPoor: Bool { tracking.rms > 1.6 || tracking.kept < 0.6 }
 }
 
 enum FaceScanStore {
@@ -883,6 +886,7 @@ enum FaceScanStore {
                     "turned": [Double(scan.turned.right), Double(scan.turned.left)],
                     "tilted": [Double(scan.tilted.up), Double(scan.tilted.down)],
                     "coverage": (Double(scan.coverage) * 100).rounded() / 100,
+                    "tracking": ["fitMm": (Double(scan.tracking.rms) * 100).rounded() / 100, "kept": (Double(scan.tracking.kept) * 100).rounded() / 100, "poor": scan.trackingPoor],
                     "sensor": "lidar"
                 ])
                 var entry: [String: Any] = [
@@ -1083,7 +1087,8 @@ struct FaceMesh {
 /// through the face, origin at the centre of the head.
 final class FaceVolume {
     static let voxel: Float = 0.0016
-    static let lo = SIMD3<Float>(-0.14, -0.18, -0.15), hi = SIMD3<Float>(0.14, 0.16, 0.17)
+    // The face and the sides of the head; the back of the head (and the headrest behind it) is left out.
+    static let lo = SIMD3<Float>(-0.12, -0.18, -0.07), hi = SIMD3<Float>(0.12, 0.16, 0.17)
     static let trunc: Float = 0.0055
     let nx = Int(((FaceVolume.hi.x - FaceVolume.lo.x) / FaceVolume.voxel).rounded())
     let ny = Int(((FaceVolume.hi.y - FaceVolume.lo.y) / FaceVolume.voxel).rounded())
@@ -1107,8 +1112,8 @@ final class FaceVolume {
         /// The camera image (420f), for colour.
         let image: CVPixelBuffer
         let depthK, imageK: simd_float3x3
-        let cameraToHead: simd_float4x4
-        let cameraInHead: SIMD3<Float>
+        var cameraToHead: simd_float4x4
+        var cameraInHead: SIMD3<Float>
         /// Every nth depth pixel.
         var stride = 1
         var nearest: Float = 0.15, farthest: Float = 0.9
@@ -1121,6 +1126,7 @@ final class FaceVolume {
         rgb = .allocate(capacity: n * 3); rgb.initialize(repeating: 0, count: n * 3)
     }
     deinit { dist.deallocate(); weight.deallocate(); rgb.deallocate() }
+    func withStorage<T>(_ body: (UnsafeMutablePointer<Float16>, UnsafeMutablePointer<Float16>) -> T) -> T { body(dist, weight) }
 
     func integrate(_ f: Frame) {
         let depth = f.depth, image = f.image
@@ -1508,6 +1514,283 @@ enum FaceAlign {
     }
 }
 
+extension FaceVolume {
+    /// The surface seen so far as points with outward normals (millimetres), for lining new frames up with it.
+    func surface(minWeight: Float = 3) -> [(SIMD3<Float>, SIMD3<Float>)] {
+        let nx = self.nx, ny = self.ny, nz = self.nz, plane = nx * ny
+        var out: [(SIMD3<Float>, SIMD3<Float>)] = []
+        out.reserveCapacity(60000)
+        withStorage { dist, weight in
+            for l in 1..<(nz - 1) { for j in 1..<(ny - 1) { for i in 1..<(nx - 1) {
+                let k = l * plane + j * nx + i
+                guard Float(weight[k]) >= minWeight else { continue }
+                let d0 = Float(dist[k])
+                for (o, axis) in [(1, 0), (nx, 1), (plane, 2)] where Float(weight[k + o]) >= minWeight {
+                    let d1 = Float(dist[k + o])
+                    guard (d0 < 0) != (d1 < 0) else { continue }
+                    let t = d0 / (d0 - d1)
+                    var g = SIMD3<Float>(Float(dist[k + 1]) - Float(dist[k - 1]), Float(dist[k + nx]) - Float(dist[k - nx]), Float(dist[k + plane]) - Float(dist[k - plane]))
+                    let len = simd_length(g)
+                    guard len > 1e-4 else { continue }
+                    g /= len
+                    var cell = SIMD3<Float>(Float(i), Float(j), Float(l))
+                    cell[axis] += t
+                    out.append(((Self.lo + cell * Self.voxel) * 1000, g))
+                }
+            } } }
+        }
+        return out
+    }
+}
+
+extension FaceAlign {
+    /// Point-to-plane ICP of `source` (mm) onto a surface, from `start`. The search radius narrows from `reach` to
+    /// 3 mm. Returns the transform (mm), the RMS distance of the points within 3 mm and their share of the source.
+    static func track(_ source: [SIMD3<Float>], grid: Grid, normals: [SIMD3<Float>], start: simd_float4x4 = matrix_identity_float4x4,
+                      reach: Float, iterations: Int = 10) -> Result? {
+        var M = start
+        var last: [Float] = []
+        for it in 0..<iterations {
+            let maxD = max(3, reach - (reach - 3) * Float(it) / Float(max(1, iterations / 2)))
+            var A = [[Double]](repeating: [Double](repeating: 0, count: 6), count: 6), b = [Double](repeating: 0, count: 6)
+            var residuals: [Float] = []
+            residuals.reserveCapacity(source.count)
+            var rows: [(SIMD3<Float>, SIMD3<Float>, Float)] = []
+            rows.reserveCapacity(source.count)
+            for s in source {
+                let p4 = M * SIMD4<Float>(s, 1), p = SIMD3(p4.x, p4.y, p4.z)
+                guard let (j, _) = grid.nearest(p, within: maxD) else { continue }
+                let n = normals[j], r = simd_dot(p - grid.points[j], n)
+                rows.append((p, n, r))
+            }
+            guard rows.count > 80 else { return nil }
+            let sorted = rows.map { abs($0.2) }.sorted()
+            let cut = sorted[min(sorted.count - 1, Int(Float(sorted.count) * 0.85))]
+            for (p, n, r) in rows where abs(r) <= cut {
+                let c = simd_cross(p, n)
+                let J = [Double(c.x), Double(c.y), Double(c.z), Double(n.x), Double(n.y), Double(n.z)]
+                for i in 0..<6 { b[i] -= J[i] * Double(r); for k in 0..<6 { A[i][k] += J[i] * J[k] } }
+                residuals.append(abs(r))
+            }
+            last = rows.map { abs($0.2) }
+            for i in 0..<6 { A[i][i] += 1e-3 }
+            guard let x = solve6(A, b) else { return nil }
+            let rot = SIMD3<Float>(Float(x[0]), Float(x[1]), Float(x[2])), angle = simd_length(rot)
+            let R = angle > 1e-9 ? simd_matrix3x3(simd_quatf(angle: angle, axis: rot / angle)) : matrix_identity_float3x3
+            M = simd_float4x4(columns: (SIMD4(R.columns.0, 0), SIMD4(R.columns.1, 0), SIMD4(R.columns.2, 0), SIMD4(Float(x[3]), Float(x[4]), Float(x[5]), 1))) * M
+            if it >= iterations / 2, angle < 2e-5, abs(x[3]) + abs(x[4]) + abs(x[5]) < 0.01 { break }
+        }
+        let close = last.filter { $0 < 3 }
+        guard !close.isEmpty else { return nil }
+        let rms = (close.map { $0 * $0 }.reduce(0, +) / Float(close.count)).squareRoot()
+        return Result(transform: M, rms: rms, overlap: Float(close.count) / Float(source.count))
+    }
+
+    static func solve6(_ A0: [[Double]], _ b0: [Double]) -> [Double]? {
+        var A = A0, b = b0
+        let n = b.count
+        for c in 0..<n {
+            guard let p = (c..<n).max(by: { abs(A[$0][c]) < abs(A[$1][c]) }), abs(A[p][c]) > 1e-12 else { return nil }
+            A.swapAt(c, p); b.swapAt(c, p)
+            for r in (c + 1)..<n { let f = A[r][c] / A[c][c]; for k in c..<n { A[r][k] -= f * A[c][k] }; b[r] -= f * b[c] }
+        }
+        var x = [Double](repeating: 0, count: n)
+        for r in stride(from: n - 1, through: 0, by: -1) { var s = b[r]; for k in (r + 1)..<n { s -= A[r][k] * x[k] }; x[r] = s / A[r][r] }
+        return x
+    }
+}
+
+/// Keeps the scan locked to the patient's head rather than the room, so a patient who moves doesn't smear the face.
+/// Each LiDAR frame is lined up with the face built so far (point-to-plane ICP on the forehead, nose, cheekbones and
+/// sides, which don't change with expression), starting from where the phone's own tracking puts it. Frames that
+/// need a sudden large correction or don't fit well are left out; a frame where the mouth no longer matches is left
+/// out as a change of expression. Every other kept frame is stored small, so the finished face can be rebuilt with
+/// each frame lined up again against the whole face.
+final class HeadTracker {
+    enum Outcome: Equatable { case accepted, moved, lost, expression }
+    struct Keyframe { var frame: FaceVolume.Frame }
+
+    /// From the head as the phone placed it at the start to the head now (metres).
+    private(set) var correction = matrix_identity_float4x4
+    private var target: (grid: FaceAlign.Grid, normals: [SIMD3<Float>])?
+    private var sinceRefresh = 0
+    private(set) var accepted = 0, rejected = 0, misses = 0
+    private var tracked = 0, rmsTotal: Float = 0
+    private(set) var keyframes: [Keyframe] = []
+    static let maxKeyframes = 160
+
+    /// Mean fit of the tracked frames (mm) and the share of frames kept.
+    var quality: (rms: Float, kept: Float) { (tracked > 0 ? rmsTotal / Float(tracked) : 0, Float(accepted) / Float(max(1, accepted + rejected))) }
+    var isLost: Bool { misses >= 12 }
+
+    /// `guess`: camera to head as the phone's tracking alone puts it. Adds the frame to `volume` when it's kept.
+    func process(_ frame: FaceVolume.Frame, guess: simd_float4x4, volume: FaceVolume) -> Outcome {
+        var f = frame
+        guard let target, volume.frames >= 6 else {
+            // The first frames, from straight in front, start the face.
+            place(&f, correction * guess)
+            volume.integrate(f)
+            accepted += 1
+            keep(f)
+            refresh(volume)
+            return .accepted
+        }
+        let lost = isLost
+        let start = correction * guess
+        let pts = Self.points(f, cameraToHead: start)
+        guard pts.stable.count > 120,
+              let r = FaceAlign.track(pts.stable, grid: target.grid, normals: target.normals, reach: lost ? 30 : 9) else { return miss() }
+        let step = r.transform
+        let angle = acosf(max(-1, min(1, (step[0][0] + step[1][1] + step[2][2] - 1) / 2))) * 180 / .pi
+        let shift = simd_length(SIMD3(step.columns.3.x, step.columns.3.y, step.columns.3.z))
+        if (!lost && (angle > 6 || shift > 12)) || r.rms > 2.4 || r.overlap < 0.5 { return miss() }
+        correction = Self.metres(step) * correction
+        misses = 0
+        // The mouth should fit too; if it no longer does, the expression changed.
+        let mouth = pts.mouth.map { s -> SIMD3<Float> in let p = step * SIMD4<Float>(s, 1); return SIMD3(p.x, p.y, p.z) }
+        var gaps: [Float] = []
+        for p in mouth { if let (j, _) = target.grid.nearest(p, within: 5) { gaps.append(abs(simd_dot(p - target.grid.points[j], target.normals[j]))) } }
+        if gaps.count >= 60 {
+            gaps.sort()
+            if gaps[gaps.count / 2] > max(1.6, r.rms * 2.2) { rejected += 1; return .expression }
+        }
+        place(&f, correction * guess)
+        volume.integrate(f)
+        accepted += 1; tracked += 1; rmsTotal += r.rms
+        keep(f)
+        refresh(volume)
+        return .accepted
+    }
+
+    private func miss() -> Outcome { rejected += 1; misses += 1; return isLost ? .lost : .moved }
+
+    private func place(_ f: inout FaceVolume.Frame, _ m: simd_float4x4) {
+        f.cameraToHead = m
+        f.cameraInHead = SIMD3(m.columns.3.x, m.columns.3.y, m.columns.3.z)
+    }
+
+    private func refresh(_ volume: FaceVolume) {
+        sinceRefresh += 1
+        guard target == nil ? volume.frames >= 6 : sinceRefresh >= 6 else { return }
+        sinceRefresh = 0
+        let s = volume.surface()
+        guard s.count > 2000 else { return }
+        target = (FaceAlign.Grid(s.map(\.0), cell: 10), s.map(\.1))
+    }
+
+    private func keep(_ f: FaceVolume.Frame) {
+        guard accepted % 2 == 1, keyframes.count < Self.maxKeyframes, let small = f.compactCopy() else { return }
+        keyframes.append(Keyframe(frame: small))
+    }
+
+    /// The finished face built again, every stored frame lined up afresh against the whole face. Nil if too few.
+    func rebuild(from volume: FaceVolume) -> FaceVolume? {
+        guard keyframes.count >= 20 else { return nil }
+        let s = volume.surface()
+        guard s.count > 2000 else { return nil }
+        let grid = FaceAlign.Grid(s.map(\.0), cell: 10), normals = s.map(\.1)
+        let out = FaceVolume()
+        for k in keyframes {
+            var f = k.frame
+            let pts = Self.points(f, cameraToHead: f.cameraToHead)
+            if pts.stable.count > 120, let r = FaceAlign.track(pts.stable, grid: grid, normals: normals, reach: 5, iterations: 8), r.rms < 2.4, r.overlap > 0.5 {
+                place(&f, Self.metres(r.transform) * f.cameraToHead)
+            }
+            out.integrate(f)
+        }
+        return out
+    }
+
+    static func metres(_ m: simd_float4x4) -> simd_float4x4 {
+        var out = m
+        out.columns.3 = SIMD4(m.columns.3.x / 1000, m.columns.3.y / 1000, m.columns.3.z / 1000, 1)
+        return out
+    }
+
+    /// The frame's depth points in the head's frame (mm): `stable` (brow, nose, cheekbones and the sides of the
+    /// head, not the eyes or mouth) for tracking, `mouth` for the expression check. Origin: the centre of the head,
+    /// 10 cm behind the nose tip, at the nose tip's height.
+    static func points(_ f: FaceVolume.Frame, cameraToHead m: simd_float4x4) -> (stable: [SIMD3<Float>], mouth: [SIMD3<Float>]) {
+        let depth = f.depth
+        CVPixelBufferLockBaseAddress(depth, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(depth, .readOnly) }
+        if let c = f.confidence { CVPixelBufferLockBaseAddress(c, .readOnly) }
+        defer { if let c = f.confidence { CVPixelBufferUnlockBaseAddress(c, .readOnly) } }
+        guard CVPixelBufferGetPixelFormatType(depth) == kCVPixelFormatType_DepthFloat32, let base = CVPixelBufferGetBaseAddress(depth) else { return ([], []) }
+        let w = CVPixelBufferGetWidth(depth), h = CVPixelBufferGetHeight(depth), row = CVPixelBufferGetBytesPerRow(depth) / 4
+        let d = base.assumingMemoryBound(to: Float32.self)
+        var conf: UnsafeMutablePointer<UInt8>?, confRow = 0
+        if let c = f.confidence, CVPixelBufferGetWidth(c) == w, CVPixelBufferGetHeight(c) == h, let cb = CVPixelBufferGetBaseAddress(c) { conf = cb.assumingMemoryBound(to: UInt8.self); confRow = CVPixelBufferGetBytesPerRow(c) }
+        let fx = f.depthK[0][0], fy = f.depthK[1][1], cx = f.depthK[2][0], cy = f.depthK[2][1]
+        let c0 = SIMD3(m.columns.0.x, m.columns.0.y, m.columns.0.z), c1 = SIMD3(m.columns.1.x, m.columns.1.y, m.columns.1.z)
+        let c2 = SIMD3(m.columns.2.x, m.columns.2.y, m.columns.2.z), c3 = SIMD3(m.columns.3.x, m.columns.3.y, m.columns.3.z)
+        let step = max(2, Int((Float(w) / 128).rounded()))
+        var stable: [SIMD3<Float>] = [], mouth: [SIMD3<Float>] = []
+        for v in stride(from: 0, to: h, by: step) { for u in stride(from: 0, to: w, by: step) {
+            let z = d[v * row + u]
+            guard z > f.nearest, z < f.farthest else { continue }
+            if let conf, conf[v * confRow + u] == 0 { continue }
+            let xn = (Float(u) - cx) / fx, yn = (Float(v) - cy) / fy
+            let p = (c0 * (xn * z) - c1 * (yn * z) - c2 * z + c3) * 1000
+            guard p.x > -120, p.x < 120, p.y > -130, p.y < 130, p.z > -60, p.z < 170 else { continue }
+            let ax = abs(p.x)
+            let eyes = p.y > 28 && p.y < 56 && ax > 10 && ax < 54 && p.z > 50
+            let isMouth = p.y > -52 && p.y < -14 && ax < 36 && p.z > 50
+            if isMouth { mouth.append(p); continue }
+            if eyes { continue }
+            if (p.y > -12 && p.y < 105) || (ax > 55 && p.y > -45 && p.y < 60) { stable.append(p) }
+        } }
+        return (stable, mouth)
+    }
+}
+
+extension FaceVolume.Frame {
+    /// A small copy that doesn't hold on to the camera's buffers (ARKit reuses them): the depth and confidence as
+    /// they are, the camera image at a quarter of the size.
+    func compactCopy() -> FaceVolume.Frame? {
+        guard let d = Self.copy(depth), let img = Self.shrink(image, by: 4) else { return nil }
+        var f = self
+        f = FaceVolume.Frame(depth: d, confidence: confidence.flatMap { Self.copy($0) }, image: img, depthK: depthK,
+                             imageK: simd_float3x3(diagonal: SIMD3(0.25, 0.25, 1)) * imageK, cameraToHead: cameraToHead,
+                             cameraInHead: cameraInHead, stride: stride, nearest: nearest, farthest: farthest)
+        return f
+    }
+
+    private static func copy(_ src: CVPixelBuffer) -> CVPixelBuffer? {
+        let w = CVPixelBufferGetWidth(src), h = CVPixelBufferGetHeight(src), fmt = CVPixelBufferGetPixelFormatType(src)
+        var out: CVPixelBuffer?
+        guard CVPixelBufferCreate(nil, w, h, fmt, nil, &out) == kCVReturnSuccess, let dst = out else { return nil }
+        CVPixelBufferLockBaseAddress(src, .readOnly); CVPixelBufferLockBaseAddress(dst, [])
+        defer { CVPixelBufferUnlockBaseAddress(src, .readOnly); CVPixelBufferUnlockBaseAddress(dst, []) }
+        guard let s = CVPixelBufferGetBaseAddress(src), let t = CVPixelBufferGetBaseAddress(dst) else { return nil }
+        let sr = CVPixelBufferGetBytesPerRow(src), tr = CVPixelBufferGetBytesPerRow(dst)
+        for y in 0..<h { memcpy(t + y * tr, s + y * sr, min(sr, tr)) }
+        return dst
+    }
+
+    /// A bi-planar YCbCr image at 1/`k` size (nearest sample).
+    private static func shrink(_ src: CVPixelBuffer, by k: Int) -> CVPixelBuffer? {
+        guard CVPixelBufferGetPlaneCount(src) >= 2 else { return nil }
+        let w = CVPixelBufferGetWidthOfPlane(src, 0) / k / 2 * 2, h = CVPixelBufferGetHeightOfPlane(src, 0) / k / 2 * 2
+        var out: CVPixelBuffer?
+        guard w > 2, h > 2, CVPixelBufferCreate(nil, w, h, CVPixelBufferGetPixelFormatType(src), nil, &out) == kCVReturnSuccess, let dst = out else { return nil }
+        CVPixelBufferLockBaseAddress(src, .readOnly); CVPixelBufferLockBaseAddress(dst, [])
+        defer { CVPixelBufferUnlockBaseAddress(src, .readOnly); CVPixelBufferUnlockBaseAddress(dst, []) }
+        guard let sy = CVPixelBufferGetBaseAddressOfPlane(src, 0)?.assumingMemoryBound(to: UInt8.self),
+              let sc = CVPixelBufferGetBaseAddressOfPlane(src, 1)?.assumingMemoryBound(to: UInt8.self),
+              let ty = CVPixelBufferGetBaseAddressOfPlane(dst, 0)?.assumingMemoryBound(to: UInt8.self),
+              let tc = CVPixelBufferGetBaseAddressOfPlane(dst, 1)?.assumingMemoryBound(to: UInt8.self) else { return nil }
+        let syr = CVPixelBufferGetBytesPerRowOfPlane(src, 0), scr = CVPixelBufferGetBytesPerRowOfPlane(src, 1)
+        let tyr = CVPixelBufferGetBytesPerRowOfPlane(dst, 0), tcr = CVPixelBufferGetBytesPerRowOfPlane(dst, 1)
+        for y in 0..<h { for x in 0..<w { ty[y * tyr + x] = sy[(y * k) * syr + x * k] } }
+        for y in 0..<(h / 2) { for x in 0..<(w / 2) {
+            tc[y * tcr + x * 2] = sc[(y * k) * scr + (x * k) * 2]
+            tc[y * tcr + x * 2 + 1] = sc[(y * k) * scr + (x * k) * 2 + 1]
+        } }
+        return dst
+    }
+}
+
 /// The face scan, always with the rear LiDAR scanner: the patient keeps still and the clinician moves the phone
 /// round them, to the patient's right, to their left, above and below. A cross under the face fills as each
 /// direction is reached, and "Face mapped" counts the share of the face seen closely enough; the scan finishes
@@ -1525,6 +1808,10 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     private var phase = Phase.ready
     private var finished = false
     private var volume: FaceVolume?
+    private var tracker: HeadTracker?
+    /// The last thing the tracker asked for (the patient moved, or the expression changed), shown for a moment.
+    private var trackingIssue: (text: String, at: CFTimeInterval)?
+    private var lastView: (cam: SIMD3<Float>, at: CFTimeInterval)?
     private let fuseQueue = DispatchQueue(label: "uk.co.drvik.smilecompose.facescan", qos: .userInitiated)
     private var fusing = false
     private var reach = (right: Float(0), left: Float(0), up: Float(0), down: Float(0))
@@ -1734,6 +2021,9 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
 
     private func resetCapture() {
         volume = nil
+        tracker = nil
+        trackingIssue = nil
+        lastView = nil
         reach = (0, 0, 0, 0)
         coverage = FaceCoverage()
         lit = []
@@ -1756,7 +2046,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         updateControls()
     }
 
-    private let readyDetail = "Line the face up with the outline, 30–50 cm away. The patient keeps still while you move round them."
+    private let readyDetail = "Sit the patient back against the headrest, looking at one spot. Line the face up with the outline, 30–50 cm away."
 
 
     private func updateControls() {
@@ -1779,6 +2069,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     @objc private func start() {
         resetCapture()
         volume = FaceVolume()
+        tracker = HeadTracker()
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         // Fix the head's frame from where the face is now.
         guard let frame = sceneView.session.currentFrame, let nose = noseTip else {
@@ -1834,12 +2125,16 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         detail.text = "Building the 3D face…"
         let capture = self.capture, reach = self.reach, coverage = self.coverage.fraction
         let eyes = lidarEyes.map { (left: $0.left * 1000, right: $0.right * 1000) }
+        let tracker = self.tracker
         let waitForFusion = fuseQueue
         waitForFusion.async {
-            let mesh = volume.mesh()
+            // Every stored frame lined up again against the whole face, then the face built afresh.
+            let mesh = tracker?.rebuild(from: volume)?.mesh() ?? volume.mesh()
+            let quality: (rms: Float, kept: Float) = tracker?.quality ?? (0, 1)
             DispatchQueue.main.async {
                 guard !self.finished else { return }
                 self.volume = nil
+                self.tracker = nil
                 guard let mesh else {
                     self.phase = .ready
                     self.updateControls()
@@ -1847,10 +2142,22 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
                     self.detail.text = "Try again, moving a little more slowly."
                     return
                 }
-                self.results.append(FaceScanResult(id: capture.id, title: capture.title, mesh: mesh, preview: mesh.preview(), eyes: eyes,
-                                                   turned: (reach.right, reach.left), tilted: (reach.up, reach.down), coverage: coverage))
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
-                self.advance()
+                var result = FaceScanResult(id: capture.id, title: capture.title, mesh: mesh, preview: mesh.preview(), eyes: eyes,
+                                            turned: (reach.right, reach.left), tilted: (reach.up, reach.down), coverage: coverage)
+                result.tracking = quality
+                guard result.trackingPoor else {
+                    self.results.append(result)
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    self.advance()
+                    return
+                }
+                // The patient moved a lot: offer to scan again rather than keep a face that may be out of shape.
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                let alert = UIAlertController(title: "The patient moved during this scan",
+                                              message: "Only \(Int((quality.kept * 100).rounded()))% of it lined up well, so the face may be slightly out of shape.", preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "Scan again", style: .default) { _ in self.show(self.index) })
+                alert.addAction(UIAlertAction(title: "Keep it", style: .cancel) { _ in self.results.append(result); self.advance() })
+                self.present(alert, animated: true)
             }
         }
     }
@@ -1896,15 +2203,25 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             }
             return
         }
-        guard phase == .scanning, let headToWorld, let volume else { return }
-        let cameraToHead = headToWorld.inverse * frame.camera.transform
+        guard phase == .scanning, let headToWorld, let volume, let tracker else { return }
+        // Where the phone's tracking alone puts the camera, then corrected to where the patient's head is now.
+        let guess = headToWorld.inverse * frame.camera.transform
+        let cameraToHead = tracker.correction * guess
         let cam = SIMD3(cameraToHead.columns.3.x, cameraToHead.columns.3.y, cameraToHead.columns.3.z)
-        drawPoints(headToWorld)
-        guard let view = viewing(cam) else { return }
+        drawPoints(headToWorld * tracker.correction.inverse)
+        // Moving too fast blurs the depth and makes the patient harder to follow.
+        let now = CACurrentMediaTime()
+        var tooFast = false
+        if let last = lastView, now - last.at > 0.05 {
+            let turn = acosf(max(-1, min(1, simd_dot(simd_normalize(cam), simd_normalize(last.cam))))) * 180 / .pi
+            tooFast = turn / Float(now - last.at) > 35
+            lastView = (cam, now)
+        } else if lastView == nil { lastView = (cam, now) }
+        guard let view = viewing(cam, slowDown: tooFast) else { return }
         guard !fusing else { return }
         let item = FaceVolume.Frame(depth: depth.depthMap, confidence: depth.confidenceMap, image: frame.capturedImage, depthK: depthK,
                                     imageK: frame.camera.intrinsics, cameraToHead: cameraToHead, cameraInHead: cam, stride: 1, nearest: 0.2, farthest: 1.0)
-        integrate(item, into: volume, view: view)
+        track(item, guess: guess, tracker: tracker, into: volume, view: view)
     }
 
     /// What's been captured, drawn on the face as gold contour lines: the points at every 6 mm of depth (front to
@@ -1933,7 +2250,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
 
     /// Where the camera is seen from the head; prompts for distance and the next direction. Nil while something
     /// needs putting right (then nothing is added to the scan).
-    private func viewing(_ cam: SIMD3<Float>) -> Viewing? {
+    private func viewing(_ cam: SIMD3<Float>, slowDown: Bool = false) -> Viewing? {
         let azimuth = atan2f(cam.x, cam.z) * 180 / .pi
         let elevation = atan2f(cam.y, (cam.x * cam.x + cam.z * cam.z).squareRoot()) * 180 / .pi
         let distance = simd_length(cam)
@@ -1945,25 +2262,39 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         else if abs(azimuth) > capture.turn + 18 { problem = "That’s far enough: come back a little" }
         else if elevation > capture.tilt + 15 { problem = "Lower the phone a little" }
         else if elevation < -capture.tilt - 15 { problem = "Raise the phone a little" }
+        else if slowDown { problem = "Move the phone more slowly" }
+        else if let issue = trackingIssue, CACurrentMediaTime() - issue.at < 1.2 { problem = issue.text }
         guard phase == .scanning else {
             detail.text = problem ?? readyDetail
             return nil
         }
         say(problem ?? nextPrompt(azimuth, elevation))
-        detail.text = problem == nil ? "Move slowly round the face in a circle; the patient keeps still." : " "
-        return problem == nil ? Viewing(azimuth: azimuth, elevation: elevation) : nil
+        detail.text = problem == nil ? "Move slowly round the face in a circle; the patient keeps still." : (problem == trackingIssue?.text ? "That part wasn’t added, so the face stays sharp." : " ")
+        // A tracking message doesn't stop the scan: the next frames are tried again.
+        return problem == nil || problem == trackingIssue?.text ? Viewing(azimuth: azimuth, elevation: elevation) : nil
     }
 
-    private func integrate(_ item: FaceVolume.Frame, into volume: FaceVolume, view: Viewing) {
+    /// Lines the frame up with the face so far and adds it, or leaves it out when the patient moved.
+    private func track(_ item: FaceVolume.Frame, guess: simd_float4x4, tracker: HeadTracker, into volume: FaceVolume, view: Viewing) {
         fusing = true
         fuseQueue.async {
-            volume.integrate(item)
-            let points = volume.frames % 3 == 0 ? volume.seenPoints() : nil
+            let outcome = tracker.process(item, guess: guess, volume: volume)
+            let corrected = tracker.correction * guess
+            let points = outcome == .accepted && volume.frames % 3 == 0 ? volume.seenPoints() : nil
             DispatchQueue.main.async {
                 self.fusing = false
                 if let points { self.livePoints = points }
                 guard self.volume === volume, self.phase == .scanning else { return }
-                self.record(view)
+                switch outcome {
+                case .accepted:
+                    self.trackingIssue = nil
+                    let c = SIMD3(corrected.columns.3.x, corrected.columns.3.y, corrected.columns.3.z)
+                    self.record(Viewing(azimuth: atan2f(c.x, c.z) * 180 / .pi, elevation: atan2f(c.y, (c.x * c.x + c.z * c.z).squareRoot()) * 180 / .pi))
+                case .moved: self.trackingIssue = ("Ask the patient to keep still", CACurrentMediaTime())
+                case .expression: self.trackingIssue = ("Ask the patient to hold the expression", CACurrentMediaTime())
+                case .lost: self.trackingIssue = ("Point the phone back at the face", CACurrentMediaTime())
+                }
+                _ = view
             }
         }
     }

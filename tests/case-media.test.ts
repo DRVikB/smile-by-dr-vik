@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  FACE_CAPTURES, SPEECH_LEAD_IN, SPEECH_STEPS, SPEECH_TAIL, readRecord, scanNotes, speechDuration, speechNotes, speechTimeline,
+  FACE_CAPTURES, SPEECH_LEAD_IN, SPEECH_STEPS, SPEECH_TAIL, readRecord, scanNotes, speechDuration, speechNotes, speechTimeline, trackingLabel,
 } from "../src/lib/caseMedia";
 import { cubeEdges } from "../src/components/photoSet/mediaArt";
 
@@ -46,13 +46,16 @@ test("records from the iOS app become file URLs under their folder; anything mal
 
   const scan = readRecord({
     kind: "scan", id: "scan-1", createdAt: "2026-10-24T10:00:00Z", base: base.replace("speech-1", "scan-1"), poster: "",
-    captures: [{ id: "rest", title: "Relaxed", mesh: "rest.ply", preview: "rest.jpg", vertices: 91234, triangles: 180000, turned: [68.2, 71], tilted: [26, 24], coverage: 0.95, sensor: "lidar" }],
+    captures: [{ id: "rest", title: "Relaxed", mesh: "rest.ply", preview: "rest.jpg", vertices: 91234, triangles: 180000, turned: [68.2, 71], tilted: [26, 24], coverage: 0.95, sensor: "lidar", tracking: { fitMm: 0.9, kept: 0.93, poor: false } }],
   });
   assert.ok(scan && scan.kind === "scan");
   assert.equal(scan.poster, scan.captures[0].preview, "the first scan's preview stands for the record");
   assert.deepEqual(scan.captures[0].turned, [68.2, 71]);
   assert.deepEqual(scan.captures[0].tilted, [26, 24]);
   assert.equal(scan.captures[0].coverage, 0.95);
+  assert.deepEqual(scan.captures[0].tracking, { fitMm: 0.9, kept: 0.93, poor: false });
+  assert.equal(trackingLabel(scan.captures[0].tracking), "Steady");
+  assert.equal(trackingLabel({ kept: 0.5, poor: true }), "Patient moved");
   assert.equal(readRecord({ kind: "scan", id: "s", createdAt: "2026", base, captures: [] }), null, "a scan with no meshes isn't shown");
 });
 
@@ -96,5 +99,6 @@ test("the iOS app records and scans in its own plugin, with a reason for the mic
   assert.match(plugin, /applicationSupportDirectory/, "files stay in the app's private storage");
   assert.match(plugin, /isVideoMirrored = false/, "the recording is not mirrored");
   assert.match(plugin, /ARWorldTrackingConfiguration/, "face scans use the rear LiDAR scanner");
+  assert.match(plugin, /final class HeadTracker/, "frames are lined up with the head, not the room");
   assert.doesNotMatch(plugin, /ARFaceTrackingConfiguration/, "never the front camera");
 });

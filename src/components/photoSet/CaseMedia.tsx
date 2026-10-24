@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Box, Layers, Play, RefreshCw, Share, Trash2, X } from "lucide-react";
-import { SPEECH_STEPS, scanNotes, speechNotes, type CaseMediaRecord, type FaceScanRecord, type SpeechRecord } from "@/lib/caseMedia";
+import { SPEECH_STEPS, scanNotes, speechNotes, trackingLabel, type CaseMediaRecord, type FaceScanRecord, type SpeechRecord } from "@/lib/caseMedia";
 import { faceScanAvailable, listCaseMedia, openFaceScan, recordSpeechVideo, removeCaseMedia, scanFace, setSpeechFrame, shareCaseMedia } from "@/native/caseMedia";
 import { haptic } from "@/native/haptics";
 import { guideSvg, svgToPng } from "./art";
@@ -209,7 +209,7 @@ function ScanViewer({ caseId, record, visits, onPick, onClose, onShare, onRetake
       <div className="mv-scans">
         {record.captures.map(c => <figure key={c.id} className="mv-scan">
           {c.preview ? <img src={c.preview} alt={`${c.title} scan`} draggable={false} /> : <span className="mv-step-blank" />}
-          <figcaption><strong>{c.title}</strong><span>Face mapped {Math.round(c.coverage * 100)}% · {c.vertices.toLocaleString("en-GB")} points</span></figcaption>
+          <figcaption><strong>{c.title}</strong><span>Face mapped {Math.round(c.coverage * 100)}%{c.tracking ? ` · ${trackingLabel(c.tracking)}` : ""}</span></figcaption>
         </figure>)}
       </div>
       <div className="mv-open-row">

@@ -97,6 +97,8 @@ export interface FaceScanRecord {
     id: FaceCaptureId; title: string; mesh: string; preview: string; vertices: number; triangles: number;
     /** Degrees seen round the patient's right and left, and above and below; share of the face mapped (0–1). */
     turned: [number, number]; tilted: [number, number]; coverage: number;
+    /** How well the frames fitted the face (mm), the share kept, and whether the patient moved too much. */
+    tracking?: { fitMm: number; kept: number; poor: boolean };
   }[];
 }
 
@@ -104,6 +106,18 @@ export type CaseMediaRecord = SpeechRecord | FaceScanRecord;
 
 const isText = (v: unknown): v is string => typeof v === "string" && v.length > 0;
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+
+function readTracking(raw: unknown): { fitMm: number; kept: number; poor: boolean } | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const t = raw as Record<string, unknown>;
+  return isNum(t.fitMm) && isNum(t.kept) ? { fitMm: t.fitMm, kept: t.kept, poor: t.poor === true } : undefined;
+}
+
+/** "Steady", "Some movement" or "Patient moved", for a scan's tracking. */
+export function trackingLabel(t?: { kept: number; poor: boolean }): string {
+  if (!t) return "";
+  return t.poor ? "Patient moved" : t.kept < 0.85 ? "Some movement" : "Steady";
+}
 
 /** File names in the native record joined to its folder's URL; anything malformed is dropped. */
 export function readRecord(raw: unknown): CaseMediaRecord | null {
@@ -130,7 +144,8 @@ export function readRecord(raw: unknown): CaseMediaRecord | null {
           vertices: isNum(cap.vertices) ? cap.vertices : 0, triangles: isNum(cap.triangles) ? cap.triangles : 0,
           turned: [isNum(turned[0]) ? turned[0] : 0, isNum(turned[1]) ? turned[1] : 0] as [number, number],
           tilted: [isNum(tilted[0]) ? tilted[0] : 0, isNum(tilted[1]) ? tilted[1] : 0] as [number, number],
-          coverage: isNum(cap.coverage) ? cap.coverage : 0 }] : [];
+          coverage: isNum(cap.coverage) ? cap.coverage : 0,
+          tracking: readTracking(cap.tracking) }] : [];
     });
     if (!captures.length) return null;
     return { kind: "scan", id: r.id, createdAt: r.createdAt, poster: url(r.poster) || captures[0].preview, captures };
@@ -173,10 +188,12 @@ export function scanNotes(record: Pick<FaceScanRecord, "createdAt" | "captures">
   ];
   record.captures.forEach(c => {
     const cap = FACE_CAPTURES.find(x => x.id === c.id);
-    lines.push(`· ${c.title || cap?.title}: ${cap?.hint ?? ""} · face mapped ${Math.round(c.coverage * 100)}% · seen ${Math.round(c.turned[0])}° round the patient's right, ${Math.round(c.turned[1])}° round the left, ${Math.round(c.tilted[0])}° above, ${Math.round(c.tilted[1])}° below · ${c.vertices.toLocaleString("en-GB")} points`);
+    const tr = c.tracking ? ` · head tracking ${trackingLabel(c.tracking).toLowerCase()} (${Math.round(c.tracking.kept * 100)}% of frames kept, ${c.tracking.fitMm.toFixed(1)} mm fit)` : "";
+    lines.push(`· ${c.title || cap?.title}: ${cap?.hint ?? ""} · face mapped ${Math.round(c.coverage * 100)}%${tr} · seen ${Math.round(c.turned[0])}° round the patient's right, ${Math.round(c.turned[1])}° round the left, ${Math.round(c.tilted[0])}° above, ${Math.round(c.tilted[1])}° below · ${c.vertices.toLocaleString("en-GB")} points`);
   });
   lines.push(
     "",
+    "Each frame was lined up with the face itself, so small movements of the patient are corrected; frames that didn't fit were left out.",
     "Line the face up with the intraoral scan on the front teeth in the \"Teeth showing\" scan.",
     "Accuracy: a study of iPhone LiDAR face scans found about 1.5 mm average difference from a clinical 3D camera system. Use it for facial proportions and planes, not for fine measurements around the lips.",
   );
