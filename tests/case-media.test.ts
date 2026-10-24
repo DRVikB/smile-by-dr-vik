@@ -20,9 +20,12 @@ test("the speech script runs each sound once, back to back, with its frame insid
   for (const s of SPEECH_STEPS) assert.ok(s.checks.length > 20 && s.prompt.length > 5, `${s.id} tells the patient what to say and the lab what to check`);
 });
 
-test("the face scans turn far enough to see the face, and one shows the teeth for lining up with the intraoral scan", () => {
+test("the face scans go round both sides and above and below, and one shows the teeth for lining up with the intraoral scan", () => {
   assert.equal(new Set(FACE_CAPTURES.map(c => c.id)).size, FACE_CAPTURES.length);
-  for (const c of FACE_CAPTURES) assert.ok(c.turn >= 30 && c.turn <= 70, `${c.id} turns ${c.turn}°`);
+  for (const c of FACE_CAPTURES) {
+    assert.ok(c.turn >= 45 && c.turn <= 80, `${c.id} goes ${c.turn}° round each side`);
+    assert.ok(c.tilt >= 10 && c.tilt <= 30, `${c.id} goes ${c.tilt}° above and below`);
+  }
   assert.ok(FACE_CAPTURES.some(c => c.id === "retracted" && /retractor/i.test(c.hint)));
   assert.equal(FACE_CAPTURES[0].expression, "rest", "the relaxed face comes first");
 });
@@ -43,11 +46,13 @@ test("records from the iOS app become file URLs under their folder; anything mal
 
   const scan = readRecord({
     kind: "scan", id: "scan-1", createdAt: "2026-10-24T10:00:00Z", base: base.replace("speech-1", "scan-1"), poster: "",
-    captures: [{ id: "rest", title: "Relaxed", mesh: "rest.ply", preview: "rest.jpg", vertices: 91234, triangles: 180000, turned: [58.2, 61] }],
+    captures: [{ id: "rest", title: "Relaxed", mesh: "rest.ply", preview: "rest.jpg", vertices: 91234, triangles: 180000, turned: [68.2, 71], tilted: [26, 24], coverage: 0.95, sensor: "lidar" }],
   });
   assert.ok(scan && scan.kind === "scan");
   assert.equal(scan.poster, scan.captures[0].preview, "the first scan's preview stands for the record");
-  assert.deepEqual(scan.captures[0].turned, [58.2, 61]);
+  assert.deepEqual(scan.captures[0].turned, [68.2, 71]);
+  assert.deepEqual(scan.captures[0].tilted, [26, 24]);
+  assert.equal(scan.captures[0].coverage, 0.95);
   assert.equal(readRecord({ kind: "scan", id: "s", createdAt: "2026", base, captures: [] }), null, "a scan with no meshes isn't shown");
 });
 
@@ -60,11 +65,13 @@ test("the lab notes say what each frame checks, how the scan is oriented, and ho
   assert.match(notes, /no sound/);
   assert.doesNotMatch(speechNotes({ createdAt: "2026-10-24T10:00:00Z", duration: 20, audio: true, camera: "front", steps: [] }), /Case:/, "no reference, no line for it");
 
-  const scan = scanNotes({ createdAt: "2026-10-24T10:00:00Z", captures: [{ id: "retracted", title: "Teeth showing", mesh: "", preview: "", vertices: 80000, triangles: 1, turned: [30, 31] }] });
+  const scan = scanNotes({ createdAt: "2026-10-24T10:00:00Z", captures: [{ id: "retracted", title: "Teeth showing", mesh: "", preview: "", vertices: 80000, triangles: 1, turned: [50, 52], tilted: [15, 16], coverage: 0.94 }] });
   assert.match(scan, /millimetres/);
-  assert.match(scan, /x towards the patient's left, y up, z out through the face/);
+  assert.match(scan, /x towards the patient's left, y up \(true vertical\), z out through the face/);
   assert.match(scan, /plane x = 0/);
-  assert.match(scan, /0\.4–1 mm/);
+  assert.match(scan, /LiDAR/);
+  assert.match(scan, /face mapped 94%/);
+  assert.match(scan, /1\.5 mm/);
   assert.match(scan, /intraoral scan/);
 });
 
@@ -88,4 +95,6 @@ test("the iOS app records and scans in its own plugin, with a reason for the mic
   const plugin = readFileSync(new URL("../ios/App/App/CaseMediaPlugin.swift", import.meta.url), "utf8");
   assert.match(plugin, /applicationSupportDirectory/, "files stay in the app's private storage");
   assert.match(plugin, /isVideoMirrored = false/, "the recording is not mirrored");
+  assert.match(plugin, /ARWorldTrackingConfiguration/, "face scans use the rear LiDAR scanner");
+  assert.doesNotMatch(plugin, /ARFaceTrackingConfiguration/, "never the front camera");
 });

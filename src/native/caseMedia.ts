@@ -11,7 +11,7 @@ interface SmileCaseMediaPlugin {
   list(options: { caseId: string }): Promise<{ records: unknown[] }>;
   setFrame(options: { caseId: string; id: string; step: string; time: number }): Promise<{ record: unknown }>;
   share(options: { caseId: string; id: string; notes: string }): Promise<{ shared: boolean }>;
-  openScan(options: { caseId: string; id: string }): Promise<void>;
+  openScan(options: { caseId: string; id: string; compare?: boolean }): Promise<void>;
   remove(options: { caseId: string; id: string }): Promise<void>;
   removeCase(options: { caseId: string }): Promise<void>;
   removeAll(): Promise<void>;
@@ -23,7 +23,7 @@ const CaseMedia = registerPlugin<SmileCaseMediaPlugin>("SmileCaseMedia");
 const cameraError = (error: unknown, what: string) => {
   const code = (error as { code?: string })?.code;
   return new Error(code === "camera_denied" ? "Camera access is turned off. Turn it on in Settings › SmileCompose › Camera."
-    : code === "unsupported" ? "This needs an iPhone or iPad with Face ID (the TrueDepth camera)."
+    : code === "unsupported" ? "The face scan needs an iPhone Pro or iPad Pro with the LiDAR scanner."
     : `The ${what} couldn’t be started. Please try again.`, { cause: error });
 };
 
@@ -39,7 +39,7 @@ export async function recordSpeechVideo(caseId: string, guide?: string): Promise
   return record?.kind === "speech" ? record : null;
 }
 
-/** The 3D face scan with the TrueDepth camera, one turn of the head per capture. Null when cancelled. */
+/** The 3D face scan with the rear LiDAR scanner, the phone moved round a still patient. Null when cancelled. */
 export async function scanFace(caseId: string): Promise<FaceScanRecord | null> {
   if (!isNativeApp()) throw new Error("The face scan runs in the iOS app.");
   let result: RawResult;
@@ -73,7 +73,8 @@ export async function shareCaseMedia(caseId: string, id: string, notes: string):
   return (await CaseMedia.share({ caseId, id, notes })).shared;
 }
 
-export const openFaceScan = (caseId: string, id: string) => CaseMedia.openScan({ caseId, id });
+/** All the case's scans in 3D, starting at `id`; `compare` opens with one laid over another. */
+export const openFaceScan = (caseId: string, id: string, compare = false) => CaseMedia.openScan({ caseId, id, compare });
 export const removeCaseMedia = (caseId: string, id: string) => CaseMedia.remove({ caseId, id });
 
 /** With the case's other data; nothing to do outside the app. */

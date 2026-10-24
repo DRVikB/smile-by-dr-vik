@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Box, Play, RefreshCw, Share, Trash2, X } from "lucide-react";
+import { Box, Layers, Play, RefreshCw, Share, Trash2, X } from "lucide-react";
 import { SPEECH_STEPS, scanNotes, speechNotes, type CaseMediaRecord, type FaceScanRecord, type SpeechRecord } from "@/lib/caseMedia";
 import { faceScanAvailable, listCaseMedia, openFaceScan, recordSpeechVideo, removeCaseMedia, scanFace, setSpeechFrame, shareCaseMedia } from "@/native/caseMedia";
 import { haptic } from "@/native/haptics";
@@ -62,16 +62,20 @@ export function CaseMediaGroup({ caseId, reference, disabled, delay, onStatus }:
   const load = useCallback(async () => { try { setRecords(await listCaseMedia(caseId)); } catch { setRecords([]); } }, [caseId]);
   useEffect(() => { void load(); }, [load]);
   const speech = records.find((r): r is SpeechRecord => r.kind === "speech");
-  const scan = records.find((r): r is FaceScanRecord => r.kind === "scan");
+  // Every face scan is kept (newest first), so visits can be compared; a new speech video replaces the last.
+  const scans = records.filter((r): r is FaceScanRecord => r.kind === "scan");
+  const [shownScan, setShownScan] = useState<string | null>(null);
+  const scan = scans.find(r => r.id === shownScan) ?? scans[0];
 
   const keep = async (record: CaseMediaRecord) => {
-    await Promise.all(records.filter(r => r.kind === record.kind && r.id !== record.id).map(r => removeCaseMedia(caseId, r.id).catch(() => {})));
+    if (record.kind === "speech") await Promise.all(records.filter(r => r.kind === "speech" && r.id !== record.id).map(r => removeCaseMedia(caseId, r.id).catch(() => {})));
+    else setShownScan(record.id);
     await load();
   };
   const take = async (kind: MediaKind) => {
     setViewing(null); setWorking(true); onStatus("");
     try {
-      if (kind === "scan" && !(await faceScanAvailable())) { onStatus("The face scan needs an iPhone or iPad with Face ID (the TrueDepth camera)."); return; }
+      if (kind === "scan" && !(await faceScanAvailable())) { onStatus("The face scan needs an iPhone Pro or iPad Pro with the LiDAR scanner."); return; }
       const record = kind === "speech" ? await recordSpeechVideo(caseId, await svgToPng(guideSvg("rest")).catch(() => undefined)) : await scanFace(caseId);
       if (!record) return;
       await keep(record);
@@ -101,15 +105,15 @@ export function CaseMediaGroup({ caseId, reference, disabled, delay, onStatus }:
           detail={speech ? `${Math.round(speech.duration)} s · ${speech.steps.length} frames` : "Tap to record"}
           onClick={() => (speech ? setViewing("speech") : void take("speech"))} />
         <MediaTile kind="scan" label="3D face scan" poster={scan?.poster || undefined} delay={delay + 120} disabled={disabled || working}
-          detail={scan ? `${scan.captures.length} ${scan.captures.length === 1 ? "scan" : "scans"}` : "Tap to scan"}
-          onClick={() => (scan ? setViewing("scan") : void take("scan"))} />
+          detail={scans.length ? (scans.length === 1 ? `${scans[0].captures.length} ${scans[0].captures.length === 1 ? "scan" : "scans"}` : `${scans.length} visits`) : "Tap to scan"}
+          onClick={() => { setShownScan(null); if (scans.length) setViewing("scan"); else void take("scan"); }} />
       </div>
     </section>
     {/* Full screen, above the case card (which clips what's inside it). */}
     {viewing === "speech" && speech && createPortal(<SpeechViewer caseId={caseId} record={speech} onClose={() => setViewing(null)}
       onShare={() => void share(speech)} onRetake={() => void take("speech")} onDelete={() => void remove(speech)}
       onChange={r => setRecords(list => list.map(x => (x.id === r.id ? r : x)))} />, document.body)}
-    {viewing === "scan" && scan && createPortal(<ScanViewer caseId={caseId} record={scan} onClose={() => setViewing(null)}
+    {viewing === "scan" && scan && createPortal(<ScanViewer caseId={caseId} record={scan} visits={scans} onPick={setShownScan} onClose={() => setViewing(null)}
       onShare={() => void share(scan)} onRetake={() => void take("scan")} onDelete={() => void remove(scan)} />, document.body)}
   </>;
 }
@@ -184,25 +188,34 @@ function SpeechViewer({ caseId, record, onClose, onShare, onRetake, onDelete, on
   </div>;
 }
 
-/** The face scan's captures, opened in 3D by the iOS app. */
-function ScanViewer({ caseId, record, onClose, onShare, onRetake, onDelete }: {
-  caseId: string; record: FaceScanRecord; onClose: () => void; onShare: () => void; onRetake: () => void; onDelete: () => void;
+const visitDay = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); };
+
+/** A visit's face scans, opened in 3D by the iOS app, where any two (from any visit) can be laid over each other. */
+function ScanViewer({ caseId, record, visits, onPick, onClose, onShare, onRetake, onDelete }: {
+  caseId: string; record: FaceScanRecord; visits: FaceScanRecord[]; onPick: (id: string) => void;
+  onClose: () => void; onShare: () => void; onRetake: () => void; onDelete: () => void;
 }) {
   const [note, setNote] = useState("");
+  const open = (compare: boolean) => void openFaceScan(caseId, record.id, compare).catch(() => setNote("The scan couldn’t be opened."));
+  const captures = visits.reduce((n, v) => n + v.captures.length, 0);
   return <div className="pt-viewer media-viewer" role="dialog" aria-modal="true" aria-label="3D face scan">
     <ViewerTop title="3D face scan" createdAt={record.createdAt} retake="Scan again" onShare={onShare} onRetake={onRetake} onDelete={onDelete} onClose={onClose} />
     <div className="mv-body">
+      {visits.length > 1 && <div className="mv-visits" role="tablist" aria-label="Visits">
+        {visits.map(v => <button key={v.id} type="button" role="tab" aria-selected={v.id === record.id} onClick={() => onPick(v.id)}>{visitDay(v.createdAt)}</button>)}
+      </div>}
       <div className="mv-scans">
         {record.captures.map(c => <figure key={c.id} className="mv-scan">
           {c.preview ? <img src={c.preview} alt={`${c.title} scan`} draggable={false} /> : <span className="mv-step-blank" />}
-          <figcaption><strong>{c.title}</strong><span>Turned {Math.round(c.turned[0])}° left, {Math.round(c.turned[1])}° right · {c.vertices.toLocaleString("en-GB")} points</span></figcaption>
+          <figcaption><strong>{c.title}</strong><span>Face mapped {Math.round(c.coverage * 100)}% · {c.vertices.toLocaleString("en-GB")} points</span></figcaption>
         </figure>)}
       </div>
-      <button type="button" className="primary-button mv-open" onClick={() => void openFaceScan(caseId, record.id).catch(() => setNote("The scan couldn’t be opened."))}>
-        <Box size={17} strokeWidth={1.8} aria-hidden="true" />View in 3D
-      </button>
+      <div className="mv-open-row">
+        <button type="button" className="primary-button mv-open" onClick={() => open(false)}><Box size={17} strokeWidth={1.8} aria-hidden="true" />View in 3D</button>
+        {captures > 1 && <button type="button" className="secondary-button mv-open" onClick={() => open(true)}><Layers size={17} strokeWidth={1.8} aria-hidden="true" />Compare scans</button>}
+      </div>
       {note && <p className="mv-hint" role="status">{note}</p>}
-      <p className="mv-hint">Studies of iPhone face scans report about 0.4–1 mm across the face, with larger errors around the lips: use it for facial proportions and planes. The lab lines it up with the intraoral scan on the front teeth in the Teeth showing scan.</p>
+      <p className="mv-hint">Made with the rear LiDAR scanner. A study of iPhone LiDAR face scans found about 1.5 mm average difference from a clinical 3D camera system: use it for facial proportions and planes. Compare lines two scans up on the forehead, eyes and nose and shows how far apart they are.</p>
       <p className="mv-privacy">Kept on this device only. Sharing sends an identifiable scan of the patient’s face: check they have agreed before it goes to the lab.</p>
     </div>
   </div>;

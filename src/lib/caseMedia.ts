@@ -53,22 +53,24 @@ export type FaceCaptureId = "rest" | "smile" | "retracted";
 export interface FaceCapture {
   id: FaceCaptureId;
   title: string;
-  /** Shown before and during the turn. */
+  /** What the patient does, shown before and during the scan. */
   hint: string;
-  /** How far the head turns each way, in degrees. */
+  /** How far round each side, and how far above and below, the phone goes, in degrees. */
   turn: number;
-  /** The expression the scan checks is held while it turns. */
+  tilt: number;
+  /** The expression held while the phone moves round. */
   expression: "rest" | "smile" | "any";
 }
 
 /**
- * Relaxed and smiling scans give the lab the face around the design; the scan with retractors shows the front
- * teeth, which the lab matches to the intraoral scan to place the face around the teeth.
+ * Made with the rear LiDAR scanner: the patient keeps still and the clinician moves the phone round to the patient's
+ * right and left, above and below, until the whole face is mapped. Relaxed and smiling scans give the lab the face
+ * around the design; the scan with retractors shows the front teeth, which the lab matches to the intraoral scan.
  */
 export const FACE_CAPTURES: readonly FaceCapture[] = [
-  { id: "rest", title: "Relaxed", hint: "Lips together and relaxed", turn: 60, expression: "rest" },
-  { id: "smile", title: "Smile", hint: "Hold a natural smile", turn: 45, expression: "smile" },
-  { id: "retracted", title: "Teeth showing", hint: "Retractors in, teeth together", turn: 30, expression: "any" },
+  { id: "rest", title: "Relaxed", hint: "Lips together and relaxed", turn: 70, tilt: 25, expression: "rest" },
+  { id: "smile", title: "Smile", hint: "A natural smile, held still", turn: 60, tilt: 20, expression: "smile" },
+  { id: "retracted", title: "Teeth showing", hint: "Retractors in, teeth together", turn: 50, tilt: 15, expression: "any" },
 ];
 
 /* ---------- records, as the iOS app lists them ---------- */
@@ -91,7 +93,11 @@ export interface FaceScanRecord {
   id: string;
   createdAt: string;
   poster: string;
-  captures: { id: FaceCaptureId; title: string; mesh: string; preview: string; vertices: number; triangles: number; turned: [number, number] }[];
+  captures: {
+    id: FaceCaptureId; title: string; mesh: string; preview: string; vertices: number; triangles: number;
+    /** Degrees seen round the patient's right and left, and above and below; share of the face mapped (0–1). */
+    turned: [number, number]; tilted: [number, number]; coverage: number;
+  }[];
 }
 
 export type CaseMediaRecord = SpeechRecord | FaceScanRecord;
@@ -118,11 +124,13 @@ export function readRecord(raw: unknown): CaseMediaRecord | null {
   }
   if (r.kind === "scan") {
     const captures = (Array.isArray(r.captures) ? r.captures : []).flatMap(c => {
-      const cap = c as Record<string, unknown>, turned = Array.isArray(cap.turned) ? cap.turned : [];
+      const cap = c as Record<string, unknown>, turned = Array.isArray(cap.turned) ? cap.turned : [], tilted = Array.isArray(cap.tilted) ? cap.tilted : [];
       return FACE_CAPTURES.some(x => x.id === cap.id) && url(cap.mesh)
         ? [{ id: cap.id as FaceCaptureId, title: isText(cap.title) ? cap.title : "", mesh: url(cap.mesh), preview: url(cap.preview),
           vertices: isNum(cap.vertices) ? cap.vertices : 0, triangles: isNum(cap.triangles) ? cap.triangles : 0,
-          turned: [isNum(turned[0]) ? turned[0] : 0, isNum(turned[1]) ? turned[1] : 0] as [number, number] }] : [];
+          turned: [isNum(turned[0]) ? turned[0] : 0, isNum(turned[1]) ? turned[1] : 0] as [number, number],
+          tilted: [isNum(tilted[0]) ? tilted[0] : 0, isNum(tilted[1]) ? tilted[1] : 0] as [number, number],
+          coverage: isNum(cap.coverage) ? cap.coverage : 0 }] : [];
     });
     if (!captures.length) return null;
     return { kind: "scan", id: r.id, createdAt: r.createdAt, poster: url(r.poster) || captures[0].preview, captures };
@@ -156,21 +164,21 @@ export function scanNotes(record: Pick<FaceScanRecord, "createdAt" | "captures">
   const lines = [
     "SmileCompose · 3D face scan",
     reference ? `Case: ${reference}` : "",
-    `Scanned: ${day(record.createdAt)} with the iPhone's front (TrueDepth) camera.`,
+    `Scanned: ${day(record.createdAt)} with the iPhone's rear LiDAR scanner, moving round the patient while they kept still.`,
     "",
     "Files: one coloured mesh per scan (PLY, millimetres), its preview, and landmarks.json.",
-    "Axes: origin at the centre of the head as the iPhone tracked it; x towards the patient's left, y up, z out through the face.",
-    "The facial midline is the plane x = 0; landmarks.json has the centre of each eye.",
+    "Axes: origin at the centre of the head; x towards the patient's left, y up (true vertical), z out through the face.",
+    "The facial midline is the plane x = 0; landmarks.json has the centre of each eye where they were found.",
     "",
   ];
   record.captures.forEach(c => {
     const cap = FACE_CAPTURES.find(x => x.id === c.id);
-    lines.push(`· ${c.title || cap?.title}: ${cap?.hint ?? ""} · turned ${Math.round(c.turned[0])}° left and ${Math.round(c.turned[1])}° right · ${c.vertices.toLocaleString("en-GB")} points`);
+    lines.push(`· ${c.title || cap?.title}: ${cap?.hint ?? ""} · face mapped ${Math.round(c.coverage * 100)}% · seen ${Math.round(c.turned[0])}° round the patient's right, ${Math.round(c.turned[1])}° round the left, ${Math.round(c.tilted[0])}° above, ${Math.round(c.tilted[1])}° below · ${c.vertices.toLocaleString("en-GB")} points`);
   });
   lines.push(
     "",
     "Line the face up with the intraoral scan on the front teeth in the \"Teeth showing\" scan.",
-    "Accuracy: studies of iPhone front-camera face scans report about 0.4–1 mm across the face, with larger errors around the lips. Use it for facial proportions and planes, not for lip-level measurements.",
+    "Accuracy: a study of iPhone LiDAR face scans found about 1.5 mm average difference from a clinical 3D camera system. Use it for facial proportions and planes, not for fine measurements around the lips.",
   );
   return lines.filter((l, i) => l !== "" || i > 1).join("\n");
 }
