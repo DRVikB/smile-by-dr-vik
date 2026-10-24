@@ -6,7 +6,7 @@ interface RawResult { cancelled: boolean; record?: unknown }
 
 interface SmileCaseMediaPlugin {
   recordSpeech(options: { caseId: string; steps: unknown[]; leadIn: number; tail: number; guide?: string }): Promise<RawResult>;
-  scanFace(options: { caseId: string; captures: unknown[] }): Promise<RawResult>;
+  scanFace(options: { caseId: string; captures: unknown[]; guide?: string }): Promise<RawResult>;
   faceScanAvailable(): Promise<{ available: boolean }>;
   list(options: { caseId: string }): Promise<{ records: unknown[] }>;
   setFrame(options: { caseId: string; id: string; step: string; time: number }): Promise<{ record: unknown }>;
@@ -40,10 +40,10 @@ export async function recordSpeechVideo(caseId: string, guide?: string): Promise
 }
 
 /** The 3D face scan with the rear LiDAR scanner, the phone moved round a still patient. Null when cancelled. */
-export async function scanFace(caseId: string): Promise<FaceScanRecord | null> {
+export async function scanFace(caseId: string, guide?: string): Promise<FaceScanRecord | null> {
   if (!isNativeApp()) throw new Error("The face scan runs in the iOS app.");
   let result: RawResult;
-  try { result = await CaseMedia.scanFace({ caseId, captures: [...FACE_CAPTURES] }); }
+  try { result = await CaseMedia.scanFace({ caseId, captures: [...FACE_CAPTURES], guide }); }
   catch (error) { throw cameraError(error, "face scan"); }
   const record = result.cancelled ? null : readRecord(result.record);
   return record?.kind === "scan" ? record : null;

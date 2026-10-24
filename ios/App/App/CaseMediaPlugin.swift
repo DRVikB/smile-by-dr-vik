@@ -90,13 +90,14 @@ public class CaseMediaPlugin: CAPPlugin, CAPBridgedPlugin {
         guard let caseId = call.getString("caseId"), CaseMediaStore.caseFolder(caseId) != nil else { call.reject("No case was given."); return }
         let captures = (call.getArray("captures") as? [[String: Any]] ?? []).compactMap(FaceCaptureSpec.init(json:))
         guard !captures.isEmpty else { call.reject("No scans were given."); return }
+        let guide = image(call.getString("guide"))
         DispatchQueue.main.async {
             guard !self.open, let presenter = self.bridge?.viewController else { call.reject("The camera is already open."); return }
             self.open = true
             AVCaptureDevice.requestAccess(for: .video) { granted in
                 DispatchQueue.main.async {
                     guard granted else { self.open = false; call.reject("Camera access is turned off.", "camera_denied"); return }
-                    let scanner = FaceScanViewController(captures: captures) { scans in
+                    let scanner = FaceScanViewController(captures: captures, guide: guide) { scans in
                         guard !scans.isEmpty else { self.open = false; call.resolve(["cancelled": true]); return }
                         self.work.async {
                             let saved = try? FaceScanStore.save(scans, caseId: caseId)
@@ -1090,6 +1091,14 @@ final class FaceVolume {
     private let dist, weight: UnsafeMutablePointer<Float16>
     private let rgb: UnsafeMutablePointer<UInt8>
     private(set) var frames = 0
+    /// Where the surface has been seen, on a 2.5 mm grid, and how many times: the live picture of the scan.
+    private var seen: [Int64: (SIMD3<Float>, UInt16)] = [:]
+    func seenPoints(limit: Int = 16000) -> [(SIMD3<Float>, UInt16)] {
+        let all = Array(seen.values)
+        guard all.count > limit else { return all }
+        let step = Double(all.count) / Double(limit)
+        return (0..<limit).map { all[Int(Double($0) * step)] }
+    }
 
     struct Frame {
         /// Depth in metres (DepthFloat32), and for LiDAR its confidence (0 low, 1 medium, 2 high).
@@ -1163,6 +1172,12 @@ final class FaceVolume {
                 let p = c0 * (xn * z) - c1 * (yn * z) - c2 * z + c3
                 guard p.x > lo.x, p.x < Self.hi.x, p.y > lo.y, p.y < Self.hi.y, p.z > lo.z, p.z < Self.hi.z else { continue }
                 let ray = simd_normalize(p - cam)
+                if uu % 3 == 0, vv % 3 == 0 {
+                    let g = (p - lo) / 0.0025
+                    let key = Int64(g.x) | (Int64(g.y) << 20) | (Int64(g.z) << 40)
+                    let old = seen[key]
+                    seen[key] = (old.map { ($0.0 + (p - $0.0) * 0.2) } ?? p, min((old?.1 ?? 0) + 1, 999))
+                }
                 // Colour from the camera image at the same point.
                 let iu = Int(Float(uu) * sx + ox), iv = Int(Float(vv) * sy + oy)
                 guard iu >= 0, iu < iw, iv >= 0, iv < ih else { continue }
@@ -1496,8 +1511,7 @@ enum FaceAlign {
 /// The face scan, always with the rear LiDAR scanner: the patient keeps still and the clinician moves the phone
 /// round them, to the patient's right, to their left, above and below. A cross under the face fills as each
 /// direction is reached, and "Face mapped" counts the share of the face seen closely enough; the scan finishes
-/// only when both are complete. Prompts are spoken for when the screen is out of view. Closing keeps the scans
-/// already made.
+/// only when both are complete. Closing keeps the scans already made.
 final class FaceScanViewController: UIViewController, ARSessionDelegate {
     private static let gold = UIColor(red: 208 / 255, green: 164 / 255, blue: 102 / 255, alpha: 1)
     /// The share of the face that must be seen before a scan can finish by itself.
@@ -1508,34 +1522,34 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     private var results: [FaceScanResult] = []
 
     private enum Phase { case ready, locking, scanning, building }
-    private enum Goal { case right, left, up, down, centre }
     private var phase = Phase.ready
     private var finished = false
     private var volume: FaceVolume?
     private let fuseQueue = DispatchQueue(label: "uk.co.drvik.smilecompose.facescan", qos: .userInitiated)
     private var fusing = false
-    /// 5° steps reached round the sides (negative: the patient's right) and above and below (positive: above).
-    private var yawBins = Set<Int>(), pitchBins = Set<Int>()
     private var reach = (right: Float(0), left: Float(0), up: Float(0), down: Float(0))
     private var coverage = FaceCoverage()
     /// The head's frame in the world, fixed when the scan starts, and the eyes found then (head frame, metres).
     private var headToWorld: simd_float4x4?
     private var lidarEyes: (left: SIMD3<Float>, right: SIMD3<Float>)?
     private var noseTip: SIMD3<Float>?
-    private var voiceOn = true
-    private let voice = AVSpeechSynthesizer()
-    private var lastSpoken: (text: String, at: CFTimeInterval) = ("", 0)
+    private var lastPromptTap: CFTimeInterval = 0
 
     private let sceneView = ARSCNView()
     private let closeButton = UIButton(type: .system)
-    private let voiceButton = UIButton(type: .system)
     private let titleLabel = UILabel()
     private let stepLabel = UILabel()
     private let sensorLabel = UILabel()
     private let dots = UIStackView()
-    private let meter = CrossMeterView()
+    private let meter = RingMeterView()
+    private let shade = CAShapeLayer()
+    private let wellSeen = CAShapeLayer(), partlySeen = CAShapeLayer()
+    private var livePoints: [(SIMD3<Float>, UInt16)] = []
+    private var overlayTick = 0
+    private let guideView = UIImageView()
+    private let guide: UIImage?
     private let mapped = UILabel()
-    private let reticle = UIView()
+    private let progressTrack = UIView(), progressFill = UIView()
     private let bar = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
     private let prompt = UILabel()
     private let detail = UILabel()
@@ -1545,8 +1559,9 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     private let spinner = UIActivityIndicatorView(style: .large)
     private let topFade = CAGradientLayer(), bottomFade = CAGradientLayer()
 
-    init(captures: [FaceCaptureSpec], completion: @escaping ([FaceScanResult]) -> Void) {
+    init(captures: [FaceCaptureSpec], guide: UIImage?, completion: @escaping ([FaceScanResult]) -> Void) {
         self.captures = captures
+        self.guide = guide
         self.completion = completion
         super.init(nibName: nil, bundle: nil)
     }
@@ -1564,11 +1579,20 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             fade.colors = top ? [UIColor(white: 0, alpha: 0.55).cgColor, UIColor.clear.cgColor] : [UIColor.clear.cgColor, UIColor(white: 0, alpha: 0.65).cgColor]
             view.layer.addSublayer(fade)
         }
-        reticle.layer.borderColor = Self.gold.cgColor
-        reticle.layer.borderWidth = 2.5
-        reticle.isUserInteractionEnabled = false
-        reticle.isHidden = true
-        view.addSubview(reticle)
+        // Outside the ring is dimmed; inside, the points captured so far: gold once well seen, pale until then.
+        shade.fillRule = .evenOdd
+        shade.fillColor = UIColor(white: 0, alpha: 0.42).cgColor
+        view.layer.addSublayer(shade)
+        wellSeen.fillColor = Self.gold.withAlphaComponent(0.9).cgColor
+        partlySeen.fillColor = UIColor(white: 1, alpha: 0.35).cgColor
+        view.layer.addSublayer(partlySeen)
+        view.layer.addSublayer(wellSeen)
+        // The At rest outline to line the face up with; it turns gold once the scanner has found the face.
+        guideView.image = guide?.withRenderingMode(.alwaysTemplate)
+        guideView.contentMode = .scaleAspectFit
+        guideView.tintColor = UIColor(white: 1, alpha: 0.45)
+        guideView.isUserInteractionEnabled = false
+        view.addSubview(guideView)
 
         titleLabel.text = "3D face scan"
         titleLabel.font = .systemFont(ofSize: 17, weight: .semibold)
@@ -1587,10 +1611,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         mapped.font = .monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
         mapped.textColor = .white
         mapped.textAlignment = .center
-        mapped.backgroundColor = UIColor(white: 0.08, alpha: 0.55)
-        mapped.layer.cornerRadius = 13
-        mapped.clipsToBounds = true
-        [titleLabel, stepLabel, sensorLabel, dots, meter, mapped].forEach { view.addSubview($0) }
+        [titleLabel, stepLabel, sensorLabel, dots, meter].forEach { view.addSubview($0) }
 
         bar.layer.cornerRadius = 18
         bar.clipsToBounds = true
@@ -1603,7 +1624,12 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         detail.textColor = UIColor(white: 1, alpha: 0.75)
         detail.textAlignment = .center
         detail.numberOfLines = 2
-        [prompt, detail].forEach { bar.contentView.addSubview($0) }
+        progressTrack.backgroundColor = UIColor(white: 1, alpha: 0.16)
+        progressTrack.layer.cornerRadius = 2.5
+        progressTrack.clipsToBounds = true
+        progressFill.backgroundColor = Self.gold
+        progressTrack.addSubview(progressFill)
+        [prompt, detail, progressTrack, mapped].forEach { bar.contentView.addSubview($0) }
         view.addSubview(bar)
 
         let round = { (b: UIButton, symbol: String, label: String) in
@@ -1615,9 +1641,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             self.view.addSubview(b)
         }
         round(closeButton, "xmark", "Close")
-        round(voiceButton, "speaker.wave.2.fill", "Spoken prompts on")
         closeButton.addTarget(self, action: #selector(close), for: .touchUpInside)
-        voiceButton.addTarget(self, action: #selector(toggleVoice), for: .touchUpInside)
 
         startButton.setTitle("Start scan", for: .normal)
         startButton.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
@@ -1658,7 +1682,6 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         c.frameSemantics = ARWorldTrackingConfiguration.supportsFrameSemantics(.smoothedSceneDepth) ? [.smoothedSceneDepth] : [.sceneDepth]
         sceneView.session.run(c, options: [.resetTracking, .removeExistingAnchors])
         sensorLabel.text = "LiDAR scanner · rear camera"
-        reticle.isHidden = true
         noseTip = nil
     }
 
@@ -1671,7 +1694,6 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         bottomFade.frame = CGRect(x: 0, y: safe.maxY - 330, width: view.bounds.width, height: view.bounds.height - safe.maxY + 330)
         CATransaction.commit()
         closeButton.frame = CGRect(x: safe.minX + 16, y: safe.minY + 8, width: 44, height: 44)
-        voiceButton.frame = CGRect(x: safe.maxX - 60, y: safe.minY + 8, width: 44, height: 44)
         titleLabel.frame = CGRect(x: safe.minX + 70, y: safe.minY + 8, width: safe.width - 190, height: 24)
         titleLabel.center.x = safe.midX
         stepLabel.frame = CGRect(x: safe.minX + 70, y: safe.minY + 32, width: safe.width - 140, height: 16)
@@ -1683,12 +1705,27 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         skipButton.frame = CGRect(x: safe.minX + 20, y: safe.maxY - 69, width: 70, height: 44)
         spinner.center = CGPoint(x: safe.midX, y: safe.maxY - 47)
         let barWidth = min(safe.width - 32, 520)
-        bar.frame = CGRect(x: safe.midX - barWidth / 2, y: safe.maxY - 170, width: barWidth, height: 82)
-        prompt.frame = CGRect(x: 16, y: 12, width: barWidth - 32, height: 28)
+        bar.frame = CGRect(x: safe.midX - barWidth / 2, y: safe.maxY - 196, width: barWidth, height: 112)
+        prompt.frame = CGRect(x: 16, y: 14, width: barWidth - 32, height: 28)
         detail.frame = CGRect(x: 16, y: 40, width: barWidth - 32, height: 34)
-        meter.frame = CGRect(x: safe.midX - 110, y: bar.frame.minY - 150, width: 220, height: 136)
-        mapped.frame = CGRect(x: safe.midX - 75, y: meter.frame.minY - 34, width: 150, height: 26)
-        view.keepClearOfCamera([closeButton, voiceButton, startButton, finishButton, skipButton])
+        // The outline in a 3:4 frame above the prompts, with the ring round it.
+        let room = bar.frame.minY - 46 - (safe.minY + 104)
+        let gw = min(safe.width * 0.72, room * 0.75 - 30), gh = gw * 4 / 3
+        let guideFrame = CGRect(x: safe.midX - gw / 2, y: safe.minY + 104 + (room - gh) / 2, width: gw, height: gh)
+        guideView.frame = guideFrame
+        meter.frame = guideFrame.insetBy(dx: -22, dy: -18)
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        let hole = UIBezierPath(rect: view.bounds)
+        hole.append(UIBezierPath(ovalIn: meter.frame.insetBy(dx: 10, dy: 10)))
+        shade.path = hole.cgPath
+        let clip = CAShapeLayer(); clip.path = UIBezierPath(ovalIn: meter.frame.insetBy(dx: 12, dy: 12)).cgPath
+        let clip2 = CAShapeLayer(); clip2.path = clip.path
+        wellSeen.mask = clip; partlySeen.mask = clip2
+        CATransaction.commit()
+        progressTrack.frame = CGRect(x: 22, y: 82, width: barWidth - 44 - 64, height: 5)
+        mapped.frame = CGRect(x: barWidth - 22 - 56, y: 72, width: 56, height: 24)
+        progressFill.frame = CGRect(x: 0, y: 0, width: progressTrack.bounds.width * CGFloat(min(1, coverage.fraction / Self.mappedTarget)), height: 5)
+        view.keepClearOfCamera([closeButton, startButton, finishButton, skipButton])
     }
 
     // MARK: Steps
@@ -1697,12 +1734,13 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
 
     private func resetCapture() {
         volume = nil
-        yawBins = []; pitchBins = []
         reach = (0, 0, 0, 0)
         coverage = FaceCoverage()
+        lit = []
+        livePoints = []
+        wellSeen.path = nil; partlySeen.path = nil
         headToWorld = nil
         lidarEyes = nil
-        lastSpoken = ("", 0)
     }
 
     private func show(_ i: Int) {
@@ -1711,15 +1749,14 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         resetCapture()
         stepLabel.text = "\(capture.title) · \(i + 1) of \(captures.count)"
         for (n, d) in dots.arrangedSubviews.enumerated() { d.backgroundColor = n < i ? Self.gold : n == i ? .white : UIColor(white: 1, alpha: 0.25) }
-        meter.turn = capture.turn
-        meter.tilt = capture.tilt
-        meter.yawBins = []; meter.pitchBins = []; meter.current = (0, 0)
+        meter.lit = []; meter.current = nil; meter.heading = nil
+        guideView.tintColor = UIColor(white: 1, alpha: 0.45)
         prompt.text = capture.hint
         detail.text = readyDetail
         updateControls()
     }
 
-    private let readyDetail = "The patient keeps still. Hold the phone 30–50 cm away, level with the face, then move round them as prompted."
+    private let readyDetail = "Line the face up with the outline, 30–50 cm away. The patient keeps still while you move round them."
 
 
     private func updateControls() {
@@ -1729,9 +1766,14 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         if phase == .building || phase == .locking { spinner.startAnimating() } else { spinner.stopAnimating() }
         finishButton.isEnabled = reach.right >= 20 && reach.left >= 20
         finishButton.alpha = finishButton.isEnabled ? 1 : 0.5
-        mapped.text = "Face mapped \(Int((coverage.fraction * 100).rounded()))%"
-        mapped.textColor = coverage.fraction >= Self.mappedTarget ? Self.gold : .white
+        let shown = min(100, Int((coverage.fraction / Self.mappedTarget * 100).rounded()))
+        mapped.text = "\(shown)%"
+        mapped.textColor = shown >= 100 ? Self.gold : .white
+        mapped.textAlignment = .right
+        mapped.accessibilityLabel = "Face mapped \(shown) percent"
         mapped.isHidden = phase == .ready
+        progressTrack.isHidden = phase == .ready
+        UIView.animate(withDuration: 0.25) { self.progressFill.frame.size.width = self.progressTrack.bounds.width * CGFloat(min(1, self.coverage.fraction / Self.mappedTarget)) }
     }
 
     @objc private func start() {
@@ -1761,7 +1803,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
                     self.lidarEyes = pa.x > pb.x ? (pa, pb) : (pb, pa)
                 }
                 self.phase = .scanning
-                self.reticle.isHidden = true
+                self.guideView.tintColor = UIColor(white: 1, alpha: 0.22)
                 self.updateControls()
             }
         }
@@ -1771,13 +1813,6 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     @objc private func skip() { advance() }
     @objc private func close() { finish() }
 
-    @objc private func toggleVoice() {
-        voiceOn.toggle()
-        if !voiceOn { voice.stopSpeaking(at: .immediate) }
-        voiceButton.setImage(UIImage(systemName: voiceOn ? "speaker.wave.2.fill" : "speaker.slash.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold)), for: .normal)
-        voiceButton.accessibilityLabel = voiceOn ? "Spoken prompts on" : "Spoken prompts off"
-    }
-
     private func advance() {
         if index + 1 < captures.count { show(index + 1) } else { finish() }
     }
@@ -1785,7 +1820,6 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     private func finish() {
         guard !finished else { return }
         finished = true
-        voice.stopSpeaking(at: .immediate)
         sceneView.session.pause()
         let scans = results
         dismiss(animated: true) { self.completion(scans) }
@@ -1821,15 +1855,12 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         }
     }
 
+    /// Shows the prompt; a light tap when it changes, so a new instruction is felt without looking at the screen.
     private func say(_ text: String, force: Bool = false) {
-        if prompt.text != text { UIView.transition(with: prompt, duration: 0.18, options: .transitionCrossDissolve) { self.prompt.text = text } }
+        guard prompt.text != text || force else { return }
+        UIView.transition(with: prompt, duration: 0.18, options: .transitionCrossDissolve) { self.prompt.text = text }
         let now = CACurrentMediaTime()
-        guard voiceOn, force || ((text != lastSpoken.text || now - lastSpoken.at > 6) && now - lastSpoken.at > 1.6) else { return }
-        lastSpoken = (text, now)
-        voice.stopSpeaking(at: .word)
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-GB")
-        voice.speak(utterance)
+        if now - lastPromptTap > 1.2 { lastPromptTap = now; UIImpactFeedbackGenerator(style: .light).impactOccurred() }
     }
 
     // MARK: Tracking
@@ -1856,27 +1887,46 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         if phase == .ready {
             noseTip = Self.findNose(depth, depthK: depthK, camera: frame.camera.transform)
             if let nose = noseTip {
-                let p = sceneView.projectPoint(SCNVector3(nose.x, nose.y, nose.z))
-                reticle.isHidden = false
-                let size: CGFloat = 96
-                reticle.frame = CGRect(x: CGFloat(p.x) - size / 2, y: CGFloat(p.y) - size / 2, width: size, height: size)
-                reticle.layer.cornerRadius = size / 2
+                guideView.tintColor = Self.gold.withAlphaComponent(0.8)
                 let d = simd_distance(nose, SIMD3(frame.camera.transform.columns.3.x, frame.camera.transform.columns.3.y, frame.camera.transform.columns.3.z))
-                detail.text = d > 0.65 ? "Come a little closer: 30–50 cm from the face." : d < 0.25 ? "Move back a little: 30–50 cm from the face." : readyDetail
+                detail.text = d > 0.65 ? "Come a little closer: 30–50 cm from the face." : d < 0.25 ? "Move back a little: 30–50 cm from the face." : "Face found. Tap Start scan."
             } else {
-                reticle.isHidden = true
-                detail.text = "Point the phone at the patient’s face, 30–50 cm away."
+                guideView.tintColor = UIColor(white: 1, alpha: 0.45)
+                detail.text = readyDetail
             }
             return
         }
         guard phase == .scanning, let headToWorld, let volume else { return }
         let cameraToHead = headToWorld.inverse * frame.camera.transform
         let cam = SIMD3(cameraToHead.columns.3.x, cameraToHead.columns.3.y, cameraToHead.columns.3.z)
+        drawPoints(headToWorld)
         guard let view = viewing(cam) else { return }
         guard !fusing else { return }
         let item = FaceVolume.Frame(depth: depth.depthMap, confidence: depth.confidenceMap, image: frame.capturedImage, depthK: depthK,
                                     imageK: frame.camera.intrinsics, cameraToHead: cameraToHead, cameraInHead: cam, stride: 1, nearest: 0.2, farthest: 1.0)
         integrate(item, into: volume, view: view)
+    }
+
+    /// What's been captured, drawn on the face as gold contour lines: the points at every 6 mm of depth (front to
+    /// back of the head), so the lines follow the shape of the face like a map. Faint dots where it's only just seen.
+    private func drawPoints(_ headToWorld: simd_float4x4) {
+        overlayTick += 1
+        guard overlayTick % 2 == 0, !livePoints.isEmpty else { return }
+        let good = UIBezierPath(), part = UIBezierPath()
+        for (p, n) in livePoints {
+            let band = (p.z * 1000 / 6).truncatingRemainder(dividingBy: 1)
+            let contour = abs(band) < 0.26 || abs(band) > 0.94
+            if n >= 4 && !contour { continue }
+            if n < 4 && Int(p.x * 1000 / 2.5 + p.y * 1000 / 2.5) % 3 != 0 { continue }
+            let w = headToWorld * SIMD4<Float>(p, 1)
+            let s = sceneView.projectPoint(SCNVector3(w.x, w.y, w.z))
+            guard s.z > 0, s.z < 1 else { continue }
+            let size: CGFloat = n >= 4 ? 2.4 : 1.8
+            (n >= 4 ? good : part).append(UIBezierPath(ovalIn: CGRect(x: CGFloat(s.x) - size / 2, y: CGFloat(s.y) - size / 2, width: size, height: size)))
+        }
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        wellSeen.path = good.cgPath; partlySeen.path = part.cgPath
+        CATransaction.commit()
     }
 
     private struct Viewing { let azimuth, elevation: Float }
@@ -1887,7 +1937,8 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         let azimuth = atan2f(cam.x, cam.z) * 180 / .pi
         let elevation = atan2f(cam.y, (cam.x * cam.x + cam.z * cam.z).squareRoot()) * 180 / .pi
         let distance = simd_length(cam)
-        meter.current = (azimuth, elevation)
+        let rx = azimuth / capture.turn, ry = elevation / capture.tilt, r = (rx * rx + ry * ry).squareRoot()
+        meter.current = r > 0.15 ? (atan2f(ry, rx) * 180 / .pi, r >= 0.75) : nil
         var problem: String?
         if distance > 0.75 { problem = "Bring the phone closer" }
         else if distance < 0.22 { problem = "Move the phone back a little" }
@@ -1898,9 +1949,8 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             detail.text = problem ?? readyDetail
             return nil
         }
-        say(problem ?? promptText(goal(azimuth, elevation)))
-        if problem == nil, goal(azimuth, elevation) == .centre { detail.text = "Nearly there." }
-        else if problem == nil { detail.text = "Move slowly; the patient keeps still and holds the expression." }
+        say(problem ?? nextPrompt(azimuth, elevation))
+        detail.text = problem == nil ? "Move slowly round the face in a circle; the patient keeps still." : " "
         return problem == nil ? Viewing(azimuth: azimuth, elevation: elevation) : nil
     }
 
@@ -1908,58 +1958,69 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         fusing = true
         fuseQueue.async {
             volume.integrate(item)
+            let points = volume.frames % 3 == 0 ? volume.seenPoints() : nil
             DispatchQueue.main.async {
                 self.fusing = false
+                if let points { self.livePoints = points }
                 guard self.volume === volume, self.phase == .scanning else { return }
                 self.record(view)
             }
         }
     }
 
-    /// What this view adds to the cross and to the face mapped.
+    /// The ring has a dash every 6°, round the face: 0° is the patient's left (screen right), 90° above.
+    static let ticks = 60
+    private var lit = Set<Int>()
+    private var ringComplete: Bool { lit.count >= Self.ticks * 9 / 10 }
+
+    /// Where on the ring this view sits, once the phone is well round the face that way (degrees), else nil.
+    private func ringAngle(_ azimuth: Float, _ elevation: Float) -> Float? {
+        let x = azimuth / capture.turn, y = elevation / capture.tilt
+        guard (x * x + y * y).squareRoot() >= 0.75 else { return nil }
+        return atan2f(y, x) * 180 / .pi
+    }
+
+    /// What this view adds to the ring and to the face mapped.
     private func record(_ v: Viewing) {
-        if abs(v.elevation) < 15 { yawBins.insert(Int((v.azimuth / 5).rounded(.down))) }
-        if abs(v.azimuth) < 15 { pitchBins.insert(Int((v.elevation / 5).rounded(.down))) }
         if abs(v.elevation) < 20 { if v.azimuth < 0 { reach.right = max(reach.right, -v.azimuth) } else { reach.left = max(reach.left, v.azimuth) } }
         if abs(v.azimuth) < 20 { if v.elevation > 0 { reach.up = max(reach.up, v.elevation) } else { reach.down = max(reach.down, -v.elevation) } }
+        if let angle = ringAngle(v.azimuth, v.elevation) {
+            let step = 360 / Float(Self.ticks)
+            for k in 0..<Self.ticks {
+                var d = abs(Float(k) * step - angle).truncatingRemainder(dividingBy: 360)
+                if d > 180 { d = 360 - d }
+                if d <= 10 { lit.insert(k) }
+            }
+        }
         coverage.add(azimuth: v.azimuth, elevation: v.elevation)
-        meter.yawBins = yawBins
-        meter.pitchBins = pitchBins
+        meter.lit = lit
         updateControls()
-        if goal(v.azimuth, v.elevation) == .centre, coverage.fraction >= Self.mappedTarget, abs(v.azimuth) < 10, abs(v.elevation) < 10 { build() }
+        if ringComplete, coverage.fraction >= Self.mappedTarget { build() }
     }
 
-    private func sideDone(right: Bool) -> Bool {
-        let steps = max(1, Int(capture.turn / 5))
-        let bins = right ? Array((-steps)...(-1)) : Array(0...(steps - 1))
-        let seen = bins.filter { yawBins.contains($0) }.count
-        return (right ? reach.right : reach.left) >= capture.turn - 5 && Float(seen) >= Float(bins.count) * 0.85
-    }
-
-    private func tiltDone(up: Bool) -> Bool {
-        let steps = max(1, Int(capture.tilt / 5))
-        let bins = up ? Array(0...(steps - 1)) : Array((-steps)...(-1))
-        let seen = bins.filter { pitchBins.contains($0) }.count
-        return (up ? reach.up : reach.down) >= capture.tilt - 4 && Float(seen) >= Float(bins.count) * 0.8
-    }
-
-    private func goal(_ azimuth: Float, _ elevation: Float) -> Goal {
-        if !sideDone(right: true) { return .right }
-        if !sideDone(right: false) { return .left }
-        if !tiltDone(up: true) { return .up }
-        if !tiltDone(up: false) { return .down }
-        // Any part of the face still missing: back round to the side with the most left to see.
-        if coverage.fraction < Self.mappedTarget { return coverage.fraction(right: true) < coverage.fraction(right: false) ? .right : .left }
-        return .centre
-    }
-
-    private func promptText(_ g: Goal) -> String {
-        switch g {
-        case .right: return "Move round to the patient’s right"
-        case .left: return "Now round to the patient’s left"
-        case .up: return "Raise the phone, looking down at the face"
-        case .down: return "Now lower it, looking up under the chin"
-        case .centre: return "Back to the front of the face"
+    /// Towards the nearest part of the ring not yet lit, so the phone sweeps round in one circle (starting at the
+    /// patient's right); once the ring is done, round again for any of the face still missing.
+    private func nextPrompt(_ azimuth: Float, _ elevation: Float) -> String {
+        if ringComplete { meter.heading = nil; return coverage.fraction < Self.mappedTarget ? "Nearly there: round once more, slowly" : "Back to the front of the face" }
+        let here = lit.isEmpty ? 180 : (ringAngle(azimuth, elevation) ?? atan2f(elevation / capture.tilt, azimuth / capture.turn) * 180 / .pi)
+        let step = 360 / Float(Self.ticks)
+        var best: Float = 180, bestD: Float = 999
+        for k in 0..<Self.ticks where !lit.contains(k) {
+            var d = abs(Float(k) * step - here).truncatingRemainder(dividingBy: 360)
+            if d > 180 { d = 360 - d }
+            if d < bestD { bestD = d; best = Float(k) * step }
+        }
+        var a = best.truncatingRemainder(dividingBy: 360); if a > 180 { a -= 360 }
+        meter.heading = lit.isEmpty ? 180 : a
+        switch a {
+        case -22.5..<22.5: return "Round to the patient’s left"
+        case 22.5..<67.5: return "Up and round to the patient’s left"
+        case 67.5..<112.5: return "Raise the phone, looking down at the face"
+        case 112.5..<157.5: return "Up and round to the patient’s right"
+        case -67.5..<(-22.5): return "Down and round to the patient’s left"
+        case -112.5..<(-67.5): return "Lower the phone, looking up under the chin"
+        case -157.5..<(-112.5): return "Down and round to the patient’s right"
+        default: return "Move round to the patient’s right"
         }
     }
 
@@ -2064,16 +2125,16 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         let up = SIMD3<Float>(0, 1, 0)
         let camPos = SIMD3(camera.columns.3.x, camera.columns.3.y, camera.columns.3.z)
         let camRight = SIMD3(camera.columns.0.x, camera.columns.0.y, camera.columns.0.z)
-        var x: SIMD3<Float>?
+        // Square to the camera's view (the scan starts in front of the face)...
+        var f = camPos - nose; f.y = 0
+        let square = simd_normalize(simd_cross(up, simd_normalize(f)))
+        var x: SIMD3<Float>? = square
+        // ...turned to the eye line only when the eyes agree with that to within 20° (a misplaced eye can't swing it).
         if let (a, b) = eyes {
             var e = b - a
             if simd_dot(e, camRight) < 0 { e = -e }   // the patient's left eye is on the camera's right
             e.y = 0
-            if simd_length(e) > 0.03 { x = simd_normalize(e) }
-        }
-        if x == nil {
-            var f = camPos - nose; f.y = 0
-            x = simd_normalize(simd_cross(up, simd_normalize(f)))
+            if simd_length(e) > 0.03, simd_dot(simd_normalize(e), square) > cosf(20 * .pi / 180) { x = simd_normalize(e) }
         }
         let z = simd_normalize(simd_cross(x!, up))
         let origin = nose - z * 0.10
@@ -2082,15 +2143,15 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
 
 }
 
-/// The cross under the face: segments round the sides (the patient's right on the left) and above and below,
-/// gold once reached, with a dot where the camera is now.
-final class CrossMeterView: UIView {
+/// The ring round the face outline: a dash every 6°, gold once the phone has been round that way, with a dot
+/// where it is now. The patient's right is on the left (the rear camera's picture isn't mirrored).
+final class RingMeterView: UIView {
     private static let gold = UIColor(red: 208 / 255, green: 164 / 255, blue: 102 / 255, alpha: 1)
-    var turn: Float = 60 { didSet { setNeedsDisplay() } }
-    var tilt: Float = 20 { didSet { setNeedsDisplay() } }
-    var yawBins = Set<Int>() { didSet { setNeedsDisplay() } }
-    var pitchBins = Set<Int>() { didSet { setNeedsDisplay() } }
-    var current: (Float, Float) = (0, 0) { didSet { if abs(current.0 - oldValue.0) + abs(current.1 - oldValue.1) > 0.5 { setNeedsDisplay() } } }
+    var lit = Set<Int>() { didSet { setNeedsDisplay() } }
+    /// Degrees round the orbit, and whether the phone is out far enough there to count.
+    var current: (Float, Bool)? { didSet { setNeedsDisplay() } }
+    /// Where to go next (degrees round the orbit), for the chevrons ahead of the moon.
+    var heading: Float? { didSet { setNeedsDisplay() } }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -2100,28 +2161,58 @@ final class CrossMeterView: UIView {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
+    private func point(_ deg: CGFloat, _ c: CGPoint, _ rx: CGFloat, _ ry: CGFloat) -> CGPoint {
+        let a = deg * .pi / 180
+        return CGPoint(x: c.x + cos(a) * rx, y: c.y - sin(a) * ry)
+    }
+
+    /// The orbit round the face: a faint dotted ellipse, solid gold where the phone has been round, and a moon where
+    /// it is now with chevrons pointing on round. (0° is the patient's left, on the right of the picture; 90° above.)
     override func draw(_ rect: CGRect) {
-        let mid = CGPoint(x: bounds.midX, y: bounds.midY), thick: CGFloat = 6, gap: CGFloat = 2.5
-        let ys = max(1, Int(turn / 5)), ps = max(1, Int(tilt / 5))
-        let halfW = bounds.width / 2 - 8, halfH = bounds.height / 2 - 8
-        let sw = (halfW - gap * CGFloat(ys)) / CGFloat(ys), sh = (halfH - gap * CGFloat(ps)) / CGFloat(ps)
-        for k in -ys..<ys {
-            let x = k < 0 ? mid.x + CGFloat(k) * (sw + gap) : mid.x + gap / 2 + CGFloat(k) * (sw + gap)
-            (yawBins.contains(k) ? Self.gold : UIColor(white: 1, alpha: 0.3)).setFill()
-            UIBezierPath(roundedRect: CGRect(x: x, y: mid.y - thick / 2, width: sw, height: thick), cornerRadius: thick / 2).fill()
-        }
-        for k in -ps..<ps {
-            // Positive bins (above) are drawn upwards.
-            let y = k >= 0 ? mid.y - gap / 2 - CGFloat(k + 1) * (sh + gap) + gap : mid.y + gap / 2 + CGFloat(-k - 1) * (sh + gap)
-            (pitchBins.contains(k) ? Self.gold : UIColor(white: 1, alpha: 0.3)).setFill()
-            UIBezierPath(roundedRect: CGRect(x: mid.x - thick / 2, y: y, width: thick, height: sh), cornerRadius: thick / 2).fill()
-        }
-        let x = mid.x + CGFloat(max(-turn, min(turn, current.0)) / turn) * halfW
-        let y = mid.y - CGFloat(max(-tilt, min(tilt, current.1)) / tilt) * halfH
-        UIColor.white.setFill()
-        UIBezierPath(ovalIn: CGRect(x: x - 7, y: y - 7, width: 14, height: 14)).fill()
+        let c = CGPoint(x: bounds.midX, y: bounds.midY), rx = bounds.width / 2 - 14, ry = bounds.height / 2 - 14
+        let n = FaceScanViewController.ticks, step = 360 / CGFloat(n)
+        let dots = UIBezierPath(ovalIn: CGRect(x: c.x - rx, y: c.y - ry, width: rx * 2, height: ry * 2))
+        dots.lineWidth = 3
+        dots.lineCapStyle = .round
+        dots.setLineDash([0.1, 11], count: 2, phase: 0)
+        UIColor(white: 1, alpha: 0.4).setStroke()
+        dots.stroke()
+        // Lit runs as continuous gold arcs.
         Self.gold.setStroke()
-        let ring = UIBezierPath(ovalIn: CGRect(x: x - 7, y: y - 7, width: 14, height: 14)); ring.lineWidth = 2; ring.stroke()
+        for k in 0..<n where lit.contains(k) {
+            let arc = UIBezierPath()
+            let from = CGFloat(k) * step - step / 2 - 0.5, to = CGFloat(k) * step + step / 2 + 0.5
+            var first = true
+            for d in stride(from: from, through: to, by: 1) { let p = point(d, c, rx, ry); if first { arc.move(to: p); first = false } else { arc.addLine(to: p) } }
+            arc.lineWidth = 6
+            arc.lineCapStyle = .round
+            arc.stroke()
+        }
+        guard let (deg, out) = current else { return }
+        let here = CGFloat(deg)
+        if let heading {
+            var d = CGFloat(heading) - here
+            while d > 180 { d -= 360 }
+            while d < -180 { d += 360 }
+            let dir: CGFloat = d >= 0 ? 1 : -1
+            for k in 1...3 {
+                let at = here + dir * CGFloat(k) * 9, p = point(at, c, rx, ry), q = point(at + dir * 2, c, rx, ry)
+                let angle = atan2(q.y - p.y, q.x - p.x)
+                let chev = UIBezierPath()
+                chev.move(to: CGPoint(x: -5, y: -7)); chev.addLine(to: CGPoint(x: 3, y: 0)); chev.addLine(to: CGPoint(x: -5, y: 7))
+                chev.apply(CGAffineTransform(rotationAngle: angle).concatenating(CGAffineTransform(translationX: p.x, y: p.y)))
+                chev.lineWidth = 3
+                chev.lineCapStyle = .round
+                chev.lineJoinStyle = .round
+                UIColor(white: 1, alpha: 0.9 - CGFloat(k) * 0.22).setStroke()
+                chev.stroke()
+            }
+        }
+        let m = point(here, c, rx, ry)
+        (out ? UIColor.white : UIColor(white: 1, alpha: 0.6)).setFill()
+        UIBezierPath(ovalIn: CGRect(x: m.x - 11, y: m.y - 11, width: 22, height: 22)).fill()
+        Self.gold.setStroke()
+        let ring = UIBezierPath(ovalIn: CGRect(x: m.x - 11, y: m.y - 11, width: 22, height: 22)); ring.lineWidth = 3.5; ring.stroke()
     }
 }
 

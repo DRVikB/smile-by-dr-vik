@@ -76,7 +76,9 @@ export function CaseMediaGroup({ caseId, reference, disabled, delay, onStatus }:
     setViewing(null); setWorking(true); onStatus("");
     try {
       if (kind === "scan" && !(await faceScanAvailable())) { onStatus("The face scan needs an iPhone Pro or iPad Pro with the LiDAR scanner."); return; }
-      const record = kind === "speech" ? await recordSpeechVideo(caseId, await svgToPng(guideSvg("rest")).catch(() => undefined)) : await scanFace(caseId);
+      // Both cameras show the At rest outline to line the face up with.
+      const outline = await svgToPng(guideSvg("rest")).catch(() => undefined);
+      const record = kind === "speech" ? await recordSpeechVideo(caseId, outline) : await scanFace(caseId, outline);
       if (!record) return;
       await keep(record);
       haptic("success");
