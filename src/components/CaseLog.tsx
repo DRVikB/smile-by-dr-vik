@@ -24,6 +24,7 @@ import { getCaseRepository } from "@/services/cases/caseRepository";
 import { caseIdOf } from "@/models/case";
 import { useCaseRecord } from "./useCaseRecord";
 import { CasePhotoSet } from "./CasePhotoSet";
+import { PhotoSetPage } from "./photoSet/PhotoSetPage";
 import { RECENTLY_DELETED_DAYS } from "@/config/cases";
 import { caseDisplayName, recentCaseTreatment } from "@/lib/recentCases";
 
@@ -112,7 +113,9 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
   // A version takes the case card's exact place: the frame copies where the Cases panel rests (offsets ignore
   // its entrance or drag transforms), its size and corners, and follows it if the screen changes (the Duo opening).
   const frame = useRef<HTMLDivElement>(null);
-  const detailOpen = !!detail;
+  // The photo set opens the same way, as the next page in the case card.
+  const [photoSet, setPhotoSet] = useState<{ caseId: string; before?: string; concept?: string } | null>(null);
+  const detailOpen = !!detail || !!photoSet;
   useLayoutEffect(() => {
     if (!detailOpen) return;
     const place = () => {
@@ -192,8 +195,8 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
 
   // Swipe in from the left edge: a version back to its case, a case back to the list. On the list itself
   // the swipe does nothing (Cases is a sheet; it closes with a pull down or Close).
-  useSwipeBack(true, open ? () => setOpen(null) : current ? () => setOpenCase(null) : undefined,
-    () => (open ? frame.current : document.querySelector<HTMLElement>(".sheet-backdrop > .log-panel .case-page")));
+  useSwipeBack(true, photoSet ? () => setPhotoSet(null) : open ? () => setOpen(null) : current ? () => setOpenCase(null) : undefined,
+    () => (open || photoSet ? frame.current : document.querySelector<HTMLElement>(".sheet-backdrop > .log-panel .case-page")));
 
   // Long-press menus, the way Photos and Files offer actions on an item.
   const caseMenu = (group: CaseGroup): MenuItem[] => [
@@ -452,7 +455,11 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
               </section>
             )}
 
-            <CasePhotoSet caseId={current.key} />
+            <CasePhotoSet caseId={current.key} onOpen={() => {
+              const id = current.key, lead = hero;
+              setPhotoSet({ caseId: id });
+              if (lead) void readFull(lead.id).then(r => setPhotoSet(cur => (cur && cur.caseId === id ? { caseId: id, before: r?.media?.originalImage, concept: r?.media?.image } : cur)));
+            }} />
 
             {confirmCase ? (
               <div className="case-confirm" role="alert">
@@ -574,6 +581,15 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
         )}
       </div>
 
+      {photoSet && !open && (
+        <div className="log-detail-backdrop" onClick={() => setPhotoSet(null)} role="dialog" aria-modal="true" aria-label="Photo set">
+          <div ref={frame} className="log-detail-frame">
+            <div className="log-detail photo-set-page" onClick={(e) => e.stopPropagation()}>
+              <PhotoSetPage caseId={photoSet.caseId} before={photoSet.before} concept={photoSet.concept} onBack={() => setPhotoSet(null)} onClose={() => { setPhotoSet(null); onClose(); }} />
+            </div>
+          </div>
+        </div>
+      )}
       {open && (
         <div
           className="log-detail-backdrop"

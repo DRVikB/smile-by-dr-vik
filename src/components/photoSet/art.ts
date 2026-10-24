@@ -72,7 +72,9 @@ export const GUIDES: Record<SetView, Omit<GuideSpec, "slot" | "title">> = {
  */
 export function guideSvg(view: SetView, part?: "upper" | "lower"): string {
   const r = VIEW_ART[view], face = !!r.face;
-  const main = face ? r.main.split(/(?=M)/).filter(s => !faceFeature(view, bbox(s))).join("") : r.main;
+  // Leave out the eyes, nose and mouth on faces, and any stray fragment of a dashed line caught in the drawing.
+  const speck = (b: number[]) => b[2] - b[0] < 9 && b[3] - b[1] < 9;
+  const main = r.main.split(/(?=M)/).filter(s => { const b = bbox(s); return !(view !== "smile" && speck(b)) && !(face && faceFeature(view, b)); }).join("");
   const extras = face || view === "retracted" ? r.extras.split(/(?=M)/).filter(s => { const q = bbox(s); return !face && Math.min(q[2] - q[0], q[3] - q[1]) > 5; }).join("") : r.extras;
   const b = bbox(main + extras), w = b[2] - b[0], h = b[3] - b[1];
   const s = face || view === "profile" ? Math.min(236 / h, 210 / w) : Math.min(196 / w, 210 / h);
@@ -159,4 +161,28 @@ export function buildTile(view: SetView): { svg: SVGSVGElement; play: (delay?: n
     ];
   }
   return { svg, play: (delay = 0) => anims().map(at(delay)) };
+}
+
+/**
+ * The At rest head (outline and ears, no features) for the main design camera, in place of its oval: a white SVG
+ * fitted to the outline, and `spread`, its width over the head's own (the ears stand out past the oval).
+ */
+export function headGuide(): { svg: string; spread: number } {
+  const r = VIEW_ART.rest, subs = r.main.split(/(?=M)/).filter(s => { const b = bbox(s); return !faceFeature("rest", b) && !(b[2] - b[0] < 9 && b[3] - b[1] < 9); });
+  const boxes = subs.map(s => ({ s, b: bbox(s) })).sort((p, q) => (q.b[2] - q.b[0]) * (q.b[3] - q.b[1]) - (p.b[2] - p.b[0]) * (p.b[3] - p.b[1]));
+  const outer = boxes[0].b, inner = boxes[1].b, stroke = outer[3] - inner[3];
+  const pad = 2, [x0, y0, x1, y1] = [outer[0] - pad, outer[1] - pad, outer[2] + pad, outer[3] + pad];
+  const spread = (x1 - x0) / (inner[2] - inner[0] + 2 * stroke + 2 * pad);
+  const w = x1 - x0, h = y1 - y0, scale = 900 / h;
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x0} ${y0} ${w} ${h}" width="${Math.round(w * scale)}" height="900"><path d="${subs.join("")}" fill="#fff" fill-rule="evenodd"/></svg>`, spread };
+}
+
+/** An SVG drawn to a PNG (base64, no prefix), for the native camera. */
+export async function svgToPng(svg: string): Promise<string> {
+  const img = new Image();
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  await img.decode();
+  const canvas = document.createElement("canvas"); canvas.width = img.naturalWidth || 780; canvas.height = img.naturalHeight || 1041;
+  canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/png").split(",")[1];
 }

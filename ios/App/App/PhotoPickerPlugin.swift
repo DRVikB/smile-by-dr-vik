@@ -55,6 +55,8 @@ public class PhotoPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
         let guide = CGRect(x: g["x"] as? Double ?? 0.3, y: g["y"] as? Double ?? 0.54,
                            width: g["width"] as? Double ?? 0.4, height: g["height"] as? Double ?? 0.15)
         let front = call.getString("camera") == "front"
+        let head = call.getString("head").flatMap { Data(base64Encoded: $0) }.flatMap { UIImage(data: $0) }
+        let headSpread = CGFloat(call.getDouble("headSpread") ?? 1)
         DispatchQueue.main.async {
             guard !self.cameraOpen, self.pendingCall == nil, let presenter = self.bridge?.viewController else {
                 call.reject("The camera is already open.")
@@ -70,7 +72,7 @@ public class PhotoPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
                     }
                     // Strong capture, like the enclosing closures: the plugin lives as long as the bridge, the
                     // camera holds this only until it finishes, and the call must always be answered.
-                    let camera = SmileCameraViewController(guide: guide, front: front) { result in
+                    let camera = SmileCameraViewController(guide: guide, front: front, head: head, headSpread: headSpread) { result in
                         self.cameraOpen = false
                         switch result {
                         case .cancelled:
@@ -365,8 +367,13 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
     private let ovalLayer = CAShapeLayer()
     private let headArc = CAShapeLayer()
     private let guideView = UIView()
-    private let crossV = UIView()
-    private let crossH = UIView()
+    private let crossV = DashedLineView()
+    private let crossH = DashedLineView()
+    /// The At rest head (with ears) from the photo set, in place of the oval; `headSpread` is its width over the head's.
+    private let headView = UIImageView()
+    private let headImage: UIImage?
+    private let headSpread: CGFloat
+    private var playedIntro = false
     private let hint = UILabel()
     private let hintBar = UIView()
     private let closeButton = UIButton(type: .system)
@@ -378,7 +385,9 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
     private let zoomBar = UIView()
     private let haptic = UIImpactFeedbackGenerator(style: .light)
 
-    init(guide: CGRect, front: Bool, completion: @escaping (Result) -> Void) {
+    init(guide: CGRect, front: Bool, head: UIImage? = nil, headSpread: CGFloat = 1, completion: @escaping (Result) -> Void) {
+        self.headImage = head?.withRenderingMode(.alwaysTemplate)
+        self.headSpread = headSpread
         self.guide = guide
         self.activeGuide = guide
         self.front = front
@@ -414,6 +423,14 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         }
         ovalLayer.lineWidth = 3
         ovalLayer.strokeColor = UIColor(white: 1, alpha: 0.9).cgColor
+        if let headImage {
+            headView.image = headImage
+            headView.contentMode = .scaleToFill
+            headView.tintColor = UIColor(white: 1, alpha: 0.9)
+            headView.isUserInteractionEnabled = false
+            previewHost.addSubview(headView)
+            ovalLayer.isHidden = true
+        }
         headArc.lineWidth = 2.5
         headArc.strokeColor = Self.warning.cgColor
         headArc.isHidden = true
@@ -508,6 +525,33 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         motion.stopDeviceMotionUpdates()
     }
 
+    /// As the camera opens, once: the head draws on from the top and the smile box widens from the centre,
+    /// as the photo set's guides do. With Reduce Motion they simply appear.
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        guard !playedIntro, !UIAccessibility.isReduceMotionEnabled else { return }
+        playedIntro = true
+        if headImage != nil {
+            let mask = CALayer()
+            mask.backgroundColor = UIColor.black.cgColor
+            mask.anchorPoint = CGPoint(x: 0.5, y: 0)
+            mask.bounds = headView.bounds
+            mask.position = CGPoint(x: headView.bounds.midX, y: 0)
+            headView.layer.mask = mask
+            let grow = CABasicAnimation(keyPath: "transform.scale.y")
+            grow.fromValue = 0.001; grow.toValue = 1; grow.duration = 0.9
+            grow.timingFunction = CAMediaTimingFunction(controlPoints: 0.45, 0, 0.2, 1)
+            mask.add(grow, forKey: "reveal")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.95) { [weak self] in self?.headView.layer.mask = nil }
+        }
+        guideView.alpha = 0
+        guideView.transform = CGAffineTransform(scaleX: 0.15, y: 1)
+        UIView.animate(withDuration: 0.7, delay: 0.45, usingSpringWithDamping: 0.75, initialSpringVelocity: 0, options: []) {
+            self.guideView.alpha = 1
+            self.guideView.transform = .identity
+        }
+    }
+
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         let safe = view.safeAreaLayoutGuide.layoutFrame
@@ -526,6 +570,10 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         activeGuide = layout.guide
         let ovalPx = CGRect(x: oval.minX * size.width, y: oval.minY * size.height, width: oval.width * size.width, height: oval.height * size.height)
         ovalLayer.path = UIBezierPath(ovalIn: ovalPx).cgPath
+        if headImage != nil {
+            let w = ovalPx.width * headSpread
+            headView.frame = CGRect(x: ovalPx.midX - w / 2, y: ovalPx.minY, width: w, height: ovalPx.height)
+        }
         CATransaction.commit()
         guideView.frame = CGRect(x: activeGuide.minX * size.width, y: activeGuide.minY * size.height,
                                  width: activeGuide.width * size.width, height: activeGuide.height * size.height)
@@ -865,6 +913,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         hint.textColor = ready ? .black : .white
         hintBar.backgroundColor = ready ? Self.gold : UIColor(white: 0.1, alpha: 0.82)
         ovalLayer.strokeColor = (ready ? Self.gold : UIColor(white: 1, alpha: 0.9)).cgColor
+        headView.tintColor = ready ? Self.gold : UIColor(white: 1, alpha: 0.9)
         guideView.layer.borderColor = (ready ? Self.gold : UIColor(white: 1, alpha: 0.6)).cgColor
         view.viewWithTag(42)?.layer.borderColor = (ready ? Self.gold : UIColor.white).cgColor
     }
@@ -1418,5 +1467,31 @@ final class PhotoSetCameraViewController: UIViewController, AVCapturePhotoCaptur
             if self.session.isRunning { self.session.stopRunning() }
         }
         dismiss(animated: true) { self.completion(photos, cancelled) }
+    }
+}
+
+
+/// A dashed guide line; its colour is set like a view's background (the camera turns it gold when lined up).
+final class DashedLineView: UIView {
+    override class var layerClass: AnyClass { CAShapeLayer.self }
+    private var shape: CAShapeLayer { layer as! CAShapeLayer }
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        shape.lineWidth = 1.5
+        shape.lineDashPattern = [6, 6]
+        shape.fillColor = nil
+        super.backgroundColor = .clear
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+    override var backgroundColor: UIColor? {
+        get { super.backgroundColor }
+        set { shape.strokeColor = newValue?.cgColor }
+    }
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let p = UIBezierPath()
+        if bounds.width < bounds.height { p.move(to: CGPoint(x: bounds.midX, y: 0)); p.addLine(to: CGPoint(x: bounds.midX, y: bounds.height)) }
+        else { p.move(to: CGPoint(x: 0, y: bounds.midY)); p.addLine(to: CGPoint(x: bounds.width, y: bounds.midY)) }
+        shape.path = p.cgPath
     }
 }

@@ -13,7 +13,7 @@ interface PickedPhoto {
 
 interface SmilePhotoPickerPlugin {
   pickPhoto(): Promise<PickedPhoto>;
-  takePhoto(options: { camera: "back" | "front"; guide: Framing }): Promise<PickedPhoto>;
+  takePhoto(options: { camera: "back" | "front"; guide: Framing; head?: string; headSpread?: number }): Promise<PickedPhoto>;
   releasePhoto(options: { path: string }): Promise<void>;
   takePhotoSet(options: { views: NativeSetView[] }): Promise<{ cancelled: boolean; photos?: (PickedPhoto & { id: string })[] }>;
 }
@@ -71,7 +71,9 @@ export async function takeNativePhoto(guide: Framing, camera: "back" | "front" =
   if (!isNativeApp()) throw new Error("The camera is only available in the app.");
   let picked: PickedPhoto;
   try {
-    picked = await SmilePhotoPicker.takePhoto({ camera, guide });
+    // The At rest head from the photo set in place of the oval, so the cameras match.
+    const head = await import("@/components/photoSet/art").then(async a => { const g = a.headGuide(); return { head: await a.svgToPng(g.svg), headSpread: g.spread }; }).catch(() => ({}));
+    picked = await SmilePhotoPicker.takePhoto({ camera, guide, ...head });
   } catch (error) {
     const denied = (error as { code?: string })?.code === "camera_denied";
     throw new Error(denied ? "Camera access is turned off. Turn it on in Settings › SmileCompose › Camera." : "The camera couldn’t be opened. Please try again.", { cause: error });

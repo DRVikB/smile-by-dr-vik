@@ -8,7 +8,7 @@ import { getCaseRepository } from "@/services/cases/caseRepository";
 import { PHOTO_SET_VIEWS, PHOTO_SLOTS, type PhotoSlot } from "@/lib/portal";
 import { isNativeApp } from "@/native/platform";
 import { haptic } from "@/native/haptics";
-import { buildTile, guideSvg, GUIDES, hasArt, type SetView } from "./art";
+import { buildTile, guideSvg, GUIDES, hasArt, svgToPng as guidePng, type SetView } from "./art";
 
 const GROUPS: { id: string; title: string; note?: string }[] = [
   { id: "face", title: "Face" }, { id: "smile", title: "Smile" },
@@ -32,16 +32,6 @@ function ViewArt({ view, delay }: { view: SetView; delay: number }) {
     onPointerUp={() => clearTimeout(timer.current)} onPointerLeave={() => clearTimeout(timer.current)} onPointerCancel={() => clearTimeout(timer.current)} />;
 }
 
-/** The guide images for the native camera, drawn from the same drawings (white on clear, see-through there). */
-async function guidePng(svg: string): Promise<string> {
-  const img = new Image();
-  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-  await img.decode();
-  const canvas = document.createElement("canvas"); canvas.width = 780; canvas.height = 1041;
-  canvas.getContext("2d")!.drawImage(img, 0, 0, 780, 1041);
-  return canvas.toDataURL("image/png").split(",")[1];
-}
-
 /**
  * A case's photo set, as a page in the case card: the design photo first (Before / Concept), then the nine
  * guided views grouped Face · Smile · Teeth · Arches. Empty views show their drawing; Take photos opens the
@@ -59,6 +49,9 @@ export function PhotoSetPage({ caseId, before, concept, onBack, onClose }: {
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const native = isNativeApp();
+  // The concept arrives a moment after the page opens: show it as soon as it does.
+  const hadConcept = useRef(!!concept);
+  useEffect(() => { if (concept && !hadConcept.current) { hadConcept.current = true; setShown("concept"); } }, [concept]);
   const files = useRef<HTMLInputElement>(null);
   const target = useRef<PhotoSlot | null>(null);
 

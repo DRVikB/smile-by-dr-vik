@@ -281,3 +281,54 @@
   .log-detail-side .log-exports > .control-hint { display: none; }
   .log-detail-side .log-exports ul { max-height: 112px; overflow-y: auto; overscroll-behavior: contain; }
 }
+
+/* ============================================================
+   Photo set: a page in the case card (photoSet/PhotoSetPage.tsx). The design photo leads, then the nine
+   guided views in groups; empty views show their drawing. Fits the card; the views scroll if they must.
+   ============================================================ */
+.photo-set-page { display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+.ps-head { justify-content: space-between; align-items: center; }
+.ps-body { display: flex; flex-direction: column; gap: 12px; flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-inline: -4px; padding: 0 4px 6px; }
+.ps-lead { display: flex; flex-direction: column; gap: 10px; flex: none; }
+.ps-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.ps-title h2 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(26px, 7vw, 32px); }
+.ps-count { flex: none; font-size: 13px; font-weight: 600; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 16%, transparent); padding: 4px 10px; border-radius: 999px; }
+.ps-hero { position: relative; height: clamp(110px, 17svh, 180px); border-radius: 18px; overflow: hidden; background: #1a1714; }
+.ps-hero img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; display: block; }
+.ps-hero-label { position: absolute; left: 12px; bottom: 10px; color: #fff; font-weight: 600; font-size: 14px; text-shadow: 0 1px 8px rgba(0,0,0,.5); }
+.ps-seg { position: absolute; right: 10px; top: 10px; display: flex; padding: 3px; border-radius: 999px; background: rgba(20,17,14,.5); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.ps-seg button { border: 0; background: none; color: #fff; font: 600 13px var(--font-sans); padding: 6px 12px; min-height: 32px; border-radius: 999px; }
+.ps-seg button[aria-selected="true"] { background: #fff; color: #1d1a17; }
+.ps-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; }
+.ps-actions .secondary-button, .ps-actions .primary-button { min-height: 48px; gap: 8px; }
+.ps-status { margin: -2px 2px 0; }
+/* Three even rows: Face, Teeth, then the Smile close-up beside the two arches. */
+.ps-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; align-content: start; }
+.ps-face, .ps-teeth, .ps-other { grid-column: 1 / -1; }
+.ps-teeth { order: 1; } .ps-smile { order: 2; } .ps-arches { order: 2; grid-column: span 2; } .ps-other { order: 3; }
+.ps-group h3 { display: flex; justify-content: space-between; margin: 0 2px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-secondary); white-space: nowrap; }
+.ps-group h3 em { font-style: normal; letter-spacing: 0; text-transform: none; font-weight: 500; color: var(--text-tertiary); }
+.ps-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ps-smile .ps-tiles { grid-template-columns: minmax(0, 1fr); }
+.ps-arches .ps-tiles, .ps-other .ps-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ps-other .ps-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ps-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; aspect-ratio: 1 / .92; padding: 4px 4px 0; border: 1px solid var(--card-border); border-radius: 16px; background: color-mix(in srgb, var(--card) 70%, #f7f1e8); overflow: hidden; color: var(--text-primary); }
+.ps-art { display: block; height: 80%; aspect-ratio: 1; }
+.ps-art svg { width: 100%; height: 100%; display: block; }
+.ps-name { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 12px; }
+.ps-tile.filled { padding: 0; }
+.ps-tile.filled img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ps-tile.filled .ps-name { left: 8px; right: auto; text-align: left; color: #fff; font-weight: 600; text-shadow: 0 1px 6px rgba(0,0,0,.6); }
+.ps-ok { position: absolute; right: 6px; top: 6px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.92); color: #2f7d4f; }
+.ps-design { position: absolute; left: 6px; top: 6px; font-size: 10.5px; font-weight: 600; color: #fff; background: rgba(20,17,14,.55); padding: 2px 7px; border-radius: 999px; }
+.ps-tile:active:not(:disabled) { background-color: var(--row-pressed); }
+/* iPad and the open Duo on its side: the design photo and actions on the left, the views on the right. */
+@media (min-width: 900px) and (min-height: 600px) and (orientation: landscape) {
+  .ps-body { flex-direction: row; gap: 24px; overflow: hidden; }
+  .ps-lead { flex: 0 0 38%; min-height: 0; }
+  .ps-hero { flex: 1 1 0; height: auto; min-height: 0; }
+  .ps-groups { flex: 1 1 0; min-width: 0; overflow-y: auto; overscroll-behavior: contain; gap: 12px 10px; }
+  .ps-tile { aspect-ratio: 1 / .8; }
+}
+@media (min-width: 600px) and (orientation: portrait) { .ps-hero { height: clamp(160px, 18svh, 240px); } .ps-tiles { gap: 10px; } .ps-name { font-size: 13px; } }
+:root[data-theme="dark"] .ps-tile { background: var(--card); }
