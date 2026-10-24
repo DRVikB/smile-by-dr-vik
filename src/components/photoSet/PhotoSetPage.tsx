@@ -67,7 +67,8 @@ export function PhotoSetPage({ caseId, before, concept, onBack, onClose }: {
   }, [caseId, repository]);
   useEffect(() => { void load(); return repository.subscribe(() => void load()); }, [load, repository]);
 
-  const srcOf = (slot: PhotoSlot) => thumbs[slot] ?? (slot === "front" && designFront ? designThumb : undefined);
+  // Smiling falls back to the design photo: the Before picture shown above, else its preview.
+  const srcOf = (slot: PhotoSlot) => thumbs[slot] ?? (slot === "front" && designFront ? before || designThumb || undefined : undefined);
   const filled = PHOTO_SLOTS.map(s => s.id).filter(id => srcOf(id)) as PhotoSlot[];
   const taken = PHOTO_SET_VIEWS.filter(v => srcOf(v.id)).length;
   const others = PHOTO_SLOTS.filter(s => s.group === "other" && thumbs[s.id]);

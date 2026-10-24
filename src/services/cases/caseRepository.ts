@@ -163,9 +163,11 @@ export function createCaseRepository(scope: WorkspaceLease) {
    if(raw.consent&&typeof raw.consent==="object"){const consent=await hydrate<CaseConsent>(raw.consent,aid=>sync.loadAsset(id,aid),scope).catch(()=>null);if(validConsent(consent))portal.consent=consent;}
    const draft=c.state.draft as Record<string,Json>|null;
    const designRef=(draft?.photo as Record<string,Json>|undefined)?.dataUrl;
-   let designThumb=c.state.draftThumb?await hydrate<string>(c.state.draftThumb,aid=>sync.loadAsset(id,aid),scope).catch(()=>""):"";
-   // Cases with designs keep no preview of their photo: make one in memory (the photo is usually already on this device).
-   if(!designThumb&&designRef&&typeof document!=="undefined"){const full=await hydrate<string>(designRef,aid=>sync.loadAsset(id,aid),scope).catch(()=>"");if(full){const {thumbnail}=await import("@/lib/thumb");designThumb=await thumbnail(full,360,0.72).catch(()=>"");}}
+   // The preview is made from the design's own photo (a stored draft preview can be stale or blank); the stored one
+   // is only a fallback when the photo isn't on this device.
+   let designThumb="";
+   if(designRef&&typeof document!=="undefined"){const full=await hydrate<string>(designRef,aid=>sync.loadAsset(id,aid),scope).catch(()=>"");if(full){const {thumbnail}=await import("@/lib/thumb");designThumb=await thumbnail(full,360,0.72).catch(()=>"");}}
+   if(!designThumb&&c.state.draftThumb)designThumb=await hydrate<string>(c.state.draftThumb,aid=>sync.loadAsset(id,aid),scope).catch(()=>"");
    return {portal,designThumb,hasDesignPhoto:Boolean(designRef),hasDraft:Boolean(draft),createdAt:c.createdAt,updatedAt:c.updatedAt};},
   /** One full-size photo from the set, downloaded only now. */
   async portalPhoto(id:string,slot:PhotoSlot){const c=await local.getCase(id);const ref=((c?.state.portal as Record<string,Json>|undefined)?.photos as Record<string,Json>|undefined)?.[slot];return ref?hydrate<string>(ref,aid=>sync.loadAsset(id,aid),scope):null;},
