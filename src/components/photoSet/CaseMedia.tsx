@@ -209,7 +209,7 @@ function ScanViewer({ caseId, record, visits, onPick, onClose, onShare, onRetake
       <div className="mv-scans">
         {record.captures.map(c => <figure key={c.id} className="mv-scan">
           {c.preview ? <img src={c.preview} alt={`${c.title} scan`} draggable={false} /> : <span className="mv-step-blank" />}
-          <figcaption><strong>{c.title}</strong><span>Face mapped {Math.round(c.coverage * 100)}%{c.tracking ? ` · ${trackingLabel(c.tracking)}` : ""}</span></figcaption>
+          <figcaption><strong>{c.title}</strong><span>{c.source === "photos" ? "From photos" : "LiDAR"} · face mapped {Math.round(c.coverage * 100)}%{c.tracking ? ` · ${trackingLabel(c.tracking)}` : ""}</span></figcaption>
         </figure>)}
       </div>
       <div className="mv-open-row">
@@ -217,7 +217,7 @@ function ScanViewer({ caseId, record, visits, onPick, onClose, onShare, onRetake
         {captures > 1 && <button type="button" className="secondary-button mv-open" onClick={() => open(true)}><Layers size={17} strokeWidth={1.8} aria-hidden="true" />Compare scans</button>}
       </div>
       {note && <p className="mv-hint" role="status">{note}</p>}
-      <p className="mv-hint">Made with the rear LiDAR scanner. A study of iPhone LiDAR face scans found about 1.5 mm average difference from a clinical 3D camera system: use it for facial proportions and planes. Compare lines two scans up on the forehead, eyes and nose and shows how far apart they are.</p>
+      <p className="mv-hint">Made with the rear camera and LiDAR scanner; “From photos” faces were built from the scan’s photographs for photographic skin. A study of iPhone LiDAR face scans found about 1.5 mm average difference from a clinical 3D camera system: use it for facial proportions and planes. Compare lines two scans up on the forehead, eyes and nose and shows how far apart they are.</p>
       <p className="mv-privacy">Kept on this device only. Sharing sends an identifiable scan of the patient’s face: check they have agreed before it goes to the lab.</p>
     </div>
   </div>;

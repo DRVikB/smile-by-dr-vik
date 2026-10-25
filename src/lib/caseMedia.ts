@@ -63,14 +63,14 @@ export interface FaceCapture {
 }
 
 /**
- * Made with the rear LiDAR scanner: the patient keeps still and the clinician moves the phone round to the patient's
- * right and left, above and below, until the whole face is mapped. Relaxed and smiling scans give the lab the face
+ * Made with the rear camera and LiDAR scanner, held still by the clinician while the patient turns their head right
+ * and left, chin down and up, until the whole face is mapped; sharp photos taken on the way build the detailed face. Relaxed and smiling scans give the lab the face
  * around the design; the scan with retractors shows the front teeth, which the lab matches to the intraoral scan.
  */
 export const FACE_CAPTURES: readonly FaceCapture[] = [
-  { id: "rest", title: "Relaxed", hint: "Lips together and relaxed", turn: 70, tilt: 25, expression: "rest" },
-  { id: "smile", title: "Smile", hint: "A natural smile, held still", turn: 60, tilt: 20, expression: "smile" },
-  { id: "retracted", title: "Teeth showing", hint: "Retractors in, teeth together", turn: 50, tilt: 15, expression: "any" },
+  { id: "rest", title: "Relaxed", hint: "Lips together and relaxed", turn: 60, tilt: 20, expression: "rest" },
+  { id: "smile", title: "Smile", hint: "A natural smile, held while turning", turn: 45, tilt: 15, expression: "smile" },
+  { id: "retracted", title: "Teeth showing", hint: "Retractors in, teeth together", turn: 40, tilt: 12, expression: "any" },
 ];
 
 /* ---------- records, as the iOS app lists them ---------- */
@@ -99,6 +99,8 @@ export interface FaceScanRecord {
     turned: [number, number]; tilted: [number, number]; coverage: number;
     /** How well the frames fitted the face (mm), the share kept, and whether the patient moved too much. */
     tracking?: { fitMm: number; kept: number; poor: boolean };
+    /** Built from the scan's photographs (with photographic skin) or from LiDAR depth alone. */
+    source: "photos" | "lidar";
   }[];
 }
 
@@ -145,7 +147,7 @@ export function readRecord(raw: unknown): CaseMediaRecord | null {
           turned: [isNum(turned[0]) ? turned[0] : 0, isNum(turned[1]) ? turned[1] : 0] as [number, number],
           tilted: [isNum(tilted[0]) ? tilted[0] : 0, isNum(tilted[1]) ? tilted[1] : 0] as [number, number],
           coverage: isNum(cap.coverage) ? cap.coverage : 0,
-          tracking: readTracking(cap.tracking) }] : [];
+          tracking: readTracking(cap.tracking), source: cap.source === "photos" ? "photos" as const : "lidar" as const }] : [];
     });
     if (!captures.length) return null;
     return { kind: "scan", id: r.id, createdAt: r.createdAt, poster: url(r.poster) || captures[0].preview, captures };
@@ -179,9 +181,9 @@ export function scanNotes(record: Pick<FaceScanRecord, "createdAt" | "captures">
   const lines = [
     "SmileCompose · 3D face scan",
     reference ? `Case: ${reference}` : "",
-    `Scanned: ${day(record.createdAt)} with the iPhone's rear LiDAR scanner, moving round the patient while they kept still.`,
+    `Scanned: ${day(record.createdAt)} with the iPhone's rear camera and LiDAR scanner, the patient turning their head in front of it.`,
     "",
-    "Files: one coloured mesh per scan (PLY, millimetres), its preview, and landmarks.json.",
+    "Files: per scan, a coloured mesh (PLY, millimetres); where the face was built from photographs, also a textured OBJ with its MTL and JPG texture; and landmarks.json.",
     "Axes: origin at the centre of the head; x towards the patient's left, y up (true vertical), z out through the face.",
     "The facial midline is the plane x = 0; landmarks.json has the centre of each eye where they were found.",
     "",
@@ -189,7 +191,8 @@ export function scanNotes(record: Pick<FaceScanRecord, "createdAt" | "captures">
   record.captures.forEach(c => {
     const cap = FACE_CAPTURES.find(x => x.id === c.id);
     const tr = c.tracking ? ` · head tracking ${trackingLabel(c.tracking).toLowerCase()} (${Math.round(c.tracking.kept * 100)}% of frames kept, ${c.tracking.fitMm.toFixed(1)} mm fit)` : "";
-    lines.push(`· ${c.title || cap?.title}: ${cap?.hint ?? ""} · face mapped ${Math.round(c.coverage * 100)}%${tr} · seen ${Math.round(c.turned[0])}° round the patient's right, ${Math.round(c.turned[1])}° round the left, ${Math.round(c.tilted[0])}° above, ${Math.round(c.tilted[1])}° below · ${c.vertices.toLocaleString("en-GB")} points`);
+    const built = c.source === "photos" ? " · built from photographs (photographic texture), lined up on the LiDAR scan" : " · LiDAR depth";
+    lines.push(`· ${c.title || cap?.title}: ${cap?.hint ?? ""}${built} · face mapped ${Math.round(c.coverage * 100)}%${tr} · seen ${Math.round(c.turned[0])}° round the patient's right, ${Math.round(c.turned[1])}° round the left, ${Math.round(c.tilted[0])}° above, ${Math.round(c.tilted[1])}° below · ${c.vertices.toLocaleString("en-GB")} points`);
   });
   lines.push(
     "",
