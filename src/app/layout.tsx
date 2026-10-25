@@ -7,6 +7,7 @@ import "./brand.css";
 import "./ios-layout.css";
 import "./account.css";
 import "./onboarding.css";
+import "./first-launch.css";
 import "./settings.css";
 import "./library.css";
 import "./cases.css";

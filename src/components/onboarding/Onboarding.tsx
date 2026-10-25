@@ -20,6 +20,7 @@ import { AddReferenceCases, materialShort } from "@/components/caseLibrary/CaseL
 import { useCaseLibrary } from "@/components/caseLibrary/caseLibraryContext";
 import { ProfilePhotoEditor } from "@/components/profile/ProfilePhotoEditor";
 import { UserAvatar } from "@/components/profile/UserAvatar";
+import { FirstLaunchIntro, markIntroSeen, shouldPlayIntro } from "./FirstLaunchIntro";
 import { HeroPhoto, HowItWorksVisual, ProHero, StyleLibraryVisual, WelcomeVisual } from "./OnboardingVisuals";
 
 /**
@@ -106,7 +107,7 @@ export function Onboarding({ appReady, onCreateFirst }: {
     const order: OnboardingStep[] = ["welcome", ...ONBOARDING_PROGRESS.filter(s => configured || (s !== "account" && s !== "subscription"))];
     const next = () => setReplay(order[order.indexOf(replay) + 1] ?? null);
     switch (replay) {
-      case "welcome": return <WelcomeStep onStart={next} />;
+      case "welcome": return <WelcomeWithIntro onStart={next} replay />;
       case "account": return <AccountStep configured={configured} name={account.displayName} onDefer={next} />;
       case "personalise": return <PersonaliseStep configured={configured} returning={false} initial={account.names.preferredName ?? local?.preferredName ?? ""}
         accountName={account.names.fullName} onSkip={next} onSaved={next} />;
@@ -125,7 +126,7 @@ export function Onboarding({ appReady, onCreateFirst }: {
   const step = decision.step;
   switch (step) {
     case "welcome":
-      return <WelcomeStep onStart={() => save({ ...local!, welcomeSeen: true })} />;
+      return <WelcomeWithIntro onStart={() => save({ ...local!, welcomeSeen: true })} />;
     case "account":
       return <AccountStep configured={configured} name={account.displayName} onDefer={() => save({ ...local!, accountDeferred: true })} />;
     case "personalise":
@@ -211,6 +212,15 @@ function Frame({ step, configured, hero, head, children, progress = true, mark =
       </div>
     </div>
   );
+}
+
+/** Welcome, with the first-launch intro over it the first time (and on an admin replay). */
+function WelcomeWithIntro({ onStart, replay = false }: { onStart: () => void; replay?: boolean }) {
+  const [intro, setIntro] = useState(() => replay ? !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches : shouldPlayIntro());
+  return <>
+    <WelcomeStep onStart={onStart} />
+    {intro && <FirstLaunchIntro onDone={() => { markIntroSeen(); setIntro(false); }} />}
+  </>;
 }
 
 function WelcomeStep({ onStart }: { onStart: () => void }) {
