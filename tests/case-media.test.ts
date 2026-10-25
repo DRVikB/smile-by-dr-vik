@@ -78,6 +78,7 @@ test("the lab notes say what each frame checks, how the scan is oriented, and ho
   assert.match(scan, /textured OBJ/);
   assert.match(scan, /face mapped 94%/);
   assert.match(scan, /1\.5 mm/);
+  assert.match(scan, /0\.4 mm/);
   assert.match(scan, /intraoral scan/);
 });
 
@@ -105,5 +106,5 @@ test("the iOS app records and scans in its own plugin, with a reason for the mic
   assert.match(plugin, /final class HeadTracker/, "frames are lined up with the head, not the room");
   assert.match(plugin, /PhotogrammetrySession/, "the detailed face is built from photographs with Object Capture");
   assert.match(plugin, /VNGeneratePersonSegmentationRequest/, "the patient is cut out from the room");
-  assert.doesNotMatch(plugin, /ARFaceTrackingConfiguration/, "never the front camera");
+  assert.match(plugin, /ARFaceTrackingConfiguration/, "the front Face ID sensor");
 });

@@ -89,7 +89,7 @@ public class CaseMediaPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func scanFace(_ call: CAPPluginCall) {
-        guard LidarScanner.available else { call.reject("This needs the LiDAR scanner.", "unsupported"); return }
+        guard LidarScanner.available || ARFaceTrackingConfiguration.isSupported else { call.reject("This needs the Face ID sensor or the LiDAR scanner.", "unsupported"); return }
         guard let caseId = call.getString("caseId"), CaseMediaStore.caseFolder(caseId) != nil else { call.reject("No case was given."); return }
         let captures = (call.getArray("captures") as? [[String: Any]] ?? []).compactMap(FaceCaptureSpec.init(json:))
         guard !captures.isEmpty else { call.reject("No scans were given."); return }
@@ -119,7 +119,7 @@ public class CaseMediaPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func faceScanAvailable(_ call: CAPPluginCall) {
-        call.resolve(["available": LidarScanner.available])
+        call.resolve(["available": LidarScanner.available || ARFaceTrackingConfiguration.isSupported])
     }
 
     @objc func list(_ call: CAPPluginCall) {
@@ -868,6 +868,8 @@ struct FaceScanResult {
     var textured: TexturedFace?
     /// The photographs taken during the scan (temporary; used to build `textured`).
     var shots: PhotoShots?
+    /// "trueDepth" (the front Face ID sensor) or "lidar" (the rear LiDAR scanner).
+    var sensor = "lidar"
     /// The centre of each eye, in the mesh's millimetres.
     let eyes: (left: SIMD3<Float>, right: SIMD3<Float>)?
     /// How far round each side (the patient's right, then left) and how far above and below were seen, in degrees.
@@ -887,8 +889,9 @@ enum FaceScanStore {
             var captures: [[String: Any]] = [], landmarks: [String: Any] = [:]
             for scan in scans {
                 let mesh = "\(scan.id).ply", preview = "\(scan.id).jpg"
-                let source = scan.textured == nil ? "lidar" : "photos"
-                try CaseMediaStore.write(scan.mesh.ply(comment: "\(scan.title), \(source == "photos" ? "built from photographs, lined up on the LiDAR scan" : "LiDAR scanner")"), to: folder.appendingPathComponent(mesh))
+                let source = scan.textured != nil ? "photos" : scan.sensor == "trueDepth" ? "trueDepth" : "lidar"
+                let built = source == "photos" ? "built from photographs, lined up on the LiDAR scan" : source == "trueDepth" ? "Face ID (TrueDepth) sensor" : "LiDAR scanner"
+                try CaseMediaStore.write(scan.mesh.ply(comment: "\(scan.title), \(built)"), to: folder.appendingPathComponent(mesh))
                 // The textured face as OBJ + material + texture, named as the lab will see them.
                 var model = "", modelTexture = "", modelMaterial = ""
                 if let t = scan.textured {
@@ -913,10 +916,10 @@ enum FaceScanStore {
                     "tilted": [Double(scan.tilted.up), Double(scan.tilted.down)],
                     "coverage": (Double(scan.coverage) * 100).rounded() / 100,
                     "tracking": ["fitMm": (Double(scan.tracking.rms) * 100).rounded() / 100, "kept": (Double(scan.tracking.kept) * 100).rounded() / 100, "poor": scan.trackingPoor],
-                    "sensor": "lidar", "source": source, "model": model, "modelMaterial": modelMaterial, "modelTexture": modelTexture
+                    "sensor": scan.sensor, "source": source, "model": model, "modelMaterial": modelMaterial, "modelTexture": modelTexture
                 ])
                 var entry: [String: Any] = [
-                    "title": scan.title, "sensor": "lidar", "builtFrom": source == "photos" ? "photographs, lined up on the LiDAR scan" : "LiDAR depth", "faceCoverage": (Double(scan.coverage) * 100).rounded() / 100,
+                    "title": scan.title, "sensor": scan.sensor, "builtFrom": built, "faceCoverage": (Double(scan.coverage) * 100).rounded() / 100,
                     "seenDegrees": ["patientRight": Double(scan.turned.right.rounded()), "patientLeft": Double(scan.turned.left.rounded()),
                                     "above": Double(scan.tilted.up.rounded()), "below": Double(scan.tilted.down.rounded())]
                 ]
@@ -1112,13 +1115,14 @@ struct FaceMesh {
 /// largest piece. Coordinates are the head's own frame, in metres: x towards the patient's left, y up, z out
 /// through the face, origin at the centre of the head.
 final class FaceVolume {
-    static let voxel: Float = 0.0016
-    // The face and the sides of the head; the back of the head (and the headrest behind it) is left out.
-    static let lo = SIMD3<Float>(-0.12, -0.18, -0.07), hi = SIMD3<Float>(0.12, 0.16, 0.17)
-    static let trunc: Float = 0.0055
-    let nx = Int(((FaceVolume.hi.x - FaceVolume.lo.x) / FaceVolume.voxel).rounded())
-    let ny = Int(((FaceVolume.hi.y - FaceVolume.lo.y) / FaceVolume.voxel).rounded())
-    let nz = Int(((FaceVolume.hi.z - FaceVolume.lo.z) / FaceVolume.voxel).rounded())
+    /// Cube size: 1.6 mm for the LiDAR scanner, finer for the Face ID sensor's denser depth.
+    let voxel: Float
+    // The face, the sides of the head and under the chin; the back of the head (and the headrest behind it) and
+    // the chest are left out.
+    static let lo = SIMD3<Float>(-0.12, -0.135, -0.07), hi = SIMD3<Float>(0.12, 0.16, 0.17)
+    /// How far either side of a measured point the distance is recorded.
+    let trunc: Float
+    let nx, ny, nz: Int
     private let dist, weight: UnsafeMutablePointer<Float16>
     private let rgb: UnsafeMutablePointer<UInt8>
     private(set) var frames = 0
@@ -1147,7 +1151,12 @@ final class FaceVolume {
         var mask: FaceMask? = nil
     }
 
-    init() {
+    init(voxel: Float = 0.0016) {
+        self.voxel = voxel
+        trunc = max(0.0035, voxel * 3.4)
+        nx = Int(((Self.hi.x - Self.lo.x) / voxel).rounded())
+        ny = Int(((Self.hi.y - Self.lo.y) / voxel).rounded())
+        nz = Int(((Self.hi.z - Self.lo.z) / voxel).rounded())
         let n = nx * ny * nz
         dist = .allocate(capacity: n); dist.initialize(repeating: 1, count: n)
         weight = .allocate(capacity: n); weight.initialize(repeating: 0, count: n)
@@ -1182,13 +1191,14 @@ final class FaceVolume {
         let yp = yBase.assumingMemoryBound(to: UInt8.self), cp = cBase.assumingMemoryBound(to: UInt8.self)
         let fx = f.depthK[0][0], fy = f.depthK[1][1], cx = f.depthK[2][0], cy = f.depthK[2][1]
         let ifx = f.imageK[0][0], ify = f.imageK[1][1], icx = f.imageK[2][0], icy = f.imageK[2][1]
-        guard fx > 0, fy > 0, dw > 4, dh > 4 else { return }
+        // (A focal length can be negative: that's how a mirrored front-camera image is described.)
+        guard fx != 0, fy != 0, dw > 4, dh > 4 else { return }
         let m = f.cameraToHead
         let c0 = SIMD3(m.columns.0.x, m.columns.0.y, m.columns.0.z), c1 = SIMD3(m.columns.1.x, m.columns.1.y, m.columns.1.z)
         let c2 = SIMD3(m.columns.2.x, m.columns.2.y, m.columns.2.z), c3 = SIMD3(m.columns.3.x, m.columns.3.y, m.columns.3.z)
         let cam = f.cameraInHead
         let sx = ifx / fx, sy = ify / fy, ox = icx - cx * sx, oy = icy - cy * sy
-        let lo = Self.lo, v = Self.voxel, inv = 1 / Self.voxel, trunc = Self.trunc, steps = Int((trunc / v).rounded(.up))
+        let lo = Self.lo, v = voxel, inv = 1 / voxel, trunc = self.trunc, steps = Int((trunc / v).rounded(.up))
         let nx = self.nx, ny = self.ny, nz = self.nz, plane = nx * ny
         let st = max(1, f.stride), edge = 0.012 as Float
         var vv = st
@@ -1278,7 +1288,7 @@ final class FaceVolume {
                 sum += pa + (pb - pa) * t; count += 1
             }
             let local = sum / count
-            let p = (Self.lo + (SIMD3<Float>(Float(i), Float(j), Float(l)) + local) * Self.voxel) * 1000
+            let p = (Self.lo + (SIMD3<Float>(Float(i), Float(j), Float(l)) + local) * voxel) * 1000
             // Colour from the corners nearest the surface.
             var c = SIMD3<Float>.zero, cw: Float = 0
             for n in 0..<8 {
@@ -1741,7 +1751,7 @@ extension FaceVolume {
                     g /= len
                     var cell = SIMD3<Float>(Float(i), Float(j), Float(l))
                     cell[axis] += t
-                    out.append(((Self.lo + cell * Self.voxel) * 1000, g))
+                    out.append(((Self.lo + cell * voxel) * 1000, g))
                 }
             } } }
         }
@@ -1931,7 +1941,7 @@ final class HeadTracker {
         let s = volume.surface()
         guard s.count > 2000 else { return nil }
         let grid = FaceAlign.Grid(s.map(\.0), cell: 10), normals = s.map(\.1)
-        let out = FaceVolume()
+        let out = FaceVolume(voxel: volume.voxel)
         for k in keyframes {
             var f = k.frame
             let pts = Self.points(f, cameraToHead: f.cameraToHead)
@@ -2060,7 +2070,7 @@ final class PhotoShots {
         let depthSize: (Int, Int)
         let cameraToHead: simd_float4x4
     }
-    static let maxShots = 40
+    static let maxShots = 70
     static let maxSide: CGFloat = 2016
     let folder: URL
     private let queue = DispatchQueue(label: "uk.co.drvik.smilecompose.photoshots", qos: .utility)
@@ -2186,11 +2196,12 @@ final class PhotoRefiner {
     private var session: PhotogrammetrySession?
     private var cancelled = false
     static var isSupported: Bool { PhotogrammetrySession.isSupported }
-    static let minimumShots = 16
+    static let minimumShots = 20
 
     func cancel() { cancelled = true; session?.cancel() }
 
-    func refine(_ shots: PhotoShots, lidar: FaceMesh, progress: @escaping (Double) -> Void) async -> TexturedFace? {
+    /// `status` gets a short line for the screen ("Lining up the photos · about 1 min left").
+    func refine(_ shots: PhotoShots, lidar: FaceMesh, progress: @escaping (Double) -> Void, status: @escaping (String) -> Void = { _ in }) async -> TexturedFace? {
         let list = shots.shots
         guard Self.isSupported, list.count >= Self.minimumShots, !cancelled else { return nil }
         var configuration = PhotogrammetrySession.Configuration()
@@ -2203,10 +2214,34 @@ final class PhotoRefiner {
             let s = try PhotogrammetrySession(input: ShotSequence(shots: list, store: shots), configuration: configuration)
             session = s
             try s.process(requests: [.poses, .modelFile(url: out, detail: .reduced)])
+            // Never left hanging: after 6 minutes the LiDAR face is kept.
+            let watchdog = Task { [weak s] in
+                try? await Task.sleep(nanoseconds: 360 * 1_000_000_000)
+                s?.cancel()
+            }
+            defer { watchdog.cancel() }
+            status("Reading the photos")
             outputs: for try await o in s.outputs {
                 switch o {
                 case .requestProgress(let request, let fraction):
                     if case .modelFile = request { progress(fraction) }
+                case .requestProgressInfo(let request, let info):
+                    guard case .modelFile = request else { break }
+                    let stage: String
+                    switch info.processingStage {
+                    case .preProcessing: stage = "Reading the photos"
+                    case .imageAlignment: stage = "Lining up the photos"
+                    case .pointCloudGeneration: stage = "Measuring the face"
+                    case .meshGeneration: stage = "Building the shape"
+                    case .textureMapping: stage = "Adding the skin"
+                    case .optimization: stage = "Finishing"
+                    default: stage = "Working"
+                    }
+                    if let left = info.estimatedRemainingTime, left.isFinite, left > 0 {
+                        status("\(stage) · about \(left < 90 ? "\(max(1, Int(left.rounded()))) s" : "\(Int((left / 60).rounded())) min") left")
+                    } else { status(stage) }
+                case .stitchingIncomplete:
+                    status("Some photos didn’t line up")
                 case .requestComplete(_, let result):
                     switch result {
                     case .poses(let p): poses = p.posesBySample.mapValues(\.translation)
@@ -2276,6 +2311,19 @@ final class PhotoRefiner {
 /// direction is reached, and "Face mapped" counts the share of the face seen closely enough; the scan finishes
 /// only when both are complete. Closing keeps the scans already made.
 final class FaceScanViewController: UIViewController, ARSessionDelegate {
+    /// Front: the Face ID (TrueDepth) sensor, dense depth and 60 fps face tracking; the clinician holds the phone with
+    /// the screen towards the patient, who follows the prompts. Rear: the LiDAR scanner and camera; the patient keeps
+    /// still while the clinician moves round them, and the detailed face is built from the photos taken on the way.
+    enum Sensor: String { case front, rear }
+    static var frontAvailable: Bool { ARFaceTrackingConfiguration.isSupported }
+    static var rearAvailable: Bool { LidarScanner.available }
+    private var sensor: Sensor
+    private let sensorPicker = UISegmentedControl(items: ["Face ID · detailed", "Rear camera · photos"])
+    /// Front: from the face anchor's frame to the head frame (origin 10 cm behind the nose tip, at its height).
+    private var faceOffset: simd_float4x4?
+    /// Front: whether the camera's raw image runs mirrored to ARKit's camera (checked when the scan starts).
+    private var frontMirror = false
+
     private static let gold = UIColor(red: 208 / 255, green: 164 / 255, blue: 102 / 255, alpha: 1)
     /// The share of the face that must be seen before a scan can finish by itself.
     static let mappedTarget: Float = 0.92
@@ -2354,6 +2402,11 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         self.captures = captures
         self.guide = guide
         self.completion = completion
+        let saved = UserDefaults.standard.string(forKey: "faceScanSensor").flatMap(Sensor.init(rawValue:))
+        switch (saved, Self.frontAvailable, Self.rearAvailable) {
+        case (.some(.rear), _, true), (_, false, true): sensor = .rear
+        default: sensor = .front
+        }
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
@@ -2403,6 +2456,13 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         mapped.textColor = .white
         mapped.textAlignment = .center
         [titleLabel, stepLabel, sensorLabel, dots, meter].forEach { view.addSubview($0) }
+        sensorPicker.selectedSegmentTintColor = Self.gold
+        sensorPicker.setTitleTextAttributes([.foregroundColor: UIColor.white, .font: UIFont.systemFont(ofSize: 13, weight: .medium)], for: .normal)
+        sensorPicker.setTitleTextAttributes([.foregroundColor: UIColor(white: 0.08, alpha: 1), .font: UIFont.systemFont(ofSize: 13, weight: .semibold)], for: .selected)
+        sensorPicker.backgroundColor = UIColor(white: 0.1, alpha: 0.5)
+        sensorPicker.selectedSegmentIndex = sensor == .front ? 0 : 1
+        sensorPicker.addTarget(self, action: #selector(sensorChanged), for: .valueChanged)
+        view.addSubview(sensorPicker)
 
         bar.layer.cornerRadius = 18
         bar.clipsToBounds = true
@@ -2467,6 +2527,16 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     }
 
     private func runSession() {
+        meter.mirrored = sensor == .front
+        if sensor == .front {
+            let c = ARFaceTrackingConfiguration()
+            c.isLightEstimationEnabled = false
+            c.maximumNumberOfTrackedFaces = 1
+            sceneView.session.run(c, options: [.resetTracking, .removeExistingAnchors])
+            sensorLabel.text = "Face ID sensor · screen towards the patient"
+            noseTip = nil
+            return
+        }
         let c = ARWorldTrackingConfiguration()
         c.worldAlignment = .gravity
         c.isLightEstimationEnabled = false
@@ -2493,6 +2563,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         let dotsWidth = min(CGFloat(captures.count) * 22, safe.width - 140)
         dots.frame = CGRect(x: safe.midX - dotsWidth / 2, y: safe.minY + 54, width: dotsWidth, height: 3)
         sensorLabel.frame = CGRect(x: safe.minX + 70, y: safe.minY + 62, width: safe.width - 140, height: 15)
+        sensorPicker.frame = CGRect(x: safe.midX - 150, y: safe.minY + 84, width: 300, height: 32)
         startButton.frame = CGRect(x: safe.midX - 110, y: safe.maxY - 74, width: 220, height: 54)
         finishButton.frame = CGRect(x: safe.maxX - 124, y: safe.maxY - 69, width: 104, height: 44)
         skipButton.frame = CGRect(x: safe.minX + 20, y: safe.maxY - 69, width: phase == .refining ? 190 : 70, height: 44)
@@ -2526,6 +2597,8 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     private var capture: FaceCaptureSpec { captures[index] }
 
     private func resetCapture() {
+        faceOffset = nil
+        expressionIssue = nil
         shots?.remove()
         shots = nil
         shotDirections = []
@@ -2556,10 +2629,15 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         updateControls()
     }
 
-    private let readyDetail = "Hold the phone 30–50 cm away, level with the face, and keep it still. The patient sits back against the headrest and turns as prompted."
+    private var readyDetail: String {
+        sensor == .front
+            ? "Hold the phone 30–50 cm away with the screen towards the patient, level with their face. They follow the prompts on the screen."
+            : "The patient keeps still against the headrest. Hold the phone 30–50 cm away and move slowly round them; photos are taken for the detailed face."
+    }
 
 
     private func updateControls() {
+        sensorPicker.isHidden = !(phase == .ready && Self.frontAvailable && Self.rearAvailable)
         startButton.isHidden = phase != .ready
         finishButton.isHidden = phase != .scanning
         skipButton.isHidden = phase == .building || phase == .locking
@@ -2586,7 +2664,19 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         UIView.animate(withDuration: 0.25) { self.progressFill.frame.size.width = self.progressTrack.bounds.width * CGFloat(min(1, self.coverage.fraction / Self.mappedTarget)) }
     }
 
+    @objc private func sensorChanged() {
+        guard phase == .ready else { return }
+        sensor = sensorPicker.selectedSegmentIndex == 0 ? .front : .rear
+        UserDefaults.standard.set(sensor.rawValue, forKey: "faceScanSensor")
+        UIView.animate(withDuration: 0.16) { self.sceneView.alpha = 0.2 } completion: { _ in
+            self.runSession()
+            self.detail.text = self.readyDetail
+            UIView.animate(withDuration: 0.3, delay: 0.25) { self.sceneView.alpha = 1 }
+        }
+    }
+
     @objc private func start() {
+        if sensor == .front { startFront(); return }
         resetCapture()
         volume = FaceVolume()
         tracker = HeadTracker()
@@ -2652,12 +2742,15 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         Task { @MainActor in
             for (n, i) in jobs.enumerated() {
                 guard !self.finished, self.phase == .refining, let shots = self.results[i].shots else { break }
-                self.detail.text = "\(self.results[i].title) · \(n + 1) of \(jobs.count) · from \(shots.shots.count) photos. About a minute each."
+                let heading = "\(self.results[i].title) · \(n + 1) of \(jobs.count) · \(shots.shots.count) photos"
+                self.detail.text = "\(heading) · about a minute or two"
                 self.refineProgress = 0
                 self.updateControls()
-                let face = await refiner.refine(shots, lidar: self.results[i].mesh) { f in
+                let face = await refiner.refine(shots, lidar: self.results[i].mesh, progress: { f in
                     DispatchQueue.main.async { self.refineProgress = Float(f); self.updateControls() }
-                }
+                }, status: { line in
+                    DispatchQueue.main.async { if self.phase == .refining { self.detail.text = "\(heading) · \(line)" } }
+                })
                 guard !self.finished else { return }
                 if let face {
                     self.results[i].textured = face
@@ -2713,6 +2806,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
                                             turned: (reach.right, reach.left), tilted: (reach.up, reach.down), coverage: coverage)
                 result.tracking = quality
                 result.shots = shots
+                result.sensor = self.sensor == .front ? "trueDepth" : "lidar"
                 guard result.trackingPoor else {
                     self.results.append(result)
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -2742,7 +2836,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
 
     func session(_ session: ARSession, didFailWithError error: Error) {
         DispatchQueue.main.async {
-            if self.useHighResFormat, (error as? ARError)?.code != .cameraUnauthorized {
+            if self.sensor == .rear, self.useHighResFormat, (error as? ARError)?.code != .cameraUnauthorized {
                 self.useHighResFormat = false
                 self.runSession()
                 if self.phase != .ready { self.show(self.index) }
@@ -2755,6 +2849,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
 
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
         guard !finished, phase != .building, phase != .locking, phase != .refining else { return }
+        if sensor == .front { frontFrame(frame); return }
         if frame.sceneDepth == nil && frame.smoothedSceneDepth == nil {
             framesWithoutDepth += 1
             // The high-resolution format didn't bring depth on this phone: back to the standard one.
@@ -2843,17 +2938,18 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         var problem: String?
         if distance > 0.75 { problem = "Bring the phone closer" }
         else if distance < 0.22 { problem = "Move the phone back a little" }
-        else if abs(azimuth) > capture.turn + 18 { problem = "That’s far enough: turn back a little" }
-        else if elevation > capture.tilt + 15 { problem = "Not so far: chin up a little" }
-        else if elevation < -capture.tilt - 15 { problem = "Not so far: chin down a little" }
-        else if slowDown { problem = "Ask the patient to turn more slowly" }
+        else if abs(azimuth) > capture.turn + 18 { problem = sensor == .front ? "That’s far enough: turn back a little" : "That’s far enough: come back a little" }
+        else if elevation > capture.tilt + 15 { problem = sensor == .front ? "Not so far: chin up a little" : "Lower the phone a little" }
+        else if elevation < -capture.tilt - 15 { problem = sensor == .front ? "Not so far: chin down a little" : "Raise the phone a little" }
+        else if slowDown { problem = sensor == .front ? "Turn a little more slowly" : "Move the phone more slowly" }
+        else if sensor == .front, let issue = expressionIssue { problem = issue }
         else if let issue = trackingIssue, CACurrentMediaTime() - issue.at < 1.2 { problem = issue.text }
         guard phase == .scanning else {
             detail.text = problem ?? readyDetail
             return nil
         }
         say(problem ?? nextPrompt(azimuth, elevation))
-        detail.text = problem == nil ? "Hold the phone still at face level; the patient turns slowly (or move round them)." : (problem == trackingIssue?.text ? "That part wasn’t added, so the face stays sharp." : " ")
+        detail.text = problem == nil ? (sensor == .front ? "Keep the phone still; the patient turns slowly, holding the expression." : "The patient keeps still; move slowly round them in a circle.") : (problem == trackingIssue?.text ? "That part wasn’t added, so the face stays sharp." : " ")
         // A tracking message doesn't stop the scan: the next frames are tried again.
         return problem == nil || problem == trackingIssue?.text ? Viewing(azimuth: azimuth, elevation: elevation) : nil
     }
@@ -2882,9 +2978,9 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
                     let c = SIMD3(corrected.columns.3.x, corrected.columns.3.y, corrected.columns.3.z)
                     self.record(Viewing(azimuth: atan2f(c.x, c.z) * 180 / .pi, elevation: atan2f(c.y, (c.x * c.x + c.z * c.z).squareRoot()) * 180 / .pi))
                     self.maybeTakeShot(corrected)
-                case .moved: self.trackingIssue = ("Ask the patient to keep still", CACurrentMediaTime())
-                case .expression: self.trackingIssue = ("Ask the patient to hold the expression", CACurrentMediaTime())
-                case .lost: self.trackingIssue = ("Point the phone back at the face, then hold still", CACurrentMediaTime())
+                case .moved: self.trackingIssue = (self.sensor == .front ? "Turn a little more slowly" : "Ask the patient to keep still", CACurrentMediaTime())
+                case .expression: self.trackingIssue = (self.sensor == .front ? "Hold the expression" : "Ask the patient to hold the expression", CACurrentMediaTime())
+                case .lost: self.trackingIssue = (self.sensor == .front ? "Look back at the screen" : "Point the phone back at the face", CACurrentMediaTime())
                 }
                 _ = view
             }
@@ -2924,7 +3020,11 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     /// Towards the nearest part of the ring not yet lit, so the phone sweeps round in one circle (starting at the
     /// patient's right); once the ring is done, round again for any of the face still missing.
     private func nextPrompt(_ azimuth: Float, _ elevation: Float) -> String {
-        if ringComplete { meter.heading = nil; return coverage.fraction < Self.mappedTarget ? "Nearly there: turn once more, slowly" : "Back to facing the camera" }
+        if ringComplete {
+            meter.heading = nil
+            if sensor == .front { return coverage.fraction < Self.mappedTarget ? "Nearly there: once more round, slowly" : "Look straight at the screen" }
+            return coverage.fraction < Self.mappedTarget ? "Nearly there: once more round, slowly" : "Back to the front of the face"
+        }
         let here = lit.isEmpty ? 180 : (ringAngle(azimuth, elevation) ?? atan2f(elevation / capture.tilt, azimuth / capture.turn) * 180 / .pi)
         let step = 360 / Float(Self.ticks)
         var best: Float = 180, bestD: Float = 999
@@ -2935,17 +3035,160 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         }
         var a = best.truncatingRemainder(dividingBy: 360); if a > 180 { a -= 360 }
         meter.heading = lit.isEmpty ? 180 : a
-        switch a {
-        // The camera stays put and the patient turns: to show the camera their left side they turn to their right.
-        case -22.5..<22.5: return "Patient turns slowly to their right"
-        case 22.5..<67.5: return "Chin down a little, turning to their right"
-        case 67.5..<112.5: return "Patient lowers their chin slowly"
-        case 112.5..<157.5: return "Chin down a little, turning to their left"
-        case -67.5..<(-22.5): return "Chin up a little, turning to their right"
-        case -112.5..<(-67.5): return "Patient lifts their chin slowly"
-        case -157.5..<(-112.5): return "Chin up a little, turning to their left"
-        default: return "Patient turns slowly to their left"
+        if sensor == .rear {
+            // The patient keeps still and the phone goes round them.
+            switch a {
+            case -22.5..<22.5: return "Move round to the patient’s left"
+            case 22.5..<67.5: return "Up and round to the patient’s left"
+            case 67.5..<112.5: return "Raise the phone, looking down at the face"
+            case 112.5..<157.5: return "Up and round to the patient’s right"
+            case -67.5..<(-22.5): return "Down and round to the patient’s left"
+            case -112.5..<(-67.5): return "Lower the phone, looking up under the chin"
+            case -157.5..<(-112.5): return "Down and round to the patient’s right"
+            default: return "Move round to the patient’s right"
+            }
         }
+        switch a {
+        // The phone stays put and the patient, reading the screen, turns: to show their left side they turn right.
+        case -22.5..<22.5: return "Turn slowly to your right"
+        case 22.5..<67.5: return "Chin down a little, turning right"
+        case 67.5..<112.5: return "Lower your chin slowly"
+        case 112.5..<157.5: return "Chin down a little, turning left"
+        case -67.5..<(-22.5): return "Chin up a little, turning right"
+        case -112.5..<(-67.5): return "Lift your chin slowly"
+        case -157.5..<(-112.5): return "Chin up a little, turning left"
+        default: return "Turn slowly to your left"
+        }
+    }
+
+    // MARK: Front (Face ID) sensor
+
+    private var expressionIssue: String?
+
+    private func startFront() {
+        guard let frame = sceneView.session.currentFrame,
+              let face = frame.anchors.lazy.compactMap({ $0 as? ARFaceAnchor }).first, face.isTracked else {
+            say("Point the screen at the patient’s face", force: true)
+            return
+        }
+        resetCapture()
+        volume = FaceVolume(voxel: 0.0012)
+        tracker = HeadTracker()
+        maskMapping = nil
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        // The head frame: the face anchor's axes (x to the patient's left, y up, z out of the face), with the
+        // origin 10 cm behind the nose tip at its height.
+        let nose = face.geometry.vertices.max(by: { $0.z < $1.z }) ?? SIMD3(0, 0, 0.06)
+        var offset = matrix_identity_float4x4
+        offset.columns.3 = SIMD4(0, nose.y, nose.z - 0.10, 1)
+        faceOffset = offset
+        let toHead = offset.inverse
+        let l = toHead * face.leftEyeTransform.columns.3, r = toHead * face.rightEyeTransform.columns.3
+        lidarEyes = (SIMD3(l.x, l.y, l.z), SIMD3(r.x, r.y, r.z))
+        frontMirror = Self.mirrored(frame, face)
+        phase = .scanning
+        guideView.tintColor = UIColor(white: 1, alpha: 0.18)
+        updateControls()
+    }
+
+    private func frontFrame(_ frame: ARFrame) {
+        guard let face = frame.anchors.lazy.compactMap({ $0 as? ARFaceAnchor }).first, face.isTracked else {
+            if phase == .scanning { say("Look back at the screen") } else {
+                guideView.tintColor = UIColor(white: 1, alpha: 0.45)
+                detail.text = "Point the screen at the patient’s face."
+            }
+            return
+        }
+        let cameraToAnchor = face.transform.inverse * frame.camera.transform
+        if phase == .ready {
+            guideView.tintColor = Self.gold.withAlphaComponent(0.8)
+            let d = simd_length(SIMD3(cameraToAnchor.columns.3.x, cameraToAnchor.columns.3.y, cameraToAnchor.columns.3.z))
+            detail.text = d > 0.6 ? "Come a little closer: 30–50 cm from the face." : d < 0.22 ? "Move back a little: 30–50 cm from the face." : "Face found. Tap Start scan."
+            return
+        }
+        guard phase == .scanning, let offset = faceOffset, let volume, let tracker else { return }
+        expressionIssue = expressionCheck(face)
+        // The camera relative to the head, from Apple's face tracking, then fine-tuned on the face's shape.
+        let guess = offset.inverse * cameraToAnchor
+        let cameraToHead = tracker.correction * guess
+        let cam = SIMD3(cameraToHead.columns.3.x, cameraToHead.columns.3.y, cameraToHead.columns.3.z)
+        drawPoints(face.transform * offset * tracker.correction.inverse)
+        let now = CACurrentMediaTime()
+        var tooFast = false
+        if let last = lastView, now - last.at > 0.05 {
+            let turn = acosf(max(-1, min(1, simd_dot(simd_normalize(cam), simd_normalize(last.cam))))) * 180 / .pi
+            lastTurnRate = turn / Float(now - last.at)
+            tooFast = lastTurnRate > 40
+            lastView = (cam, now)
+        } else if lastView == nil { lastView = (cam, now) }
+        guard let view = viewing(cam, slowDown: tooFast), expressionIssue == nil else { return }
+        guard !fusing, let depthData = frame.capturedDepthData, abs(frame.capturedDepthDataTimestamp - frame.timestamp) < 0.05 else { return }
+        let converted = depthData.converting(toDepthDataType: kCVPixelFormatType_DepthFloat32)
+        let map = converted.depthDataMap
+        let dw = Float(CVPixelBufferGetWidth(map)), dh = Float(CVPixelBufferGetHeight(map))
+        var depthK = Self.depthIntrinsics(converted, camera: frame.camera, width: dw, height: dh)
+        var imageK = frame.camera.intrinsics
+        if frontMirror {
+            depthK = Self.mirror(depthK, width: dw)
+            imageK = Self.mirror(imageK, width: Float(frame.camera.imageResolution.width))
+        }
+        let item = FaceVolume.Frame(depth: map, image: frame.capturedImage, depthK: depthK, imageK: imageK,
+                                    cameraToHead: cameraToHead, cameraInHead: cam, stride: 2, nearest: 0.15, farthest: 0.8)
+        track(item, guess: guess, tracker: tracker, into: volume, view: view)
+    }
+
+    private func expressionCheck(_ face: ARFaceAnchor) -> String? {
+        let smile = ((face.blendShapes[.mouthSmileLeft]?.floatValue ?? 0) + (face.blendShapes[.mouthSmileRight]?.floatValue ?? 0)) / 2
+        let open = face.blendShapes[.jawOpen]?.floatValue ?? 0
+        switch capture.expression {
+        case "rest": return smile > 0.35 || open > 0.25 ? "Relax the lips, lips together" : nil
+        case "smile": return smile < 0.25 ? "Keep smiling" : nil
+        default: return nil
+        }
+    }
+
+    /// A camera described as its mirror image: the same points, the picture flipped left to right.
+    static func mirror(_ k: simd_float3x3, width: Float) -> simd_float3x3 {
+        var m = k
+        m[0][0] = -k[0][0]
+        m[2][0] = width - k[2][0]
+        return m
+    }
+
+    /// Whether the front camera's raw image runs the other way to ARKit's camera, from a point on the face projected
+    /// both by ARKit and by the pinhole maths.
+    static func mirrored(_ frame: ARFrame, _ face: ARFaceAnchor) -> Bool {
+        let size = frame.camera.imageResolution, w = Float(size.width)
+        var votes = 0
+        for x: Float in [-0.04, 0.04] {
+            let p = face.transform * SIMD4<Float>(x, 0.03, 0.05, 1)
+            let c = frame.camera.transform.inverse * p
+            guard c.z < -0.05 else { continue }
+            let k = frame.camera.intrinsics
+            let u = k[0][0] * c.x / -c.z + k[2][0]
+            let ar = Float(frame.camera.projectPoint(SIMD3(p.x, p.y, p.z), orientation: .landscapeRight, viewportSize: size).x)
+            guard abs(u - w / 2) > 20 else { continue }
+            votes += abs((w - u) - ar) < abs(u - ar) ? 1 : -1
+        }
+        return votes > 0
+    }
+
+    /// The depth map's intrinsics: from its own calibration when ARKit gives one, otherwise the camera image's,
+    /// scaled to the depth map's width and centred.
+    static func depthIntrinsics(_ depth: AVDepthData, camera: ARCamera, width dw: Float, height dh: Float) -> simd_float3x3 {
+        if let calibration = depth.cameraCalibrationData {
+            let ref = calibration.intrinsicMatrixReferenceDimensions
+            var k = calibration.intrinsicMatrix
+            let sx = dw / Float(ref.width), sy = dh / Float(ref.height)
+            k[0][0] *= sx; k[2][0] *= sx; k[1][1] *= sy; k[2][1] *= sy
+            if k[2][0] > 0, k[2][0] < dw, k[2][1] > 0, k[2][1] < dh { return k }
+        }
+        let iw = Float(camera.imageResolution.width), ih = Float(camera.imageResolution.height)
+        let s = dw / iw
+        var k = camera.intrinsics
+        k[0][0] *= s; k[1][1] *= s; k[2][0] *= s
+        k[2][1] = k[2][1] * s + (dh - ih * s) / 2
+        return k
     }
 
     /// A sharp photo for the detailed build, when the view is new (6° from the others) and steady.
@@ -2953,7 +3196,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         guard phase == .scanning, let shots, let headToWorld, !shotPending, shotDirections.count < PhotoShots.maxShots,
               CACurrentMediaTime() - lastShotAt > 0.35, lastTurnRate < 20 else { return }
         let dir = simd_normalize(SIMD3(cameraToHead.columns.3.x, cameraToHead.columns.3.y, cameraToHead.columns.3.z))
-        guard shotDirections.allSatisfy({ simd_dot($0, dir) < cosf(6 * .pi / 180) }) else { return }
+        guard shotDirections.allSatisfy({ simd_dot($0, dir) < cosf(5 * .pi / 180) }) else { return }
         shotPending = true
         lastShotAt = CACurrentMediaTime()
         let depth = latestDepth, upright = visionOrientation, mapping = maskMapping
@@ -3128,6 +3371,8 @@ final class RingMeterView: UIView {
     var current: (Float, Bool)? { didSet { setNeedsDisplay() } }
     /// Where to go next (degrees round the orbit), for the chevrons ahead of the moon.
     var heading: Float? { didSet { setNeedsDisplay() } }
+    /// The front camera's picture is a mirror: the patient's left is then on the left.
+    var mirrored = false { didSet { setNeedsDisplay() } }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -3139,7 +3384,7 @@ final class RingMeterView: UIView {
 
     private func point(_ deg: CGFloat, _ c: CGPoint, _ rx: CGFloat, _ ry: CGFloat) -> CGPoint {
         let a = deg * .pi / 180
-        return CGPoint(x: c.x + cos(a) * rx, y: c.y - sin(a) * ry)
+        return CGPoint(x: c.x + (mirrored ? -1 : 1) * cos(a) * rx, y: c.y - sin(a) * ry)
     }
 
     /// The orbit round the face: a faint dotted ellipse, solid gold where the phone has been round, and a moon where

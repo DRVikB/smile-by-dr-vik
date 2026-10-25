@@ -5,7 +5,7 @@ import { Box, Layers, Play, RefreshCw, Share, Trash2, X } from "lucide-react";
 import { SPEECH_STEPS, scanNotes, speechNotes, trackingLabel, type CaseMediaRecord, type FaceScanRecord, type SpeechRecord } from "@/lib/caseMedia";
 import { faceScanAvailable, listCaseMedia, openFaceScan, recordSpeechVideo, removeCaseMedia, scanFace, setSpeechFrame, shareCaseMedia } from "@/native/caseMedia";
 import { haptic } from "@/native/haptics";
-import { guideSvg, svgToPng } from "./art";
+import { guideSvg, headGuide, svgToPng } from "./art";
 import { buildMediaTile, type MediaKind, type Playing } from "./mediaArt";
 
 const reducedMotion = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -75,9 +75,9 @@ export function CaseMediaGroup({ caseId, reference, disabled, delay, onStatus }:
   const take = async (kind: MediaKind) => {
     setViewing(null); setWorking(true); onStatus("");
     try {
-      if (kind === "scan" && !(await faceScanAvailable())) { onStatus("The face scan needs an iPhone Pro or iPad Pro with the LiDAR scanner."); return; }
-      // Both cameras show the At rest outline to line the face up with.
-      const outline = await svgToPng(guideSvg("rest")).catch(() => undefined);
+      if (kind === "scan" && !(await faceScanAvailable())) { onStatus("The face scan needs an iPhone with Face ID or the LiDAR scanner."); return; }
+      // The speech camera shows the At rest guide; the face scan only the head's outline (no filled shapes over the face).
+      const outline = await svgToPng(kind === "speech" ? guideSvg("rest") : headGuide().svg).catch(() => undefined);
       const record = kind === "speech" ? await recordSpeechVideo(caseId, outline) : await scanFace(caseId, outline);
       if (!record) return;
       await keep(record);
@@ -209,7 +209,7 @@ function ScanViewer({ caseId, record, visits, onPick, onClose, onShare, onRetake
       <div className="mv-scans">
         {record.captures.map(c => <figure key={c.id} className="mv-scan">
           {c.preview ? <img src={c.preview} alt={`${c.title} scan`} draggable={false} /> : <span className="mv-step-blank" />}
-          <figcaption><strong>{c.title}</strong><span>{c.source === "photos" ? "From photos" : "LiDAR"} · face mapped {Math.round(c.coverage * 100)}%{c.tracking ? ` · ${trackingLabel(c.tracking)}` : ""}</span></figcaption>
+          <figcaption><strong>{c.title}</strong><span>{c.source === "photos" ? "From photos" : c.source === "trueDepth" ? "Face ID sensor" : "LiDAR"} · face mapped {Math.round(c.coverage * 100)}%{c.tracking ? ` · ${trackingLabel(c.tracking)}` : ""}</span></figcaption>
         </figure>)}
       </div>
       <div className="mv-open-row">
@@ -217,7 +217,7 @@ function ScanViewer({ caseId, record, visits, onPick, onClose, onShare, onRetake
         {captures > 1 && <button type="button" className="secondary-button mv-open" onClick={() => open(true)}><Layers size={17} strokeWidth={1.8} aria-hidden="true" />Compare scans</button>}
       </div>
       {note && <p className="mv-hint" role="status">{note}</p>}
-      <p className="mv-hint">Made with the rear camera and LiDAR scanner; “From photos” faces were built from the scan’s photographs for photographic skin. A study of iPhone LiDAR face scans found about 1.5 mm average difference from a clinical 3D camera system: use it for facial proportions and planes. Compare lines two scans up on the forehead, eyes and nose and shows how far apart they are.</p>
+      <p className="mv-hint">Face ID sensor scans are the most detailed (about 0.4 mm average difference from CBCT in studies); rear LiDAR scans about 1.5 mm, with “From photos” faces built from the scan’s photographs for photographic skin. Use them for facial proportions and planes. Compare lines two scans up on the forehead, eyes and nose and shows how far apart they are.</p>
       <p className="mv-privacy">Kept on this device only. Sharing sends an identifiable scan of the patient’s face: check they have agreed before it goes to the lab.</p>
     </div>
   </div>;

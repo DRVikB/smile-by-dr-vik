@@ -23,7 +23,7 @@ const CaseMedia = registerPlugin<SmileCaseMediaPlugin>("SmileCaseMedia");
 const cameraError = (error: unknown, what: string) => {
   const code = (error as { code?: string })?.code;
   return new Error(code === "camera_denied" ? "Camera access is turned off. Turn it on in Settings › SmileCompose › Camera."
-    : code === "unsupported" ? "The face scan needs an iPhone Pro or iPad Pro with the LiDAR scanner."
+    : code === "unsupported" ? "The face scan needs an iPhone with Face ID or the LiDAR scanner."
     : `The ${what} couldn’t be started. Please try again.`, { cause: error });
 };
 
@@ -39,7 +39,7 @@ export async function recordSpeechVideo(caseId: string, guide?: string): Promise
   return record?.kind === "speech" ? record : null;
 }
 
-/** The 3D face scan with the rear LiDAR scanner, the phone moved round a still patient. Null when cancelled. */
+/** The 3D face scan: the front Face ID sensor or the rear camera and LiDAR (chosen in the scanner). Null when cancelled. */
 export async function scanFace(caseId: string, guide?: string): Promise<FaceScanRecord | null> {
   if (!isNativeApp()) throw new Error("The face scan runs in the iOS app.");
   let result: RawResult;
