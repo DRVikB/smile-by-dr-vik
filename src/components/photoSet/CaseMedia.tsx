@@ -209,7 +209,7 @@ function ScanViewer({ caseId, record, visits, onPick, onClose, onShare, onRetake
       <div className="mv-scans">
         {record.captures.map(c => <figure key={c.id} className="mv-scan">
           {c.preview ? <img src={c.preview} alt={`${c.title} scan`} draggable={false} /> : <span className="mv-step-blank" />}
-          <figcaption><strong>{c.title}</strong><span>{c.source === "photos" ? "From photos" : c.source === "trueDepth" ? "Face ID sensor" : "LiDAR"} · face mapped {Math.round(c.coverage * 100)}%{c.tracking ? ` · ${trackingLabel(c.tracking)}` : ""}</span></figcaption>
+          <figcaption><strong>{c.title}</strong><span>{c.source === "photos" ? "From photos" : c.source === "trueDepth" ? "Face ID sensor" : "LiDAR only · low detail"} · face mapped {Math.round(c.coverage * 100)}%{c.tracking ? ` · ${trackingLabel(c.tracking)}` : ""}</span></figcaption>
         </figure>)}
       </div>
       <div className="mv-open-row">

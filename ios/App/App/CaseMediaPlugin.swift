@@ -2070,7 +2070,8 @@ final class PhotoShots {
         let depthSize: (Int, Int)
         let cameraToHead: simd_float4x4
     }
-    static let maxShots = 70
+    /// Photogrammetry apps take dozens to a hundred or more overlapping photos of a still subject.
+    static let maxShots = 120
     static let maxSide: CGFloat = 2016
     let folder: URL
     private let queue = DispatchQueue(label: "uk.co.drvik.smilecompose.photoshots", qos: .utility)
@@ -2094,11 +2095,24 @@ final class PhotoShots {
 
     /// Stores a photo. `visionOrientation` turns the raw image upright for Vision; `maskMapping` says how the mask
     /// Vision returns lines up with the raw image (nil: no cut-out).
-    func add(image: CVPixelBuffer, depth: CVPixelBuffer?, visionOrientation: CGImagePropertyOrientation, maskMapping: CGImagePropertyOrientation?, cameraToHead: simd_float4x4) {
+    /// Sharpness of the photos kept so far (variance of the Laplacian over the face area).
+    private var sharpness: [Float] = []
+
+    /// `done` (on the main queue) says whether the photo was kept: a blurred one is left out, so that view gets
+    /// photographed again.
+    func add(image: CVPixelBuffer, depth: CVPixelBuffer?, visionOrientation: CGImagePropertyOrientation, maskMapping: CGImagePropertyOrientation?,
+             cameraToHead: simd_float4x4, done: @escaping (Bool) -> Void = { _ in }) {
         let depthCopy = depth.flatMap { Self.depthBytes($0) }
         queue.async { [self] in
+            let finish = { (kept: Bool) in DispatchQueue.main.async { done(kept) } }
             let id = stored.count
-            guard id < Self.maxShots else { return }
+            guard id < Self.maxShots else { return finish(false) }
+            // Blur ruins photogrammetry: a photo much softer than the ones kept so far is left out.
+            let sharp = Self.sharpness(image)
+            if sharpness.count >= 5 {
+                let median = sharpness.sorted()[sharpness.count / 2]
+                if sharp < median * 0.55 { return finish(false) }
+            }
             let base = folder.appendingPathComponent(String(format: "shot-%03d", id))
             let imageURL = base.appendingPathExtension("jpg"), maskURL = base.appendingPathExtension("png"), depthURL = base.appendingPathExtension("depth")
             let raw = CIImage(cvPixelBuffer: image)
@@ -2127,7 +2141,29 @@ final class PhotoShots {
             var hasDepth = false, size = (0, 0)
             if let (bytes, w, h) = depthCopy, (try? bytes.write(to: depthURL)) != nil { hasDepth = true; size = (w, h) }
             stored.append(Shot(id: id, image: imageURL, mask: maskURL, depth: depthURL, hasMask: hasMask, hasDepth: hasDepth, depthSize: size, cameraToHead: cameraToHead))
+            sharpness.append(sharp)
+            finish(true)
         }
+    }
+
+    /// Variance of the Laplacian over the middle of the picture (where the face is), from the brightness plane.
+    static func sharpness(_ image: CVPixelBuffer) -> Float {
+        guard CVPixelBufferGetPlaneCount(image) >= 1 else { return 0 }
+        CVPixelBufferLockBaseAddress(image, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(image, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddressOfPlane(image, 0)?.assumingMemoryBound(to: UInt8.self) else { return 0 }
+        let w = CVPixelBufferGetWidthOfPlane(image, 0), h = CVPixelBufferGetHeightOfPlane(image, 0), row = CVPixelBufferGetBytesPerRowOfPlane(image, 0)
+        let step = max(1, w / 640)
+        var sum: Double = 0, sum2: Double = 0, n: Double = 0
+        for y in Swift.stride(from: h / 4, to: h * 3 / 4, by: step) { for x in Swift.stride(from: w / 4, to: w * 3 / 4, by: step) {
+            guard x >= step, y >= step, x + step < w, y + step < h else { continue }
+            let c = Double(base[y * row + x]) * 4
+            let l = c - Double(base[y * row + x - step]) - Double(base[y * row + x + step]) - Double(base[(y - step) * row + x]) - Double(base[(y + step) * row + x])
+            sum += l; sum2 += l * l; n += 1
+        } }
+        guard n > 0 else { return 0 }
+        let mean = sum / n
+        return Float(sum2 / n - mean * mean)
     }
 
     private static func depthBytes(_ b: CVPixelBuffer) -> (Data, Int, Int)? {
@@ -2196,7 +2232,7 @@ final class PhotoRefiner {
     private var session: PhotogrammetrySession?
     private var cancelled = false
     static var isSupported: Bool { PhotogrammetrySession.isSupported }
-    static let minimumShots = 20
+    static let minimumShots = 30
 
     func cancel() { cancelled = true; session?.cancel() }
 
@@ -2729,7 +2765,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     /// About a minute each; "Use quick versions" keeps the LiDAR faces.
     private func refineAll() {
         let jobs = results.indices.filter { (results[$0].shots?.shots.count ?? 0) >= PhotoRefiner.minimumShots }
-        guard PhotoRefiner.isSupported, !jobs.isEmpty else { finish(); return }
+        guard PhotoRefiner.isSupported, !jobs.isEmpty else { finishReportingLidarOnly(); return }
         phase = .refining
         sceneView.session.pause()
         meter.isHidden = true; guideView.isHidden = true
@@ -2759,8 +2795,21 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
                 }
             }
             self.refiner = nil
-            self.finish()
+            self.finishReportingLidarOnly()
         }
+    }
+
+    /// Rear scans whose detailed build didn't happen keep only the LiDAR shape, which has little facial detail: say
+    /// so plainly before saving, rather than leaving a soft face to be found later.
+    private func finishReportingLidarOnly() {
+        let soft = results.filter { $0.sensor == "lidar" && $0.textured == nil }.map(\.title)
+        guard !soft.isEmpty, !finished else { finish(); return }
+        let names = ListFormatter.localizedString(byJoining: soft)
+        let alert = UIAlertController(title: "Low-detail scan",
+                                      message: "The detailed build from the photos didn’t finish for \(names), so \(soft.count == 1 ? "it has" : "they have") the LiDAR shape only, without facial detail. For a detailed face, scan with the Face ID sensor, or scan again from the rear in good light, moving slowly round the still patient.",
+                                      preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Keep", style: .default) { _ in self.finish() })
+        present(alert, animated: true)
     }
 
     private func finish() {
@@ -3194,9 +3243,9 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     /// A sharp photo for the detailed build, when the view is new (6° from the others) and steady.
     private func maybeTakeShot(_ cameraToHead: simd_float4x4) {
         guard phase == .scanning, let shots, let headToWorld, !shotPending, shotDirections.count < PhotoShots.maxShots,
-              CACurrentMediaTime() - lastShotAt > 0.35, lastTurnRate < 20 else { return }
+              CACurrentMediaTime() - lastShotAt > 0.3, lastTurnRate < 15 else { return }
         let dir = simd_normalize(SIMD3(cameraToHead.columns.3.x, cameraToHead.columns.3.y, cameraToHead.columns.3.z))
-        guard shotDirections.allSatisfy({ simd_dot($0, dir) < cosf(5 * .pi / 180) }) else { return }
+        guard shotDirections.allSatisfy({ simd_dot($0, dir) < cosf(4 * .pi / 180) }) else { return }
         shotPending = true
         lastShotAt = CACurrentMediaTime()
         let depth = latestDepth, upright = visionOrientation, mapping = maskMapping
@@ -3204,9 +3253,14 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             guard let tracker = self.tracker, self.phase == .scanning, self.shots === shots else { self.shotPending = false; return }
             let pose = tracker.correction * headToWorld.inverse * f.camera.transform
             shots.add(image: f.capturedImage, depth: (f.smoothedSceneDepth ?? f.sceneDepth)?.depthMap ?? depth,
-                      visionOrientation: upright, maskMapping: mapping, cameraToHead: pose)
-            self.shotDirections.append(dir)
-            self.shotPending = false
+                      visionOrientation: upright, maskMapping: mapping, cameraToHead: pose) { kept in
+                // A blurred photo isn't counted, so that view is taken again.
+                if kept {
+                    self.shotDirections.append(dir)
+                    self.sensorLabel.text = "LiDAR scanner · rear camera · \(self.shotDirections.count) photos"
+                }
+                self.shotPending = false
+            }
         }
         sceneView.session.captureHighResolutionFrame { frame, _ in
             DispatchQueue.main.async {
