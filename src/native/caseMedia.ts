@@ -1,4 +1,4 @@
-import { registerPlugin } from "@capacitor/core";
+import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import { isNativeApp } from "./platform";
 import { readRecord, speechTimeline, SPEECH_STEPS, SPEECH_TAIL, FACE_CAPTURES, type CaseMediaRecord, type FaceScanRecord, type SpeechRecord } from "@/lib/caseMedia";
 
@@ -15,6 +15,8 @@ interface SmileCaseMediaPlugin {
   remove(options: { caseId: string; id: string }): Promise<void>;
   removeCase(options: { caseId: string }): Promise<void>;
   removeAll(): Promise<void>;
+  addListener(event: "scanUpdated", listener: (data: { caseId: string; record: unknown }) => void): Promise<PluginListenerHandle>;
+  addListener(event: "scanProgress", listener: (data: { caseId: string; id: string; scan: string; progress: number }) => void): Promise<PluginListenerHandle>;
 }
 
 /** Local plugin: ios/App/App/CaseMediaPlugin.swift. Files live in the app's private storage on this device. */
@@ -83,4 +85,17 @@ export async function removeCaseMediaFor(caseId: string): Promise<void> {
 }
 export async function removeAllCaseMedia(): Promise<void> {
   if (isNativeApp()) await CaseMedia.removeAll();
+}
+
+/**
+ * Rear scans finish building their detailed face in the background after the scanner closes: `onUpdate` gets the
+ * saved record when one is done, `onProgress` how far a build has got (0–1). Returns a function that stops listening.
+ */
+export function watchScanBuilds(caseId: string, onUpdate: (record: FaceScanRecord) => void, onProgress: (recordId: string, scanId: string, progress: number) => void): () => void {
+  if (!isNativeApp()) return () => {};
+  const handles: Promise<PluginListenerHandle>[] = [
+    CaseMedia.addListener("scanUpdated", d => { if (d.caseId !== caseId) return; const r = readRecord(d.record); if (r?.kind === "scan") onUpdate(r); }),
+    CaseMedia.addListener("scanProgress", d => { if (d.caseId === caseId) onProgress(d.id, d.scan, d.progress); }),
+  ];
+  return () => { handles.forEach(h => void h.then(x => x.remove()).catch(() => {})); };
 }

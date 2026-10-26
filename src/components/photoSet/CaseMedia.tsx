@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { Box, Layers, Play, RefreshCw, Share, Trash2, X } from "lucide-react";
 import { SPEECH_STEPS, scanNotes, speechNotes, trackingLabel, type CaseMediaRecord, type FaceScanRecord, type SpeechRecord } from "@/lib/caseMedia";
-import { faceScanAvailable, listCaseMedia, openFaceScan, recordSpeechVideo, removeCaseMedia, scanFace, setSpeechFrame, shareCaseMedia } from "@/native/caseMedia";
+import { faceScanAvailable, listCaseMedia, openFaceScan, recordSpeechVideo, removeCaseMedia, scanFace, setSpeechFrame, shareCaseMedia, watchScanBuilds } from "@/native/caseMedia";
 import { haptic } from "@/native/haptics";
 import { guideSvg, headGuide, svgToPng } from "./art";
 import { buildMediaTile, type MediaKind, type Playing } from "./mediaArt";
@@ -61,6 +61,11 @@ export function CaseMediaGroup({ caseId, reference, disabled, delay, onStatus }:
   const [viewing, setViewing] = useState<MediaKind | null>(null);
   const load = useCallback(async () => { try { setRecords(await listCaseMedia(caseId)); } catch { setRecords([]); } }, [caseId]);
   useEffect(() => { void load(); }, [load]);
+  // Detailed faces still being built from a rear scan's photographs: progress per scan, and a reload when one lands.
+  const [building, setBuilding] = useState<Record<string, number>>({});
+  useEffect(() => watchScanBuilds(caseId,
+    record => { setBuilding(b => { const n = { ...b }; record.captures.forEach(c => delete n[`${record.id}/${c.id}`]); return n; }); void load(); },
+    (id, scan, progress) => setBuilding(b => ({ ...b, [`${id}/${scan}`]: progress }))), [caseId, load]);
   const speech = records.find((r): r is SpeechRecord => r.kind === "speech");
   // Every face scan is kept (newest first), so visits can be compared; a new speech video replaces the last.
   const scans = records.filter((r): r is FaceScanRecord => r.kind === "scan");
@@ -115,7 +120,7 @@ export function CaseMediaGroup({ caseId, reference, disabled, delay, onStatus }:
     {viewing === "speech" && speech && createPortal(<SpeechViewer caseId={caseId} record={speech} onClose={() => setViewing(null)}
       onShare={() => void share(speech)} onRetake={() => void take("speech")} onDelete={() => void remove(speech)}
       onChange={r => setRecords(list => list.map(x => (x.id === r.id ? r : x)))} />, document.body)}
-    {viewing === "scan" && scan && createPortal(<ScanViewer caseId={caseId} record={scan} visits={scans} onPick={setShownScan} onClose={() => setViewing(null)}
+    {viewing === "scan" && scan && createPortal(<ScanViewer caseId={caseId} record={scan} visits={scans} building={building} onPick={setShownScan} onClose={() => setViewing(null)}
       onShare={() => void share(scan)} onRetake={() => void take("scan")} onDelete={() => void remove(scan)} />, document.body)}
   </>;
 }
@@ -190,11 +195,14 @@ function SpeechViewer({ caseId, record, onClose, onShare, onRetake, onDelete, on
   </div>;
 }
 
+/** A rear scan's detailed face being built after the scanner closed (its quick LiDAR shape shows meanwhile). */
+const buildingLabel = (progress?: number) => progress && progress > 0 ? `Building the detailed face · ${Math.round(progress * 100)}%` : "Building the detailed face…";
+
 const visitDay = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); };
 
 /** A visit's face scans, opened in 3D by the iOS app, where any two (from any visit) can be laid over each other. */
-function ScanViewer({ caseId, record, visits, onPick, onClose, onShare, onRetake, onDelete }: {
-  caseId: string; record: FaceScanRecord; visits: FaceScanRecord[]; onPick: (id: string) => void;
+function ScanViewer({ caseId, record, visits, building, onPick, onClose, onShare, onRetake, onDelete }: {
+  caseId: string; record: FaceScanRecord; visits: FaceScanRecord[]; building: Record<string, number>; onPick: (id: string) => void;
   onClose: () => void; onShare: () => void; onRetake: () => void; onDelete: () => void;
 }) {
   const [note, setNote] = useState("");
@@ -209,7 +217,7 @@ function ScanViewer({ caseId, record, visits, onPick, onClose, onShare, onRetake
       <div className="mv-scans">
         {record.captures.map(c => <figure key={c.id} className="mv-scan">
           {c.preview ? <img src={c.preview} alt={`${c.title} scan`} draggable={false} /> : <span className="mv-step-blank" />}
-          <figcaption><strong>{c.title}</strong><span>{c.source === "photos" ? "From photos" : c.source === "trueDepth" ? "Face ID sensor" : "LiDAR only · low detail"} · face mapped {Math.round(c.coverage * 100)}%{c.tracking ? ` · ${trackingLabel(c.tracking)}` : ""}</span></figcaption>
+          <figcaption><strong>{c.title}</strong><span>{c.building ? buildingLabel(building[`${record.id}/${c.id}`]) : c.source === "photos" ? "From photos" : c.source === "trueDepth" ? "Face ID sensor" : "LiDAR only · low detail"} · face mapped {Math.round(c.coverage * 100)}%{c.tracking ? ` · ${trackingLabel(c.tracking)}` : ""}</span></figcaption>
         </figure>)}
       </div>
       <div className="mv-open-row">

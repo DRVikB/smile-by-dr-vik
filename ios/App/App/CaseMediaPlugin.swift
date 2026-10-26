@@ -42,6 +42,17 @@ public class CaseMediaPlugin: CAPPlugin, CAPBridgedPlugin {
         return out
     }
 
+    /// The detailed face built in the background (see BackgroundFaceBuilder) reaches the web layer as events.
+    override public func load() {
+        BackgroundFaceBuilder.shared.onUpdate = { [weak self] caseId, folder, info in
+            guard let self else { return }
+            self.notifyListeners("scanUpdated", data: ["caseId": caseId, "record": self.publish(folder, info)])
+        }
+        BackgroundFaceBuilder.shared.onProgress = { [weak self] caseId, recordId, scanId, fraction in
+            self?.notifyListeners("scanProgress", data: ["caseId": caseId, "id": recordId, "scan": scanId, "progress": fraction])
+        }
+    }
+
     private func image(_ base64: String?) -> UIImage? { base64.flatMap { Data(base64Encoded: $0) }.flatMap { UIImage(data: $0) } }
 
     @objc func recordSpeech(_ call: CAPPluginCall) {
@@ -104,6 +115,11 @@ public class CaseMediaPlugin: CAPPlugin, CAPBridgedPlugin {
                         guard !scans.isEmpty else { self.open = false; call.resolve(["cancelled": true]); return }
                         self.work.async {
                             let saved = try? FaceScanStore.save(scans, caseId: caseId)
+                            if let saved, let recordId = saved.1["id"] as? String {
+                                for scan in scans where scan.buildLater { if let shots = scan.shots {
+                                    BackgroundFaceBuilder.shared.enqueue(.init(caseId: caseId, recordId: recordId, scanId: scan.id, title: scan.title, shots: shots, lidar: scan.mesh))
+                                } }
+                            } else { scans.forEach { $0.shots?.remove() } }
                             DispatchQueue.main.async {
                                 self.open = false
                                 if let saved { call.resolve(["cancelled": false, "record": self.publish(saved.0, saved.1)]) }
@@ -251,17 +267,22 @@ public class CaseMediaPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func remove(_ call: CAPPluginCall) {
         if let caseId = call.getString("caseId"), let id = call.getString("id"), let folder = CaseMediaStore.recordFolder(caseId, id) {
+            BackgroundFaceBuilder.shared.cancel(caseId: caseId, recordId: id)
             try? FileManager.default.removeItem(at: folder)
         }
         call.resolve()
     }
 
     @objc func removeCase(_ call: CAPPluginCall) {
-        if let caseId = call.getString("caseId"), let folder = CaseMediaStore.caseFolder(caseId) { try? FileManager.default.removeItem(at: folder) }
+        if let caseId = call.getString("caseId"), let folder = CaseMediaStore.caseFolder(caseId) {
+            BackgroundFaceBuilder.shared.cancel(caseId: caseId)
+            try? FileManager.default.removeItem(at: folder)
+        }
         call.resolve()
     }
 
     @objc func removeAll(_ call: CAPPluginCall) {
+        BackgroundFaceBuilder.shared.cancel()
         try? FileManager.default.removeItem(at: CaseMediaStore.root)
         call.resolve()
     }
@@ -880,6 +901,9 @@ struct FaceScanResult {
     /// How well the frames fitted the face (mm) and the share kept: a patient who moved shows here.
     var tracking: (rms: Float, kept: Float) = (0, 1)
     var trackingPoor: Bool { tracking.rms > 1.6 || tracking.kept < 0.6 }
+    /// A rear scan with enough photographs: saved at once with its LiDAR shape, and its detailed face built from the
+    /// photographs in the background afterwards.
+    var buildLater: Bool { sensor == "lidar" && textured == nil && PhotoRefiner.isSupported && (shots?.shots.count ?? 0) >= PhotoRefiner.minimumShots }
 }
 
 enum FaceScanStore {
@@ -916,7 +940,8 @@ enum FaceScanStore {
                     "tilted": [Double(scan.tilted.up), Double(scan.tilted.down)],
                     "coverage": (Double(scan.coverage) * 100).rounded() / 100,
                     "tracking": ["fitMm": (Double(scan.tracking.rms) * 100).rounded() / 100, "kept": (Double(scan.tracking.kept) * 100).rounded() / 100, "poor": scan.trackingPoor],
-                    "sensor": scan.sensor, "source": source, "model": model, "modelMaterial": modelMaterial, "modelTexture": modelTexture
+                    "sensor": scan.sensor, "source": source, "model": model, "modelMaterial": modelMaterial, "modelTexture": modelTexture,
+                    "building": scan.buildLater
                 ])
                 var entry: [String: Any] = [
                     "title": scan.title, "sensor": scan.sensor, "builtFrom": built, "faceCoverage": (Double(scan.coverage) * 100).rounded() / 100,
@@ -947,6 +972,105 @@ enum FaceScanStore {
     }
 
     private static func mm(_ p: SIMD3<Float>) -> [Double] { [p.x, p.y, p.z].map { (Double($0) * 10).rounded() / 10 } }
+
+    /// The detailed face built after saving goes into the record in place of the LiDAR shape. Without one the
+    /// scan keeps its LiDAR shape and is no longer marked as building. Nil when the record has since been deleted.
+    static func applyDetailed(_ face: TexturedFace?, caseId: String, recordId: String, scanId: String, title: String) -> (URL, [String: Any])? {
+        guard let folder = CaseMediaStore.recordFolder(caseId, recordId), var info = CaseMediaStore.readInfo(folder),
+              var captures = info["captures"] as? [[String: Any]], let i = captures.firstIndex(where: { $0["id"] as? String == scanId }) else { return nil }
+        var capture = captures[i]
+        capture["building"] = false
+        if let face {
+            let mesh = face.faceMesh()
+            let stem = "face-scan-\(CaseMediaPlugin.slug(title))"
+            let files = face.obj(name: stem, comment: "\(title), built from photographs")
+            if let jpeg = UIImage(cgImage: face.texture).jpegData(compressionQuality: 0.9),
+               (try? CaseMediaStore.write(files.obj, to: folder.appendingPathComponent("\(stem).obj"))) != nil,
+               (try? CaseMediaStore.write(files.mtl, to: folder.appendingPathComponent("\(stem).mtl"))) != nil,
+               (try? CaseMediaStore.write(jpeg, to: folder.appendingPathComponent("\(stem).jpg"))) != nil,
+               (try? CaseMediaStore.write(mesh.ply(comment: "\(title), built from photographs, lined up on the LiDAR scan"), to: folder.appendingPathComponent("\(scanId).ply"))) != nil {
+                capture["source"] = "photos"
+                capture["model"] = "\(stem).obj"; capture["modelMaterial"] = "\(stem).mtl"; capture["modelTexture"] = "\(stem).jpg"
+                capture["vertices"] = mesh.positions.count; capture["triangles"] = mesh.triangles.count / 3
+                // A new name for the new preview, so nothing shows the old picture from a cache.
+                let oldPreview = capture["preview"] as? String ?? ""
+                if let data = face.preview()?.jpegData(compressionQuality: 0.88) {
+                    let name = "\(scanId)-detailed.jpg"
+                    if (try? CaseMediaStore.write(data, to: folder.appendingPathComponent(name))) != nil {
+                        capture["preview"] = name
+                        if info["poster"] as? String == oldPreview { info["poster"] = name }
+                        if !oldPreview.isEmpty, oldPreview != name { try? FileManager.default.removeItem(at: folder.appendingPathComponent(oldPreview)) }
+                    }
+                }
+                let landmarksURL = folder.appendingPathComponent("landmarks.json")
+                if let data = try? Data(contentsOf: landmarksURL), var file = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                   var scans = file["scans"] as? [String: Any], var entry = scans[scanId] as? [String: Any] {
+                    entry["builtFrom"] = "built from photographs, lined up on the LiDAR scan"
+                    scans[scanId] = entry; file["scans"] = scans
+                    if let out = try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys]) { try? CaseMediaStore.write(out, to: landmarksURL) }
+                }
+            }
+        }
+        captures[i] = capture
+        info["captures"] = captures
+        guard (try? CaseMediaStore.writeInfo(info, to: folder)) != nil else { return nil }
+        return (folder, info)
+    }
+}
+
+/// Builds rear scans' detailed faces from their photographs after the scanner has closed, one at a time, so the
+/// clinician isn't kept waiting (the quick LiDAR face is saved straight away). Runs while the app is open, with a
+/// little extra time if it goes to the background; a build that can't finish leaves the LiDAR face in place.
+final class BackgroundFaceBuilder {
+    static let shared = BackgroundFaceBuilder()
+    struct Job { let caseId, recordId, scanId, title: String; let shots: PhotoShots; let lidar: FaceMesh }
+
+    var onUpdate: ((String, URL, [String: Any]) -> Void)?
+    var onProgress: ((String, String, String, Double) -> Void)?
+    private var queue: [Job] = []
+    private var current: (job: Job, refiner: PhotoRefiner)?
+    private var lastReport: CFTimeInterval = 0
+
+    func enqueue(_ job: Job) { DispatchQueue.main.async { self.queue.append(job); self.next() } }
+
+    /// Stops builds for a deleted record or case (or everything) and drops their photographs.
+    func cancel(caseId: String? = nil, recordId: String? = nil) {
+        DispatchQueue.main.async {
+            let matches = { (j: Job) in (caseId == nil || j.caseId == caseId) && (recordId == nil || j.recordId == recordId) }
+            self.queue.filter(matches).forEach { $0.shots.remove() }
+            self.queue.removeAll(where: matches)
+            if let c = self.current, matches(c.job) { c.refiner.cancel() }
+        }
+    }
+
+    private func next() {
+        guard current == nil, !queue.isEmpty else { return }
+        let job = queue.removeFirst(), refiner = PhotoRefiner()
+        current = (job, refiner)
+        var task = UIBackgroundTaskIdentifier.invalid
+        task = UIApplication.shared.beginBackgroundTask(withName: "Detailed face") { refiner.cancel() }
+        onProgress?(job.caseId, job.recordId, job.scanId, 0)
+        Task { @MainActor in
+            let face = await refiner.refine(job.shots, lidar: job.lidar, progress: { f in
+                DispatchQueue.main.async {
+                    let now = CACurrentMediaTime()
+                    guard now - self.lastReport > 0.5 else { return }
+                    self.lastReport = now
+                    self.onProgress?(job.caseId, job.recordId, job.scanId, f)
+                }
+            })
+            let saved: (URL, [String: Any])? = await withCheckedContinuation { done in
+                DispatchQueue.global(qos: .utility).async {
+                    done.resume(returning: FaceScanStore.applyDetailed(face, caseId: job.caseId, recordId: job.recordId, scanId: job.scanId, title: job.title))
+                }
+            }
+            job.shots.remove()
+            if let saved { self.onUpdate?(job.caseId, saved.0, saved.1) }
+            if task != .invalid { UIApplication.shared.endBackgroundTask(task) }
+            self.current = nil
+            self.next()
+        }
+    }
 }
 
 /// A coloured triangle mesh in millimetres: x towards the patient's left, y up, z out through the face.
@@ -1378,28 +1502,45 @@ extension FaceMesh {
 }
 
 /// Which parts of the face have been seen closely enough: points spread over the face (from the patient's right ear
-/// round to the left, brow to chin), each counted once a view has faced it within 35°. The scan isn't finished
-/// until nearly all of them have been seen, as well as the four directions.
+/// round to the left, brow to chin), each counted once a view has faced it within 35°. Only the points this pose can
+/// actually reach count (a smile scan turns 45°, so the far side of the ear can never be seen); otherwise the meter
+/// stalls short of the target and the scan never finishes.
 struct FaceCoverage {
     static let azimuths = Array(stride(from: -80, through: 80, by: 10)).map(Float.init)
     static let elevations = Array(stride(from: -30, through: 40, by: 10)).map(Float.init)
     private(set) var seen = Set<Int>()
+    /// The points a sweep round this pose (to about 85% of its turn and tilt) can face.
+    let reachable: Set<Int>
     static var total: Int { azimuths.count * elevations.count }
 
-    /// `azimuth` and `elevation` of the camera as seen from the head, in degrees.
-    mutating func add(azimuth: Float, elevation: Float) {
+    init(turn: Float = 80, tilt: Float = 40) {
+        var r = Set<Int>()
+        let cone = cosf(35 * .pi / 180)
+        for x in stride(from: Float(-1), through: 1, by: 0.1) { for y in stride(from: Float(-1), through: 1, by: 0.1) where x * x + y * y <= 1 {
+            let view = Self.direction(x * turn * 0.85, y * tilt * 0.85)
+            for (a, az) in Self.azimuths.enumerated() { for (e, el) in Self.elevations.enumerated() where simd_dot(view, Self.direction(az, el)) > cone {
+                r.insert(e * Self.azimuths.count + a)
+            } }
+        } }
+        reachable = r
+    }
+
+    /// `azimuth` and `elevation` of the camera as seen from the head, in degrees. True when a new point was seen.
+    @discardableResult
+    mutating func add(azimuth: Float, elevation: Float) -> Bool {
+        let before = seen.count
         let view = Self.direction(azimuth, elevation)
         for (a, az) in Self.azimuths.enumerated() { for (e, el) in Self.elevations.enumerated() {
             if simd_dot(view, Self.direction(az, el)) > cosf(35 * .pi / 180) { seen.insert(e * Self.azimuths.count + a) }
         } }
+        return seen.count > before
     }
-    var fraction: Float { Float(seen.count) / Float(Self.total) }
+    /// Share of the reachable face seen so far.
+    var fraction: Float { Float(seen.intersection(reachable).count) / Float(max(1, reachable.count)) }
     /// Seen share of one side: negative azimuths are the patient's right.
     func fraction(right: Bool) -> Float {
-        let cols = Self.azimuths.indices.filter { right ? Self.azimuths[$0] < 0 : Self.azimuths[$0] > 0 }
-        let all = cols.count * Self.elevations.count
-        let got = seen.filter { cols.contains($0 % Self.azimuths.count) }.count
-        return Float(got) / Float(max(1, all))
+        let side = reachable.filter { right ? Self.azimuths[$0 % Self.azimuths.count] < 0 : Self.azimuths[$0 % Self.azimuths.count] > 0 }
+        return Float(seen.intersection(side).count) / Float(max(1, side.count))
     }
     static func direction(_ az: Float, _ el: Float) -> SIMD3<Float> {
         let a = az * .pi / 180, e = el * .pi / 180
@@ -2362,7 +2503,10 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
 
     private static let gold = UIColor(red: 208 / 255, green: 164 / 255, blue: 102 / 255, alpha: 1)
     /// The share of the face that must be seen before a scan can finish by itself.
-    static let mappedTarget: Float = 0.92
+    static let mappedTarget: Float = 0.9
+    /// Once the ring is done and most of the face is in, a short pause with nothing new finishes the scan.
+    static let settledFraction: Float = 0.8
+    static let settleSeconds: CFTimeInterval = 2.5
     private let captures: [FaceCaptureSpec]
     private let completion: ([FaceScanResult]) -> Void
     private var index = 0
@@ -2404,6 +2548,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     private var fusing = false
     private var reach = (right: Float(0), left: Float(0), up: Float(0), down: Float(0))
     private var coverage = FaceCoverage()
+    private var lastCoverageGain = CACurrentMediaTime()
     /// The head's frame in the world, fixed when the scan starts, and the eyes found then (head frame, metres).
     private var headToWorld: simd_float4x4?
     private var lidarEyes: (left: SIMD3<Float>, right: SIMD3<Float>)?
@@ -2644,7 +2789,8 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         trackingIssue = nil
         lastView = nil
         reach = (0, 0, 0, 0)
-        coverage = FaceCoverage()
+        coverage = FaceCoverage(turn: Float(capture.turn), tilt: Float(capture.tilt))
+        lastCoverageGain = CACurrentMediaTime()
         lit = []
         livePoints = []
         wellSeen.path = nil; partlySeen.path = nil
@@ -2758,55 +2904,17 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     @objc private func close() { refiner?.cancel(); finish() }
 
     private func advance() {
-        if index + 1 < captures.count { show(index + 1) } else { refineAll() }
-    }
-
-    /// After the last scan: each face built again from its photographs (Object Capture), with photographic skin.
-    /// About a minute each; "Use quick versions" keeps the LiDAR faces.
-    private func refineAll() {
-        let jobs = results.indices.filter { (results[$0].shots?.shots.count ?? 0) >= PhotoRefiner.minimumShots }
-        guard PhotoRefiner.isSupported, !jobs.isEmpty else { finishReportingLidarOnly(); return }
-        phase = .refining
-        sceneView.session.pause()
-        meter.isHidden = true; guideView.isHidden = true
-        wellSeen.path = nil; partlySeen.path = nil
-        say("Building the detailed faces", force: true)
-        refineProgress = 0
-        updateControls()
-        let refiner = PhotoRefiner()
-        self.refiner = refiner
-        Task { @MainActor in
-            for (n, i) in jobs.enumerated() {
-                guard !self.finished, self.phase == .refining, let shots = self.results[i].shots else { break }
-                let heading = "\(self.results[i].title) · \(n + 1) of \(jobs.count) · \(shots.shots.count) photos"
-                self.detail.text = "\(heading) · about a minute or two"
-                self.refineProgress = 0
-                self.updateControls()
-                let face = await refiner.refine(shots, lidar: self.results[i].mesh, progress: { f in
-                    DispatchQueue.main.async { self.refineProgress = Float(f); self.updateControls() }
-                }, status: { line in
-                    DispatchQueue.main.async { if self.phase == .refining { self.detail.text = "\(heading) · \(line)" } }
-                })
-                guard !self.finished else { return }
-                if let face {
-                    self.results[i].textured = face
-                    self.results[i].mesh = face.faceMesh()
-                    self.results[i].preview = face.preview() ?? self.results[i].preview
-                }
-            }
-            self.refiner = nil
-            self.finishReportingLidarOnly()
-        }
+        if index + 1 < captures.count { show(index + 1) } else { finishReportingLidarOnly() }
     }
 
     /// Rear scans whose detailed build didn't happen keep only the LiDAR shape, which has little facial detail: say
     /// so plainly before saving, rather than leaving a soft face to be found later.
     private func finishReportingLidarOnly() {
-        let soft = results.filter { $0.sensor == "lidar" && $0.textured == nil }.map(\.title)
+        let soft = results.filter { $0.sensor == "lidar" && $0.textured == nil && !$0.buildLater }.map(\.title)
         guard !soft.isEmpty, !finished else { finish(); return }
         let names = ListFormatter.localizedString(byJoining: soft)
         let alert = UIAlertController(title: "Low-detail scan",
-                                      message: "The detailed build from the photos didn’t finish for \(names), so \(soft.count == 1 ? "it has" : "they have") the LiDAR shape only, without facial detail. For a detailed face, scan with the Face ID sensor, or scan again from the rear in good light, moving slowly round the still patient.",
+                                      message: "Too few sharp photos were taken for \(names) to build the detailed face, so \(soft.count == 1 ? "it has" : "they have") the LiDAR shape only, without facial detail. For a detailed face, scan with the Face ID sensor, or scan again from the rear in good light, moving slowly round the still patient.",
                                       preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Keep", style: .default) { _ in self.finish() })
         present(alert, animated: true)
@@ -2816,7 +2924,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         guard !finished else { return }
         finished = true
         sceneView.session.pause()
-        results.forEach { $0.shots?.remove() }
+        results.forEach { if !$0.buildLater { $0.shots?.remove() } }
         shots?.remove()
         let scans = results
         dismiss(animated: true) { self.completion(scans) }
@@ -3060,10 +3168,11 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
                 if d <= 10 { lit.insert(k) }
             }
         }
-        coverage.add(azimuth: v.azimuth, elevation: v.elevation)
+        if coverage.add(azimuth: v.azimuth, elevation: v.elevation) { lastCoverageGain = CACurrentMediaTime() }
         meter.lit = lit
         updateControls()
-        if ringComplete, coverage.fraction >= Self.mappedTarget { build() }
+        let settled = coverage.fraction >= Self.settledFraction && CACurrentMediaTime() - lastCoverageGain > Self.settleSeconds
+        if ringComplete, coverage.fraction >= Self.mappedTarget || settled { build() }
     }
 
     /// Towards the nearest part of the ring not yet lit, so the phone sweeps round in one circle (starting at the

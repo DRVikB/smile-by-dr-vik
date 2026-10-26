@@ -101,6 +101,8 @@ export interface FaceScanRecord {
     tracking?: { fitMm: number; kept: number; poor: boolean };
     /** Built from the scan's photographs (photographic skin), the front Face ID sensor, or LiDAR depth alone. */
     source: "photos" | "trueDepth" | "lidar";
+    /** A rear scan whose detailed face is still being built from its photographs, after the scanner closed. */
+    building: boolean;
   }[];
 }
 
@@ -147,7 +149,8 @@ export function readRecord(raw: unknown): CaseMediaRecord | null {
           turned: [isNum(turned[0]) ? turned[0] : 0, isNum(turned[1]) ? turned[1] : 0] as [number, number],
           tilted: [isNum(tilted[0]) ? tilted[0] : 0, isNum(tilted[1]) ? tilted[1] : 0] as [number, number],
           coverage: isNum(cap.coverage) ? cap.coverage : 0,
-          tracking: readTracking(cap.tracking), source: cap.source === "photos" ? "photos" as const : cap.source === "trueDepth" ? "trueDepth" as const : "lidar" as const }] : [];
+          tracking: readTracking(cap.tracking), source: cap.source === "photos" ? "photos" as const : cap.source === "trueDepth" ? "trueDepth" as const : "lidar" as const,
+          building: cap.building === true }] : [];
     });
     if (!captures.length) return null;
     return { kind: "scan", id: r.id, createdAt: r.createdAt, poster: url(r.poster) || captures[0].preview, captures };

@@ -56,6 +56,9 @@ test("records from the iOS app become file URLs under their folder; anything mal
   assert.deepEqual(scan.captures[0].tracking, { fitMm: 0.9, kept: 0.93, poor: false });
   assert.equal(trackingLabel(scan.captures[0].tracking), "Steady");
   assert.equal(scan.captures[0].source, "photos");
+  assert.equal(scan.captures[0].building, false, "not building unless the app says so");
+  const pending = readRecord({ kind: "scan", id: "scan-2", createdAt: "2026", base, captures: [{ id: "rest", title: "Relaxed", mesh: "rest.ply", preview: "rest.jpg", source: "lidar", building: true }] });
+  assert.ok(pending && pending.kind === "scan" && pending.captures[0].building, "a rear scan still building its detailed face says so");
   assert.equal(trackingLabel({ kept: 0.5, poor: true }), "Patient moved");
   assert.equal(readRecord({ kind: "scan", id: "s", createdAt: "2026", base, captures: [] }), null, "a scan with no meshes isn't shown");
 });
@@ -69,7 +72,7 @@ test("the lab notes say what each frame checks, how the scan is oriented, and ho
   assert.match(notes, /no sound/);
   assert.doesNotMatch(speechNotes({ createdAt: "2026-10-24T10:00:00Z", duration: 20, audio: true, camera: "front", steps: [] }), /Case:/, "no reference, no line for it");
 
-  const scan = scanNotes({ createdAt: "2026-10-24T10:00:00Z", captures: [{ id: "retracted", title: "Teeth showing", mesh: "", preview: "", vertices: 80000, triangles: 1, turned: [50, 52], tilted: [15, 16], coverage: 0.94, source: "photos" }] });
+  const scan = scanNotes({ createdAt: "2026-10-24T10:00:00Z", captures: [{ id: "retracted", title: "Teeth showing", mesh: "", preview: "", vertices: 80000, triangles: 1, turned: [50, 52], tilted: [15, 16], coverage: 0.94, source: "photos", building: false }] });
   assert.match(scan, /millimetres/);
   assert.match(scan, /x towards the patient's left, y up \(true vertical\), z out through the face/);
   assert.match(scan, /plane x = 0/);
@@ -107,4 +110,6 @@ test("the iOS app records and scans in its own plugin, with a reason for the mic
   assert.match(plugin, /PhotogrammetrySession/, "the detailed face is built from photographs with Object Capture");
   assert.match(plugin, /VNGeneratePersonSegmentationRequest/, "the patient is cut out from the room");
   assert.match(plugin, /ARFaceTrackingConfiguration/, "the front Face ID sensor");
+  assert.match(plugin, /final class BackgroundFaceBuilder/, "rear scans build their detailed face after the scanner closes");
+  assert.match(plugin, /let reachable: Set<Int>/, "coverage counts only the face each pose can reach, so the meter can finish");
 });
