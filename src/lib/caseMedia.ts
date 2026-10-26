@@ -63,14 +63,17 @@ export interface FaceCapture {
 }
 
 /**
- * Made with the front Face ID sensor (the clinician holds the phone, the patient follows the prompts on the screen) or
- * the rear camera and LiDAR (the clinician moves round a still patient; photos taken on the way build the detailed face). Relaxed and smiling scans give the lab the face
- * around the design; the scan with retractors shows the front teeth, which the lab matches to the intraoral scan.
+ * One quick scan: a wide smile showing the teeth, made with the front Face ID sensor, the phone held (or on a stand) at
+ * the patient's eye level while they turn their head about 35° each way and tilt a little (about 10 s; the rear camera
+ * and LiDAR are an experiment behind Labs). The visible teeth are what the lab registers to the intraoral scan; the
+ * same scan gives the face, the midline and natural head position.
  */
 export const FACE_CAPTURES: readonly FaceCapture[] = [
-  { id: "rest", title: "Relaxed", hint: "Lips together and relaxed", turn: 60, tilt: 20, expression: "rest" },
-  { id: "smile", title: "Smile", hint: "A natural smile, held while turning", turn: 45, tilt: 15, expression: "smile" },
-  { id: "retracted", title: "Teeth showing", hint: "Retractors in, teeth together", turn: 40, tilt: 12, expression: "any" },
+  { id: "smile", title: "Wide smile", hint: "A wide smile, showing the teeth · turn slowly each way", turn: 35, tilt: 10, expression: "smile" },
+];
+/** Scans saved by earlier versions (Relaxed, Smile, Teeth showing) still open. */
+const KNOWN_CAPTURES: readonly { id: FaceCaptureId; title: string }[] = [
+  { id: "rest", title: "Relaxed" }, { id: "smile", title: "Smile" }, { id: "retracted", title: "Teeth showing" },
 ];
 
 /* ---------- records, as the iOS app lists them ---------- */
@@ -103,7 +106,15 @@ export interface FaceScanRecord {
     source: "photos" | "trueDepth" | "lidar";
     /** A rear scan whose detailed face is still being built from its photographs, after the scanner closed. */
     building: boolean;
+    /** Degrees the facial midline leans from true vertical, and the eye line from true horizontal. */
+    midlineTilt?: number; eyeTilt?: number;
+    /** Lined up on another scan of the visit by the upper face (its id), and how well (mm). */
+    registeredTo?: string; sharedFitMm?: number;
+    /** This device's scale check correction (1 when none). */
+    scaleCorrection: number;
   }[];
+  /** Lined up with an intraoral scan in the app: its file name and the fit on the front teeth (mm). */
+  intraoral?: { file: string; fitMm: number; pairs: number };
 }
 
 export type CaseMediaRecord = SpeechRecord | FaceScanRecord;
@@ -143,17 +154,22 @@ export function readRecord(raw: unknown): CaseMediaRecord | null {
   if (r.kind === "scan") {
     const captures = (Array.isArray(r.captures) ? r.captures : []).flatMap(c => {
       const cap = c as Record<string, unknown>, turned = Array.isArray(cap.turned) ? cap.turned : [], tilted = Array.isArray(cap.tilted) ? cap.tilted : [];
-      return FACE_CAPTURES.some(x => x.id === cap.id) && url(cap.mesh)
+      return KNOWN_CAPTURES.some(x => x.id === cap.id) && url(cap.mesh)
         ? [{ id: cap.id as FaceCaptureId, title: isText(cap.title) ? cap.title : "", mesh: url(cap.mesh), preview: url(cap.preview),
           vertices: isNum(cap.vertices) ? cap.vertices : 0, triangles: isNum(cap.triangles) ? cap.triangles : 0,
           turned: [isNum(turned[0]) ? turned[0] : 0, isNum(turned[1]) ? turned[1] : 0] as [number, number],
           tilted: [isNum(tilted[0]) ? tilted[0] : 0, isNum(tilted[1]) ? tilted[1] : 0] as [number, number],
           coverage: isNum(cap.coverage) ? cap.coverage : 0,
           tracking: readTracking(cap.tracking), source: cap.source === "photos" ? "photos" as const : cap.source === "trueDepth" ? "trueDepth" as const : "lidar" as const,
-          building: cap.building === true }] : [];
+          building: cap.building === true,
+          midlineTilt: isNum(cap.midlineTilt) ? cap.midlineTilt : undefined, eyeTilt: isNum(cap.eyeTilt) ? cap.eyeTilt : undefined,
+          registeredTo: isText(cap.registeredTo) ? cap.registeredTo : undefined, sharedFitMm: isNum(cap.sharedFitMm) ? cap.sharedFitMm : undefined,
+          scaleCorrection: isNum(cap.scaleCorrection) && cap.scaleCorrection > 0 ? cap.scaleCorrection : 1 }] : [];
     });
     if (!captures.length) return null;
-    return { kind: "scan", id: r.id, createdAt: r.createdAt, poster: url(r.poster) || captures[0].preview, captures };
+    const io = r.intraoral as Record<string, unknown> | undefined;
+    const intraoral = io && isText(io.file) && isNum(io.fitMm) ? { file: io.file, fitMm: io.fitMm, pairs: isNum(io.pairs) ? io.pairs : 3 } : undefined;
+    return { kind: "scan", id: r.id, createdAt: r.createdAt, poster: url(r.poster) || captures[0].preview, captures, ...(intraoral ? { intraoral } : {}) };
   }
   return null;
 }
@@ -180,27 +196,38 @@ export function speechNotes(record: Pick<SpeechRecord, "createdAt" | "duration" 
   return lines.filter((l, i) => l !== "" || i > 1).join("\n");
 }
 
-export function scanNotes(record: Pick<FaceScanRecord, "createdAt" | "captures">, reference?: string): string {
+export function scanNotes(record: Pick<FaceScanRecord, "createdAt" | "captures" | "intraoral">, reference?: string): string {
   const lines = [
     "SmileCompose · 3D face scan",
     reference ? `Case: ${reference}` : "",
     `Scanned: ${day(record.createdAt)} on iPhone (front Face ID sensor, or rear camera and LiDAR, as listed per scan).`,
     "",
-    "Files: per scan, a coloured mesh (PLY, millimetres); where the face was built from photographs, also a textured OBJ with its MTL and JPG texture; and landmarks.json.",
-    "Axes: origin at the centre of the head; x towards the patient's left, y up (true vertical), z out through the face.",
-    "The facial midline is the plane x = 0; landmarks.json has the centre of each eye where they were found.",
+    "Files: per scan, a coloured mesh (PLY, millimetres) in the frame below; where present, a textured OBJ with its MTL and JPG texture; the same scan as captured (*-as-scanned.ply); landmarks.json and README.txt.",
+    "Frame: millimetres; +y true vertical (natural head position, from the phone's gravity sensor when the scan started), +x towards the patient's left and horizontal, +z forward out of the face; origin at subnasale.",
+    "Midline: x = 0 is the vertical plane along the facial midline, found from the face's own symmetry (upper face, nose and philtrum mirrored and lined up on themselves). Any lean of the midline from true vertical is listed below, not removed.",
+    record.captures.length > 1 ? "Shared frame: the expressions are in one frame. Register the scan that shows the teeth to the intraoral scan on the front teeth and the others are placed with it." : "",
+    "landmarks.json has, per scan, the eye centres, the eye line's tilt from true horizontal, the midline plane and its tilt from true vertical, pronasale and subnasale: use them to set the teeth's midline and incisal plane.",
     "",
   ];
   record.captures.forEach(c => {
     const cap = FACE_CAPTURES.find(x => x.id === c.id);
     const tr = c.tracking ? ` · head tracking ${trackingLabel(c.tracking).toLowerCase()} (${Math.round(c.tracking.kept * 100)}% of frames kept, ${c.tracking.fitMm.toFixed(1)} mm fit)` : "";
     const built = c.source === "photos" ? " · built from photographs (photographic texture), lined up on the LiDAR scan" : c.source === "trueDepth" ? " · Face ID (TrueDepth) sensor" : " · LiDAR depth";
-    lines.push(`· ${c.title || cap?.title}: ${cap?.hint ?? ""}${built} · face mapped ${Math.round(c.coverage * 100)}%${tr} · seen ${Math.round(c.turned[0])}° round the patient's right, ${Math.round(c.turned[1])}° round the left, ${Math.round(c.tilted[0])}° above, ${Math.round(c.tilted[1])}° below · ${c.vertices.toLocaleString("en-GB")} points`);
+    const planes = [
+      c.midlineTilt !== undefined ? `midline ${Math.abs(c.midlineTilt).toFixed(1)}° from true vertical` : "",
+      c.eyeTilt !== undefined ? `eye line ${Math.abs(c.eyeTilt).toFixed(1)}° from true horizontal` : "",
+      c.registeredTo ? `lined up on the ${KNOWN_CAPTURES.find(x => x.id === c.registeredTo)?.title ?? c.registeredTo} scan by the upper face (${(c.sharedFitMm ?? 0).toFixed(2)} mm)` : "",
+      c.scaleCorrection !== 1 ? `scale corrected ×${c.scaleCorrection.toFixed(4)} by this device's scale check` : "",
+    ].filter(Boolean).map(t => ` · ${t}`).join("");
+    lines.push(`· ${c.title || cap?.title}: ${cap?.hint ?? ""}${built} · face mapped ${Math.round(c.coverage * 100)}%${tr} · seen ${Math.round(c.turned[0])}° round the patient's right, ${Math.round(c.turned[1])}° round the left, ${Math.round(c.tilted[0])}° above, ${Math.round(c.tilted[1])}° below${planes} · ${c.vertices.toLocaleString("en-GB")} points`);
   });
+  if (record.intraoral) {
+    lines.push("", `Already lined up with the intraoral scan "${record.intraoral.file}" in the app (${record.intraoral.pairs} point pairs, then the front teeth; ${record.intraoral.fitMm.toFixed(2)} mm average gap there): the *-intraoral-frame.ply files are the scans in that scan's own frame.`);
+  }
   lines.push(
     "",
     "Each frame was lined up with the face itself, so small movements of the patient are corrected; frames that didn't fit were left out.",
-    "Line the face up with the intraoral scan on the front teeth in the \"Teeth showing\" scan.",
+    record.intraoral ? "" : "Line the face up with the intraoral scan on the front teeth visible in the smile (or on a bite fork's flag, where one was used).",
     "Accuracy: studies of iPhone face scans report about 0.4 mm average difference from CBCT with the front Face ID sensor, and about 1.5 mm from a clinical 3D camera with rear LiDAR. Use them for facial proportions and planes, not fine measurements around the lips.",
   );
   return lines.filter((l, i) => l !== "" || i > 1).join("\n");

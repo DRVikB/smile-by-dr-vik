@@ -20,14 +20,13 @@ test("the speech script runs each sound once, back to back, with its frame insid
   for (const s of SPEECH_STEPS) assert.ok(s.checks.length > 20 && s.prompt.length > 5, `${s.id} tells the patient what to say and the lab what to check`);
 });
 
-test("the face scans go round both sides and above and below, and one shows the teeth for lining up with the intraoral scan", () => {
-  assert.equal(new Set(FACE_CAPTURES.map(c => c.id)).size, FACE_CAPTURES.length);
-  for (const c of FACE_CAPTURES) {
-    assert.ok(c.turn >= 40 && c.turn <= 80, `${c.id} goes ${c.turn}° round each side`);
-    assert.ok(c.tilt >= 10 && c.tilt <= 30, `${c.id} goes ${c.tilt}° above and below`);
-  }
-  assert.ok(FACE_CAPTURES.some(c => c.id === "retracted" && /retractor/i.test(c.hint)));
-  assert.equal(FACE_CAPTURES[0].expression, "rest", "the relaxed face comes first");
+test("one quick face scan: a wide smile showing the teeth, a short sweep each way", () => {
+  assert.equal(FACE_CAPTURES.length, 1, "a single scan keeps it quick");
+  const [smile] = FACE_CAPTURES;
+  assert.equal(smile.id, "smile");
+  assert.equal(smile.expression, "smile");
+  assert.match(smile.hint, /wide smile, showing the teeth/i, "the teeth are what the lab lines up with the intraoral scan");
+  assert.ok(smile.turn >= 30 && smile.turn <= 40 && smile.tilt >= 6 && smile.tilt <= 12, `a short sweep (±${smile.turn}°, ±${smile.tilt}°)`);
 });
 
 test("records from the iOS app become file URLs under their folder; anything malformed is dropped", () => {
@@ -61,6 +60,13 @@ test("records from the iOS app become file URLs under their folder; anything mal
   assert.ok(pending && pending.kind === "scan" && pending.captures[0].building, "a rear scan still building its detailed face says so");
   assert.equal(trackingLabel({ kept: 0.5, poor: true }), "Patient moved");
   assert.equal(readRecord({ kind: "scan", id: "s", createdAt: "2026", base, captures: [] }), null, "a scan with no meshes isn't shown");
+  const lab = readRecord({ kind: "scan", id: "scan-3", createdAt: "2026", base, intraoral: { file: "upper.stl", fitMm: 0.5, pairs: 4 },
+    captures: [{ id: "smile", title: "Smile", mesh: "smile.ply", midlineTilt: 1.5, eyeTilt: -0.6, registeredTo: "rest", sharedFitMm: 0.4, scaleCorrection: 0.97 }] });
+  assert.ok(lab && lab.kind === "scan");
+  assert.deepEqual(lab.intraoral, { file: "upper.stl", fitMm: 0.5, pairs: 4 });
+  assert.equal(lab.captures[0].registeredTo, "rest");
+  assert.equal(lab.captures[0].scaleCorrection, 0.97);
+  assert.equal(scan.captures[0].scaleCorrection, 1, "no correction unless the device's check found one");
 });
 
 test("the lab notes say what each frame checks, how the scan is oriented, and how far to trust it", () => {
@@ -72,10 +78,24 @@ test("the lab notes say what each frame checks, how the scan is oriented, and ho
   assert.match(notes, /no sound/);
   assert.doesNotMatch(speechNotes({ createdAt: "2026-10-24T10:00:00Z", duration: 20, audio: true, camera: "front", steps: [] }), /Case:/, "no reference, no line for it");
 
-  const scan = scanNotes({ createdAt: "2026-10-24T10:00:00Z", captures: [{ id: "retracted", title: "Teeth showing", mesh: "", preview: "", vertices: 80000, triangles: 1, turned: [50, 52], tilted: [15, 16], coverage: 0.94, source: "photos", building: false }] });
+  const scan = scanNotes({ createdAt: "2026-10-24T10:00:00Z", captures: [{ id: "retracted", title: "Teeth showing", mesh: "", preview: "", vertices: 80000, triangles: 1, turned: [50, 52], tilted: [15, 16], coverage: 0.94, source: "photos", building: false, scaleCorrection: 1.031, midlineTilt: -1.24, eyeTilt: 0.8, registeredTo: "rest", sharedFitMm: 0.31 }] });
   assert.match(scan, /millimetres/);
-  assert.match(scan, /x towards the patient's left, y up \(true vertical\), z out through the face/);
-  assert.match(scan, /plane x = 0/);
+  assert.match(scan, /\+y true vertical \(natural head position/);
+  assert.match(scan, /origin at subnasale/);
+  assert.doesNotMatch(scan, /one frame/, "a single scan has no shared frame to explain");
+  assert.match(scan, /front teeth visible in the smile/);
+  const two = scanNotes({ createdAt: "2026", captures: [
+    { id: "rest", title: "Relaxed", mesh: "", preview: "", vertices: 1, triangles: 1, turned: [45, 45], tilted: [20, 20], coverage: 0.9, source: "trueDepth", building: false, scaleCorrection: 1 },
+    { id: "smile", title: "Smile", mesh: "", preview: "", vertices: 1, triangles: 1, turned: [25, 25], tilted: [8, 8], coverage: 0.9, source: "trueDepth", building: false, scaleCorrection: 1 },
+  ] });
+  assert.match(two, /one frame/, "older visits with several expressions still explain the shared frame");
+  assert.match(scan, /x = 0 is the vertical plane along the facial midline/);
+  assert.match(scan, /midline 1\.2° from true vertical/);
+  assert.match(scan, /eye line 0\.8° from true horizontal/);
+  assert.match(scan, /lined up on the Relaxed scan by the upper face \(0\.31 mm\)/);
+  assert.match(scan, /scale corrected ×1\.0310/);
+  assert.match(scan, /own symmetry/);
+  assert.match(scan, /natural head position/);
   assert.match(scan, /LiDAR/);
   assert.match(scan, /built from photographs/);
   assert.match(scan, /textured OBJ/);
@@ -83,6 +103,9 @@ test("the lab notes say what each frame checks, how the scan is oriented, and ho
   assert.match(scan, /1\.5 mm/);
   assert.match(scan, /0\.4 mm/);
   assert.match(scan, /intraoral scan/);
+  const aligned = scanNotes({ createdAt: "2026-10-24T10:00:00Z", captures: [], intraoral: { file: "upper.stl", fitMm: 0.42, pairs: 3 } });
+  assert.match(aligned, /Already lined up with the intraoral scan "upper\.stl".*0\.42 mm/);
+  assert.match(aligned, /intraoral-frame\.ply/);
 });
 
 test("the turning cube shows three faces and comes to rest on the owner's drawing", () => {
@@ -111,5 +134,14 @@ test("the iOS app records and scans in its own plugin, with a reason for the mic
   assert.match(plugin, /VNGeneratePersonSegmentationRequest/, "the patient is cut out from the room");
   assert.match(plugin, /ARFaceTrackingConfiguration/, "the front Face ID sensor");
   assert.match(plugin, /final class BackgroundFaceBuilder/, "rear scans build their detailed face after the scanner closes");
+  assert.match(plugin, /enum ViewTexture/, "Face ID scans get photographic skin from the front camera's own photos");
+  assert.match(plugin, /enum FaceFinish/, "scans are cleaned and turned onto their own midline before saving");
+  assert.match(plugin, /static func finishAll/, "every expression is finished together, in one shared frame");
+  assert.match(plugin, /FaceAlign\.upperFace/, "the expressions are lined up by the upper face, not the lips");
+  assert.match(plugin, /static func measureCard/, "a bank card checks this device's scale");
+  assert.match(plugin, /configurableCaptureDeviceForPrimaryCamera/, "exposure and white balance are held during a scan");
+  assert.match(plugin, /AVCaptureEventInteraction/, "the volume buttons start and stop a scan");
+  assert.match(plugin, /final class IntraoralAlignViewController/, "the face can be lined up with the intraoral scan in the app");
+  assert.match(plugin, /README\.txt/, "the lab gets the frame in plain words");
   assert.match(plugin, /let reachable: Set<Int>/, "coverage counts only the face each pose can reach, so the meter can finish");
 });

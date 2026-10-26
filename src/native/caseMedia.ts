@@ -6,7 +6,8 @@ interface RawResult { cancelled: boolean; record?: unknown }
 
 interface SmileCaseMediaPlugin {
   recordSpeech(options: { caseId: string; steps: unknown[]; leadIn: number; tail: number; guide?: string }): Promise<RawResult>;
-  scanFace(options: { caseId: string; captures: unknown[]; guide?: string }): Promise<RawResult>;
+  scanFace(options: { caseId: string; captures: unknown[]; guide?: string; labs?: boolean }): Promise<RawResult>;
+  alignIntraoral(options: { caseId: string; id: string }): Promise<RawResult>;
   faceScanAvailable(): Promise<{ available: boolean }>;
   list(options: { caseId: string }): Promise<{ records: unknown[] }>;
   setFrame(options: { caseId: string; id: string; step: string; time: number }): Promise<{ record: unknown }>;
@@ -41,11 +42,11 @@ export async function recordSpeechVideo(caseId: string, guide?: string): Promise
   return record?.kind === "speech" ? record : null;
 }
 
-/** The 3D face scan: the front Face ID sensor or the rear camera and LiDAR (chosen in the scanner). Null when cancelled. */
-export async function scanFace(caseId: string, guide?: string): Promise<FaceScanRecord | null> {
+/** The 3D face scan with the front Face ID sensor (the rear camera and LiDAR only with Labs on). Null when cancelled. */
+export async function scanFace(caseId: string, guide?: string, labs = false): Promise<FaceScanRecord | null> {
   if (!isNativeApp()) throw new Error("The face scan runs in the iOS app.");
   let result: RawResult;
-  try { result = await CaseMedia.scanFace({ caseId, captures: [...FACE_CAPTURES], guide }); }
+  try { result = await CaseMedia.scanFace({ caseId, captures: [...FACE_CAPTURES], guide, labs }); }
   catch (error) { throw cameraError(error, "face scan"); }
   const record = result.cancelled ? null : readRecord(result.record);
   return record?.kind === "scan" ? record : null;
@@ -73,6 +74,13 @@ export async function setSpeechFrame(caseId: string, id: string, step: string, t
 /** The iOS share sheet with the record's files and the lab notes. */
 export async function shareCaseMedia(caseId: string, id: string, notes: string): Promise<boolean> {
   return (await CaseMedia.share({ caseId, id, notes })).shared;
+}
+
+/** Lines the visit's face scans up with an intraoral scan file the clinician picks. Null when cancelled. */
+export async function alignWithIntraoral(caseId: string, id: string): Promise<FaceScanRecord | null> {
+  const result = await CaseMedia.alignIntraoral({ caseId, id });
+  const record = result.cancelled ? null : readRecord(result.record);
+  return record?.kind === "scan" ? record : null;
 }
 
 /** All the case's scans in 3D, starting at `id`; `compare` opens with one laid over another. */

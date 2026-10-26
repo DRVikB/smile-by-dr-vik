@@ -374,6 +374,7 @@
 .mv-scan strong { color: #fff; font-size: 13.5px; }
 .mv-open { min-height: 48px; gap: 8px; padding: 0 22px; }
 .mv-open-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.mv-align { display: inline-flex; align-items: center; justify-content: center; gap: 6px; align-self: center; min-height: 44px; padding: 0 12px; }
 .mv-visits { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
 .mv-visits button { flex: none; border: 0; border-radius: 999px; padding: 7px 13px; background: rgba(255, 255, 255, .1); color: #fff; font: 600 13px var(--font-sans, system-ui); }
 .mv-visits button[aria-selected="true"] { background: #D0A466; color: #141210; }

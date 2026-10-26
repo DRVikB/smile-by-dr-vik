@@ -9,6 +9,9 @@ import CoreImage
 import ModelIO
 import RealityKit
 import Capacitor
+import AVKit
+import AudioToolbox
+import UniformTypeIdentifiers
 
 /// The speech video and the 3D face scan for a case's photo set (admin-only previews in the app for now).
 ///
@@ -27,12 +30,14 @@ public class CaseMediaPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "setFrame", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openScan", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "alignIntraoral", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "remove", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "removeCase", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "removeAll", returnType: CAPPluginReturnPromise)
     ]
 
     private var open = false
+    private var picker: DocumentPickerHandler?
     private let work = DispatchQueue(label: "uk.co.drvik.smilecompose.casemedia", qos: .userInitiated)
 
     /// The record as the web layer reads it: its info, plus its folder's URL through the bridge.
@@ -111,13 +116,15 @@ public class CaseMediaPlugin: CAPPlugin, CAPBridgedPlugin {
             AVCaptureDevice.requestAccess(for: .video) { granted in
                 DispatchQueue.main.async {
                     guard granted else { self.open = false; call.reject("Camera access is turned off.", "camera_denied"); return }
-                    let scanner = FaceScanViewController(captures: captures, guide: guide) { scans in
+                    let scanner = FaceScanViewController(captures: captures, guide: guide, allowRear: call.getBool("labs") ?? false) { scans in
                         guard !scans.isEmpty else { self.open = false; call.resolve(["cancelled": true]); return }
                         self.work.async {
                             let saved = try? FaceScanStore.save(scans, caseId: caseId)
                             if let saved, let recordId = saved.1["id"] as? String {
                                 for scan in scans where scan.buildLater { if let shots = scan.shots {
-                                    BackgroundFaceBuilder.shared.enqueue(.init(caseId: caseId, recordId: recordId, scanId: scan.id, title: scan.title, shots: shots, lidar: scan.mesh))
+                                    // The detailed face is lined up on the scan as it came off the sensor, then turned like the saved one.
+                                    let unturned = scan.unrotated ?? scan.exportFromScan.map { scan.mesh.transformed($0.inverse) } ?? scan.mesh
+                                    BackgroundFaceBuilder.shared.enqueue(.init(caseId: caseId, recordId: recordId, scanId: scan.id, title: scan.title, shots: shots, lidar: unturned, orientation: scan.exportFromScan))
                                 } }
                             } else { scans.forEach { $0.shots?.remove() } }
                             DispatchQueue.main.async {
@@ -195,6 +202,8 @@ public class CaseMediaPlugin: CAPPlugin, CAPBridgedPlugin {
                     for capture in info["captures"] as? [[String: Any]] ?? [] {
                         let label = Self.slug(capture["title"] as? String ?? capture["id"] as? String ?? "scan")
                         add(capture["mesh"], "face-scan-\(label).ply")
+                        add(capture["asScanned"], "face-scan-\(label)-as-scanned.ply")
+                        add(capture["intraoralMesh"], "face-scan-\(label)-intraoral-frame.ply")
                         if let m = capture["model"] as? String, !m.isEmpty {
                             // The OBJ names its material and texture, so they keep their names.
                             add(m, m); add(capture["modelMaterial"], capture["modelMaterial"] as? String ?? ""); add(capture["modelTexture"], capture["modelTexture"] as? String ?? "")
@@ -203,6 +212,7 @@ public class CaseMediaPlugin: CAPPlugin, CAPBridgedPlugin {
                         }
                     }
                     add(info["landmarks"], "landmarks.json")
+                    add(info["readme"], "README.txt")
                 }
                 if !notes.isEmpty, let data = notes.data(using: .utf8) {
                     let target = out.appendingPathComponent("lab-notes.txt")
@@ -252,7 +262,11 @@ public class CaseMediaPlugin: CAPPlugin, CAPBridgedPlugin {
             for capture in info["captures"] as? [[String: Any]] ?? [] {
                 if let url = CaseMediaStore.file(capture["mesh"], in: folder) {
                     let obj = CaseMediaStore.file(capture["model"], in: folder), tex = CaseMediaStore.file(capture["modelTexture"], in: folder)
-                    entries.append(.init(title: "\(when) · \(capture["title"] as? String ?? "Scan")", url: url, model: obj.flatMap { o in tex.map { (o, $0) } }))
+                    let eyeList = (capture["eyes"] as? [[Double]] ?? []).map { SIMD3<Float>(Float($0.first ?? 0), Float($0.count > 1 ? $0[1] : 0), Float($0.count > 2 ? $0[2] : 0)) }
+                    let plane = (capture["midlinePlane"] as? [Double]).flatMap { $0.count == 4 ? SIMD4<Float>(Float($0[0]), Float($0[1]), Float($0[2]), Float($0[3])) : nil }
+                    entries.append(.init(title: "\(when) · \(capture["title"] as? String ?? "Scan")", url: url, model: obj.flatMap { o in tex.map { (o, $0) } },
+                                         eyes: eyeList.count == 2 ? (eyeList[0], eyeList[1]) : nil, oriented: capture["oriented"] as? Bool ?? false,
+                                         midlinePlane: plane, midlineTilt: (capture["midlineTilt"] as? Double).map(Float.init)))
                 }
             }
         }
@@ -262,6 +276,47 @@ public class CaseMediaPlugin: CAPPlugin, CAPBridgedPlugin {
             let viewer = FaceScanViewerViewController(entries: entries, focus: focus, compare: compare) { call.resolve() }
             viewer.modalPresentationStyle = .fullScreen
             presenter.present(viewer, animated: true)
+        }
+    }
+
+    /// Lines the face scans up with the intraoral scan: the clinician picks the maxillary scan file, taps the same
+    /// three points on it and on the smile scan's teeth (or on a bite fork's flag), and ICP on the front teeth does the
+    /// rest. Every scan of the visit is then also saved in the intraoral scan's own frame.
+    @objc func alignIntraoral(_ call: CAPPluginCall) {
+        guard let caseId = call.getString("caseId"), let id = call.getString("id"), let folder = CaseMediaStore.recordFolder(caseId, id),
+              let info = CaseMediaStore.readInfo(folder), let captures = info["captures"] as? [[String: Any]] else { call.reject("That scan isn’t on this device."); return }
+        let pick = captures.first(where: { $0["id"] as? String == "retracted" }) ?? captures.first(where: { $0["id"] as? String == "smile" }) ?? captures.first
+        guard let pick, let faceURL = CaseMediaStore.file(pick["mesh"], in: folder) else { call.reject("That scan has no face to line up."); return }
+        let obj = CaseMediaStore.file(pick["model"], in: folder), tex = CaseMediaStore.file(pick["modelTexture"], in: folder)
+        DispatchQueue.main.async {
+            guard let presenter = self.bridge?.viewController else { call.reject("The scan couldn’t be opened."); return }
+            let types = ["stl", "ply", "obj"].compactMap { UTType(filenameExtension: $0) }
+            let documentPicker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+            let handler = DocumentPickerHandler { url in
+                self.picker = nil
+                guard let url else { call.resolve(["cancelled": true]); return }
+                self.work.async {
+                    let ios = MeshImport.read(url)
+                    let face = FaceMesh.read(faceURL)
+                    let skin = obj.flatMap { o in tex.flatMap { TexturedFace.read(obj: o, texture: $0) } }
+                    try? FileManager.default.removeItem(at: url)
+                    DispatchQueue.main.async {
+                        guard let ios, let face else { call.reject(ios == nil ? "That file couldn’t be read as a 3D scan (STL, PLY or OBJ)." : "The face scan couldn’t be opened."); return }
+                        let aligner = IntraoralAlignViewController(face: face, skin: skin, intraoral: ios, title: pick["title"] as? String ?? "Wide smile") { outcome in
+                            guard let outcome else { call.resolve(["cancelled": true]); return }
+                            self.work.async {
+                                guard let saved = IntraoralExport.save(outcome, fileName: url.lastPathComponent, folder: folder) else { call.reject("The lined-up scans couldn’t be saved."); return }
+                                call.resolve(["cancelled": false, "record": self.publish(folder, saved)])
+                            }
+                        }
+                        aligner.modalPresentationStyle = .fullScreen
+                        presenter.present(aligner, animated: true)
+                    }
+                }
+            }
+            self.picker = handler
+            documentPicker.delegate = handler
+            presenter.present(documentPicker, animated: true)
         }
     }
 
@@ -588,6 +643,7 @@ final class SpeechCameraViewController: UIViewController, AVCaptureFileOutputRec
         let guideWidth = min(size.width, size.height * 3 / 4)
         let guideFrame = CGRect(x: (size.width - guideWidth) / 2, y: (size.height - guideWidth * 4 / 3) / 2, width: guideWidth, height: guideWidth * 4 / 3)
         guideView.frame = guideFrame
+        countLabel.frame = guideFrame
         CATransaction.begin(); CATransaction.setDisableActions(true)
         previewLayer.frame = previewHost.bounds
         midlines.frame = previewHost.bounds
@@ -892,7 +948,7 @@ struct FaceScanResult {
     /// "trueDepth" (the front Face ID sensor) or "lidar" (the rear LiDAR scanner).
     var sensor = "lidar"
     /// The centre of each eye, in the mesh's millimetres.
-    let eyes: (left: SIMD3<Float>, right: SIMD3<Float>)?
+    var eyes: (left: SIMD3<Float>, right: SIMD3<Float>)?
     /// How far round each side (the patient's right, then left) and how far above and below were seen, in degrees.
     let turned: (right: Float, left: Float)
     let tilted: (up: Float, down: Float)
@@ -901,9 +957,27 @@ struct FaceScanResult {
     /// How well the frames fitted the face (mm) and the share kept: a patient who moved shows here.
     var tracking: (rms: Float, kept: Float) = (0, 1)
     var trackingPoor: Bool { tracking.rms > 1.6 || tracking.kept < 0.6 }
+    /// The export frame and what was measured making it (see FaceFinish).
+    var orientation: FaceFinish.Orientation?
+    /// Head frame (as scanned, mm) to the export frame.
+    var exportFromScan: simd_float4x4?
+    /// The scan as it came off the sensor (cleaned, not turned), shipped alongside for anyone who wants it raw.
+    var unrotated: FaceMesh?
+    /// Which scan this one was lined up on for the shared frame, and how well (mm over the upper face).
+    var registeredTo: String?
+    var sharedFit: Float?
+    /// Gravity's up in the head frame when the scan started (natural head position); nil if not recorded.
+    var gravityUp: SIMD3<Float>?
+    /// Front-camera photos for the skin (dropped once used).
+    var views: [FrontView] = []
+    var holesFilled = 0
+    var scaleCorrection: Float = 1
     /// A rear scan with enough photographs: saved at once with its LiDAR shape, and its detailed face built from the
     /// photographs in the background afterwards.
-    var buildLater: Bool { sensor == "lidar" && textured == nil && PhotoRefiner.isSupported && (shots?.shots.count ?? 0) >= PhotoRefiner.minimumShots }
+    var canBuildDetailed: Bool { sensor == "lidar" && textured == nil && PhotoRefiner.isSupported && (shots?.shots.count ?? 0) >= PhotoRefiner.minimumShots }
+    /// The clinician chose to build it (Object Capture warms the phone, so it never starts on its own).
+    var wantsDetailed = false
+    var buildLater: Bool { wantsDetailed && canBuildDetailed }
 }
 
 enum FaceScanStore {
@@ -912,15 +986,17 @@ enum FaceScanStore {
         do {
             var captures: [[String: Any]] = [], landmarks: [String: Any] = [:]
             for scan in scans {
-                let mesh = "\(scan.id).ply", preview = "\(scan.id).jpg"
-                let source = scan.textured != nil ? "photos" : scan.sensor == "trueDepth" ? "trueDepth" : "lidar"
-                let built = source == "photos" ? "built from photographs, lined up on the LiDAR scan" : source == "trueDepth" ? "Face ID (TrueDepth) sensor" : "LiDAR scanner"
-                try CaseMediaStore.write(scan.mesh.ply(comment: "\(scan.title), \(built)"), to: folder.appendingPathComponent(mesh))
+                let mesh = "\(scan.id).ply", preview = "\(scan.id).jpg", raw = "\(scan.id)-as-scanned.ply"
+                let source = scan.sensor == "trueDepth" ? "trueDepth" : scan.textured != nil ? "photos" : "lidar"
+                let built = source == "photos" ? "built from photographs, lined up on the LiDAR scan"
+                    : source == "trueDepth" ? (scan.textured != nil ? "Face ID (TrueDepth) sensor, with photographic skin from the front camera" : "Face ID (TrueDepth) sensor") : "LiDAR scanner"
+                try CaseMediaStore.write(scan.mesh.ply(comment: "\(scan.title), \(built); export frame (see README.txt)"), to: folder.appendingPathComponent(mesh))
+                if let u = scan.unrotated { try CaseMediaStore.write(u.ply(comment: "\(scan.title), as scanned: the scanner's head frame, not turned"), to: folder.appendingPathComponent(raw)) }
                 // The textured face as OBJ + material + texture, named as the lab will see them.
                 var model = "", modelTexture = "", modelMaterial = ""
                 if let t = scan.textured {
                     let stem = "face-scan-\(CaseMediaPlugin.slug(scan.title))"
-                    let files = t.obj(name: stem, comment: "\(scan.title), built from photographs")
+                    let files = t.obj(name: stem, comment: "\(scan.title), \(built); export frame (see README.txt)")
                     if let jpeg = UIImage(cgImage: t.texture).jpegData(compressionQuality: 0.9) {
                         try CaseMediaStore.write(files.obj, to: folder.appendingPathComponent("\(stem).obj"))
                         try CaseMediaStore.write(files.mtl, to: folder.appendingPathComponent("\(stem).mtl"))
@@ -933,7 +1009,10 @@ enum FaceScanStore {
                     try CaseMediaStore.write(data, to: folder.appendingPathComponent(preview))
                     hasPreview = true
                 }
-                captures.append([
+                let o = scan.orientation
+                var eyeTilt: Double?
+                if let e = scan.eyes { let d = e.left - e.right; eyeTilt = (Double(atan2f(d.y, d.x) * 180 / .pi) * 10).rounded() / 10 }
+                var capture: [String: Any] = [
                     "id": scan.id, "title": scan.title, "mesh": mesh, "preview": hasPreview ? preview : "",
                     "vertices": scan.mesh.positions.count, "triangles": scan.mesh.triangles.count / 3,
                     "turned": [Double(scan.turned.right), Double(scan.turned.left)],
@@ -941,27 +1020,64 @@ enum FaceScanStore {
                     "coverage": (Double(scan.coverage) * 100).rounded() / 100,
                     "tracking": ["fitMm": (Double(scan.tracking.rms) * 100).rounded() / 100, "kept": (Double(scan.tracking.kept) * 100).rounded() / 100, "poor": scan.trackingPoor],
                     "sensor": scan.sensor, "source": source, "model": model, "modelMaterial": modelMaterial, "modelTexture": modelTexture,
-                    "building": scan.buildLater
-                ])
+                    "building": scan.buildLater, "oriented": o?.symmetryFit != nil,
+                    "eyes": scan.eyes.map { [mm($0.left), mm($0.right)] } ?? [],
+                    "asScanned": scan.unrotated != nil ? raw : "",
+                    "holesFilled": scan.holesFilled, "scaleCorrection": (Double(scan.scaleCorrection) * 10000).rounded() / 10000
+                ]
+                if let o {
+                    capture["midlinePlane"] = [o.midlinePlane.x, o.midlinePlane.y, o.midlinePlane.z, o.midlinePlane.w].map { (Double($0) * 10000).rounded() / 10000 }
+                    capture["midlineTilt"] = (Double(o.midlineTilt) * 10).rounded() / 10
+                    capture["gravity"] = o.gravityRecorded
+                }
+                if let eyeTilt { capture["eyeTilt"] = eyeTilt }
+                if let fit = scan.sharedFit { capture["sharedFitMm"] = (Double(fit) * 100).rounded() / 100 }
+                if let to = scan.registeredTo { capture["registeredTo"] = to }
+                captures.append(capture)
+
                 var entry: [String: Any] = [
                     "title": scan.title, "sensor": scan.sensor, "builtFrom": built, "faceCoverage": (Double(scan.coverage) * 100).rounded() / 100,
                     "seenDegrees": ["patientRight": Double(scan.turned.right.rounded()), "patientLeft": Double(scan.turned.left.rounded()),
-                                    "above": Double(scan.tilted.up.rounded()), "below": Double(scan.tilted.down.rounded())]
+                                    "above": Double(scan.tilted.up.rounded()), "below": Double(scan.tilted.down.rounded())],
+                    "holesFilled": scan.holesFilled,
+                    "scaleCorrection": scan.scaleCorrection == 1 ? "none" : String(format: "×%.4f from this device's scale check", scan.scaleCorrection)
                 ]
-                if let eyes = scan.eyes { entry["eyeCentres"] = ["left": mm(eyes.left), "right": mm(eyes.right)] }
+                if let e = scan.eyes { entry["eyeCentres"] = ["left": mm(e.left), "right": mm(e.right)] }
+                if let eyeTilt { entry["eyeLineTiltFromTrueHorizontalDegrees"] = eyeTilt }
+                if let o {
+                    entry["midline"] = o.symmetryFit.map { String(format: "found from the face's own symmetry (upper face, nose and philtrum mirrored and lined up on themselves, %.1f mm fit)", $0) }
+                        ?? "not found from symmetry; taken from the scanner's head frame (nose and eyes)"
+                    entry["midlinePlane"] = ["normal": [o.midlinePlane.x, o.midlinePlane.y, o.midlinePlane.z].map { (Double($0) * 10000).rounded() / 10000 },
+                                             "d": (Double(o.midlinePlane.w) * 100).rounded() / 100, "equation": "normal · p = d"]
+                    entry["midlineTiltFromTrueVerticalDegrees"] = (Double(o.midlineTilt) * 10).rounded() / 10
+                    entry["trueVertical"] = o.gravityRecorded ? "from gravity when the scan started" : "not recorded; the scanner's head frame"
+                    if let p = o.pronasale { entry["pronasale"] = mm(p) }
+                    if let p = o.subnasale { entry["subnasale"] = mm(p) }
+                }
+                if let to = scan.registeredTo, let fit = scan.sharedFit {
+                    entry["sharedFrame"] = String(format: "lined up on the %@ scan by the forehead, nasal root and cheekbones (%.2f mm fit)", scans.first(where: { $0.id == to })?.title ?? to, fit)
+                } else if scan.sharedFit == 0 {
+                    entry["sharedFrame"] = "defines the shared frame"
+                } else {
+                    entry["sharedFrame"] = "own frame: it couldn't be lined up on the other scans"
+                }
+                if let E = scan.exportFromScan { entry["exportFromAsScanned"] = (0..<4).flatMap { c in (0..<4).map { r in (Double(E[c][r]) * 100000).rounded() / 100000 } } }
                 landmarks[scan.id] = entry
             }
             let file: [String: Any] = [
                 "units": "mm",
-                "axes": "origin at the centre of the head; x towards the patient's left, y up (true vertical), z out through the face",
-                "facialMidline": "the plane x = 0",
+                "frame": "+y true vertical (natural head position, from gravity), +x towards the patient's left (horizontal), +z forward out of the face; origin at subnasale",
+                "facialMidline": "x = 0 is the vertical plane along the midline's direction; the midline plane itself is given per scan with how far it leans from true vertical",
+                "registration": scans.count > 1 ? "the expressions are in one frame: register the scan that shows the teeth to the intraoral scan once and the others follow" : "register the scan to the intraoral scan on the front teeth visible in the smile",
+                "exportFromAsScanned": "column-major 4×4 from each *-as-scanned.ply to the exported scan",
                 "scans": landmarks
             ]
             try CaseMediaStore.write(try JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys]), to: folder.appendingPathComponent("landmarks.json"))
+            try CaseMediaStore.write(Data(readme(scans).utf8), to: folder.appendingPathComponent("README.txt"))
             let info: [String: Any] = [
                 "kind": "scan", "id": id, "createdAt": CaseMediaStore.iso.string(from: Date()),
                 "poster": captures.first(where: { ($0["preview"] as? String ?? "") != "" })?["preview"] as? String ?? "",
-                "captures": captures, "landmarks": "landmarks.json"
+                "captures": captures, "landmarks": "landmarks.json", "readme": "README.txt"
             ]
             try CaseMediaStore.writeInfo(info, to: folder)
             return (folder, info)
@@ -969,6 +1085,32 @@ enum FaceScanStore {
             try? FileManager.default.removeItem(at: folder)
             throw error
         }
+    }
+
+    /// What a lab needs to read the files without opening landmarks.json (CAD software ignores sidecar files).
+    static func readme(_ scans: [FaceScanResult]) -> String {
+        var lines = [
+            "SmileCompose 3D face scan",
+            "",
+            "Units: millimetres.",
+            "Axes: +y is true vertical (natural head position, from the phone's gravity sensor when the scan started), +x points to the patient's left and is horizontal, +z points forward out of the face.",
+            "Origin: subnasale (the base of the nose on the midline).",
+            "Midline: x = 0 is the vertical plane along the facial midline's direction. The midline itself is found from the face's own symmetry; any lean from true vertical is reported below, not removed.",
+            scans.count > 1 ? "Shared frame: every expression is in the same frame. Register the scan that shows the teeth to the intraoral scan (anterior teeth) and the others are placed with it." : "Registration: line the scan up with the intraoral scan on the front teeth visible in the smile.",
+            "",
+            "Files per scan: <scan>.ply (vertex colour) and, where present, face-scan-<scan>.obj + .mtl + .jpg (photographic texture), all in the frame above; <scan>-as-scanned.ply is the same scan in the scanner's own frame. landmarks.json has the numbers.",
+            "",
+        ]
+        for s in scans {
+            var parts = ["\(s.title):"]
+            if let o = s.orientation { parts.append(String(format: "midline leans %.1f° from true vertical", o.midlineTilt)) }
+            if let e = s.eyes { let d = e.left - e.right; parts.append(String(format: "eye line %.1f° from true horizontal", atan2f(d.y, d.x) * 180 / .pi)) }
+            if let fit = s.sharedFit, s.registeredTo != nil { parts.append(String(format: "lined up on the upper face (%.2f mm fit)", fit)) }
+            if s.scaleCorrection != 1 { parts.append(String(format: "scale corrected ×%.4f by this device's scale check", s.scaleCorrection)) }
+            lines.append(parts.joined(separator: " "))
+        }
+        lines += ["", "These are phone scans: use them for facial proportions, the midline, the incisal plane and lip relationships, not for fine measurements around the lips."]
+        return lines.joined(separator: "\n")
     }
 
     private static func mm(_ p: SIMD3<Float>) -> [Double] { [p.x, p.y, p.z].map { (Double($0) * 10).rounded() / 10 } }
@@ -1023,7 +1165,7 @@ enum FaceScanStore {
 /// little extra time if it goes to the background; a build that can't finish leaves the LiDAR face in place.
 final class BackgroundFaceBuilder {
     static let shared = BackgroundFaceBuilder()
-    struct Job { let caseId, recordId, scanId, title: String; let shots: PhotoShots; let lidar: FaceMesh }
+    struct Job { let caseId, recordId, scanId, title: String; let shots: PhotoShots; let lidar: FaceMesh; let orientation: simd_float4x4? }
 
     var onUpdate: ((String, URL, [String: Any]) -> Void)?
     var onProgress: ((String, String, String, Double) -> Void)?
@@ -1051,7 +1193,7 @@ final class BackgroundFaceBuilder {
         task = UIApplication.shared.beginBackgroundTask(withName: "Detailed face") { refiner.cancel() }
         onProgress?(job.caseId, job.recordId, job.scanId, 0)
         Task { @MainActor in
-            let face = await refiner.refine(job.shots, lidar: job.lidar, progress: { f in
+            var face = await refiner.refine(job.shots, lidar: job.lidar, progress: { f in
                 DispatchQueue.main.async {
                     let now = CACurrentMediaTime()
                     guard now - self.lastReport > 0.5 else { return }
@@ -1059,6 +1201,7 @@ final class BackgroundFaceBuilder {
                     self.onProgress?(job.caseId, job.recordId, job.scanId, f)
                 }
             })
+            if let m = job.orientation { face = face?.transformed(m) }
             let saved: (URL, [String: Any])? = await withCheckedContinuation { done in
                 DispatchQueue.global(qos: .utility).async {
                     done.resume(returning: FaceScanStore.applyDetailed(face, caseId: job.caseId, recordId: job.recordId, scanId: job.scanId, title: job.title))
@@ -1243,7 +1386,10 @@ final class FaceVolume {
     let voxel: Float
     // The face, the sides of the head and under the chin; the back of the head (and the headrest behind it) and
     // the chest are left out.
-    static let lo = SIMD3<Float>(-0.12, -0.135, -0.07), hi = SIMD3<Float>(0.12, 0.16, 0.17)
+    static let headLo = SIMD3<Float>(-0.12, -0.135, -0.07), headHi = SIMD3<Float>(0.12, 0.16, 0.17)
+    /// The front of the face only (forehead to chin, cheek to cheek): for the short frontal holds, at finer cubes.
+    static let frontLo = SIMD3<Float>(-0.085, -0.125, -0.02), frontHi = SIMD3<Float>(0.085, 0.135, 0.17)
+    let lo: SIMD3<Float>, hi: SIMD3<Float>
     /// How far either side of a measured point the distance is recorded.
     let trunc: Float
     let nx, ny, nz: Int
@@ -1275,12 +1421,13 @@ final class FaceVolume {
         var mask: FaceMask? = nil
     }
 
-    init(voxel: Float = 0.0016) {
+    init(voxel: Float = 0.0016, lo: SIMD3<Float> = FaceVolume.headLo, hi: SIMD3<Float> = FaceVolume.headHi) {
         self.voxel = voxel
-        trunc = max(0.0035, voxel * 3.4)
-        nx = Int(((Self.hi.x - Self.lo.x) / voxel).rounded())
-        ny = Int(((Self.hi.y - Self.lo.y) / voxel).rounded())
-        nz = Int(((Self.hi.z - Self.lo.z) / voxel).rounded())
+        self.lo = lo; self.hi = hi
+        trunc = max(0.0032, voxel * 3.5)
+        nx = Int(((hi.x - lo.x) / voxel).rounded())
+        ny = Int(((hi.y - lo.y) / voxel).rounded())
+        nz = Int(((hi.z - lo.z) / voxel).rounded())
         let n = nx * ny * nz
         dist = .allocate(capacity: n); dist.initialize(repeating: 1, count: n)
         weight = .allocate(capacity: n); weight.initialize(repeating: 0, count: n)
@@ -1322,7 +1469,7 @@ final class FaceVolume {
         let c2 = SIMD3(m.columns.2.x, m.columns.2.y, m.columns.2.z), c3 = SIMD3(m.columns.3.x, m.columns.3.y, m.columns.3.z)
         let cam = f.cameraInHead
         let sx = ifx / fx, sy = ify / fy, ox = icx - cx * sx, oy = icy - cy * sy
-        let lo = Self.lo, v = voxel, inv = 1 / voxel, trunc = self.trunc, steps = Int((trunc / v).rounded(.up))
+        let lo = self.lo, hi = self.hi, v = voxel, inv = 1 / voxel, trunc = self.trunc, steps = Int((trunc / v).rounded(.up))
         let nx = self.nx, ny = self.ny, nz = self.nz, plane = nx * ny
         let st = max(1, f.stride), edge = 0.012 as Float
         var vv = st
@@ -1341,7 +1488,16 @@ final class FaceVolume {
                 if let conf { let k = conf[vv * confRow + uu]; if k == 0 { continue }; w = k >= 2 ? 1 : 0.4 }
                 let xn = (Float(uu) - cx) / fx, yn = (Float(vv) - cy) / fy
                 let p = c0 * (xn * z) - c1 * (yn * z) - c2 * z + c3
-                guard p.x > lo.x, p.x < Self.hi.x, p.y > lo.y, p.y < Self.hi.y, p.z > lo.z, p.z < Self.hi.z else { continue }
+                guard p.x > lo.x, p.x < hi.x, p.y > lo.y, p.y < hi.y, p.z > lo.z, p.z < hi.z else { continue }
+                // Surfaces seen square-on are trusted more than ones seen at a steep angle (the sides of the face).
+                let zl = d[row + uu - st], zr = d[row + uu + st], zu = d[row - st * dStride + uu], zd = d[row + st * dStride + uu]
+                let pl = SIMD3<Float>((Float(uu - st) - cx) / fx * zl, -((Float(vv) - cy) / fy) * zl, -zl)
+                let pr = SIMD3<Float>((Float(uu + st) - cx) / fx * zr, -((Float(vv) - cy) / fy) * zr, -zr)
+                let pu = SIMD3<Float>((Float(uu) - cx) / fx * zu, -((Float(vv - st) - cy) / fy) * zu, -zu)
+                let pd = SIMD3<Float>((Float(uu) - cx) / fx * zd, -((Float(vv + st) - cy) / fy) * zd, -zd)
+                let nrm = simd_cross(pr - pl, pd - pu), here = SIMD3<Float>(xn * z, -yn * z, -z)
+                let nl = simd_length(nrm)
+                if nl > 1e-9 { w *= max(0.15, abs(simd_dot(nrm / nl, simd_normalize(here)))) }
                 let ray = simd_normalize(p - cam)
                 if uu % 3 == 0, vv % 3 == 0 {
                     let g = (p - lo) / 0.0025
@@ -1369,7 +1525,7 @@ final class FaceVolume {
                     let w0 = Float(weight[idx]), d0 = Float(dist[idx])
                     let nw = w0 + w
                     dist[idx] = Float16((d0 * w0 + sdf * w) / nw)
-                    weight[idx] = Float16(min(nw, 200))
+                    weight[idx] = Float16(min(nw, 60))
                     if abs(along) <= v * 1.2 {
                         let o = idx * 3, a = w / nw
                         for ch in 0..<3 {
@@ -1412,7 +1568,7 @@ final class FaceVolume {
                 sum += pa + (pb - pa) * t; count += 1
             }
             let local = sum / count
-            let p = (Self.lo + (SIMD3<Float>(Float(i), Float(j), Float(l)) + local) * voxel) * 1000
+            let p = (lo + (SIMD3<Float>(Float(i), Float(j), Float(l)) + local) * voxel) * 1000
             // Colour from the corners nearest the surface.
             var c = SIMD3<Float>.zero, cw: Float = 0
             for n in 0..<8 {
@@ -1548,13 +1704,281 @@ struct FaceCoverage {
     }
 }
 
+/// The finished scans, as a lab needs them, made once all the expressions are captured:
+/// cleaned (ragged edges trimmed, small holes filled — never in the mouth — and sensor noise smoothed without
+/// shrinking the face); given photographic skin (Face ID scans); scale-corrected where this device's scale check
+/// found an error; then put in one shared frame — natural head position from gravity, the facial midline from the
+/// face's own symmetry, origin at subnasale — with the other expressions lined up on the Relaxed scan by the forehead,
+/// nasal root and cheekbones, so one teeth registration in the lab places them all.
+enum FaceFinish {
+    struct Orientation {
+        /// Head frame (mm) to the export frame.
+        let transform: simd_float4x4
+        /// How far the facial midline leans from true vertical, in degrees (+: its top towards the patient's left).
+        let midlineTilt: Float
+        /// The mirror fit (mm), or nil when the midline couldn't be found from symmetry.
+        let symmetryFit: Float?
+        /// The midline plane in the export frame: n · p = d (n.xyz, d).
+        let midlinePlane: SIMD4<Float>
+        let pronasale: SIMD3<Float>?, subnasale: SIMD3<Float>?
+        let gravityRecorded: Bool
+    }
+
+    /// Lips and teeth (head frame): never patched, so nothing invented sits where the teeth are set.
+    static let mouth: FaceAlign.Region = { p in p.y > -66 && p.y < -6 && abs(p.x) < 44 && p.z > 40 }
+
+    static func clean(_ mesh: FaceMesh) -> (mesh: FaceMesh, holesFilled: Int) {
+        var m = mesh
+        m.trimSpikes(passes: 3)
+        m = m.largestPiece()
+        let filled = m.fillHoles(maxEdges: 40, keepOpen: mouth)
+        m.taubin(iterations: 6)
+        return (m, filled)
+    }
+
+    /// The face mirrored and lined up on itself (upper face, nose and philtrum) gives the reflection across its
+    /// midline: the plane n · p = d in the head frame, and the fit.
+    static func symmetryPlane(_ m: FaceMesh) -> (n: SIMD3<Float>, d: Float, fit: Float)? {
+        var mirrored = m
+        mirrored.positions = m.positions.map { SIMD3(-$0.x, $0.y, $0.z) }
+        for t in Swift.stride(from: 0, to: mirrored.triangles.count - 2, by: 3) { mirrored.triangles.swapAt(t + 1, t + 2) }
+        guard let fit = FaceAlign.align(base: m, moving: mirrored, region: FaceAlign.midlineRegion), fit.rms < 2.5, fit.overlap > 0.5 else { return nil }
+        var flip = matrix_identity_float4x4
+        flip.columns.0 = SIMD4(-1, 0, 0, 0)
+        let S = fit.transform * flip
+        let L = simd_float3x3(SIMD3(S.columns.0.x, S.columns.0.y, S.columns.0.z), SIMD3(S.columns.1.x, S.columns.1.y, S.columns.1.z), SIMD3(S.columns.2.x, S.columns.2.y, S.columns.2.z))
+        let K = matrix_identity_float3x3 - L          // = 2 n nᵀ for a reflection
+        let col = [K.columns.0, K.columns.1, K.columns.2].max(by: { simd_length($0) < simd_length($1) })!
+        guard simd_length(col) > 0.5 else { return nil }
+        var n = simd_normalize(col)
+        if n.x < 0 { n = -n }
+        guard n.x > cosf(20 * .pi / 180) else { return nil }
+        let t = SIMD3(S.columns.3.x, S.columns.3.y, S.columns.3.z)
+        return (n, simd_dot(t, n) / 2, fit.rms)
+    }
+
+    /// The export frame for a scan: +y true vertical (gravity in the head frame when the scan started), x horizontal
+    /// towards the patient's left with the midline's horizontal direction as x = 0, z forward, origin at subnasale.
+    /// The midline's lean from vertical is measured and reported, not removed.
+    static func orientation(_ m: FaceMesh, gravityUp: SIMD3<Float>?, eyes: (left: SIMD3<Float>, right: SIMD3<Float>)?) -> Orientation {
+        let g = gravityUp.map(simd_normalize) ?? SIMD3(0, 1, 0)
+        let R1 = simd_float4x4(simd_quatf(from: g, to: SIMD3(0, 1, 0)))
+        let plane = symmetryPlane(m)
+        let nHead = plane?.n ?? SIMD3(1, 0, 0), dHead = plane?.d ?? 0
+        let n1v = R1 * SIMD4<Float>(nHead, 0), n1 = SIMD3(n1v.x, n1v.y, n1v.z)
+        let yaw = atan2f(n1.z, n1.x), c = cosf(yaw), s = sinf(yaw)
+        var R2 = matrix_identity_float4x4
+        R2.columns.0 = SIMD4(c, 0, -s, 0); R2.columns.2 = SIMD4(s, 0, c, 0)
+        let M = R2 * R1
+        let n2v = M * SIMD4<Float>(nHead, 0), n2 = simd_normalize(SIMD3(n2v.x, n2v.y, n2v.z))
+        let q = m.positions.map { p -> SIMD3<Float> in let v = M * SIMD4<Float>(p, 1); return SIMD3(v.x, v.y, v.z) }
+        // Nose tip and subnasale on the midline profile: in each 1 mm band of height, the point nearest the midline.
+        var profile: [Int: (SIMD3<Float>, Float)] = [:]
+        for p in q {
+            let off = abs(simd_dot(n2, p) - dHead)
+            guard off < 3 else { continue }
+            let band = Int(floorf(p.y))
+            if let have = profile[band], have.1 <= off { continue }
+            profile[band] = (p, off)
+        }
+        let line = profile.values.map(\.0)
+        var eyeY: Float?
+        if let e = eyes { let mid = M * SIMD4<Float>((e.left + e.right) / 2, 1); eyeY = mid.y }
+        let tipRange: ClosedRange<Float> = eyeY.map { ($0 - 80)...($0 - 15) } ?? (-35)...35
+        let tip = line.filter { tipRange.contains($0.y) }.max(by: { $0.z < $1.z })
+        var sub: SIMD3<Float>?
+        if let tip {
+            let below = line.filter { $0.y < tip.y - 6 && $0.y > tip.y - 28 && $0.z > tip.z - 40 }
+            if below.count > 5 { sub = below.min(by: { $0.z < $1.z }) }
+        }
+        let origin = sub ?? tip ?? .zero
+        var T = matrix_identity_float4x4
+        T.columns.3 = SIMD4(-origin, 1)
+        return Orientation(transform: T * M, midlineTilt: asinf(max(-1, min(1, n2.y))) * 180 / .pi, symmetryFit: plane?.fit,
+                           midlinePlane: SIMD4(n2, dHead - simd_dot(n2, origin)), pronasale: tip.map { $0 - origin }, subnasale: sub.map { $0 - origin },
+                           gravityRecorded: gravityUp != nil)
+    }
+
+    /// All the expressions finished together (heavy work, so it waits until every scan is captured).
+    static func finishAll(_ input: [FaceScanResult], scale: Float) -> [FaceScanResult] {
+        var results = input
+        for i in results.indices {
+            var r = results[i]
+            let cleaned = clean(r.mesh)
+            r.mesh = cleaned.mesh; r.holesFilled = cleaned.holesFilled
+            if r.sensor == "trueDepth", !r.views.isEmpty, let made = ViewTexture.make(r.mesh, views: r.views) { r.textured = made.textured; r.mesh = made.mesh }
+            r.views = []
+            if r.textured == nil { r.mesh.smoothColours(iterations: 2) }
+            // This device's scale check (Face ID sensor only).
+            if r.sensor == "trueDepth", abs(scale - 1) > 0.001 {
+                let S = simd_float4x4(diagonal: SIMD4(scale, scale, scale, 1))
+                r.mesh = r.mesh.transformed(S); r.textured = r.textured?.transformed(S)
+                r.eyes = r.eyes.map { (left: $0.left * scale, right: $0.right * scale) }
+                r.scaleCorrection = scale
+            }
+            r.unrotated = r.mesh
+            results[i] = r
+        }
+        guard !results.isEmpty else { return results }
+        let base = results.firstIndex(where: { $0.id == "rest" }) ?? 0
+        let o = orientation(results[base].mesh, gravityUp: results[base].gravityUp, eyes: results[base].eyes)
+        for i in results.indices {
+            var E = o.transform, own = o
+            results[i].registeredTo = nil; results[i].sharedFit = nil
+            if i == base {
+                results[i].sharedFit = 0
+            } else if let a = FaceAlign.align(base: results[base].mesh, moving: results[i].mesh, region: FaceAlign.upperFace), a.rms < 1.5, a.overlap > 0.4 {
+                E = o.transform * a.transform
+                results[i].registeredTo = results[base].id; results[i].sharedFit = a.rms
+            } else {
+                own = orientation(results[i].mesh, gravityUp: results[i].gravityUp, eyes: results[i].eyes)
+                E = own.transform
+            }
+            var r = results[i]
+            r.mesh = r.mesh.transformed(E); r.textured = r.textured?.transformed(E)
+            r.eyes = r.eyes.map { e in
+                let l = E * SIMD4<Float>(e.left, 1), rr = E * SIMD4<Float>(e.right, 1)
+                return (SIMD3(l.x, l.y, l.z), SIMD3(rr.x, rr.y, rr.z))
+            }
+            r.orientation = own
+            r.exportFromScan = E
+            r.preview = r.textured?.preview() ?? r.mesh.preview()
+            results[i] = r
+        }
+        return results
+    }
+}
+
+extension FaceMesh {
+    private func neighbourLists() -> [[Int32]] {
+        var n = [[Int32]](repeating: [], count: positions.count)
+        for t in Swift.stride(from: 0, to: triangles.count - 2, by: 3) {
+            let a = Int32(triangles[t]), b = Int32(triangles[t + 1]), c = Int32(triangles[t + 2])
+            n[Int(a)] += [b, c]; n[Int(b)] += [a, c]; n[Int(c)] += [a, b]
+        }
+        return n.map { Array(Set($0)) }
+    }
+
+    private func boundaryHalfEdges() -> [(UInt32, UInt32)] {
+        var edges = Set<UInt64>()
+        let key = { (a: UInt32, b: UInt32) in UInt64(a) << 32 | UInt64(b) }
+        for t in Swift.stride(from: 0, to: triangles.count - 2, by: 3) {
+            let a = triangles[t], b = triangles[t + 1], c = triangles[t + 2]
+            edges.insert(key(a, b)); edges.insert(key(b, c)); edges.insert(key(c, a))
+        }
+        return edges.compactMap { e in
+            let a = UInt32(e >> 32), b = UInt32(e & 0xFFFF_FFFF)
+            return edges.contains(key(b, a)) ? nil : (a, b)
+        }
+    }
+
+    /// Drops triangles hanging off the edge by a single corner (two of their sides on the border).
+    mutating func trimSpikes(passes: Int) {
+        for _ in 0..<passes {
+            let border = Set(boundaryHalfEdges().map { UInt64($0.0) << 32 | UInt64($0.1) })
+            var kept: [UInt32] = []
+            kept.reserveCapacity(triangles.count)
+            for t in Swift.stride(from: 0, to: triangles.count - 2, by: 3) {
+                let a = triangles[t], b = triangles[t + 1], c = triangles[t + 2]
+                let open = [(a, b), (b, c), (c, a)].filter { border.contains(UInt64($0.0) << 32 | UInt64($0.1)) }.count
+                if open < 2 { kept += [a, b, c] }
+            }
+            if kept.count == triangles.count { break }
+            triangles = kept
+        }
+    }
+
+    /// Closes small holes (up to `maxEdges` round) with a fan from their centre, coloured from their rim. The
+    /// longest border, the edge of the face, is left open.
+    @discardableResult
+    mutating func fillHoles(maxEdges: Int, keepOpen: FaceAlign.Region? = nil) -> Int {
+        var next: [UInt32: [UInt32]] = [:]
+        for (a, b) in boundaryHalfEdges() { next[a, default: []].append(b) }
+        var loops: [[UInt32]] = []
+        while let start = next.keys.first {
+            var loop: [UInt32] = [start], here = start, closed = false
+            while let outs = next[here], let to = outs.first {
+                if outs.count > 1 { next[here] = Array(outs.dropFirst()) } else { next[here] = nil }
+                if to == start { closed = true; break }
+                loop.append(to); here = to
+                if loop.count > 4000 { break }
+            }
+            if next[start]?.isEmpty == true { next[start] = nil }
+            if closed { loops.append(loop) }
+        }
+        guard let outer = loops.indices.max(by: { loops[$0].count < loops[$1].count }) else { return 0 }
+        var filled = 0
+        for (i, loop) in loops.enumerated() where i != outer && loop.count >= 3 && loop.count <= maxEdges {
+            var centre = SIMD3<Float>.zero, colour = SIMD3<Float>.zero
+            for v in loop { centre += positions[Int(v)]; colour += SIMD3<Float>(colours[Int(v)]) }
+            centre /= Float(loop.count); colour /= Float(loop.count)
+            if let keepOpen, keepOpen(centre) { continue }
+            filled += 1
+            let c = UInt32(positions.count)
+            positions.append(centre)
+            colours.append(SIMD3(UInt8(colour.x.rounded()), UInt8(colour.y.rounded()), UInt8(colour.z.rounded())))
+            for k in 0..<loop.count { triangles += [loop[(k + 1) % loop.count], loop[k], c] }
+        }
+        return filled
+    }
+
+    /// Taubin smoothing: alternate shrinking and inflating steps, so noise goes without the face getting smaller.
+    mutating func taubin(iterations: Int, lambda: Float = 0.5, mu: Float = -0.53) {
+        let neighbours = neighbourLists()
+        func step(_ f: Float) {
+            var out = positions
+            for (i, n) in neighbours.enumerated() where n.count >= 3 {
+                var m = SIMD3<Float>.zero
+                for k in n { m += positions[Int(k)] }
+                out[i] = positions[i] + (m / Float(n.count) - positions[i]) * f
+            }
+            positions = out
+        }
+        for _ in 0..<iterations { step(lambda); step(mu) }
+    }
+
+    /// Evens out blotchy colour by blending each point with its neighbours.
+    mutating func smoothColours(iterations: Int) {
+        let neighbours = neighbourLists()
+        for _ in 0..<iterations {
+            var out = colours
+            for (i, n) in neighbours.enumerated() where !n.isEmpty {
+                var m = SIMD3<Float>.zero
+                for k in n { m += SIMD3<Float>(colours[Int(k)]) }
+                let mixed = (SIMD3<Float>(colours[i]) + m / Float(n.count)) / 2
+                out[i] = SIMD3(UInt8(mixed.x.rounded()), UInt8(mixed.y.rounded()), UInt8(mixed.z.rounded()))
+            }
+            colours = out
+        }
+    }
+}
+
 /// Lines one scan up on another (rigid only): iterative closest points on the forehead, eyes, nose and cheekbones,
 /// which change little with expression, then measures how far apart the surfaces are.
 enum FaceAlign {
     struct Result { let transform: simd_float4x4; let rms: Float; let overlap: Float }
 
-    private static func stable(_ m: FaceMesh, limit: Int) -> [Int] {
-        let idx = m.positions.indices.filter { let p = m.positions[$0]; return p.y > -15 && p.y < 95 && p.z > 20 && abs(p.x) < 70 }
+    /// Parts of the face (head frame, mm) that change little with expression.
+    typealias Region = (SIMD3<Float>) -> Bool
+    static let defaultRegion: Region = { p in p.y > -15 && p.y < 95 && p.z > 20 && abs(p.x) < 70 }
+    /// Forehead, nasal root, cheekbones and orbital rims: the eyes, lips, cheeks and chin left out. Used to put every
+    /// expression's scan in one frame.
+    static let upperFace: Region = { p in
+        guard p.y > 5, p.y < 100, p.z > 20, abs(p.x) < 70 else { return false }
+        let ax = abs(p.x)
+        return !(p.y > 24 && p.y < 58 && ax > 8 && ax < 56 && p.z > 45)
+    }
+    /// The upper face plus the nose and philtrum, for finding the midline from the face's symmetry.
+    static let midlineRegion: Region = { p in
+        guard p.y > -32, p.y < 100, p.z > 20, abs(p.x) < 70 else { return false }
+        let ax = abs(p.x)
+        if p.y > 24 && p.y < 58 && ax > 8 && ax < 56 && p.z > 45 { return false }   // eyes
+        if p.y < -4 && ax > 13 { return false }                                        // cheeks beside the mouth
+        return true
+    }
+
+    private static func stable(_ m: FaceMesh, limit: Int, region: Region = defaultRegion) -> [Int] {
+        let idx = m.positions.indices.filter { region(m.positions[$0]) }
         let step = max(1, idx.count / limit)
         return Swift.stride(from: 0, to: idx.count, by: step).map { idx[$0] }
     }
@@ -1583,18 +2007,24 @@ enum FaceAlign {
         }
     }
 
-    static func align(base: FaceMesh, moving: FaceMesh) -> Result? {
-        let ti = stable(base, limit: 14000), baseNormals = base.normals()
+    static func align(base: FaceMesh, moving: FaceMesh, region: Region = defaultRegion) -> Result? {
+        let ti = stable(base, limit: 14000, region: region), baseNormals = base.normals()
         let target = ti.map { base.positions[$0] }, targetNormals = ti.map { baseNormals[$0] }
-        let source = stable(moving, limit: 5000).map { moving.positions[$0] }
+        let source = stable(moving, limit: 5000, region: region).map { moving.positions[$0] }
         guard target.count > 400, source.count > 400 else { return nil }
-        let grid = Grid(target, cell: 12)
+        return icp(source: source, target: target, targetNormals: targetNormals)
+    }
+
+    /// Point-to-plane ICP of `source` onto the `target` surface, from `initial`, the search narrowing from `reach` mm.
+    static func icp(source: [SIMD3<Float>], target: [SIMD3<Float>], targetNormals: [SIMD3<Float>], initial: simd_float4x4 = matrix_identity_float4x4, reach: Float = 12) -> Result? {
+        guard target.count > 50, source.count > 50 else { return nil }
+        let grid = Grid(target, cell: max(reach, 3))
         // Point-to-plane: each step solves for the small turn and shift that bring the moving points onto the
         // base's surface (not just its nearest points), so it doesn't slide along smooth areas.
-        var M = matrix_identity_float4x4
+        var M = initial
         var last: [Float] = []
         for it in 0..<40 {
-            let maxD: Float = it < 15 ? 12 - Float(it) * 0.6 : 3
+            let maxD: Float = it < 15 ? reach - Float(it) * (reach - 3) / 15 : 3
             var rows: [(SIMD3<Float>, SIMD3<Float>, SIMD3<Float>, Float)] = []
             rows.reserveCapacity(source.count)
             for s in source {
@@ -1603,7 +2033,7 @@ enum FaceAlign {
                 let n = targetNormals[j]
                 rows.append((p, target[j], n, simd_dot(p - target[j], n)))
             }
-            guard rows.count > 200 else { return nil }
+            guard rows.count > min(200, source.count / 3) else { return nil }
             rows.sort { abs($0.3) < abs($1.3) }
             let kept = rows.prefix(Int(Float(rows.count) * 0.9))
             last = kept.map { abs($0.3) }
@@ -1628,7 +2058,7 @@ enum FaceAlign {
     }
 
     /// Gaussian elimination with partial pivoting.
-    private static func solve(_ A0: [[Double]], _ b0: [Double]) -> [Double]? {
+    static func solve(_ A0: [[Double]], _ b0: [Double]) -> [Double]? {
         var A = A0, b = b0
         let n = b.count
         for c in 0..<n {
@@ -1892,7 +2322,7 @@ extension FaceVolume {
                     g /= len
                     var cell = SIMD3<Float>(Float(i), Float(j), Float(l))
                     cell[axis] += t
-                    out.append(((Self.lo + cell * voxel) * 1000, g))
+                    out.append(((lo + cell * voxel) * 1000, g))
                 }
             } } }
         }
@@ -2082,7 +2512,7 @@ final class HeadTracker {
         let s = volume.surface()
         guard s.count > 2000 else { return nil }
         let grid = FaceAlign.Grid(s.map(\.0), cell: 10), normals = s.map(\.1)
-        let out = FaceVolume(voxel: volume.voxel)
+        let out = FaceVolume(voxel: volume.voxel, lo: volume.lo, hi: volume.hi)
         for k in keyframes {
             var f = k.frame
             let pts = Self.points(f, cameraToHead: f.cameraToHead)
@@ -2350,6 +2780,384 @@ final class PhotoShots {
     func remove() { queue.async { try? FileManager.default.removeItem(at: self.folder) } }
 }
 
+/// A sharp front-camera photograph taken during a Face ID scan, for the face's skin: the picture as JPEG, the
+/// camera's intrinsics for that picture (a negative focal length marks a mirrored image), and where the camera was.
+struct FrontView {
+    let jpeg: Data
+    let width: Int, height: Int
+    let K: simd_float3x3
+    /// Camera to head, in metres.
+    let cameraToHead: simd_float4x4
+}
+
+/// A copy of a camera picture (all its planes), so ARKit's own buffer goes straight back to it.
+enum PixelCopy {
+    static func copy(_ src: CVPixelBuffer) -> CVPixelBuffer? {
+        let w = CVPixelBufferGetWidth(src), h = CVPixelBufferGetHeight(src), fmt = CVPixelBufferGetPixelFormatType(src)
+        var out: CVPixelBuffer?
+        let attrs: [String: Any] = [kCVPixelBufferIOSurfacePropertiesKey as String: [String: Any]()]
+        guard CVPixelBufferCreate(nil, w, h, fmt, attrs as CFDictionary, &out) == kCVReturnSuccess, let dst = out else { return nil }
+        CVPixelBufferLockBaseAddress(src, .readOnly); CVPixelBufferLockBaseAddress(dst, [])
+        defer { CVPixelBufferUnlockBaseAddress(src, .readOnly); CVPixelBufferUnlockBaseAddress(dst, []) }
+        let planes = CVPixelBufferGetPlaneCount(src)
+        if planes == 0 {
+            guard let s = CVPixelBufferGetBaseAddress(src), let t = CVPixelBufferGetBaseAddress(dst) else { return nil }
+            let sr = CVPixelBufferGetBytesPerRow(src), tr = CVPixelBufferGetBytesPerRow(dst)
+            for y in 0..<h { memcpy(t + y * tr, s + y * sr, min(sr, tr)) }
+        } else {
+            for p in 0..<planes {
+                guard let s = CVPixelBufferGetBaseAddressOfPlane(src, p), let t = CVPixelBufferGetBaseAddressOfPlane(dst, p) else { return nil }
+                let sr = CVPixelBufferGetBytesPerRowOfPlane(src, p), tr = CVPixelBufferGetBytesPerRowOfPlane(dst, p)
+                for y in 0..<CVPixelBufferGetHeightOfPlane(src, p) { memcpy(t + y * tr, s + y * sr, min(sr, tr)) }
+            }
+        }
+        return dst
+    }
+}
+
+/// Photographic skin for a Face ID scan, after Waechter et al. ("Let There Be Color!") and Zhou & Koltun:
+/// 1. each photo's camera is nudged until its colours agree with the other photos (removes blur from small pose errors);
+/// 2. each triangle takes one photo — the one that sees it most squarely and sharply, unhidden — with a smoothness rule
+///    so the face isn't cut into many small patches, and the whole mouth from the single most frontal photo, so no
+///    seam crosses the lips or teeth;
+/// 3. brightness is matched between photos, then colour is levelled across every seam and the correction spread
+///    smoothly over each patch.
+/// Gives the textured face (colour view and the lab's OBJ) and the mesh recoloured from the same photos.
+enum ViewTexture {
+    private struct Picture { let rgba: [UInt8]; let w: Int; let h: Int; let K: simd_float3x3; var toCamera: simd_float4x4; var at: SIMD3<Float>; let sharpness: Float }
+
+    /// The mouth and lips, in the head frame (mm): one photo covers all of it.
+    static func perioral(_ p: SIMD3<Float>) -> Bool { p.y > -66 && p.y < -6 && abs(p.x) < 44 && p.z > 40 }
+
+    private static func decode(_ v: FrontView) -> Picture? {
+        guard let src = CGImageSourceCreateWithData(v.jpeg as CFData, nil), let img = CGImageSourceCreateImageAtIndex(src, 0, nil) else { return nil }
+        let w = img.width, h = img.height
+        var rgba = [UInt8](repeating: 0, count: w * h * 4)
+        let ok: Bool = rgba.withUnsafeMutableBytes { buf in
+            guard let ctx = CGContext(data: buf.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+            return true
+        }
+        guard ok else { return nil }
+        var sum: Float = 0, sum2: Float = 0, n: Float = 0
+        let g = { (x: Int, y: Int) -> Float in let o = (y * w + x) * 4; return Float(rgba[o]) * 0.3 + Float(rgba[o + 1]) * 0.59 + Float(rgba[o + 2]) * 0.11 }
+        for y in Swift.stride(from: h / 4, to: h * 3 / 4, by: 3) { for x in Swift.stride(from: w / 4, to: w * 3 / 4, by: 3) {
+            let l = 4 * g(x, y) - g(x - 2, y) - g(x + 2, y) - g(x, y - 2) - g(x, y + 2)
+            sum += l; sum2 += l * l; n += 1
+        } }
+        let sharp = n > 0 ? sum2 / n - (sum / n) * (sum / n) : 0
+        let sx = Float(w) / Float(v.width), sy = Float(h) / Float(v.height)
+        let K = simd_float3x3(diagonal: SIMD3(sx, sy, 1)) * v.K
+        let at = SIMD3(v.cameraToHead.columns.3.x, v.cameraToHead.columns.3.y, v.cameraToHead.columns.3.z) * 1000
+        return Picture(rgba: rgba, w: w, h: h, K: K, toCamera: v.cameraToHead.inverse, at: at, sharpness: sharp)
+    }
+
+    /// Head point (mm) to pixel and depth (m).
+    private static func project(_ p: SIMD3<Float>, _ pic: Picture) -> (Float, Float, Float)? {
+        let c = pic.toCamera * SIMD4<Float>(p / 1000, 1)
+        let z = -c.z
+        guard z > 0.05 else { return nil }
+        return (c.x / z * pic.K[0][0] + pic.K[2][0], -c.y / z * pic.K[1][1] + pic.K[2][1], z)
+    }
+
+    private static func sample(_ pic: Picture, _ u: Float, _ v: Float) -> SIMD3<Float> {
+        let x = max(0, min(Float(pic.w) - 1.001, u)), y = max(0, min(Float(pic.h) - 1.001, v))
+        let x0 = Int(x), y0 = Int(y), fx = x - Float(x0), fy = y - Float(y0)
+        func px(_ xx: Int, _ yy: Int) -> SIMD3<Float> { let o = (yy * pic.w + xx) * 4; return SIMD3(Float(pic.rgba[o]), Float(pic.rgba[o + 1]), Float(pic.rgba[o + 2])) }
+        let a = px(x0, y0) * (1 - fx) + px(x0 + 1, y0) * fx, b = px(x0, y0 + 1) * (1 - fx) + px(x0 + 1, y0 + 1) * fx
+        return a * (1 - fy) + b * fy
+    }
+    private static let luma = SIMD3<Float>(0.3, 0.59, 0.11)
+    private static func grey(_ pic: Picture, _ u: Float, _ v: Float) -> Float { simd_dot(sample(pic, u, v), luma) }
+
+    /// How squarely and sharply each photo sees each point, unhidden by the face itself (a coarse depth buffer),
+    /// and where the point falls in the photo.
+    private static func visibility(_ mesh: FaceMesh, _ normals: [SIMD3<Float>], _ pic: Picture, maxSharp: Float) -> (score: [Float], uv: [SIMD2<Float>]) {
+        let nv = mesh.positions.count, bw = max(1, pic.w / 4), bh = max(1, pic.h / 4)
+        var score = [Float](repeating: 0, count: nv), uv = [SIMD2<Float>](repeating: .zero, count: nv)
+        var zbuf = [Float](repeating: .infinity, count: bw * bh)
+        var proj = [(Float, Float, Float)?](repeating: nil, count: nv)
+        for i in 0..<nv { proj[i] = project(mesh.positions[i], pic) }
+        for t in Swift.stride(from: 0, to: mesh.triangles.count - 2, by: 3) {
+            guard let a = proj[Int(mesh.triangles[t])], let b = proj[Int(mesh.triangles[t + 1])], let c = proj[Int(mesh.triangles[t + 2])] else { continue }
+            let ax = a.0 / 4, ay = a.1 / 4, bx = b.0 / 4, by = b.1 / 4, cx = c.0 / 4, cy = c.1 / 4
+            let x0 = max(0, Int(min(ax, bx, cx))), x1 = min(bw - 1, Int(max(ax, bx, cx)) + 1)
+            let y0 = max(0, Int(min(ay, by, cy))), y1 = min(bh - 1, Int(max(ay, by, cy)) + 1)
+            guard x0 <= x1, y0 <= y1, x1 - x0 < 60, y1 - y0 < 60 else { continue }
+            let area = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay)
+            guard abs(area) > 1e-6 else { continue }
+            for y in y0...y1 { for x in x0...x1 {
+                let px = Float(x) + 0.5, py = Float(y) + 0.5
+                let w0 = ((bx - px) * (cy - py) - (cx - px) * (by - py)) / area
+                let w1 = ((cx - px) * (ay - py) - (ax - px) * (cy - py)) / area
+                let w2 = 1 - w0 - w1
+                guard w0 >= -0.01, w1 >= -0.01, w2 >= -0.01 else { continue }
+                let z = w0 * a.2 + w1 * b.2 + w2 * c.2
+                if z < zbuf[y * bw + x] { zbuf[y * bw + x] = z }
+            } }
+        }
+        let margin: Float = 12
+        for i in 0..<nv {
+            guard let (u, v, z) = proj[i], u > margin, v > margin, u < Float(pic.w) - margin, v < Float(pic.h) - margin else { continue }
+            let bx = min(bw - 1, Int(u / 4)), by = min(bh - 1, Int(v / 4))
+            guard z <= zbuf[by * bw + bx] + 0.003 else { continue }
+            let facing = simd_dot(normals[i], simd_normalize(pic.at - mesh.positions[i]))
+            guard facing > 0.3 else { continue }
+            score[i] = facing * facing * (0.6 + 0.4 * pic.sharpness / max(1, maxSharp))
+            uv[i] = SIMD2(u, v)
+        }
+        return (score, uv)
+    }
+
+    /// Each photo's brightness and colour balance matched to `ref`, from the points both see well.
+    private static func gains(_ pics: [Picture], _ score: [[Float]], _ uv: [[SIMD2<Float>]], ref: Int) -> [SIMD3<Float>] {
+        var gain = [SIMD3<Float>](repeating: SIMD3(1, 1, 1), count: pics.count)
+        let nv = score.first?.count ?? 0
+        for k in pics.indices where k != ref {
+            var a = SIMD3<Float>.zero, b = SIMD3<Float>.zero, n = 0
+            for i in Swift.stride(from: 0, to: nv, by: 3) where score[k][i] > 0.4 && score[ref][i] > 0.4 {
+                a += sample(pics[ref], uv[ref][i].x, uv[ref][i].y); b += sample(pics[k], uv[k][i].x, uv[k][i].y); n += 1
+            }
+            if n > 200 { gain[k] = simd_clamp(a / simd_max(b, SIMD3(repeating: 1)), SIMD3(repeating: 0.7), SIMD3(repeating: 1.4)) }
+        }
+        return gain
+    }
+
+    /// Nudges one photo's camera (a small turn and shift) until its brightness agrees with the consensus of all the
+    /// photos at the points it sees (Gauss–Newton on the photometric error). Kept only if the error drops.
+    private static func refinePose(_ pic: inout Picture, mesh: FaceMesh, points: [Int], consensus: [Float], gain: Float) {
+        guard points.count > 300 else { return }
+        let fx = pic.K[0][0], fy = pic.K[1][1]
+        func error(_ T: simd_float4x4) -> Float {
+            var e: Float = 0, n: Float = 0
+            var probe = pic; probe.toCamera = T
+            for i in points { if let (u, v, _) = project(mesh.positions[i], probe) { e += min(40, abs(grey(probe, u, v) * gain - consensus[i])); n += 1 } }
+            return n > 0 ? e / n : .infinity
+        }
+        var best = error(pic.toCamera)
+        let start = pic.toCamera
+        for _ in 0..<6 {
+            var A = [[Double]](repeating: [Double](repeating: 0, count: 6), count: 6), b = [Double](repeating: 0, count: 6)
+            for i in points {
+                let c4 = pic.toCamera * SIMD4<Float>(mesh.positions[i] / 1000, 1), c = SIMD3(c4.x, c4.y, c4.z), z = -c.z
+                guard z > 0.05 else { continue }
+                let u = c.x / z * fx + pic.K[2][0], v = -c.y / z * fy + pic.K[2][1]
+                guard u > 2, v > 2, u < Float(pic.w) - 3, v < Float(pic.h) - 3 else { continue }
+                let r = grey(pic, u, v) * gain - consensus[i]
+                let ix = (grey(pic, u + 1, v) - grey(pic, u - 1, v)) / 2 * gain, iy = (grey(pic, u, v + 1) - grey(pic, u, v - 1)) / 2 * gain
+                let g = SIMD3<Float>(ix * fx / z, -iy * fy / z, ix * fx * c.x / (z * z) - iy * fy * c.y / (z * z))
+                let jw = simd_cross(c, g)
+                let J = [Double(jw.x), Double(jw.y), Double(jw.z), Double(g.x), Double(g.y), Double(g.z)]
+                let w = abs(r) < 20 ? 1.0 : 20.0 / Double(abs(r))   // Huber: outliers count less
+                for p in 0..<6 { b[p] -= w * J[p] * Double(r); for q in 0..<6 { A[p][q] += w * J[p] * J[q] } }
+            }
+            var trace = 0.0
+            for p in 0..<6 { trace += A[p][p] }
+            let damp: Double = trace / 6 * 1e-3 + 1e-9
+            for p in 0..<6 { A[p][p] += damp }
+            guard let x = FaceAlign.solve(A, b) else { break }
+            var rot = SIMD3<Float>(Float(x[0]), Float(x[1]), Float(x[2])), sh = SIMD3<Float>(Float(x[3]), Float(x[4]), Float(x[5]))
+            if simd_length(rot) > 0.02 { rot *= 0.02 / simd_length(rot) }
+            if simd_length(sh) > 0.003 { sh *= 0.003 / simd_length(sh) }
+            let angle = simd_length(rot)
+            let R = angle > 1e-9 ? simd_matrix3x3(simd_quatf(angle: angle, axis: rot / angle)) : matrix_identity_float3x3
+            let step = simd_float4x4(columns: (SIMD4(R.columns.0, 0), SIMD4(R.columns.1, 0), SIMD4(R.columns.2, 0), SIMD4(sh, 1)))
+            let next = step * pic.toCamera, e = error(next)
+            guard e < best else { break }
+            best = e; pic.toCamera = next
+        }
+        // Never more than a small correction overall.
+        let moved = simd_distance(SIMD3(pic.toCamera.columns.3.x, pic.toCamera.columns.3.y, pic.toCamera.columns.3.z), SIMD3(start.columns.3.x, start.columns.3.y, start.columns.3.z))
+        if moved > 0.008 { pic.toCamera = start }
+        let inv = pic.toCamera.inverse
+        pic.at = SIMD3(inv.columns.3.x, inv.columns.3.y, inv.columns.3.z) * 1000
+    }
+
+    static func make(_ mesh: FaceMesh, views: [FrontView]) -> (textured: TexturedFace, mesh: FaceMesh)? {
+        var pics = views.compactMap(decode)
+        guard pics.count >= 3 else { return nil }
+        let normals = mesh.normals(), nv = mesh.positions.count, nt = mesh.triangles.count / 3
+        let maxSharp = pics.map(\.sharpness).max() ?? 1
+        func seeAll() -> ([[Float]], [[SIMD2<Float>]]) {
+            let v = pics.map { visibility(mesh, normals, $0, maxSharp: maxSharp) }
+            return (v.map(\.score), v.map(\.uv))
+        }
+        var (score, uv) = seeAll()
+        let ref = pics.indices.max(by: { pics[$0].at.z / max(1, simd_length(pics[$0].at)) < pics[$1].at.z / max(1, simd_length(pics[$1].at)) })!
+        // 1. Each photo's camera nudged onto the consensus (one round: a second gained nothing in testing).
+        for _ in 0..<1 {
+            let gain = gains(pics, score, uv, ref: ref).map { simd_dot($0, luma) / simd_dot(SIMD3<Float>(1, 1, 1), luma) }
+            var consensus = [Float](repeating: 0, count: nv), support = [Int](repeating: 0, count: nv)
+            var weightSum = [Float](repeating: 0, count: nv)
+            for k in pics.indices { for i in 0..<nv where score[k][i] > 0.2 {
+                consensus[i] += grey(pics[k], uv[k][i].x, uv[k][i].y) * gain[k] * score[k][i]; weightSum[i] += score[k][i]; support[i] += 1
+            } }
+            for i in 0..<nv where weightSum[i] > 0 { consensus[i] /= weightSum[i] }
+            for k in pics.indices {
+                let pts = Swift.stride(from: 0, to: nv, by: max(1, nv / 6000)).filter { score[k][$0] > 0.35 && support[$0] >= 2 }
+                refinePose(&pics[k], mesh: mesh, points: Array(pts.prefix(3000)), consensus: consensus, gain: gain[k])
+            }
+            (score, uv) = seeAll()
+        }
+        let gain = gains(pics, score, uv, ref: ref)
+
+        // 2. One photo per triangle.
+        let tri = { (t: Int, j: Int) in Int(mesh.triangles[t * 3 + j]) }
+        func minScore(_ t: Int, _ k: Int) -> Float { min(score[k][tri(t, 0)], score[k][tri(t, 1)], score[k][tri(t, 2)]) }
+        var label = [Int](repeating: -1, count: nt), locked = [Bool](repeating: false, count: nt)
+        for t in 0..<nt {
+            let centre = (mesh.positions[tri(t, 0)] + mesh.positions[tri(t, 1)] + mesh.positions[tri(t, 2)]) / 3
+            if perioral(centre), minScore(t, ref) > 0 { label[t] = ref; locked[t] = true; continue }
+            var best = -1, bestS: Float = 0
+            for k in pics.indices { let sc = minScore(t, k); if sc > bestS { bestS = sc; best = k } }
+            label[t] = best
+        }
+        // Neighbouring triangles (sharing an edge).
+        var edgeTris: [UInt64: [Int32]] = [:]
+        for t in 0..<nt { for j in 0..<3 {
+            let a = UInt64(tri(t, j)), b = UInt64(tri(t, (j + 1) % 3))
+            edgeTris[min(a, b) << 32 | max(a, b), default: []].append(Int32(t))
+        } }
+        var neighbours = [[Int32]](repeating: [], count: nt)
+        for list in edgeTris.values where list.count == 2 { neighbours[Int(list[0])].append(list[1]); neighbours[Int(list[1])].append(list[0]) }
+        // Smoothness: a triangle changes photo only where it saves more than it costs in seams (iterated conditional modes).
+        let lambda: Float = 0.3
+        for _ in 0..<5 {
+            var changed = 0
+            for t in 0..<nt where !locked[t] && label[t] >= 0 {
+                var candidates = Set(neighbours[t].map { label[Int($0)] }.filter { $0 >= 0 }); candidates.insert(label[t])
+                var bestL = label[t], bestE = Float.infinity
+                for l in candidates {
+                    let d = minScore(t, l)
+                    guard d > 0 else { continue }
+                    let e = (1 - d) + lambda * Float(neighbours[t].filter { label[Int($0)] != l }.count)
+                    if e < bestE { bestE = e; bestL = l }
+                }
+                if bestL != label[t] { label[t] = bestL; changed += 1 }
+            }
+            if changed == 0 { break }
+        }
+        // Up to 16 photos in the texture; triangles of others move to their best kept photo.
+        var used = [Int: Int]()
+        for l in label where l >= 0 { used[l, default: 0] += 1 }
+        let kept = used.sorted { $0.value > $1.value }.prefix(16).map(\.key)
+        guard !kept.isEmpty else { return nil }
+        let keptSet = Set(kept)
+        for t in 0..<nt where label[t] >= 0 && !keptSet.contains(label[t]) {
+            let k = kept.max(by: { minScore(t, $0) < minScore(t, $1) })!
+            label[t] = minScore(t, k) > 0 ? k : -1
+        }
+
+        // 3. Colour levelled across seams: at each seam point every photo is moved to their mean, and the correction
+        //    spread smoothly over each photo's patch (fixed at the seams, harmonic inside).
+        let colourAt = { (i: Int, k: Int) -> SIMD3<Float> in sample(pics[k], uv[k][i].x, uv[k][i].y) * gain[k] }
+        var labelsAt = [[Int]](repeating: [], count: nv)
+        for t in 0..<nt where label[t] >= 0 { for j in 0..<3 { let v = tri(t, j); if !labelsAt[v].contains(label[t]) { labelsAt[v].append(label[t]) } } }
+        var delta = [Int: SIMD3<Float>]()   // vertex * 32 + photo
+        var fixed = Set<Int>()
+        for v in 0..<nv where labelsAt[v].count > 1 {
+            let cs = labelsAt[v].map { colourAt(v, $0) }
+            let mean = cs.reduce(SIMD3<Float>.zero, +) / Float(cs.count)
+            for (n, k) in labelsAt[v].enumerated() { delta[v * 32 + k] = mean - cs[n]; fixed.insert(v * 32 + k) }
+        }
+        for k in kept {
+            var adj: [Int: Set<Int>] = [:]
+            for t in 0..<nt where label[t] == k { for j in 0..<3 {
+                let a = tri(t, j), b = tri(t, (j + 1) % 3)
+                adj[a, default: []].insert(b); adj[b, default: []].insert(a)
+            } }
+            let free = adj.keys.filter { !fixed.contains($0 * 32 + k) }
+            guard !free.isEmpty, adj.keys.contains(where: { fixed.contains($0 * 32 + k) }) else { continue }
+            for _ in 0..<60 {
+                var next = [Int: SIMD3<Float>]()
+                for v in free {
+                    let ns = adj[v]!
+                    var m = SIMD3<Float>.zero
+                    for n in ns { m += delta[n * 32 + k] ?? .zero }
+                    next[v] = m / Float(ns.count)
+                }
+                for (v, d) in next { delta[v * 32 + k] = d }
+            }
+        }
+
+        // The atlas: the kept photos side by side, brightness-matched, each patch corrected.
+        let cols = Int(ceilf(sqrtf(Float(kept.count)))), rows = Int(ceilf(Float(kept.count) / Float(cols)))
+        let cellW = min(1024, pics[kept[0]].w), cellH = Int(Float(cellW) * Float(pics[kept[0]].h) / Float(pics[kept[0]].w))
+        let aw = cols * cellW, ah = rows * cellH
+        var atlas = [Float](repeating: 0, count: aw * ah * 3)
+        var cell = [Int: (Int, Int, Float, Float)]()
+        for (n, k) in kept.enumerated() {
+            let pic = pics[k], x0 = (n % cols) * cellW, y0 = (n / cols) * cellH
+            let sx = Float(pic.w) / Float(cellW), sy = Float(pic.h) / Float(cellH)
+            cell[k] = (x0, y0, 1 / sx, 1 / sy)
+            for y in 0..<cellH { for x in 0..<cellW {
+                let c = sample(pic, (Float(x) + 0.5) * sx, (Float(y) + 0.5) * sy) * gain[k]
+                let o = ((y0 + y) * aw + x0 + x) * 3
+                atlas[o] = c.x; atlas[o + 1] = c.y; atlas[o + 2] = c.z
+            } }
+        }
+        var corrected = [Bool](repeating: false, count: aw * ah)
+        for t in 0..<nt where label[t] >= 0 {
+            let k = label[t], (x0, y0, kx, ky) = cell[k]!
+            let vs = (0..<3).map { tri(t, $0) }
+            let p = vs.map { SIMD2(Float(x0) + uv[k][$0].x * kx, Float(y0) + uv[k][$0].y * ky) }
+            let d = vs.map { delta[$0 * 32 + k] ?? .zero }
+            let minX = max(0, Int(min(p[0].x, p[1].x, p[2].x)) - 1), maxX = min(aw - 1, Int(max(p[0].x, p[1].x, p[2].x)) + 1)
+            let minY = max(0, Int(min(p[0].y, p[1].y, p[2].y)) - 1), maxY = min(ah - 1, Int(max(p[0].y, p[1].y, p[2].y)) + 1)
+            guard minX <= maxX, minY <= maxY, maxX - minX < 200, maxY - minY < 200 else { continue }
+            let area = (p[1].x - p[0].x) * (p[2].y - p[0].y) - (p[2].x - p[0].x) * (p[1].y - p[0].y)
+            guard abs(area) > 1e-6 else { continue }
+            for y in minY...maxY { for x in minX...maxX where !corrected[y * aw + x] {
+                let q = SIMD2(Float(x) + 0.5, Float(y) + 0.5)
+                let w0 = ((p[1].x - q.x) * (p[2].y - q.y) - (p[2].x - q.x) * (p[1].y - q.y)) / area
+                let w1 = ((p[2].x - q.x) * (p[0].y - q.y) - (p[0].x - q.x) * (p[2].y - q.y)) / area
+                let w2 = 1 - w0 - w1
+                guard w0 >= -0.15, w1 >= -0.15, w2 >= -0.15 else { continue }
+                let c = d[0] * w0 + d[1] * w1 + d[2] * w2, o = (y * aw + x) * 3
+                atlas[o] += c.x; atlas[o + 1] += c.y; atlas[o + 2] += c.z
+                corrected[y * aw + x] = true
+            } }
+        }
+        var bytes = [UInt8](repeating: 255, count: aw * ah * 4)
+        for i in 0..<(aw * ah) { for ch in 0..<3 { bytes[i * 4 + ch] = UInt8(max(0, min(255, atlas[i * 3 + ch]))) } }
+        guard let provider = CGDataProvider(data: Data(bytes) as CFData),
+              let texture = CGImage(width: aw, height: ah, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: aw * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                    bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue), provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent) else { return nil }
+        var positions: [SIMD3<Float>] = [], uvs: [SIMD2<Float>] = [], tris: [UInt32] = []
+        var index = [Int: UInt32]()
+        for t in 0..<nt where label[t] >= 0 {
+            let k = label[t], (x0, y0, kx, ky) = cell[k]!
+            for j in 0..<3 {
+                let v = tri(t, j), key = v * 32 + k
+                if let i = index[key] { tris.append(i); continue }
+                let q = uv[k][v], i = UInt32(positions.count)
+                positions.append(mesh.positions[v])
+                uvs.append(SIMD2((Float(x0) + q.x * kx) / Float(aw), 1 - (Float(y0) + q.y * ky) / Float(ah)))
+                index[key] = i; tris.append(i)
+            }
+        }
+        guard tris.count > 3000 else { return nil }
+        // The mesh's own colours: each point from its patch's photo with the same levelling; elsewhere the best two.
+        var recoloured = mesh
+        for i in 0..<nv {
+            var c = SIMD3<Float>.zero
+            if !labelsAt[i].isEmpty {
+                for k in labelsAt[i] { c += colourAt(i, k) + (delta[i * 32 + k] ?? .zero) }
+                c /= Float(labelsAt[i].count)
+            } else {
+                let best = pics.indices.filter { score[$0][i] > 0 }.sorted { score[$0][i] > score[$1][i] }.prefix(2)
+                guard !best.isEmpty else { continue }
+                var w: Float = 0
+                for k in best { c += colourAt(i, k) * score[k][i]; w += score[k][i] }
+                c /= w
+            }
+            recoloured.colours[i] = SIMD3(UInt8(max(0, min(255, c.x))), UInt8(max(0, min(255, c.y))), UInt8(max(0, min(255, c.z))))
+        }
+        return (TexturedFace(positions: positions, uvs: uvs, triangles: tris, texture: texture), recoloured)
+    }
+}
+
 /// The shots as Object Capture's input, loaded one at a time.
 struct ShotSequence: Sequence {
     let shots: [PhotoShots.Shot]
@@ -2493,9 +3301,33 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     /// still while the clinician moves round them, and the detailed face is built from the photos taken on the way.
     enum Sensor: String { case front, rear }
     static var frontAvailable: Bool { ARFaceTrackingConfiguration.isSupported }
-    static var rearAvailable: Bool { LidarScanner.available }
+    /// The rear scanner is an experiment (LiDAR can't resolve the lips): offered only behind the Labs switch, or
+    /// on a device without the Face ID sensor.
+    private let rearAllowed: Bool
+    private var rearAvailable: Bool { LidarScanner.available && (rearAllowed || !Self.frontAvailable) }
     private var sensor: Sensor
-    private let sensorPicker = UISegmentedControl(items: ["Face ID · detailed", "Rear camera · photos"])
+    private let sensorPicker = UISegmentedControl(items: ["Face ID · detailed", "Rear camera · experimental"])
+    /// Gravity's up in the head frame when the scan started: natural head position for the lab.
+    private var gravityUp: SIMD3<Float>?
+    /// Automatic start: the face centred, frontal and still for a moment, then a short counted start.
+    private var steadySince: CFTimeInterval?
+    /// Clinician cues while the screen faces the patient: milestones heard, and the last "too fast" buzz.
+    private var milestone = 0
+    private var lastFastWarning: CFTimeInterval = 0
+    /// When this pose's ready screen appeared, and whether the patient has moved since (retractors going in).
+    private var readySince: CFTimeInterval = 0
+    private var movedSinceReady = false
+    private var lastAnchor: simd_float4x4?
+    private var countdown = 0
+    private var countdownTimer: Timer?
+    private var finishing = false
+    // This device's scale check: a bank card (85.60 × 53.98 mm) held flat in front of the Face ID sensor.
+    private var scaleMode = false
+    private var scaleSamples: [Float] = []
+    private var measuring = false
+    private let scaleButton = UIButton(type: .system)
+    /// The count-in (3, 2, 1) and the finished tick, large in the middle of the outline, readable at arm's length.
+    private let countLabel = UILabel()
     /// Front: from the face anchor's frame to the head frame (origin 10 cm behind the nose tip, at its height).
     private var faceOffset: simd_float4x4?
     /// Front: whether the camera's raw image runs mirrored to ARKit's camera (checked when the scan starts).
@@ -2552,6 +3384,10 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     /// The head's frame in the world, fixed when the scan starts, and the eyes found then (head frame, metres).
     private var headToWorld: simd_float4x4?
     private var lidarEyes: (left: SIMD3<Float>, right: SIMD3<Float>)?
+    /// Sharp front-camera photos from different angles during a Face ID scan (up to 12), for photographic skin.
+    private var frontViews: [FrontView] = []
+    private var frontViewPending = false
+    private let photoContext = CIContext(options: [.cacheIntermediates: false])
     private var noseTip: SIMD3<Float>?
     private var lastPromptTap: CFTimeInterval = 0
 
@@ -2579,12 +3415,13 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     private let spinner = UIActivityIndicatorView(style: .large)
     private let topFade = CAGradientLayer(), bottomFade = CAGradientLayer()
 
-    init(captures: [FaceCaptureSpec], guide: UIImage?, completion: @escaping ([FaceScanResult]) -> Void) {
+    init(captures: [FaceCaptureSpec], guide: UIImage?, allowRear: Bool, completion: @escaping ([FaceScanResult]) -> Void) {
         self.captures = captures
         self.guide = guide
+        self.rearAllowed = allowRear
         self.completion = completion
         let saved = UserDefaults.standard.string(forKey: "faceScanSensor").flatMap(Sensor.init(rawValue:))
-        switch (saved, Self.frontAvailable, Self.rearAvailable) {
+        switch (saved, Self.frontAvailable, LidarScanner.available && (allowRear || !Self.frontAvailable)) {
         case (.some(.rear), _, true), (_, false, true): sensor = .rear
         default: sensor = .front
         }
@@ -2694,8 +3531,61 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         spinner.color = .white
         spinner.hidesWhenStopped = true
         [startButton, finishButton, skipButton, spinner].forEach { view.addSubview($0) }
+        countLabel.font = .systemFont(ofSize: 96, weight: .semibold)
+        countLabel.textColor = Self.gold
+        countLabel.textAlignment = .center
+        countLabel.alpha = 0
+        countLabel.layer.shadowColor = UIColor.black.cgColor
+        countLabel.layer.shadowOpacity = 0.5
+        countLabel.layer.shadowRadius = 12
+        countLabel.layer.shadowOffset = .zero
+        view.addSubview(countLabel)
+        scaleButton.setTitle("Check scale", for: .normal)
+        scaleButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
+        scaleButton.tintColor = .white
+        scaleButton.backgroundColor = UIColor(white: 0.1, alpha: 0.45)
+        scaleButton.layer.cornerRadius = 18
+        scaleButton.addTarget(self, action: #selector(scaleTapped), for: .touchUpInside)
+        view.addSubview(scaleButton)
+        // The volume buttons start and stop a scan, so the clinician needn't reach round to the screen.
+        if #available(iOS 17.2, *) {
+            let buttons = AVCaptureEventInteraction { [weak self] event in
+                guard event.phase == .began else { return }
+                self?.hardwareButton()
+            }
+            view.addInteraction(buttons)
+        }
+        NotificationCenter.default.addObserver(self, selector: #selector(thermalChanged), name: ProcessInfo.thermalStateDidChangeNotification, object: nil)
         show(0)
     }
+
+    private func hardwareButton() {
+        if phase == .ready, !scaleMode { start() }
+        else if phase == .scanning, finishButton.isEnabled { build() }
+    }
+
+    @objc private func thermalChanged() {
+        DispatchQueue.main.async {
+            guard ProcessInfo.processInfo.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue, self.phase == .ready || self.phase == .scanning else { return }
+            self.detail.text = "The phone is warm, so the scan may slow down. Let it cool for a minute between patients."
+        }
+    }
+
+    /// Exposure and white balance held once metered on the face, so every photo of the skin matches.
+    private func holdExposure(_ hold: Bool) {
+        guard sensor == .front, #available(iOS 16.0, *), let device = ARFaceTrackingConfiguration.configurableCaptureDeviceForPrimaryCamera,
+              (try? device.lockForConfiguration()) != nil else { return }
+        if hold {
+            if device.isExposureModeSupported(.locked) { device.exposureMode = .locked }
+            if device.isWhiteBalanceModeSupported(.locked) { device.whiteBalanceMode = .locked }
+        } else {
+            if device.isExposureModeSupported(.continuousAutoExposure) { device.exposureMode = .continuousAutoExposure }
+            if device.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) { device.whiteBalanceMode = .continuousAutoWhiteBalance }
+        }
+        device.unlockForConfiguration()
+    }
+
+    private static func tone(_ id: SystemSoundID) { AudioServicesPlaySystemSound(id) }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
@@ -2713,6 +3603,10 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             let c = ARFaceTrackingConfiguration()
             c.isLightEstimationEnabled = false
             c.maximumNumberOfTrackedFaces = 1
+            c.worldAlignment = .gravity
+            // 30 fps keeps the phone cooler (the depth rate halves when it gets hot), at the sharpest size offered.
+            if let format = ARFaceTrackingConfiguration.supportedVideoFormats.filter({ $0.framesPerSecond <= 30 })
+                .max(by: { $0.imageResolution.width * $0.imageResolution.height < $1.imageResolution.width * $1.imageResolution.height }) { c.videoFormat = format }
             sceneView.session.run(c, options: [.resetTracking, .removeExistingAnchors])
             sensorLabel.text = "Face ID sensor · screen towards the patient"
             noseTip = nil
@@ -2745,6 +3639,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         dots.frame = CGRect(x: safe.midX - dotsWidth / 2, y: safe.minY + 54, width: dotsWidth, height: 3)
         sensorLabel.frame = CGRect(x: safe.minX + 70, y: safe.minY + 62, width: safe.width - 140, height: 15)
         sensorPicker.frame = CGRect(x: safe.midX - 150, y: safe.minY + 84, width: 300, height: 32)
+        scaleButton.frame = CGRect(x: safe.maxX - 128, y: safe.minY + 12, width: 112, height: 36)
         startButton.frame = CGRect(x: safe.midX - 110, y: safe.maxY - 74, width: 220, height: 54)
         finishButton.frame = CGRect(x: safe.maxX - 124, y: safe.maxY - 69, width: 104, height: 44)
         skipButton.frame = CGRect(x: safe.minX + 20, y: safe.maxY - 69, width: phase == .refining ? 190 : 70, height: 44)
@@ -2770,7 +3665,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         progressTrack.frame = CGRect(x: 22, y: 82, width: barWidth - 44 - 64, height: 5)
         mapped.frame = CGRect(x: barWidth - 22 - 56, y: 72, width: 56, height: 24)
         progressFill.frame = CGRect(x: 0, y: 0, width: progressTrack.bounds.width * CGFloat(min(1, coverage.fraction / Self.mappedTarget)), height: 5)
-        view.keepClearOfCamera([closeButton, startButton, finishButton, skipButton])
+        view.keepClearOfCamera([closeButton, startButton, finishButton, skipButton, scaleButton])
     }
 
     // MARK: Steps
@@ -2778,6 +3673,12 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     private var capture: FaceCaptureSpec { captures[index] }
 
     private func resetCapture() {
+        gravityUp = nil
+        milestone = 0
+        steadySince = nil
+        cancelCountdown()
+        frontViews = []
+        frontViewPending = false
         faceOffset = nil
         expressionIssue = nil
         shots?.remove()
@@ -2802,27 +3703,119 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         index = i
         phase = .ready
         resetCapture()
-        stepLabel.text = "\(capture.title) · \(i + 1) of \(captures.count)"
+        stepLabel.text = captures.count == 1 ? capture.title : "\(capture.title) · \(i + 1) of \(captures.count)"
+        dots.isHidden = captures.count == 1
         for (n, d) in dots.arrangedSubviews.enumerated() { d.backgroundColor = n < i ? Self.gold : n == i ? .white : UIColor(white: 1, alpha: 0.25) }
         meter.lit = []; meter.current = nil; meter.heading = nil
         guideView.tintColor = UIColor(white: 1, alpha: 0.45)
-        prompt.text = capture.hint
-        detail.text = readyDetail
+        if sensor == .front { prompt.text = "Point the screen at the patient"; detail.text = Self.scaleUnchecked ? "Check the scale once on this iPad first (top right)." : "Level with their eyes, 25–35 cm away" }
+        else { prompt.text = capture.hint; detail.text = readyDetail }
+        holdExposure(false)
+        readySince = CACurrentMediaTime()
+        movedSinceReady = false
         updateControls()
     }
 
     private var readyDetail: String {
-        sensor == .front
-            ? "Hold the phone 30–50 cm away with the screen towards the patient, level with their face. They follow the prompts on the screen."
-            : "The patient keeps still against the headrest. Hold the phone 30–50 cm away and move slowly round them; photos are taken for the detailed face."
+        if sensor == .front, Self.scaleUnchecked { return "Check the scale once on this iPad before scanning: tap Check scale, then hold a bank card flat towards the screen." }
+        return sensor == .front
+            ? "Hold the phone level with the patient’s eyes, 25–35 cm away, screen towards them, in even light. Ask for a wide smile showing the teeth: it starts once they’re smiling and still, or press a volume button."
+            : "Experimental: the patient keeps still against the headrest. Hold the phone 30–50 cm away and move slowly round them; photos are taken for the detailed face."
     }
+
+    /// Before the scan: one short instruction for the patient (big) with a line under it, changed without a tap.
+    private func setReady(_ title: String, _ line: String) {
+        let lineText = sensor == .front && Self.scaleUnchecked && !scaleMode ? "Check the scale once on this iPad first (top right)." : line
+        if prompt.text != title { UIView.transition(with: prompt, duration: 0.18, options: .transitionCrossDissolve) { self.prompt.text = title } }
+        if detail.text != lineText { detail.text = lineText }
+    }
+
+    private func showCount(_ text: String?) {
+        if let text {
+            countLabel.text = text
+            countLabel.alpha = 1
+            countLabel.transform = CGAffineTransform(scaleX: 1.25, y: 1.25)
+            UIView.animate(withDuration: 0.3, delay: 0, usingSpringWithDamping: 0.6, initialSpringVelocity: 0) { self.countLabel.transform = .identity }
+        } else if countLabel.alpha > 0 {
+            UIView.animate(withDuration: 0.2) { self.countLabel.alpha = 0 }
+        }
+    }
+
+    // MARK: Automatic start
+
+    /// The face centred, square to the screen, at a good distance and still for a second: count in, then start.
+    /// Works held in the hand (a stand is optional): steadiness is the face against the camera, so a hand's small
+    /// movements count like the head's, and eye level comes from gravity.
+    private func considerAutoStart(_ face: ARFaceAnchor, frame: ARFrame, cameraToAnchor: simd_float4x4, distance d: Float) {
+        guard sensor == .front, !scaleMode, ProcessInfo.processInfo.thermalState != .critical else { return }
+        let toCamera = simd_normalize(SIMD3(cameraToAnchor.columns.3.x, cameraToAnchor.columns.3.y, cameraToAnchor.columns.3.z))
+        let frontal = toCamera.z > cosf(14 * .pi / 180)
+        var still = false
+        if let last = lastAnchor {
+            let moved = simd_distance(SIMD3(last.columns.3.x, last.columns.3.y, last.columns.3.z), SIMD3(cameraToAnchor.columns.3.x, cameraToAnchor.columns.3.y, cameraToAnchor.columns.3.z))
+            let turned = acosf(max(-1, min(1, simd_dot(SIMD3(last.columns.2.x, last.columns.2.y, last.columns.2.z), SIMD3(cameraToAnchor.columns.2.x, cameraToAnchor.columns.2.y, cameraToAnchor.columns.2.z))))) * 180 / .pi
+            still = moved < 0.006 && turned < 2
+        }
+        lastAnchor = cameraToAnchor
+        // Natural head position needs the phone at the patient's eye level: a phone held low makes them look down.
+        let faceInCamera = frame.camera.transform.inverse * face.transform
+        let look = simd_normalize(SIMD3(faceInCamera.columns.3.x, faceInCamera.columns.3.y, faceInCamera.columns.3.z))
+        let cam = frame.camera.transform
+        let lookWorld = SIMD3(cam.columns.0.x, cam.columns.0.y, cam.columns.0.z) * look.x + SIMD3(cam.columns.1.x, cam.columns.1.y, cam.columns.1.z) * look.y + SIMD3(cam.columns.2.x, cam.columns.2.y, cam.columns.2.z) * look.z
+        let elevation = asinf(max(-1, min(1, lookWorld.y))) * 180 / .pi
+        let level = abs(elevation) < 12
+        if !still { movedSinceReady = true }
+        let now = CACurrentMediaTime()
+        // A moment to settle after each pose; for Teeth showing, the retractors go in first (the patient moves, then
+        // settles), so it waits for that.
+        let paced = now - readySince > (capture.id == "retracted" ? 4 : 1.5) && (capture.id != "retracted" || movedSinceReady)
+        let smiling = expressionCheck(face) == nil
+        let ready = paced && frontal && still && level && d > 0.2 && d < 0.5 && smiling
+        // One instruction at a time, most important first.
+        if countdownTimer == nil {
+            if d >= 0.45 { setReady("Come a little closer", "25–35 cm from the face") }
+            else if d <= 0.2 { setReady("Move back a little", "25–35 cm from the face") }
+            else if !level { setReady(elevation > 0 ? "Raise the phone" : "Lower the phone", "Level with the patient’s eyes") }
+            else if !frontal { setReady("Look at the screen", "Face the phone straight on") }
+            else if !smiling { setReady("Give us a wide smile", "Show your teeth and look at the screen") }
+            else { setReady("Hold still", "Keep smiling at the screen") }
+        }
+        if ready {
+            if steadySince == nil { steadySince = now }
+            if countdownTimer == nil, now - (steadySince ?? now) > 0.8 { beginCountdown() }
+        } else if !frontal || !level || d <= 0.2 || d >= 0.5 {
+            steadySince = nil
+            if countdownTimer != nil { cancelCountdown() }
+        }
+    }
+
+    private func beginCountdown() {
+        countdown = 3
+        tick()
+        countdownTimer = Timer.scheduledTimer(withTimeInterval: 0.75, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.countdown -= 1
+            if self.countdown > 0 { self.tick() } else { self.cancelCountdown(); if self.phase == .ready { self.start() } }
+        }
+    }
+    private func tick() {
+        Self.tone(1103)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        setReady("Hold still", "Keep smiling at the screen")
+        showCount("\(countdown)")
+    }
+    private func cancelCountdown() { countdownTimer?.invalidate(); countdownTimer = nil; showCount(nil) }
 
 
     private func updateControls() {
-        sensorPicker.isHidden = !(phase == .ready && Self.frontAvailable && Self.rearAvailable)
+        sensorPicker.isHidden = !(phase == .ready && Self.frontAvailable && rearAvailable) || scaleMode
+        sensorLabel.isHidden = phase != .ready
+        // Only on iPad (where the Face ID sensor's known calibration faults are), so iPhone patients see one less button.
+        scaleButton.isHidden = !(phase == .ready && sensor == .front && UIDevice.current.userInterfaceIdiom == .pad)
+        scaleButton.setTitle(scaleMode ? "Cancel" : "Check scale", for: .normal)
         startButton.isHidden = phase != .ready
         finishButton.isHidden = phase != .scanning
-        skipButton.isHidden = phase == .building || phase == .locking
+        skipButton.isHidden = phase == .building || phase == .locking || captures.count == 1
         skipButton.setTitle(phase == .refining ? "Use quick versions" : "Skip", for: .normal)
         skipButton.frame.size.width = phase == .refining ? 190 : 70
         if phase == .refining {
@@ -2858,6 +3851,8 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     }
 
     @objc private func start() {
+        cancelCountdown()
+        if scaleMode { return }
         if sensor == .front { startFront(); return }
         resetCapture()
         volume = FaceVolume()
@@ -2882,6 +3877,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             DispatchQueue.main.async {
                 guard !self.finished, self.phase == .locking else { return }
                 self.headToWorld = head
+                self.gravityUp = SIMD3(0, 1, 0)   // the rear head frame is built on gravity
                 self.visionOrientation = orientation
                 self.maskMapping = mapping
                 if let eyes {
@@ -2904,13 +3900,28 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     @objc private func close() { refiner?.cancel(); finish() }
 
     private func advance() {
-        if index + 1 < captures.count { show(index + 1) } else { finishReportingLidarOnly() }
+        if index + 1 < captures.count { show(index + 1) } else { offerDetailedBuild() }
     }
 
     /// Rear scans whose detailed build didn't happen keep only the LiDAR shape, which has little facial detail: say
     /// so plainly before saving, rather than leaving a soft face to be found later.
+    /// Rear scans: building the detailed face (Object Capture) warms the phone, so it only happens if chosen.
+    private func offerDetailedBuild() {
+        let candidates = results.indices.filter { results[$0].canBuildDetailed }
+        guard !candidates.isEmpty else { finishReportingLidarOnly(); return }
+        let alert = UIAlertController(title: "Build the detailed faces?",
+                                      message: "The rear scans have their quick LiDAR shape now. Building the detailed faces from the photos takes about two minutes each and warms the phone; it carries on while you use the app.",
+                                      preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Build them", style: .default) { _ in
+            for i in candidates { self.results[i].wantsDetailed = true }
+            self.finishReportingLidarOnly()
+        })
+        alert.addAction(UIAlertAction(title: "Not now", style: .cancel) { _ in self.finishReportingLidarOnly() })
+        present(alert, animated: true)
+    }
+
     private func finishReportingLidarOnly() {
-        let soft = results.filter { $0.sensor == "lidar" && $0.textured == nil && !$0.buildLater }.map(\.title)
+        let soft = results.filter { $0.sensor == "lidar" && $0.textured == nil && !$0.canBuildDetailed }.map(\.title)
         guard !soft.isEmpty, !finished else { finish(); return }
         let names = ListFormatter.localizedString(byJoining: soft)
         let alert = UIAlertController(title: "Low-detail scan",
@@ -2921,13 +3932,172 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     }
 
     private func finish() {
-        guard !finished else { return }
-        finished = true
+        guard !finished, !finishing else { return }
+        cancelCountdown()
         sceneView.session.pause()
-        results.forEach { if !$0.buildLater { $0.shots?.remove() } }
-        shots?.remove()
-        let scans = results
-        dismiss(animated: true) { self.completion(scans) }
+        holdExposure(false)
+        shots?.remove(); shots = nil
+        guard !results.isEmpty else {
+            finished = true
+            dismiss(animated: true) { self.completion([]) }
+            return
+        }
+        // Clean, skin, scale and the shared frame for every expression together.
+        finishing = true
+        phase = .building
+        updateControls()
+        showCount(nil)
+        prompt.text = "Finishing the scan"
+        detail.text = "A few seconds…"
+        let scans = results, scale = Self.deviceScale
+        DispatchQueue.global(qos: .userInitiated).async {
+            let done = FaceFinish.finishAll(scans, scale: scale)
+            DispatchQueue.main.async {
+                self.finished = true
+                done.forEach { if !$0.buildLater { $0.shots?.remove() } }
+                self.dismiss(animated: true) { self.completion(done) }
+            }
+        }
+    }
+
+    // MARK: Scale check
+
+    static var deviceModel: String {
+        var info = utsname(); uname(&info)
+        return Mirror(reflecting: info.machine).children.reduce("") { id, el in
+            guard let v = el.value as? Int8, v != 0 else { return id }
+            return id + String(UnicodeScalar(UInt8(v)))
+        }
+    }
+    private static var scaleKey: String { "faceScanScale.\(deviceModel)" }
+    /// The correction this device's scale check found (1 when checked and correct, or not checked).
+    static var deviceScale: Float { (UserDefaults.standard.object(forKey: scaleKey) as? Double).map(Float.init) ?? 1 }
+    /// iPads whose Face ID sensor is known to report the wrong size until checked (factory calibration off by
+    /// 5–7%: 2018/2020 and M1 iPad Pro).
+    static var scaleUnchecked: Bool {
+        guard UserDefaults.standard.object(forKey: scaleKey) == nil else { return false }
+        let m = deviceModel
+        let parts = m.split(separator: ",")
+        guard parts.count == 2, let minor = Int(parts[1]) else { return false }
+        return (parts[0] == "iPad13" && (4...11).contains(minor)) || (parts[0] == "iPad8" && (1...12).contains(minor))
+    }
+
+    @objc private func scaleTapped() {
+        guard phase == .ready, sensor == .front else { return }
+        cancelCountdown()
+        scaleMode.toggle()
+        scaleSamples = []
+        if scaleMode {
+            prompt.text = "Hold a bank card flat towards the screen"
+            detail.text = "25–35 cm away, the whole card in view and square to the phone. Keep it still for a few seconds."
+        } else {
+            setReady("Point the screen at the patient", "Level with their eyes, 25–35 cm away")
+        }
+        updateControls()
+    }
+
+    private func scaleFrame(_ frame: ARFrame) {
+        guard !measuring else { return }
+        measuring = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let factor = Self.measureCard(frame)
+            DispatchQueue.main.async {
+                self.measuring = false
+                guard self.scaleMode else { return }
+                if let factor {
+                    self.scaleSamples.append(factor)
+                    self.detail.text = "Measuring the card… \(min(100, self.scaleSamples.count * 4))%"
+                }
+                if self.scaleSamples.count >= 25 { self.finishScaleCheck() }
+            }
+        }
+    }
+
+    private func finishScaleCheck() {
+        let sorted = scaleSamples.sorted()
+        let median = sorted[sorted.count / 2]
+        let spread = sorted[sorted.count * 3 / 4] - sorted[sorted.count / 4]
+        scaleMode = false
+        scaleSamples = []
+        updateControls()
+        prompt.text = "Point the screen at the patient"
+        let error = (1 / median - 1) * 100
+        let title: String, message: String
+        if spread > 0.03 {
+            title = "Couldn’t measure the card steadily"; message = "Try again with the card flat, square to the screen and still, in even light."
+        } else if abs(error) < 1.5 {
+            UserDefaults.standard.set(1.0, forKey: Self.scaleKey)
+            title = "Scale is correct"; message = String(format: "The card measured within %.1f%% of its true size, so scans from this device need no correction.", abs(error))
+        } else if abs(error) < 12 {
+            UserDefaults.standard.set(Double(median), forKey: Self.scaleKey)
+            title = "Scale corrected"; message = String(format: "This device’s Face ID sensor reads %.1f%% %@. Scans from it are corrected from now on, and the lab notes say so.", abs(error), error > 0 ? "large" : "small")
+        } else {
+            title = "The measurement looks wrong"; message = String(format: "The card read %.0f%% off its true size, which is more than a sensor error. Check it’s a standard bank card and try again.", abs(error))
+        }
+        detail.text = readyDetail
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+
+    /// One frame's scale factor (true size ÷ measured size) from a bank card: Vision finds the card's corners, the
+    /// depth inside it gives its plane, and the corners' sight lines meet that plane. Nil if the card isn't clear.
+    static func measureCard(_ frame: ARFrame) -> Float? {
+        guard let depthData = frame.capturedDepthData else { return nil }
+        let request = VNDetectRectanglesRequest()
+        request.minimumAspectRatio = 0.5; request.maximumAspectRatio = 0.8
+        request.minimumSize = 0.12; request.minimumConfidence = 0.6; request.quadratureTolerance = 15; request.maximumObservations = 1
+        guard (try? VNImageRequestHandler(cvPixelBuffer: frame.capturedImage, orientation: .up).perform([request])) != nil,
+              let card = request.results?.first else { return nil }
+        let size = frame.camera.imageResolution, W = Float(size.width), H = Float(size.height)
+        let corner = { (p: CGPoint) in SIMD2<Float>(Float(p.x) * W, (1 - Float(p.y)) * H) }
+        let quad = [corner(card.topLeft), corner(card.topRight), corner(card.bottomRight), corner(card.bottomLeft)]
+        let converted = depthData.converting(toDepthDataType: kCVPixelFormatType_DepthFloat32)
+        let map = converted.depthDataMap
+        CVPixelBufferLockBaseAddress(map, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(map, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddress(map) else { return nil }
+        let dw = CVPixelBufferGetWidth(map), dh = CVPixelBufferGetHeight(map), row = CVPixelBufferGetBytesPerRow(map) / 4
+        let d = base.assumingMemoryBound(to: Float32.self)
+        let dK = depthIntrinsics(converted, camera: frame.camera, width: Float(dw), height: Float(dh)), iK = frame.camera.intrinsics
+        let fx = dK[0][0], fy = dK[1][1], cx = dK[2][0], cy = dK[2][1]
+        let ifx = iK[0][0], ify = iK[1][1], icx = iK[2][0], icy = iK[2][1]
+        let sx = ifx / fx, sy = ify / fy, ox = icx - cx * sx, oy = icy - cy * sy
+        // Points inside the card (away from its edges), in the camera's frame.
+        var pts: [SIMD3<Float>] = []
+        for a in stride(from: Float(0.2), through: 0.8, by: 0.1) { for b in stride(from: Float(0.2), through: 0.8, by: 0.1) {
+            let top = quad[0] + (quad[1] - quad[0]) * a, bottom = quad[3] + (quad[2] - quad[3]) * a
+            let p = top + (bottom - top) * b
+            let uu = Int((p.x - ox) / sx), vv = Int((p.y - oy) / sy)
+            guard uu > 1, vv > 1, uu < dw - 2, vv < dh - 2 else { continue }
+            var zs: [Float] = []
+            for j in -1...1 { for i in -1...1 { let z = d[(vv + j) * row + uu + i]; if z > 0.12, z < 0.8 { zs.append(z) } } }
+            guard zs.count >= 5 else { continue }
+            let z = zs.sorted()[zs.count / 2]
+            pts.append(SIMD3((Float(uu) - cx) / fx * z, -(Float(vv) - cy) / fy * z, -z))
+        } }
+        guard pts.count >= 25 else { return nil }
+        // The card's plane: Z = aX + bY + c.
+        var A = [[Double]](repeating: [0, 0, 0], count: 3), r = [0.0, 0, 0]
+        for p in pts {
+            let v = [Double(p.x), Double(p.y), 1]
+            for i in 0..<3 { r[i] += v[i] * Double(p.z); for j in 0..<3 { A[i][j] += v[i] * v[j] } }
+        }
+        guard let plane = FaceAlign.solve(A, r) else { return nil }
+        let pa = Float(plane[0]), pb = Float(plane[1]), pc = Float(plane[2])
+        let corners: [SIMD3<Float>] = quad.compactMap { q in
+            let xn = (q.x - icx) / ifx, yn = (q.y - icy) / ify
+            let denom = -1 - pa * xn + pb * yn
+            guard abs(denom) > 1e-4 else { return nil }
+            let t = pc / denom
+            return SIMD3(xn, -yn, -1) * t
+        }
+        guard corners.count == 4 else { return nil }
+        let e1 = (simd_distance(corners[0], corners[1]) + simd_distance(corners[3], corners[2])) / 2
+        let e2 = (simd_distance(corners[0], corners[3]) + simd_distance(corners[1], corners[2])) / 2
+        let long = max(e1, e2) * 1000, short = min(e1, e2) * 1000
+        guard short > 20, abs(long / short - 85.60 / 53.98) < 0.06 else { return nil }
+        return (85.60 / long + 53.98 / short) / 2
     }
 
     /// The finished capture becomes a mesh and its preview, then the next.
@@ -2935,16 +4105,23 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         guard phase == .scanning, let volume else { return }
         phase = .building
         updateControls()
-        say("Done. You can relax", force: true)
+        say("Done – you can relax", force: true)
+        showCount("✓")
+        Self.tone(1114)
         detail.text = "Building the 3D face…"
         let capture = self.capture, reach = self.reach, coverage = self.coverage.fraction
         let eyes = lidarEyes.map { (left: $0.left * 1000, right: $0.right * 1000) }
         let tracker = self.tracker
         let shots = self.shots
         self.shots = nil
+        let views = sensor == .front ? frontViews : []
+        frontViews = []
+        let gravity = gravityUp
+        holdExposure(false)
         let waitForFusion = fuseQueue
         waitForFusion.async {
-            // Every stored frame lined up again against the whole face, then the face built afresh.
+            // Every stored frame lined up again against the whole face, then the face built afresh. Cleaning, skin and
+            // the shared frame wait until every expression is in (FaceFinish.finishAll).
             let mesh = tracker?.rebuild(from: volume)?.mesh() ?? volume.mesh()
             let quality: (rms: Float, kept: Float) = tracker?.quality ?? (0, 1)
             DispatchQueue.main.async {
@@ -2959,9 +4136,11 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
                     self.detail.text = "Try again, moving a little more slowly."
                     return
                 }
-                var result = FaceScanResult(id: capture.id, title: capture.title, mesh: mesh, preview: mesh.preview(), eyes: eyes,
+                var result = FaceScanResult(id: capture.id, title: capture.title, mesh: mesh, preview: nil, eyes: eyes,
                                             turned: (reach.right, reach.left), tilted: (reach.up, reach.down), coverage: coverage)
                 result.tracking = quality
+                result.views = views
+                result.gravityUp = gravity
                 result.shots = shots
                 result.sensor = self.sensor == .front ? "trueDepth" : "lidar"
                 guard result.trackingPoor else {
@@ -3106,7 +4285,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             return nil
         }
         say(problem ?? nextPrompt(azimuth, elevation))
-        detail.text = problem == nil ? (sensor == .front ? "Keep the phone still; the patient turns slowly, holding the expression." : "The patient keeps still; move slowly round them in a circle.") : (problem == trackingIssue?.text ? "That part wasn’t added, so the face stays sharp." : " ")
+        detail.text = sensor == .front ? " " : problem == nil ? "The patient keeps still; move slowly round them in a circle." : (problem == trackingIssue?.text ? "That part wasn’t added, so the face stays sharp." : " ")
         // A tracking message doesn't stop the scan: the next frames are tried again.
         return problem == nil || problem == trackingIssue?.text ? Viewing(azimuth: azimuth, elevation: elevation) : nil
     }
@@ -3169,6 +4348,9 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             }
         }
         if coverage.add(azimuth: v.azimuth, elevation: v.elevation) { lastCoverageGain = CACurrentMediaTime() }
+        // Heard by the clinician holding the phone (the screen faces the patient): a tick at each quarter mapped.
+        let quarter = Int(min(1, coverage.fraction / Self.mappedTarget) * 4)
+        if quarter > milestone, quarter < 4 { milestone = quarter; Self.tone(1104) }
         meter.lit = lit
         updateControls()
         let settled = coverage.fraction >= Self.settledFraction && CACurrentMediaTime() - lastCoverageGain > Self.settleSeconds
@@ -3230,7 +4412,9 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             return
         }
         resetCapture()
-        volume = FaceVolume(voxel: 0.0012)
+        // Short sweeps (the wide smile) at 0.8 mm over the front of the face, where the lips and teeth are; a long
+        // sweep at 1 mm over the whole head.
+        volume = capture.turn <= 40 ? FaceVolume(voxel: 0.0008, lo: FaceVolume.frontLo, hi: FaceVolume.frontHi) : FaceVolume(voxel: 0.001)
         tracker = HeadTracker()
         maskMapping = nil
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -3241,6 +4425,13 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         offset.columns.3 = SIMD4(0, nose.y, nose.z - 0.10, 1)
         faceOffset = offset
         let toHead = offset.inverse
+        // Natural head position: which way is up (gravity) in the head frame now, with the patient looking at the
+        // screen at eye level.
+        let headToWorldNow = face.transform * offset
+        let upInHead = headToWorldNow.inverse * SIMD4<Float>(0, 1, 0, 0)
+        gravityUp = simd_normalize(SIMD3(upInHead.x, upInHead.y, upInHead.z))
+        holdExposure(true)
+        Self.tone(1113)
         let l = toHead * face.leftEyeTransform.columns.3, r = toHead * face.rightEyeTransform.columns.3
         lidarEyes = (SIMD3(l.x, l.y, l.z), SIMD3(r.x, r.y, r.z))
         frontMirror = Self.mirrored(frame, face)
@@ -3250,7 +4441,11 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     }
 
     private func frontFrame(_ frame: ARFrame) {
+        if scaleMode { scaleFrame(frame); return }
         guard let face = frame.anchors.lazy.compactMap({ $0 as? ARFaceAnchor }).first, face.isTracked else {
+            steadySince = nil
+            if countdownTimer != nil { cancelCountdown() }
+            if phase == .ready, !scaleMode { setReady("Point the screen at the patient", "Level with their eyes, 25–35 cm away"); guideView.tintColor = UIColor(white: 1, alpha: 0.45); return }
             if phase == .scanning { say("Look back at the screen") } else {
                 guideView.tintColor = UIColor(white: 1, alpha: 0.45)
                 detail.text = "Point the screen at the patient’s face."
@@ -3261,7 +4456,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         if phase == .ready {
             guideView.tintColor = Self.gold.withAlphaComponent(0.8)
             let d = simd_length(SIMD3(cameraToAnchor.columns.3.x, cameraToAnchor.columns.3.y, cameraToAnchor.columns.3.z))
-            detail.text = d > 0.6 ? "Come a little closer: 30–50 cm from the face." : d < 0.22 ? "Move back a little: 30–50 cm from the face." : "Face found. Tap Start scan."
+            considerAutoStart(face, frame: frame, cameraToAnchor: cameraToAnchor, distance: d)
             return
         }
         guard phase == .scanning, let offset = faceOffset, let volume, let tracker else { return }
@@ -3277,9 +4472,14 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             let turn = acosf(max(-1, min(1, simd_dot(simd_normalize(cam), simd_normalize(last.cam))))) * 180 / .pi
             lastTurnRate = turn / Float(now - last.at)
             tooFast = lastTurnRate > 40
+            if tooFast, phase == .scanning, now - lastFastWarning > 1.2 {
+                lastFastWarning = now
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            }
             lastView = (cam, now)
         } else if lastView == nil { lastView = (cam, now) }
         guard let view = viewing(cam, slowDown: tooFast), expressionIssue == nil else { return }
+        keepFrontView(frame, cameraToHead: cameraToHead, at: cam)
         guard !fusing, let depthData = frame.capturedDepthData, abs(frame.capturedDepthDataTimestamp - frame.timestamp) < 0.05 else { return }
         let converted = depthData.converting(toDepthDataType: kCVPixelFormatType_DepthFloat32)
         let map = converted.depthDataMap
@@ -3295,12 +4495,36 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         track(item, guess: guess, tracker: tracker, into: volume, view: view)
     }
 
+    /// A photo from a new angle (8° from the others), taken only while the head turns slowly.
+    private func keepFrontView(_ frame: ARFrame, cameraToHead: simd_float4x4, at cam: SIMD3<Float>) {
+        guard !frontViewPending, frontViews.count < 12, lastTurnRate < 18, trackingIssue == nil else { return }
+        let dir = simd_normalize(cam)
+        guard frontViews.allSatisfy({ simd_dot(simd_normalize(SIMD3($0.cameraToHead.columns.3.x, $0.cameraToHead.columns.3.y, $0.cameraToHead.columns.3.z)), dir) < cosf(8 * .pi / 180) }) else { return }
+        var K = frame.camera.intrinsics
+        let size = frame.camera.imageResolution
+        if frontMirror { K = Self.mirror(K, width: Float(size.width)) }
+        guard let picture = PixelCopy.copy(frame.capturedImage) else { return }
+        frontViewPending = true
+        let image = CIImage(cvPixelBuffer: picture), context = photoContext
+        DispatchQueue.global(qos: .userInitiated).async {
+            let jpeg = context.jpegRepresentation(of: image, colorSpace: CGColorSpaceCreateDeviceRGB(), options: [kCGImageDestinationLossyCompressionQuality as CIImageRepresentationOption: 0.88])
+            DispatchQueue.main.async {
+                self.frontViewPending = false
+                guard let jpeg, self.phase == .scanning else { return }
+                self.frontViews.append(FrontView(jpeg: jpeg, width: Int(size.width), height: Int(size.height), K: K, cameraToHead: cameraToHead))
+            }
+        }
+    }
+
     private func expressionCheck(_ face: ARFaceAnchor) -> String? {
         let smile = ((face.blendShapes[.mouthSmileLeft]?.floatValue ?? 0) + (face.blendShapes[.mouthSmileRight]?.floatValue ?? 0)) / 2
         let open = face.blendShapes[.jawOpen]?.floatValue ?? 0
         switch capture.expression {
         case "rest": return smile > 0.35 || open > 0.25 ? "Relax the lips, lips together" : nil
-        case "smile": return smile < 0.25 ? "Keep smiling" : nil
+        // A wide smile to start (the teeth showing); a little less is allowed once scanning, so it isn't fussy.
+        case "smile":
+            let scanning = phase == .scanning
+            return smile < (scanning ? 0.22 : 0.35) ? (scanning ? "Keep the wide smile" : "A wide smile, showing the teeth") : nil
         default: return nil
         }
     }
@@ -3604,7 +4828,15 @@ final class RingMeterView: UIView {
 /// one scan laid over another (any two, from any visit), lined up automatically on the forehead, eyes, nose and
 /// cheekbones, either see-through or as a colour map of how far apart the surfaces are. Drag to turn, pinch to zoom.
 final class FaceScanViewerViewController: UIViewController {
-    struct Entry { let title: String; let url: URL; var model: (obj: URL, texture: URL)? = nil }
+    struct Entry {
+        let title: String; let url: URL; var model: (obj: URL, texture: URL)? = nil
+        /// Eye centres (left, right) in the mesh's millimetres, and whether the midline was found from symmetry.
+        var eyes: (SIMD3<Float>, SIMD3<Float>)? = nil
+        var oriented = false
+        /// The midline plane (n · p = d) and its lean from true vertical, in degrees.
+        var midlinePlane: SIMD4<Float>? = nil
+        var midlineTilt: Float? = nil
+    }
     private static let gold = UIColor(red: 208 / 255, green: 164 / 255, blue: 102 / 255, alpha: 1)
     private let entries: [Entry]
     private let onClose: () -> Void
@@ -3614,7 +4846,7 @@ final class FaceScanViewerViewController: UIViewController {
     private let mode = UISegmentedControl(items: ["View", "Compare"])
     private let baseButton = UIButton(type: .system)
     private let overButton = UIButton(type: .system)
-    private let look = UISegmentedControl(items: ["Colour", "Shape"])
+    private let look = UISegmentedControl(items: ["Colour", "Shape", "Guides"])
     private let compareLook = UISegmentedControl(items: ["Overlay", "Difference"])
     private let opacity = UISlider()
     private let info = UILabel()
@@ -3699,7 +4931,7 @@ final class FaceScanViewerViewController: UIViewController {
         mode.frame = CGRect(x: safe.midX - 100, y: safe.minY + 56, width: 200, height: 32)
         var y = safe.maxY - 44
         let comparing = mode.selectedSegmentIndex == 1
-        (comparing ? compareLook : look).frame = CGRect(x: safe.midX - 110, y: y, width: 220, height: 34)
+        (comparing ? compareLook : look).frame = CGRect(x: safe.midX - (comparing ? 110 : 150), y: y, width: comparing ? 220 : 300, height: 34)
         y -= 44
         if comparing {
             if compareLook.selectedSegmentIndex == 0 { opacity.frame = CGRect(x: left + 20, y: y, width: width - 40, height: 30) }
@@ -3759,6 +4991,7 @@ final class FaceScanViewerViewController: UIViewController {
         view.setNeedsLayout()
         job += 1
         let ticket = job, base = self.base, over = self.over, shape = look.selectedSegmentIndex == 1, difference = compareLook.selectedSegmentIndex == 1
+        let guides = !comparing && look.selectedSegmentIndex == 2
         let alpha = CGFloat(opacity.value)
         spinner.startAnimating()
         info.text = comparing ? "Lining the scans up…" : nil
@@ -3792,6 +5025,7 @@ final class FaceScanViewerViewController: UIViewController {
                 self.spinner.stopAnimating()
                 self.info.text = text
                 self.show(nodes)
+                self.showGuides(guides ? self.entries[base] : nil)
             }
         }
     }
@@ -3816,6 +5050,53 @@ final class FaceScanViewerViewController: UIViewController {
                 }
             } else { node?.removeFromParentNode() }
         }
+    }
+
+    /// The lab's reference lines over the face: the facial midline as measured (gold plane), true vertical (white
+    /// line), the eye line (gold) against true horizontal (white), and the angles between them. The midline and true
+    /// vertical are shown separately, never merged.
+    private func showGuides(_ entry: Entry?) {
+        guard let root = sceneView.scene?.rootNode else { return }
+        root.childNode(withName: "guides", recursively: false)?.removeFromParentNode()
+        guard let entry else { return }
+        let node = SCNNode(); node.name = "guides"; node.renderingOrder = 20
+        let gold = Self.gold, white = UIColor(white: 1, alpha: 0.85)
+        func bar(_ a: SIMD3<Float>, _ b: SIMD3<Float>, _ colour: UIColor, radius: CGFloat) {
+            let d = b - a, len = simd_length(d)
+            guard len > 1 else { return }
+            let cyl = SCNCylinder(radius: radius, height: CGFloat(len))
+            let mat = SCNMaterial(); mat.diffuse.contents = colour; mat.lightingModel = .constant; mat.readsFromDepthBuffer = false
+            cyl.materials = [mat]
+            let n = SCNNode(geometry: cyl)
+            n.simdPosition = (a + b) / 2
+            n.simdOrientation = simd_quatf(from: SIMD3(0, 1, 0), to: d / len)
+            node.addChildNode(n)
+        }
+        // The midline plane, standing on the face as measured.
+        let planeEq = entry.midlinePlane ?? SIMD4(1, 0, 0, 0)
+        let n = simd_normalize(SIMD3(planeEq.x, planeEq.y, planeEq.z))
+        let up = simd_normalize(SIMD3<Float>(0, 1, 0) - n * n.y), across = simd_cross(up, n)
+        let forward = SIMD3<Float>(0, 0, -30) - n * simd_dot(n, SIMD3<Float>(0, 0, -30))
+        let centre = n * planeEq.w + forward + up * 20
+        let quad = SCNPlane(width: 150, height: 240)
+        let m = SCNMaterial(); m.diffuse.contents = gold.withAlphaComponent(0.22); m.isDoubleSided = true; m.lightingModel = .constant; m.writesToDepthBuffer = false
+        quad.materials = [m]
+        let plane = SCNNode(geometry: quad)
+        plane.simdTransform = simd_float4x4(columns: (SIMD4(across, 0), SIMD4(up, 0), SIMD4(n, 0), SIMD4(centre, 1)))
+        node.addChildNode(plane)
+        // True vertical through subnasale (the origin), just in front of the face.
+        bar(SIMD3(0, -95, 12), SIMD3(0, 115, 12), white, radius: 0.45)
+        var parts = [entry.oriented ? "Gold plane: facial midline, from the face’s symmetry" : "Gold plane: centre line from the nose and eyes (symmetry not found)"]
+        if let tilt = entry.midlineTilt { parts.append(String(format: "it leans %.1f° from true vertical (white)", abs(tilt))) }
+        if let (l, r) = entry.eyes {
+            let mid = (l + r) / 2, z = max(l.z, r.z) + 6
+            let dir = simd_normalize(l - r)
+            bar(SIMD3(mid.x, mid.y, z) - dir * 85, SIMD3(mid.x, mid.y, z) + dir * 85, gold, radius: 0.7)
+            bar(SIMD3(mid.x - 85, mid.y, z), SIMD3(mid.x + 85, mid.y, z), white, radius: 0.45)
+            parts.append(String(format: "eye line %.1f° from true horizontal", abs(atan2f(l.y - r.y, l.x - r.x) * 180 / .pi)))
+        }
+        root.addChildNode(node)
+        info.text = parts.joined(separator: " · ")
     }
 
     @objc private func close() { dismiss(animated: true) { self.onClose() } }
@@ -3868,3 +5149,376 @@ extension UIView {
     }
 }
 
+
+
+// MARK: - Intraoral scan alignment
+
+final class DocumentPickerHandler: NSObject, UIDocumentPickerDelegate {
+    private let done: (URL?) -> Void
+    init(_ done: @escaping (URL?) -> Void) { self.done = done }
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) { done(urls.first) }
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { done(nil) }
+}
+
+/// Reads an intraoral scan (or any mesh) in millimetres: STL (binary or text), PLY (binary little-endian or text)
+/// and OBJ.
+enum MeshImport {
+    static func read(_ url: URL) -> FaceMesh? {
+        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe), data.count > 84 else { return nil }
+        let ext = url.pathExtension.lowercased()
+        let mesh: FaceMesh?
+        switch ext {
+        case "stl": mesh = stl(data)
+        case "ply": mesh = ply(data)
+        case "obj": mesh = obj(data)
+        default: mesh = stl(data) ?? ply(data) ?? obj(data)
+        }
+        guard let mesh, mesh.positions.count >= 100, mesh.triangles.count >= 300 else { return nil }
+        return mesh
+    }
+
+    private static func indexed(_ corners: [SIMD3<Float>]) -> FaceMesh {
+        var index = [SIMD3<Int32>: UInt32](), positions: [SIMD3<Float>] = [], triangles: [UInt32] = []
+        positions.reserveCapacity(corners.count / 5); triangles.reserveCapacity(corners.count)
+        for p in corners {
+            let key = SIMD3<Int32>(Int32((p.x * 1000).rounded()), Int32((p.y * 1000).rounded()), Int32((p.z * 1000).rounded()))
+            if let i = index[key] { triangles.append(i) } else { let i = UInt32(positions.count); index[key] = i; positions.append(p); triangles.append(i) }
+        }
+        return FaceMesh(positions: positions, colours: Array(repeating: SIMD3(205, 200, 192), count: positions.count), triangles: triangles)
+    }
+
+    private static func stl(_ data: Data) -> FaceMesh? {
+        let count = data.withUnsafeBytes { Int($0.loadUnaligned(fromByteOffset: 80, as: UInt32.self).littleEndian) }
+        if count > 0, 84 + count * 50 == data.count {
+            var corners: [SIMD3<Float>] = []
+            corners.reserveCapacity(count * 3)
+            data.withUnsafeBytes { raw in
+                for f in 0..<count {
+                    let o = 84 + f * 50 + 12
+                    for v in 0..<3 {
+                        let b = o + v * 12
+                        corners.append(SIMD3(Float(bitPattern: raw.loadUnaligned(fromByteOffset: b, as: UInt32.self).littleEndian),
+                                             Float(bitPattern: raw.loadUnaligned(fromByteOffset: b + 4, as: UInt32.self).littleEndian),
+                                             Float(bitPattern: raw.loadUnaligned(fromByteOffset: b + 8, as: UInt32.self).littleEndian)))
+                    }
+                }
+            }
+            return indexed(corners)
+        }
+        guard let text = String(data: data, encoding: .ascii) ?? String(data: data, encoding: .utf8), text.contains("vertex") else { return nil }
+        var corners: [SIMD3<Float>] = []
+        for line in text.split(whereSeparator: \.isNewline) {
+            let parts = line.split(separator: " ", omittingEmptySubsequences: true)
+            if parts.count >= 4, parts[0] == "vertex", let x = Float(parts[1]), let y = Float(parts[2]), let z = Float(parts[3]) { corners.append(SIMD3(x, y, z)) }
+        }
+        return corners.count >= 3 ? indexed(Array(corners.prefix(corners.count / 3 * 3))) : nil
+    }
+
+    private static func obj(_ data: Data) -> FaceMesh? {
+        guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .ascii) else { return nil }
+        var positions: [SIMD3<Float>] = [], colours: [SIMD3<UInt8>] = [], triangles: [UInt32] = []
+        for line in text.split(whereSeparator: \.isNewline) {
+            let parts = line.split(separator: " ", omittingEmptySubsequences: true)
+            guard let head = parts.first else { continue }
+            if head == "v", parts.count >= 4, let x = Float(parts[1]), let y = Float(parts[2]), let z = Float(parts[3]) {
+                positions.append(SIMD3(x, y, z))
+                if parts.count >= 7, let r = Float(parts[4]), let g = Float(parts[5]), let b = Float(parts[6]) {
+                    let k: Float = max(r, g, b) <= 1 ? 255 : 1
+                    colours.append(SIMD3(UInt8(min(255, r * k)), UInt8(min(255, g * k)), UInt8(min(255, b * k))))
+                } else { colours.append(SIMD3(205, 200, 192)) }
+            } else if head == "f", parts.count >= 4 {
+                let idx: [UInt32] = parts.dropFirst().compactMap { token in
+                    guard let n = Int(token.split(separator: "/", omittingEmptySubsequences: false).first ?? "") else { return nil }
+                    let i = n > 0 ? n - 1 : positions.count + n
+                    return i >= 0 && i < positions.count ? UInt32(i) : nil
+                }
+                guard idx.count >= 3 else { continue }
+                for k in 1..<(idx.count - 1) { triangles += [idx[0], idx[k], idx[k + 1]] }
+            }
+        }
+        return positions.isEmpty ? nil : FaceMesh(positions: positions, colours: colours, triangles: triangles)
+    }
+
+    private static func ply(_ data: Data) -> FaceMesh? {
+        guard let headerEnd = data.range(of: Data("end_header".utf8)) else { return nil }
+        var bodyStart = headerEnd.upperBound
+        while bodyStart < data.count, data[bodyStart] == 0x0D || data[bodyStart] == 0x0A { bodyStart += 1; if data[bodyStart - 1] == 0x0A { break } }
+        guard let header = String(data: data[..<headerEnd.lowerBound], encoding: .ascii) else { return nil }
+        var format = "", element = "", vertexCount = 0, faceCount = 0
+        var vprops: [(name: String, type: String)] = [], faceList: (count: String, index: String)?
+        for raw in header.split(whereSeparator: \.isNewline) {
+            let p = raw.split(separator: " ").map(String.init)
+            guard let k = p.first else { continue }
+            if k == "format", p.count > 1 { format = p[1] }
+            else if k == "element", p.count > 2 { element = p[1]; if element == "vertex" { vertexCount = Int(p[2]) ?? 0 } else if element == "face" { faceCount = Int(p[2]) ?? 0 } }
+            else if k == "property" {
+                if element == "vertex", p.count > 2 { vprops.append((p[p.count - 1], p[1])) }
+                else if element == "face", p.count > 4, p[1] == "list" { faceList = (p[2], p[3]) }
+            }
+        }
+        guard vertexCount > 0, let faceList else { return nil }
+        let size: [String: Int] = ["char": 1, "uchar": 1, "int8": 1, "uint8": 1, "short": 2, "ushort": 2, "int16": 2, "uint16": 2,
+                                   "int": 4, "uint": 4, "int32": 4, "uint32": 4, "float": 4, "float32": 4, "double": 8, "float64": 8]
+        var positions = [SIMD3<Float>](repeating: .zero, count: vertexCount), colours = [SIMD3<UInt8>](repeating: SIMD3(205, 200, 192), count: vertexCount)
+        var triangles: [UInt32] = []
+        let ix = vprops.firstIndex { $0.name == "x" }, iy = vprops.firstIndex { $0.name == "y" }, iz = vprops.firstIndex { $0.name == "z" }
+        let ir = vprops.firstIndex { $0.name == "red" }, ig = vprops.firstIndex { $0.name == "green" }, ib = vprops.firstIndex { $0.name == "blue" }
+        guard let ix, let iy, let iz else { return nil }
+        if format == "ascii" {
+            guard let text = String(data: data[bodyStart...], encoding: .ascii) else { return nil }
+            var lines = text.split(whereSeparator: \.isNewline).makeIterator()
+            for v in 0..<vertexCount {
+                guard let line = lines.next() else { return nil }
+                let f = line.split(separator: " ").compactMap { Double($0) }
+                guard f.count >= vprops.count else { return nil }
+                positions[v] = SIMD3(Float(f[ix]), Float(f[iy]), Float(f[iz]))
+                if let ir, let ig, let ib { colours[v] = SIMD3(UInt8(min(255, f[ir])), UInt8(min(255, f[ig])), UInt8(min(255, f[ib]))) }
+            }
+            for _ in 0..<faceCount {
+                guard let line = lines.next() else { break }
+                let f = line.split(separator: " ").compactMap { Int($0) }
+                guard let n = f.first, n >= 3, f.count > n else { continue }
+                for k in 2..<n { triangles += [UInt32(f[1]), UInt32(f[k]), UInt32(f[k + 1])] }
+            }
+        } else if format == "binary_little_endian" {
+            var stride = 0, offsets: [Int] = []
+            for p in vprops { guard let sz = size[p.type] else { return nil }; offsets.append(stride); stride += sz }
+            guard let cs = size[faceList.count], let isz = size[faceList.index], bodyStart + vertexCount * stride <= data.count else { return nil }
+            let ok: Bool = data.withUnsafeBytes { raw -> Bool in
+                func value(_ o: Int, _ type: String) -> Double {
+                    switch type {
+                    case "float", "float32": return Double(Float(bitPattern: raw.loadUnaligned(fromByteOffset: o, as: UInt32.self).littleEndian))
+                    case "double", "float64": return Double(bitPattern: raw.loadUnaligned(fromByteOffset: o, as: UInt64.self).littleEndian)
+                    case "uchar", "uint8": return Double(raw[o])
+                    case "char", "int8": return Double(Int8(bitPattern: raw[o]))
+                    case "ushort", "uint16": return Double(raw.loadUnaligned(fromByteOffset: o, as: UInt16.self).littleEndian)
+                    case "short", "int16": return Double(Int16(bitPattern: raw.loadUnaligned(fromByteOffset: o, as: UInt16.self).littleEndian))
+                    case "uint", "uint32": return Double(raw.loadUnaligned(fromByteOffset: o, as: UInt32.self).littleEndian)
+                    default: return Double(Int32(bitPattern: raw.loadUnaligned(fromByteOffset: o, as: UInt32.self).littleEndian))
+                    }
+                }
+                var o = bodyStart
+                for v in 0..<vertexCount {
+                    positions[v] = SIMD3(Float(value(o + offsets[ix], vprops[ix].type)), Float(value(o + offsets[iy], vprops[iy].type)), Float(value(o + offsets[iz], vprops[iz].type)))
+                    if let ir, let ig, let ib { colours[v] = SIMD3(UInt8(min(255, value(o + offsets[ir], vprops[ir].type))), UInt8(min(255, value(o + offsets[ig], vprops[ig].type))), UInt8(min(255, value(o + offsets[ib], vprops[ib].type)))) }
+                    o += stride
+                }
+                for _ in 0..<faceCount {
+                    guard o + cs <= raw.count else { return false }
+                    let n = Int(value(o, faceList.count)); o += cs
+                    guard n >= 3, o + n * isz <= raw.count else { return false }
+                    let idx = (0..<n).map { UInt32(max(0, value(o + $0 * isz, faceList.index))) }
+                    o += n * isz
+                    for k in 1..<(n - 1) { triangles += [idx[0], idx[k], idx[k + 1]] }
+                }
+                return true
+            }
+            guard ok else { return nil }
+        } else { return nil }
+        let valid = triangles.allSatisfy { Int($0) < vertexCount }
+        return valid ? FaceMesh(positions: positions, colours: colours, triangles: triangles) : nil
+    }
+}
+
+/// The face lined up with the intraoral scan: the transform carrying the intraoral scan onto the face (export frame)
+/// and how well the front teeth agree.
+struct IntraoralOutcome {
+    let faceFromIntraoral: simd_float4x4
+    let fitMm: Float
+    let pairs: Int
+    let refined: Bool
+}
+
+enum IntraoralExport {
+    /// Every scan of the visit saved again in the intraoral scan's frame (they share one frame, so one transform
+    /// places them all), and the registration recorded in the record and landmarks.json.
+    static func save(_ o: IntraoralOutcome, fileName: String, folder: URL) -> [String: Any]? {
+        guard var info = CaseMediaStore.readInfo(folder), var captures = info["captures"] as? [[String: Any]] else { return nil }
+        let intraoralFromFace = o.faceFromIntraoral.inverse
+        for i in captures.indices {
+            guard let url = CaseMediaStore.file(captures[i]["mesh"], in: folder), let mesh = FaceMesh.read(url) else { continue }
+            let id = captures[i]["id"] as? String ?? "scan\(i)", name = "\(id)-intraoral-frame.ply"
+            let title = captures[i]["title"] as? String ?? id
+            guard (try? CaseMediaStore.write(mesh.transformed(intraoralFromFace).ply(comment: "\(title), in the intraoral scan's frame (\(fileName))"), to: folder.appendingPathComponent(name))) != nil else { continue }
+            captures[i]["intraoralMesh"] = name
+        }
+        let matrix = (0..<4).flatMap { c in (0..<4).map { r in (Double(o.faceFromIntraoral[c][r]) * 100000).rounded() / 100000 } }
+        info["captures"] = captures
+        info["intraoral"] = ["file": fileName, "fitMm": (Double(o.fitMm) * 100).rounded() / 100, "pairs": o.pairs, "refined": o.refined, "at": CaseMediaStore.iso.string(from: Date())]
+        let landmarksURL = folder.appendingPathComponent("landmarks.json")
+        if let data = try? Data(contentsOf: landmarksURL), var file = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+            file["intraoralRegistration"] = [
+                "intraoralFile": fileName,
+                "method": o.refined ? "\(o.pairs) point pairs on the front teeth (or bite fork), then ICP on the front teeth" : "\(o.pairs) point pairs",
+                "frontTeethFitMm": (Double(o.fitMm) * 100).rounded() / 100,
+                "faceFromIntraoral": matrix,
+                "files": "*-intraoral-frame.ply are the face scans in the intraoral scan's own frame"
+            ]
+            if let out = try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys]) { try? CaseMediaStore.write(out, to: landmarksURL) }
+        }
+        guard (try? CaseMediaStore.writeInfo(info, to: folder)) != nil else { return nil }
+        return info
+    }
+}
+
+/// Two views, the intraoral scan above and the face below: tap the same points on both, in the same order (the tip of
+/// the right canine, between the front teeth, the tip of the left canine — or three corners of a bite fork's flag),
+/// then Line up: the points give a first fit, ICP on the front teeth refines it, and the gap is shown in colour.
+final class IntraoralAlignViewController: UIViewController {
+    private static let gold = UIColor(red: 208 / 255, green: 164 / 255, blue: 102 / 255, alpha: 1)
+    private let face: FaceMesh, skin: TexturedFace?, intraoral: FaceMesh
+    private let done: (IntraoralOutcome?) -> Void
+    private let topView = SCNView(), bottomView = SCNView()
+    private let instructions = UILabel(), result = UILabel()
+    private let cancelButton = UIButton(type: .system), undoButton = UIButton(type: .system), alignButton = UIButton(type: .system), saveButton = UIButton(type: .system)
+    private let titleText: String
+    private var topPoints: [SIMD3<Float>] = [], bottomPoints: [SIMD3<Float>] = []
+    private var outcome: IntraoralOutcome?
+
+    init(face: FaceMesh, skin: TexturedFace?, intraoral: FaceMesh, title: String, done: @escaping (IntraoralOutcome?) -> Void) {
+        self.face = face; self.skin = skin; self.intraoral = intraoral; self.titleText = title; self.done = done
+        super.init(nibName: nil, bundle: nil)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = UIColor(red: 0.10, green: 0.09, blue: 0.08, alpha: 1)
+        for (v, geometry) in [(topView, intraoral.geometry(coloured: false)), (bottomView, skin?.geometry() ?? face.geometry(coloured: true))] {
+            v.backgroundColor = view.backgroundColor
+            v.allowsCameraControl = true
+            v.autoenablesDefaultLighting = true
+            v.antialiasingMode = .multisampling4X
+            let scene = SCNScene()
+            let node = SCNNode(geometry: geometry); node.name = "mesh"
+            scene.rootNode.addChildNode(node)
+            v.scene = scene
+            v.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped(_:))))
+            view.addSubview(v)
+        }
+        // The face view starts on the mouth.
+        let camera = SCNNode(); camera.camera = SCNCamera(); camera.camera?.fieldOfView = 35
+        camera.position = SCNVector3(0, -18, 190)
+        bottomView.scene?.rootNode.addChildNode(camera)
+        bottomView.pointOfView = camera
+        bottomView.defaultCameraController.target = SCNVector3(0, -18, 0)
+        instructions.numberOfLines = 0
+        instructions.textColor = .white
+        instructions.font = .systemFont(ofSize: 14)
+        instructions.textAlignment = .center
+        result.numberOfLines = 2
+        result.textColor = Self.gold
+        result.font = .systemFont(ofSize: 13, weight: .semibold)
+        result.textAlignment = .center
+        for (b, title, action) in [(cancelButton, "Cancel", #selector(cancel)), (undoButton, "Undo", #selector(undo)), (alignButton, "Line up", #selector(align)), (saveButton, "Save", #selector(save))] {
+            b.setTitle(title, for: .normal)
+            b.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
+            b.tintColor = .white
+            b.backgroundColor = UIColor(white: 0.18, alpha: 1)
+            b.layer.cornerRadius = 20
+            b.addTarget(self, action: action, for: .touchUpInside)
+            view.addSubview(b)
+        }
+        saveButton.backgroundColor = Self.gold
+        saveButton.tintColor = UIColor(white: 0.08, alpha: 1)
+        [instructions, result].forEach { view.addSubview($0) }
+        refresh()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        let safe = view.safeAreaLayoutGuide.layoutFrame
+        let controls: CGFloat = 150, half = (safe.height - controls) / 2
+        topView.frame = CGRect(x: safe.minX, y: safe.minY, width: safe.width, height: half)
+        bottomView.frame = CGRect(x: safe.minX, y: safe.minY + half, width: safe.width, height: half)
+        instructions.frame = CGRect(x: safe.minX + 16, y: safe.maxY - controls + 4, width: safe.width - 32, height: 54)
+        result.frame = CGRect(x: safe.minX + 16, y: safe.maxY - controls + 58, width: safe.width - 32, height: 34)
+        let w = (min(safe.width, 520) - 16 * 5) / 4, left = safe.midX - min(safe.width, 520) / 2 + 16
+        for (n, b) in [cancelButton, undoButton, alignButton, saveButton].enumerated() { b.frame = CGRect(x: left + CGFloat(n) * (w + 16), y: safe.maxY - 50, width: w, height: 40) }
+    }
+
+    private func refresh() {
+        let needTop = topPoints.count <= bottomPoints.count
+        let n = max(topPoints.count, bottomPoints.count)
+        let next = ["the tip of the right canine", "the point between the two front teeth", "the tip of the left canine", "another clear point", "another clear point", "another clear point"][min(n, 5)]
+        instructions.text = outcome != nil ? "Lined up. Save to keep it, or Undo to place the points again."
+            : topPoints.count == bottomPoints.count && n >= 3 ? "Tap Line up, or add another pair of points."
+            : "Tap \(next) on the \(needTop ? "intraoral scan (above)" : "\(titleText.lowercased()) face scan (below)"). With a bite fork, use three corners of its flag instead."
+        undoButton.isEnabled = n > 0 || outcome != nil
+        alignButton.isEnabled = topPoints.count >= 3 && topPoints.count == bottomPoints.count && outcome == nil
+        saveButton.isEnabled = outcome != nil
+        [undoButton, alignButton, saveButton].forEach { $0.alpha = $0.isEnabled ? 1 : 0.45 }
+        for (v, pts) in [(topView, topPoints), (bottomView, bottomPoints)] {
+            guard let root = v.scene?.rootNode else { continue }
+            root.childNodes.filter { $0.name == "pin" }.forEach { $0.removeFromParentNode() }
+            for (i, p) in pts.enumerated() {
+                let ball = SCNSphere(radius: 0.9)
+                ball.firstMaterial?.diffuse.contents = Self.gold
+                ball.firstMaterial?.lightingModel = .constant
+                ball.firstMaterial?.readsFromDepthBuffer = false
+                let pin = SCNNode(geometry: ball); pin.name = "pin"; pin.simdPosition = p; pin.renderingOrder = 10 + i
+                root.addChildNode(pin)
+            }
+        }
+    }
+
+    @objc private func tapped(_ g: UITapGestureRecognizer) {
+        guard outcome == nil, let v = g.view as? SCNView else { return }
+        let isTop = v === topView
+        guard isTop ? topPoints.count <= bottomPoints.count : bottomPoints.count < topPoints.count else { return }
+        guard let hit = v.hitTest(g.location(in: v), options: [.searchMode: SCNHitTestSearchMode.closest.rawValue]).first(where: { $0.node.name == "mesh" }) else { return }
+        let p = SIMD3<Float>(hit.localCoordinates)
+        if isTop { topPoints.append(p) } else { bottomPoints.append(p) }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        refresh()
+    }
+
+    @objc private func undo() {
+        if outcome != nil {
+            outcome = nil
+            bottomView.scene?.rootNode.childNode(withName: "intraoral", recursively: false)?.removeFromParentNode()
+            result.text = nil
+        } else if topPoints.count > bottomPoints.count { topPoints.removeLast() } else if !bottomPoints.isEmpty { bottomPoints.removeLast() }
+        refresh()
+    }
+
+    @objc private func align() {
+        let top = topPoints, bottom = bottomPoints, face = self.face, intraoral = self.intraoral
+        result.text = "Lining up…"
+        alignButton.isEnabled = false
+        DispatchQueue.global(qos: .userInitiated).async {
+            let fit = Self.align(intraoral: intraoral, face: face, intraoralPoints: top, facePoints: bottom)
+            let moved = intraoral.transformed(fit.transform)
+            let colours = FaceAlign.colours(FaceAlign.gaps(base: moved, moving: face))
+            let geometry = moved.geometry(coloured: false, override: colours, opacity: 0.85)
+            DispatchQueue.main.async {
+                self.outcome = IntraoralOutcome(faceFromIntraoral: fit.transform, fitMm: fit.rms, pairs: top.count, refined: fit.refined)
+                let node = SCNNode(geometry: geometry); node.name = "intraoral"; node.renderingOrder = 5
+                self.bottomView.scene?.rootNode.addChildNode(node)
+                self.result.text = String(format: fit.refined ? "Lined up on the front teeth · %.2f mm average gap there" : "Lined up on the points only · %.2f mm between them (refining didn’t converge)", fit.rms)
+                    + (fit.rms > 1 ? "\nCheck the points: over 1 mm is more than a phone scan should need." : "")
+                self.refresh()
+            }
+        }
+    }
+
+    /// Point pairs give the first fit (Horn); ICP on the front teeth (within 14 mm of the picked points) refines it.
+    static func align(intraoral: FaceMesh, face: FaceMesh, intraoralPoints: [SIMD3<Float>], facePoints: [SIMD3<Float>]) -> (transform: simd_float4x4, rms: Float, refined: Bool) {
+        let (R, t) = FaceAlign.horn(intraoralPoints, facePoints)
+        let start = simd_float4x4(columns: (SIMD4(R.columns.0, 0), SIMD4(R.columns.1, 0), SIMD4(R.columns.2, 0), SIMD4(t, 1)))
+        let pairRms = (zip(intraoralPoints, facePoints).map { let q = start * SIMD4<Float>($0.0, 1); return simd_distance_squared(SIMD3(q.x, q.y, q.z), $0.1) }.reduce(0, +) / Float(max(1, facePoints.count))).squareRoot()
+        let near = { (p: SIMD3<Float>, pts: [SIMD3<Float>], r: Float) in pts.contains { simd_distance($0, p) < r } }
+        var source = intraoral.positions.filter { near($0, intraoralPoints, 14) }
+        if source.count > 5000 { let step = source.count / 5000; source = Swift.stride(from: 0, to: source.count, by: step).map { source[$0] } }
+        let normals = face.normals()
+        let idx = face.positions.indices.filter { near(face.positions[$0], facePoints, 18) }
+        let target = idx.map { face.positions[$0] }, targetNormals = idx.map { normals[$0] }
+        guard let fit = FaceAlign.icp(source: source, target: target, targetNormals: targetNormals, initial: start, reach: 4), fit.overlap > 0.3 else {
+            return (start, pairRms, false)
+        }
+        return (fit.transform, fit.rms, true)
+    }
+
+    @objc private func save() { guard let outcome else { return }; dismiss(animated: true) { self.done(outcome) } }
+    @objc private func cancel() { dismiss(animated: true) { self.done(nil) } }
+}

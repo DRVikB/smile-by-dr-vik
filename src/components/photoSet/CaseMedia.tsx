@@ -1,9 +1,10 @@
 "use client";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Box, Layers, Play, RefreshCw, Share, Trash2, X } from "lucide-react";
+import { Box, Crosshair, Layers, Play, RefreshCw, Share, Trash2, X } from "lucide-react";
+import { features } from "@/config/features";
 import { SPEECH_STEPS, scanNotes, speechNotes, trackingLabel, type CaseMediaRecord, type FaceScanRecord, type SpeechRecord } from "@/lib/caseMedia";
-import { faceScanAvailable, listCaseMedia, openFaceScan, recordSpeechVideo, removeCaseMedia, scanFace, setSpeechFrame, shareCaseMedia, watchScanBuilds } from "@/native/caseMedia";
+import { alignWithIntraoral, faceScanAvailable, listCaseMedia, openFaceScan, recordSpeechVideo, removeCaseMedia, scanFace, setSpeechFrame, shareCaseMedia, watchScanBuilds } from "@/native/caseMedia";
 import { haptic } from "@/native/haptics";
 import { guideSvg, headGuide, svgToPng } from "./art";
 import { buildMediaTile, type MediaKind, type Playing } from "./mediaArt";
@@ -83,7 +84,7 @@ export function CaseMediaGroup({ caseId, reference, disabled, delay, onStatus }:
       if (kind === "scan" && !(await faceScanAvailable())) { onStatus("The face scan needs an iPhone with Face ID or the LiDAR scanner."); return; }
       // The speech camera shows the At rest guide; the face scan only the head's outline (no filled shapes over the face).
       const outline = await svgToPng(kind === "speech" ? guideSvg("rest") : headGuide().svg).catch(() => undefined);
-      const record = kind === "speech" ? await recordSpeechVideo(caseId, outline) : await scanFace(caseId, outline);
+      const record = kind === "speech" ? await recordSpeechVideo(caseId, outline) : await scanFace(caseId, outline, features.labExport);
       if (!record) return;
       await keep(record);
       haptic("success");
@@ -121,6 +122,7 @@ export function CaseMediaGroup({ caseId, reference, disabled, delay, onStatus }:
       onShare={() => void share(speech)} onRetake={() => void take("speech")} onDelete={() => void remove(speech)}
       onChange={r => setRecords(list => list.map(x => (x.id === r.id ? r : x)))} />, document.body)}
     {viewing === "scan" && scan && createPortal(<ScanViewer caseId={caseId} record={scan} visits={scans} building={building} onPick={setShownScan} onClose={() => setViewing(null)}
+      onAligned={r => setRecords(list => list.map(x => (x.id === r.id ? r : x)))}
       onShare={() => void share(scan)} onRetake={() => void take("scan")} onDelete={() => void remove(scan)} />, document.body)}
   </>;
 }
@@ -201,11 +203,15 @@ const buildingLabel = (progress?: number) => progress && progress > 0 ? `Buildin
 const visitDay = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); };
 
 /** A visit's face scans, opened in 3D by the iOS app, where any two (from any visit) can be laid over each other. */
-function ScanViewer({ caseId, record, visits, building, onPick, onClose, onShare, onRetake, onDelete }: {
+function ScanViewer({ caseId, record, visits, building, onPick, onClose, onShare, onRetake, onDelete, onAligned }: {
   caseId: string; record: FaceScanRecord; visits: FaceScanRecord[]; building: Record<string, number>; onPick: (id: string) => void;
-  onClose: () => void; onShare: () => void; onRetake: () => void; onDelete: () => void;
+  onClose: () => void; onShare: () => void; onRetake: () => void; onDelete: () => void; onAligned: (r: FaceScanRecord) => void;
 }) {
   const [note, setNote] = useState("");
+  // Optional: line the visit up with the intraoral scan here, so the lab receives the face already in its frame.
+  const align = () => void alignWithIntraoral(caseId, record.id)
+    .then(r => { if (r) { onAligned(r); setNote(`Lined up with ${r.intraoral?.file ?? "the intraoral scan"} · ${(r.intraoral?.fitMm ?? 0).toFixed(2)} mm average gap on the front teeth.`); } })
+    .catch((e: unknown) => setNote(e instanceof Error && e.message ? e.message : "The intraoral scan couldn’t be lined up."));
   const open = (compare: boolean) => void openFaceScan(caseId, record.id, compare).catch(() => setNote("The scan couldn’t be opened."));
   const captures = visits.reduce((n, v) => n + v.captures.length, 0);
   return <div className="pt-viewer media-viewer" role="dialog" aria-modal="true" aria-label="3D face scan">
@@ -224,8 +230,10 @@ function ScanViewer({ caseId, record, visits, building, onPick, onClose, onShare
         <button type="button" className="primary-button mv-open" onClick={() => open(false)}><Box size={17} strokeWidth={1.8} aria-hidden="true" />View in 3D</button>
         {captures > 1 && <button type="button" className="secondary-button mv-open" onClick={() => open(true)}><Layers size={17} strokeWidth={1.8} aria-hidden="true" />Compare scans</button>}
       </div>
+      <button type="button" className="text-button mv-align" onClick={align}><Crosshair size={16} strokeWidth={1.8} aria-hidden="true" />{record.intraoral ? "Line up with the intraoral scan again" : "Line up with intraoral scan"}</button>
+      {record.intraoral && !note && <p className="mv-hint" role="status">Lined up with {record.intraoral.file} · {record.intraoral.fitMm.toFixed(2)} mm average gap on the front teeth. Shared scans include them in its frame.</p>}
       {note && <p className="mv-hint" role="status">{note}</p>}
-      <p className="mv-hint">Face ID sensor scans are the most detailed (about 0.4 mm average difference from CBCT in studies); rear LiDAR scans about 1.5 mm, with “From photos” faces built from the scan’s photographs for photographic skin. Use them for facial proportions and planes. Compare lines two scans up on the forehead, eyes and nose and shows how far apart they are.</p>
+      <p className="mv-hint">Face ID sensor scans are the most detailed (about 0.4 mm average difference from CBCT in studies); rear LiDAR scans about 1.5 mm, with “From photos” faces built from the scan’s photographs for photographic skin. Use them for facial proportions and planes. The wide smile shows the teeth, which the lab lines up with the intraoral scan; the scan is saved in natural head position. Guides shows the facial midline and true vertical, and the eye line against true horizontal. Compare lines two scans up on the forehead, eyes and nose and shows how far apart they are.</p>
       <p className="mv-privacy">Kept on this device only. Sharing sends an identifiable scan of the patient’s face: check they have agreed before it goes to the lab.</p>
     </div>
   </div>;
