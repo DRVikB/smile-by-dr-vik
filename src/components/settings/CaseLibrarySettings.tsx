@@ -10,7 +10,7 @@ export function CaseLibraryRow() {
   const lib = useCaseLibrary();
   const { openAuth } = useAccount();
   const icon = <BookOpen size={17} strokeWidth={1.6} />;
-  if (lib.mode === "signedOut") return <Row icon={icon} label="Case Library" detail="Sign in to keep finished cases as style references" onClick={() => openAuth("signIn")} />;
+  if (lib.mode === "signedOut") return <Row icon={icon} label="Case Library" detail="Sign in to keep finished cases as style references" onClick={() => openAuth("signIn", "library")} />;
   const count = lib.cases?.length;
   const value = count === undefined ? "…" : `${count} ${count === 1 ? "case" : "cases"}${lib.bytes ? ` · ${formatBytes(lib.bytes)}` : ""}`;
   return <Row icon={icon} label="Case Library" value={value} onClick={() => lib.open()} />;

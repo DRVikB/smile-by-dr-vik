@@ -1,6 +1,8 @@
 /** Shared wording on screens and in patient exports. */
 export const AI_CONCEPT_SUMMARY = "AI concept · Clinician-designed visual guide, not a guaranteed result.";
 export const AI_CONCEPT_DISCLAIMER = "This AI-generated concept is based on your clinician’s chosen smile design. It is a visual guide for discussion only, not a treatment plan, and is not a guarantee of the final clinical outcome. Final results depend on clinical assessment, treatment planning and biological factors.";
+/** One line for where the choice comes first (the share sheet); the full disclaimer is a tap away. */
+export const AI_CONCEPT_SHORT = "AI concept for discussion, not a treatment plan or a guaranteed result.";
 
 /** Public identity shared by the interface and patient exports. */
 export const SMILECOMPOSE = {

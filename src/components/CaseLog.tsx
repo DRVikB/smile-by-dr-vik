@@ -64,11 +64,13 @@ const coverThumbs = (group: CaseGroup) =>
 const timeOf = (ms: number) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 const versionTitle = (entry: CaseLogEntry, index: number, total: number) => entry.label || `Version ${total - index}`;
 
-export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSignIn }: {
+export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSignIn, onNewDesign }: {
   onClose: () => void; initialEntryId?: string;
   /** Opened from Recent cases: that sheet's top edge. This sheet grows up from there instead of rising from the foot. */
   continueFrom?: number;
   onReopen?: (caseId:string)=>Promise<void>; onSignIn?: () => void;
+  /** With no cases yet, the empty state offers the next step. */
+  onNewDesign?: () => void;
 }) {
   // iPhone Duo: Back and Close sit in the side bar.
   const rail = useSideRail();
@@ -510,6 +512,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
                   <span className="icon-tile icon-tile-lg empty-state-tile" aria-hidden="true"><ComposingMark motion="draw" tone="auto" quick className="empty-state-mark" /></span>
                   <p className="empty-state-title">No smile designs yet</p>
                   <p className="empty-state-body">Upload a patient photograph to begin visualising treatment possibilities. Your saved designs will appear here.</p>
+                  {onNewDesign && <button type="button" className="primary-button empty-state-action" onClick={onNewDesign}>New Smile Design</button>}
                 </div>
               ) : (
                 <p className="log-empty">No cases match that search.</p>
@@ -546,7 +549,8 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
               </ul>
             )}
 
-            <div className="log-foot">
+            {/* With no cases at all, a "0 cases" count would only repeat the empty state. */}
+            {all.length > 0 && <div className="log-foot">
               <span>
                 {shown.length === all.length
                   ? `${all.length} ${all.length === 1 ? "case" : "cases"}`
@@ -576,7 +580,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
                 ) : (
                   <button className="text-button" onClick={() => setConfirmClear(true)}>Clear cases</button>
                 ))}
-            </div>
+            </div>}
           </>
         )}
       </div>

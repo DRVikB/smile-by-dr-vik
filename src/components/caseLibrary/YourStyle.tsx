@@ -1,5 +1,6 @@
 "use client";
 import { BookMarked } from "lucide-react";
+import { LibrarySymbol } from "@/components/icons/SmileIcons";
 import { CaseFeatures } from "@/components/CaseFeatures";
 import { useAccount } from "@/components/account/AccountProvider";
 import { DEFAULT_STYLE_REFERENCE_LIMIT, findMatchingStyleReferences } from "@/lib/styleMatching";
@@ -33,7 +34,7 @@ export function StyleLine({ settings, onChange }: { settings: SmileSettings; onC
       <span className="style-line-icon" aria-hidden="true"><BookMarked size={16} strokeWidth={1.8} /></span>
       {empty ? <>
         <span className="style-line-text"><strong>Design in your style</strong><span>Add your finished cases so results follow your work.</span></span>
-        <button type="button" className="text-button" onClick={() => (lib.mode === "signedOut" ? account.openAuth("signIn") : lib.open({ add: true }))}>{lib.mode === "signedOut" ? "Sign in" : "Add"}</button>
+        <button type="button" className="text-button" onClick={() => (lib.mode === "signedOut" ? account.openAuth("signIn", "library") : lib.open({ add: true }))}>{lib.mode === "signedOut" ? "Sign in" : "Add"}</button>
       </> : <>
         <span className="style-line-text">
           <strong>{settings.libraryStyle ? "In your style" : "Your style is off"}</strong>
@@ -52,33 +53,34 @@ export function styleApplies(settings: SmileSettings): boolean {
 }
 
 /**
- * Review: the one switch for designing in the clinician's own style, right above Generate, so it is
- * decided before anything is made. On, it shows the cases that will guide the design; with none to
- * match it says so; signed out or with an empty library it offers to add cases.
+ * "Design in my style" as the last line of the studio's Review summary (Teeth, Shape, Shade, Treatment, Style), so it
+ * sits with the other design choices instead of covering them. Signed out it offers Sign in; with an empty library,
+ * Add cases; with cases, a switch and how many of them guide this design.
  */
-export function StyleSwitch({ settings, onChange }: { settings: SmileSettings; onChange: (s: SmileSettings) => void }) {
+export function StyleReviewRow({ settings, onChange }: { settings: SmileSettings; onChange: (s: SmileSettings) => void }) {
   const lib = useContext(CaseLibraryContext);
   const account = useAccount();
   const cases = lib?.cases ?? null;
   if (!lib || !styleApplies(settings) || (cases === null && lib.mode !== "signedOut")) return null;
   if (lib.mode === "signedOut" || !cases?.length) {
+    const signedOut = lib.mode === "signedOut";
     return (
-      <div className="style-switch is-empty">
-        <span className="style-switch-text"><strong>Design in my style</strong><span>Add your finished cases so results follow your own work.</span></span>
-        <button type="button" className="text-button" onClick={() => (lib.mode === "signedOut" ? account.openAuth("signIn") : lib.open({ add: true }))}>{lib.mode === "signedOut" ? "Sign in" : "Add cases"}</button>
-      </div>
+      <button type="button" role="listitem" className="studio-review-row style-review-row"
+        aria-description="Add your finished cases so results follow your own work."
+        onClick={() => (signedOut ? account.openAuth("signIn", "library") : lib.open({ add: true }))}>
+        <LibrarySymbol size={20} />
+        <span className="studio-review-text"><small>Style</small><strong>Your own work</strong></span>
+        <span className="style-review-action">{signedOut ? "Sign in" : "Add cases"}</span>
+      </button>
     );
   }
   const matches = findMatchingStyleReferences(lib.candidates, settings, DEFAULT_STYLE_REFERENCE_LIMIT);
-  const on = settings.libraryStyle;
-  const thumbs = matches.map(m => cases.find(c => c.id === m.id)).filter(c => c?.thumbnailUrl);
+  const on = Boolean(settings.libraryStyle);
   return (
-    <label className={`style-switch${on ? " is-on" : ""}`}>
-      <span className="style-switch-text">
-        <strong>In my style</strong>
-        <span>{!on ? "Off. Your Case Library is not used" : matches.length ? `${matches.length} of your cases guide this design` : "None of your cases match this design yet"}</span>
-        {on && thumbs.length > 0 && <span className="style-switch-thumbs" aria-hidden="true">{thumbs.map(c => <img key={c!.id} src={c!.thumbnailUrl!} alt="" />)}</span>}
-      </span>
+    <label role="listitem" className={`studio-review-row style-review-row${on ? " is-on" : ""}`}>
+      <LibrarySymbol size={20} />
+      <span className="studio-review-text"><small>Style</small>
+        <strong>{!on ? "Off" : matches.length ? `${matches.length} of your cases guide this` : "No matching cases yet"}</strong></span>
       <input type="checkbox" role="switch" className="studio-switch" aria-label="Design in my style" checked={on}
         onChange={e => onChange({ ...settings, libraryStyle: e.target.checked })} />
     </label>

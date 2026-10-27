@@ -171,7 +171,7 @@ export function CaseLibraryProvider({ children }: { children: React.ReactNode })
   }, [mode, account, refresh, scope, deviceLibrary]);
 
   const open = useCallback((options?: { add?: boolean }) => {
-    if (mode === "signedOut") { account.openAuth("signIn"); return; }
+    if (mode === "signedOut") { account.openAuth("signIn", "library"); return; }
     // Private links are short-lived: refresh them when the library opens.
     if (mode === "cloud" && Date.now() - loadedAt.current > LINK_LIFETIME_MS) void refresh();
     setView({ add: Boolean(options?.add), key: Date.now() }); // re-opening resets the view

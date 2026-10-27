@@ -71,6 +71,9 @@ export function AuthForm({ mode, setMode, reason, onSignedIn }: {
       {reason === "generate" && (mode === "signIn" || mode === "signUp") && (
         <p className="sheet-sub">Sign in to create AI smile visualisations. Test mode works without an account.</p>
       )}
+      {reason === "library" && (mode === "signIn" || mode === "signUp") && (
+        <p className="sheet-sub">Keep your finished cases as style references, so new designs follow your own work. Sign in to start your library.</p>
+      )}
 
       {mode === "checkEmail" ? (
         <div className="account-stack">
@@ -155,8 +158,9 @@ export function AuthSheet({ initialMode, reason, onClose, onSignedIn }: {
       <div className="sheet account-sheet" onClick={e => e.stopPropagation()}>
         <div className="sheet-heading">
           <div>
-            <p className="eyebrow">SmileCompose account</p>
-            <h2 id="auth-title">{AUTH_TITLES[mode]}</h2>
+            {/* Opened from Case Library: say what it is before asking to sign in. */}
+            <p className="eyebrow">{reason === "library" ? "Case Library" : "SmileCompose account"}</p>
+            <h2 id="auth-title">{reason === "library" && (mode === "signIn" || mode === "signUp") ? "Design in your style" : AUTH_TITLES[mode]}</h2>
           </div>
           <SheetClose onClose={onClose} />
         </div>

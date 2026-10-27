@@ -379,3 +379,6 @@
 .mv-visits button { flex: none; border: 0; border-radius: 999px; padding: 7px 13px; background: rgba(255, 255, 255, .1); color: #fff; font: 600 13px var(--font-sans, system-ui); }
 .mv-visits button[aria-selected="true"] { background: #D0A466; color: #141210; }
 @media (max-width: 520px) { .media-viewer .mv-label { display: none; } }
+
+/* Empty Cases: the next step, under the explanation. */
+.empty-state .empty-state-action { margin-top: 18px; min-height: 46px; padding: 0 26px; }

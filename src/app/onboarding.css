@@ -76,7 +76,7 @@
 .ob-name-field input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .ob-account-name { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0; padding: 12px 16px; border-radius: 12px; background: var(--control-background); font-size: 15px; overflow-wrap: anywhere; }
 .ob-account-name span { flex: none; font-size: 12px; font-weight: 600; letter-spacing: 0; color: var(--text-secondary); }
-.ob-plans .paywall-features { margin-top: 0; }
+.ob-plans .paywall-features-label + .paywall-features { margin-top: 8px; }
 .ob-plans .pro-plans { display: grid; gap: 4px; }
 
 /* Hero photograph, captioned at its foot ------------------- */

@@ -17,7 +17,7 @@ import { isOnDeviceWhitening } from "@/lib/whiteningDevice";
 import { SegmentedControl, SHAPES, ToothForm } from "./StudioParts";
 import { ToothChart } from "@/components/ToothChart";
 import { ClinicalDataFields } from "@/components/ClinicalDataFields";
-import { StartingConditions, StyleSwitch, useStyleInUse } from "@/components/caseLibrary/YourStyle";
+import { StartingConditions, StyleReviewRow, useStyleInUse } from "@/components/caseLibrary/YourStyle";
 import { CompareSymbol, ComposeSymbol, ShadeSymbol, ToothSymbol, TreatmentSymbol, VisualiseSymbol, type SmileIcon } from "@/components/icons/SmileIcons";
 import { SelectedTeethSummary, SingleToothEdit, ToothControls, ToothMapStatus, ToothMapView, ToothPicking } from "@/components/toothMap/ToothMapPanel";
 import type { ToothMapController } from "@/components/toothMap/useToothMap";
@@ -35,7 +35,7 @@ import {generationProtectionPlan} from "@/lib/toothMap/protect";
  * options". Back and Next move through the steps; the tabs jump to any step;
  * Review summarises the design and holds Generate.
  */
-type StudioTab = "teeth" | "shape" | "shade" | "treatment" | "review";
+export type StudioTab = "teeth" | "shape" | "shade" | "treatment" | "review";
 /** Scope → form → colour → finish, then review: each step narrows the next. */
 const TABS: { id: StudioTab; label: string; Icon: SmileIcon }[] = [
   { id: "teeth", label: "Teeth", Icon: ToothSymbol },
@@ -151,8 +151,10 @@ export function TreatmentOptions({ settings, onChange }: { settings: SmileSettin
 
 export function DesignStudio({
   stage, caseBar, costs, onEditArea, hasEditArea, settings, onChange, onGenerate, onCompare, onCompareMaterials, onHarmonise,
-  busy, reference, onAddReference, onClearReference, toothMap, goals, guide, photoAspect,
+  busy, reference, onAddReference, onClearReference, toothMap, goals, guide, photoAspect, startTab = "teeth",
 }: {
+  /** The step the studio opens on: Review when coming back from a result. */
+  startTab?: StudioTab;
   /** Width ÷ height of the patient photo: on a landscape iPad the frame takes this shape. */
   photoAspect?: number;
   /** The photograph (or before/after) shown in the studio frame; told when the Teeth step is open and when the smile guide should be drawn. */
@@ -179,7 +181,7 @@ export function DesignStudio({
   /** The smile guide fitted to this photo: shown and adjusted on the Shape step. */
   guide?: SmileGuideState;
 }) {
-  const [tab, setTab] = useState<StudioTab>("teeth");
+  const [tab, setTab] = useState<StudioTab>(startTab);
   // Where the studio starts on screen, so a partly folded iPhone Duo can end the photo just above the fold (side-rail.css).
   const studio = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -259,7 +261,7 @@ export function DesignStudio({
     </div>
   );
   return (
-    <div className="studio" ref={studio}>
+    <div className="studio" ref={studio} data-step={tab}>
       <div className="studio-stage" data-photo-shape={photoAspect ? (photoAspect > 1 ? "landscape" : "portrait") : undefined}
         style={photoAspect ? { "--photo-aspect": photoAspect } as React.CSSProperties : undefined}>{typeof stage === "function" ? stage(tab === "teeth", guideStep) : stage}</div>
 
@@ -505,6 +507,8 @@ export function DesignStudio({
                   <ChevronRight size={17} aria-hidden="true" />
                 </button>;
               })}
+              {/* Decided before anything is made: designing in the clinician's own style. */}
+              <StyleReviewRow settings={settings} onChange={onChange} />
             </div>
             <div className="studio-case">{caseBar}</div>
             {!match && <div className="studio-variations" role="group" aria-label="Or compare three shapes">
@@ -537,8 +541,6 @@ export function DesignStudio({
           {unavailable && <p className="control-hint" role="status">{unavailable}</p>}
           {tab === "review" && noChange && <p className="control-hint">No change selected: select teeth to edit and choose a different shade or design goal. No generation is needed.</p>}
           {tab === "review" && suggestBoundaryReview && <p className="control-hint">Ready to generate with automatic face protection. <button type="button" className="text-button" onClick={() => { go("teeth"); toothMap?.setEditing(true); }}>Optional tooth-map review</button></p>}
-          {/* Decided before anything is made: designing in the clinician's own style. */}
-          {tab === "review" && <StyleSwitch settings={settings} onChange={onChange} />}
           <div className="studio-steps-nav">
             {/* iPhone Duo: the side bar's Back and its step buttons already go back, so the foot keeps one action. */}
             {previous && !rail && <button type="button" className="secondary-button studio-back" onClick={() => go(previous.id)} aria-label={`Back to ${previous.id === "teeth" && fullArch ? "Arch" : previous.label}`}>

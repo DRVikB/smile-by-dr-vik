@@ -9,6 +9,8 @@ interface PickedPhoto {
   mimeType?: string;
   /** Camera only: the guide box actually shown (it differs in landscape). */
   guide?: Framing;
+  /** Camera only: taken with an iPhone held sideways, which the camera treats as a smile close-up. */
+  closeUp?: boolean;
 }
 
 interface SmilePhotoPickerPlugin {
@@ -67,7 +69,7 @@ async function readPicked(picked: PickedPhoto): Promise<File | null> {
  * colour — unlike a frame grabbed from a live video stream. The smile guide is drawn at the
  * same fractions of the photo as the web capture guide. Returns null when cancelled.
  */
-export async function takeNativePhoto(guide: Framing, camera: "back" | "front" = "back"): Promise<{ file: File; framing: Framing } | null> {
+export async function takeNativePhoto(guide: Framing, camera: "back" | "front" = "back"): Promise<{ file: File; framing: Framing; closeUp: boolean } | null> {
   if (!isNativeApp()) throw new Error("The camera is only available in the app.");
   let picked: PickedPhoto;
   try {
@@ -79,7 +81,7 @@ export async function takeNativePhoto(guide: Framing, camera: "back" | "front" =
     throw new Error(denied ? "Camera access is turned off. Turn it on in Settings › SmileCompose › Camera." : "The camera couldn’t be opened. Please try again.", { cause: error });
   }
   const file = await readPicked(picked);
-  return file ? { file, framing: validGuide(picked.guide) ?? guide } : null;
+  return file ? { file, framing: validGuide(picked.guide) ?? guide, closeUp: picked.closeUp === true } : null;
 }
 
 function validGuide(g: Framing | undefined): Framing | null {

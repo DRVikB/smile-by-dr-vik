@@ -23,6 +23,8 @@
 .apple-signin-button:disabled { opacity: .55; }
 
 .paywall-features { display: grid; gap: 9px; margin: 12px 0 4px; padding: 0; list-style: none; font-size: 14px; line-height: 1.4; color: var(--text-primary); }
+.paywall-features-label { margin: 22px 0 0; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.paywall-features-label + .paywall-features { margin-top: 8px; }
 .paywall-features li { display: flex; gap: 9px; align-items: flex-start; }
 .paywall-features svg { flex: none; margin-top: 2px; color: var(--accent-text); }
 .plan-options { display: grid; gap: 10px; }

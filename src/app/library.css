@@ -294,14 +294,4 @@
 .style-line .text-button { flex: none; }
 /* One "Your style" card per design, whatever else is in the review panel. */
 .style-feedback ~ .style-feedback { display: none; }
-/* Review: designing in my style, decided right above Generate. */
-.style-switch { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 16px; background: var(--card); cursor: pointer; transition: border-color 220ms var(--ease-soft, ease), background-color 220ms var(--ease-soft, ease); }
-.style-switch.is-on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--card)); }
-.style-switch.is-empty { cursor: default; }
-.style-switch-text { display: grid; flex: 1; gap: 2px; min-width: 0; }
-.style-switch-text strong { font-size: 15px; font-weight: 600; }
-.style-switch-text > span { font-size: 13px; line-height: 1.35; color: var(--text-secondary); }
-.style-switch-thumbs { display: flex; gap: 5px; margin-top: 5px; }
-.style-switch-thumbs img { width: 30px; height: 30px; border-radius: 8px; object-fit: cover; }
-.style-switch .text-button { flex: none; min-height: 44px; color: var(--accent-text); font-weight: 600; }
 

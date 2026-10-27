@@ -12,6 +12,7 @@
     "start": "next start --hostname 0.0.0.0 --port 3006",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
+    "test:face-scans": "node scripts/verify-face-scan-capture.mjs && node scripts/test-face-tracking.mjs && node scripts/test-face-capture-storage.mjs",
     "build:next": "npm run legal && node scripts/copy-ort.mjs && next build",
     "build:native": "npm run build && node scripts/build-native.mjs",
     "ios:sync": "npm run build:native && node scripts/cap-sync-ios.mjs && node scripts/verify-ios-bundle.mjs",

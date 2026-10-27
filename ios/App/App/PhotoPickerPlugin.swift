@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import AVKit
+import AudioToolbox
 import CoreMotion
 import Vision
 import Capacitor
@@ -79,11 +80,13 @@ public class PhotoPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControl
                             call.resolve(["cancelled": true])
                         case .failed(let message):
                             call.reject(message)
-                        case .captured(let data, let used):
+                        case .captured(let data, let used, let closeUp):
                             do {
                                 var result = try self.store(data, png: false)
                                 // The guide actually shown (it differs in landscape), so the photo's framing is accurate.
                                 result["guide"] = ["x": used.minX, "y": used.minY, "width": used.width, "height": used.height]
+                                // Taken as a smile close-up: kept in its own shape and set as a close-up.
+                                result["closeUp"] = closeUp
                                 call.resolve(result)
                             } catch { call.reject("The photo couldn’t be saved.") }
                         }
@@ -266,6 +269,89 @@ struct CaptureGuidance {
         return .ready
     }
 
+    /// The four checks the camera shows as chips, in order: angle (the device level and upright, and the head straight,
+    /// chin level and looking ahead for a face), position, size and the smile. All four met is the same as `.ready`.
+    static func checks(face: Face?, guide: CGRect, gravity: (x: Double, y: Double, z: Double)?, chinDown: CGFloat, closeUp: Bool) -> [Bool] {
+        var level = true
+        if let g = gravity {
+            let l = deviceLevel(gravity: g)
+            level = abs(l.sideDegrees) <= 3 && abs(l.leanDegrees) <= maxLean
+        }
+        guard let f = face else { return [level, false, false, false] }
+        let ratio = f.mouth.width / guide.width
+        if closeUp {
+            let centred = abs(f.mouth.midX - guide.midX) <= guide.width * 0.12
+                && f.mouth.midY >= guide.minY + guide.height * 0.2 && f.mouth.midY <= guide.maxY - guide.height * 0.2
+            return [level && abs(f.rollDegrees) <= 5, centred, ratio >= 0.55 && ratio <= 1.08, f.opening >= 0.1]
+        }
+        let centred = abs(f.centreX - 0.5) <= 0.06 && f.mouth.midY >= guide.minY && f.mouth.midY <= guide.maxY
+        let head = abs(f.rollDegrees) <= 5 && abs(chinDown) <= maxPitch && abs(f.yawDegrees) <= 12
+        return [level && head, centred, ratio >= 0.6 && ratio <= 1.05, f.opening >= 0.1]
+    }
+
+    /// The lens buttons, as multiples of 1× (the wide lens). No ultra-wide: it distorts faces and smiles.
+    /// 2× is the main sensor's full-quality crop; a telephoto adds its own stop (3× or 5×). The selfie camera
+    /// offers 1×, 1.5× and 2×.
+    static func lensStops(front: Bool, base: CGFloat, switchOvers: [CGFloat], maxZoom: CGFloat) -> [CGFloat] {
+        var stops: [CGFloat] = front ? [1, 1.5, 2] : [1, 2]
+        if !front, switchOvers.count >= 2, base > 0 {
+            let tele = (switchOvers[1] / base).rounded()
+            if tele >= 2.5 { stops.append(tele) }
+        }
+        return stops.filter { $0 * base <= maxZoom + 0.01 }
+    }
+
+    /// What the camera is taking: the whole face, or a smile close-up.
+    enum Shot { case face, smile }
+
+    /// The smile box for a close-up: the smile fills most of a sideways 4:3 frame, or a band across an upright one.
+    static func closeUpBox(aspect: CGFloat) -> CGRect {
+        aspect > 1 ? CGRect(x: 0.12, y: 0.24, width: 0.76, height: 0.52) : CGRect(x: 0.08, y: 0.34, width: 0.84, height: 0.32)
+    }
+
+    /// What one live frame suggests, from the face Vision finds (Vision coordinates, origin bottom-left), or nil when
+    /// it can't tell. The same rule as the app's check on a finished photo: the whole face in frame with a mouth well
+    /// under half its width is a face; a face running off the frame or a mouth across much of it is a close-up.
+    /// No face at all says nothing (nobody may be in front of the camera yet).
+    static func shot(box: CGRect, eyes: [CGPoint], mouthWidth: CGFloat?) -> Shot? {
+        let eyesIn = !eyes.isEmpty && eyes.allSatisfy { $0.x >= 0 && $0.x <= 1 && $0.y >= 0 && $0.y <= 1 }
+        if box.width > 0.7 || box.maxY > 1.02 || (!eyes.isEmpty && !eyesIn) || (mouthWidth ?? 0) > 0.42 { return .smile }
+        if box.minX >= 0, box.maxX <= 1, box.minY >= 0, box.maxY <= 1, box.width < 0.6, eyesIn, let m = mouthWidth, m < 0.32 { return .face }
+        return nil
+    }
+
+    /// A smile close-up: the device level and upright, and — when the mouth can be found (Vision often finds no
+    /// face this close) — the smile centred in the box and about its width. Without a face the device checks still
+    /// apply and the hint simply asks to fit the smile in the box.
+    static func closeUpStep(face: Face?, box: CGRect, gravity: (x: Double, y: Double, z: Double)?) -> Step {
+        if let g = gravity {
+            let level = deviceLevel(gravity: g)
+            if abs(level.sideDegrees) > 3 { return .levelDevice }
+            if abs(level.leanDegrees) > maxLean { return .uprightDevice }
+        }
+        guard let f = face else { return .noFace }
+        if abs(f.mouth.midX - box.midX) > box.width * 0.12 { return .centre }
+        let ratio = f.mouth.width / box.width
+        if ratio < 0.55 { return .closer }
+        if ratio > 1.08 { return .further }
+        if f.mouth.midY < box.minY + box.height * 0.2 { return .lower }
+        if f.mouth.midY > box.maxY - box.height * 0.2 { return .raise }
+        if abs(f.rollDegrees) > 5 { return .headStraight }
+        if f.opening < 0.1 { return .smile }
+        return .ready
+    }
+
+    static func closeUpMessage(_ step: Step) -> String {
+        switch step {
+        case .noFace: return "Fit the smile in the box"
+        case .centre: return "Centre the smile in the box"
+        case .closer: return "Move a little closer"
+        case .further: return "Move a little further away"
+        case .lower, .raise: return "Centre the smile in the box"
+        default: return message(step)
+        }
+    }
+
     static func message(_ step: Step) -> String {
         switch step {
         case .noFace: return "Bring the face into the oval"
@@ -317,17 +403,20 @@ final class PitchDirection {
     }
 }
 
-/// The SmileCompose camera: a 3:4 live view (4:3 in landscape) showing exactly the photo's frame,
-/// a face oval with a centre crosshair and a head-level arc, the smile box, live alignment guidance
-/// (oval, box and instruction turn gold when face, device and smile line up), pinch or −/+ zoom
-/// across the lenses, and a flip between cameras. It captures a full-quality still
-/// (AVCapturePhotoOutput, quality prioritised) rather than a frame of video.
+/// The SmileCompose camera: a 3:4 live view (4:3 held sideways) showing exactly the photo's frame. Face or smile
+/// close-up, from a switch that also follows the picture; one instruction at the top of the picture; the four checks
+/// as chips that turn gold when met, and a ring round the shutter that fills with them; lens buttons; focus and
+/// exposure on the mouth (drag up or down to brighten or darken); the back camera's light for close-ups; the volume
+/// buttons and Camera Control as a shutter; optional auto capture; and a quick check of the photo before it is used.
+/// It captures a full-quality still (AVCapturePhotoOutput, quality prioritised) rather than a frame of video.
 final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVCaptureVideoDataOutputSampleBufferDelegate {
-    enum Result { case cancelled, failed(String), captured(Data, CGRect) }
+    enum Result { case cancelled, failed(String), captured(Data, CGRect, closeUp: Bool) }
 
     private static let gold = UIColor(red: 208 / 255, green: 164 / 255, blue: 102 / 255, alpha: 1)
+    private static let ink = UIColor(red: 26 / 255, green: 22 / 255, blue: 18 / 255, alpha: 1)
     private static let warning = UIColor(red: 0.89, green: 0.33, blue: 0.36, alpha: 1)
-    private static let quiet = UIColor(white: 1, alpha: 0.4)
+    private static let quiet = UIColor(white: 1, alpha: 0.55)
+    private static let autoKey = "smile.camera.autoCapture"
 
     private let guide: CGRect
     private var activeGuide: CGRect
@@ -356,33 +445,92 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
     private var zoomBase: CGFloat = 1
     private var zoomMax: CGFloat = 5
     private var pinchStart: CGFloat = 1
+    /// The lens buttons, as multiples of 1×.
+    private var lensStops: [CGFloat] = []
     private var finished = false
     private var lastAnalysis = Date.distantPast
     private var latestFace: CaptureGuidance.Face?
     private var readySince: Date?
     private var wasReady = false
+    /// The live smile frame, eased towards the mouth Vision finds (normalised, top-left origin).
+    private var smoothedMouth: CGRect?
+    private var lastMeterPoint: CGPoint?
+    private var lastMeterTime = Date.distantPast
+    private var exposureBias: Float = 0
+    private var torchOn = false
+    private var autoCapture = UserDefaults.standard.bool(forKey: SmileCameraViewController.autoKey)
+    private var countdown: (left: Int, timer: Timer)?
+    private var levelAtCapture: Double = 0
+    private var pendingPhoto: Data?
+    private var reviewing = false
+    #if targetEnvironment(simulator)
+    fileprivate var simSource: CGImage?
+    fileprivate var simTimer: Timer?
+    fileprivate let simLayer = CALayer()
+    fileprivate var simFrame: CGImage?
+    fileprivate var simulatedCloseUp: Bool { closeUp }
+    fileprivate var simulatedSize: CGSize? { previewHost.bounds.size }
+    fileprivate func showSimulatedLenses() { lensStops = [1, 2, 3]; buildLenses() }
+    fileprivate func installSimulatedLayer() { previewHost.layer.insertSublayer(simLayer, above: previewLayer) }
+    fileprivate func chooseSimulatedSmile() { chosenShot = .smile; view.setNeedsLayout() }
+    fileprivate func cancelSimulated() { finish(.failed("The camera couldn’t be started.")) }
+    /// The simulator's face landmarks are unreliable, so the stand-in face's own measurements are used: its mouth
+    /// (corner to corner 392–588, lips 538–628, teeth 555–598 in the 900×1200 photo) and eyes (about y 375).
+    fileprivate func simulatedAnalysis(crop: CGRect, scale: CGFloat) {
+        guard !reviewing else { return }
+        func n(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: (x * scale - crop.minX) / crop.width, y: (y * scale - crop.minY) / crop.height) }
+        let a = n(392, 538), b = n(588, 628), eye = n(495, 375)
+        let face = CaptureGuidance.Face(centreX: n(495, 0).x, mouth: CGRect(x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y),
+                                        opening: 43 / 196, rollDegrees: 0, yawDegrees: 0, pitchDegrees: 0, noseRatio: 0.5)
+        let evidence: CaptureGuidance.Shot = eye.y >= 0 && b.x - a.x < 0.32 ? .face : .smile
+        DispatchQueue.main.async {
+            guard !self.reviewing else { return }
+            self.latestFace = face
+            self.observe(evidence)
+            self.updateGuidance()
+        }
+    }
+    #endif
 
     private let previewLayer = AVCaptureVideoPreviewLayer()
     private let previewHost = UIView()
     private let ovalLayer = CAShapeLayer()
     private let headArc = CAShapeLayer()
-    private let guideView = UIView()
-    private let crossV = DashedLineView()
-    private let crossH = DashedLineView()
     /// The At rest head (with ears) from the photo set, in place of the oval; `headSpread` is its width over the head's.
     private let headView = UIImageView()
     private let headImage: UIImage?
     private let headSpread: CGFloat
     private var playedIntro = false
+    /// Corner marks round the smile: hugging the patient's own smile in a face photo, the target box in a close-up.
+    private let smileFrame = CornerFrameView()
+    private let exposureMark = UIView()
+    private let exposureSun = UIImageView()
+    private let exposureTrack = UIView()
+    /// Short midline marks at the picture's top and bottom edges, and a level line that tilts with the device.
+    private let tickTop = UIView()
+    private let tickBottom = UIView()
+    private let horizon = UIView()
+    private let horizonLeft = UIView()
+    private let horizonRight = UIView()
+    private let horizonCentre = UIView()
+    private let instruction = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
+    private let instructionGold = UIView()
     private let hint = UILabel()
-    private let hintBar = UIView()
+    private let chips = UIStackView()
+    private var chipViews: [CheckChip] = []
+    private let lensBack = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
+    private let lensBar = UIStackView()
+    private var lensButtons: [UIButton] = []
     private let closeButton = UIButton(type: .system)
     private let flipButton = UIButton(type: .system)
+    private let torchButton = UIButton(type: .system)
+    private let autoButton = UIButton(type: .system)
     private let shutter = UIButton(type: .custom)
-    private let zoomLabel = UILabel()
-    private let zoomOut = UIButton(type: .system)
-    private let zoomIn = UIButton(type: .system)
-    private let zoomBar = UIView()
+    private let shutterHost = UIView()
+    private let shutterTrack = CAShapeLayer()
+    private let shutterRing = CAShapeLayer()
+    private let shutterLabel = UILabel()
+    private let review = PhotoReviewView()
     private let haptic = UIImpactFeedbackGenerator(style: .light)
 
     init(guide: CGRect, front: Bool, head: UIImage? = nil, headSpread: CGFloat = 1, completion: @escaping (Result) -> Void) {
@@ -398,6 +546,23 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
 
     override var prefersStatusBarHidden: Bool { true }
 
+    /// A phone-sized display held sideways: on a phone that usually means a smile close-up. iPad and the open
+    /// iPhone Duo are large enough to be held sideways for a full face.
+    private var sideways: Bool {
+        UIDevice.current.userInterfaceIdiom == .phone && view.bounds.width > view.bounds.height && min(view.bounds.width, view.bounds.height) < 600
+    }
+    /// Face or smile close-up: the clinician's choice in the switch, else what the live picture has shown, else the
+    /// way the device is held (a phone turned sideways is taking a close-up). Turning the device starts afresh.
+    private var chosenShot: CaptureGuidance.Shot?
+    private var seenShot: CaptureGuidance.Shot?
+    private var shotEvidence: (shot: CaptureGuidance.Shot, since: Date, last: Date)?
+    private var layoutWasSideways: Bool?
+    private var shot: CaptureGuidance.Shot { chosenShot ?? seenShot ?? (sideways ? .smile : .face) }
+    private var closeUp: Bool { shot == .smile }
+    private let shotSwitch = UISegmentedControl(items: ["Face", "Smile"])
+
+    // MARK: Views
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
@@ -406,16 +571,13 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         previewLayer.videoGravity = .resizeAspectFill
         previewHost.layer.addSublayer(previewLayer)
         previewHost.clipsToBounds = true
-        previewHost.layer.cornerRadius = 18
         previewHost.backgroundColor = UIColor(white: 0.07, alpha: 1)
         previewHost.addGestureRecognizer(UIPinchGestureRecognizer(target: self, action: #selector(pinched(_:))))
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
+        pan.maximumNumberOfTouches = 1
+        previewHost.addGestureRecognizer(pan)
         view.addSubview(previewHost)
 
-        for line in [crossV, crossH] {
-            line.backgroundColor = Self.quiet
-            line.isUserInteractionEnabled = false
-            previewHost.addSubview(line)
-        }
         for shape in [ovalLayer, headArc] {
             shape.fillColor = nil
             shape.lineCap = .round
@@ -426,7 +588,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         if let headImage {
             headView.image = headImage
             headView.contentMode = .scaleToFill
-            headView.tintColor = UIColor(white: 1, alpha: 0.9)
+            headView.tintColor = UIColor(white: 1, alpha: 0.88)
             headView.isUserInteractionEnabled = false
             previewHost.addSubview(headView)
             ovalLayer.isHidden = true
@@ -434,16 +596,41 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         headArc.lineWidth = 2.5
         headArc.strokeColor = Self.warning.cgColor
         headArc.isHidden = true
-        guideView.layer.borderColor = UIColor(white: 1, alpha: 0.6).cgColor
-        guideView.layer.borderWidth = 1.5
-        guideView.layer.cornerRadius = 10
-        guideView.isUserInteractionEnabled = false
-        previewHost.addSubview(guideView)
 
-        hintBar.backgroundColor = UIColor(white: 1, alpha: 0.12)
-        hintBar.layer.cornerRadius = 14
-        hintBar.isUserInteractionEnabled = false
-        view.addSubview(hintBar)
+        for tick in [tickTop, tickBottom] {
+            tick.backgroundColor = Self.quiet
+            tick.layer.cornerRadius = 1
+            tick.isUserInteractionEnabled = false
+            previewHost.addSubview(tick)
+        }
+        horizon.isUserInteractionEnabled = false
+        for line in [horizonLeft, horizonRight] {
+            line.backgroundColor = .white
+            line.layer.cornerRadius = 1
+            horizon.addSubview(line)
+        }
+        horizonCentre.backgroundColor = UIColor(white: 1, alpha: 0.35)
+        horizonCentre.isUserInteractionEnabled = false
+        previewHost.addSubview(horizonCentre)
+        previewHost.addSubview(horizon)
+        previewHost.addSubview(smileFrame)
+
+        // Exposure: a sun on a short track beside the smile frame; drag up or down on the picture to move it.
+        exposureMark.isUserInteractionEnabled = false
+        exposureTrack.backgroundColor = Self.gold
+        exposureMark.addSubview(exposureTrack)
+        exposureSun.image = UIImage(systemName: "sun.max", withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .semibold))
+        exposureSun.tintColor = Self.gold
+        exposureSun.contentMode = .center
+        exposureMark.addSubview(exposureSun)
+        previewHost.addSubview(exposureMark)
+
+        // The one instruction, frosted at the top of the picture (gold once lined up).
+        instruction.clipsToBounds = true
+        instruction.isUserInteractionEnabled = false
+        instructionGold.backgroundColor = Self.gold
+        instructionGold.alpha = 0
+        instruction.contentView.addSubview(instructionGold)
         hint.text = CaptureGuidance.message(.noFace)
         hint.textColor = .white
         hint.font = .systemFont(ofSize: 16, weight: .semibold)
@@ -451,14 +638,33 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         hint.adjustsFontSizeToFitWidth = true
         hint.minimumScaleFactor = 0.8
         hint.accessibilityTraits = .updatesFrequently
-        hintBar.addSubview(hint)
+        instruction.contentView.addSubview(hint)
+        view.addSubview(instruction)
+
+        chips.spacing = 6
+        chips.alignment = .center
+        chips.isUserInteractionEnabled = false
+        for _ in 0..<4 { let chip = CheckChip(); chipViews.append(chip); chips.addArrangedSubview(chip) }
+        view.addSubview(chips)
+        applyShotTitles()
+
+        lensBack.clipsToBounds = true
+        lensBar.spacing = 4
+        lensBar.distribution = .fillEqually
+        lensBar.alignment = .fill
+        lensBack.contentView.addSubview(lensBar)
+        view.addSubview(lensBack)
 
         let symbols = UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold)
         closeButton.setImage(UIImage(systemName: "xmark", withConfiguration: symbols), for: .normal)
         closeButton.accessibilityLabel = "Cancel"
         flipButton.setImage(UIImage(systemName: "arrow.triangle.2.circlepath.camera", withConfiguration: symbols), for: .normal)
         flipButton.accessibilityLabel = "Switch camera"
-        for button in [closeButton, flipButton] {
+        torchButton.setImage(UIImage(systemName: "flashlight.off.fill", withConfiguration: symbols), for: .normal)
+        torchButton.accessibilityLabel = "Light"
+        autoButton.setImage(UIImage(systemName: "timer", withConfiguration: symbols), for: .normal)
+        autoButton.accessibilityLabel = "Auto capture"
+        for button in [closeButton, flipButton, torchButton, autoButton] {
             button.tintColor = .white
             button.backgroundColor = UIColor(white: 1, alpha: 0.14)
             button.layer.cornerRadius = 22
@@ -466,33 +672,42 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         }
         closeButton.addTarget(self, action: #selector(cancel), for: .touchUpInside)
         flipButton.addTarget(self, action: #selector(flip), for: .touchUpInside)
+        torchButton.addTarget(self, action: #selector(toggleTorch), for: .touchUpInside)
+        autoButton.addTarget(self, action: #selector(toggleAuto), for: .touchUpInside)
+        updateAutoButton()
 
+        // The shutter, with a ring that fills as the checks are met.
+        shutterHost.isUserInteractionEnabled = false
+        for ring in [shutterTrack, shutterRing] {
+            ring.fillColor = nil
+            ring.lineCap = .round
+            shutterHost.layer.addSublayer(ring)
+        }
+        shutterTrack.strokeColor = UIColor(white: 1, alpha: 0.35).cgColor
+        shutterTrack.lineWidth = 3
+        shutterRing.strokeColor = Self.gold.cgColor
+        shutterRing.lineWidth = 3.5
+        shutterRing.strokeEnd = 0
+        view.addSubview(shutterHost)
         shutter.backgroundColor = .white
-        shutter.layer.cornerRadius = 32
+        shutter.layer.cornerRadius = 31
         shutter.accessibilityLabel = "Take photo"
         shutter.addTarget(self, action: #selector(capture), for: .touchUpInside)
         view.addSubview(shutter)
-        let ring = UIView()
-        ring.isUserInteractionEnabled = false
-        ring.layer.borderColor = UIColor.white.cgColor
-        ring.layer.borderWidth = 3
-        ring.tag = 42
-        view.addSubview(ring)
+        shutterLabel.font = .systemFont(ofSize: 12, weight: .bold)
+        shutterLabel.textColor = Self.ink
+        shutterLabel.textAlignment = .center
+        shutterLabel.isUserInteractionEnabled = false
+        shutter.addSubview(shutterLabel)
 
-        zoomBar.backgroundColor = UIColor(white: 1, alpha: 0.14)
-        zoomBar.layer.cornerRadius = 20
-        view.addSubview(zoomBar)
-        zoomOut.setImage(UIImage(systemName: "minus", withConfiguration: symbols), for: .normal)
-        zoomIn.setImage(UIImage(systemName: "plus", withConfiguration: symbols), for: .normal)
-        zoomOut.accessibilityLabel = "Zoom out"
-        zoomIn.accessibilityLabel = "Zoom in"
-        for button in [zoomOut, zoomIn] { button.tintColor = .white; zoomBar.addSubview(button) }
-        zoomOut.addTarget(self, action: #selector(stepZoomOut), for: .touchUpInside)
-        zoomIn.addTarget(self, action: #selector(stepZoomIn), for: .touchUpInside)
-        zoomLabel.textColor = .white
-        zoomLabel.font = .monospacedDigitSystemFont(ofSize: 15, weight: .semibold)
-        zoomLabel.textAlignment = .center
-        zoomBar.addSubview(zoomLabel)
+        // Face or smile close-up, on every device; it also follows the picture by itself until it is tapped.
+        shotSwitch.accessibilityLabel = "Photo type"
+        shotSwitch.backgroundColor = UIColor(white: 1, alpha: 0.14)
+        shotSwitch.selectedSegmentTintColor = Self.gold
+        shotSwitch.setTitleTextAttributes([.foregroundColor: UIColor.white, .font: UIFont.systemFont(ofSize: 14, weight: .semibold)], for: .normal)
+        shotSwitch.setTitleTextAttributes([.foregroundColor: Self.ink, .font: UIFont.systemFont(ofSize: 14, weight: .semibold)], for: .selected)
+        shotSwitch.addTarget(self, action: #selector(shotChosen), for: .valueChanged)
+        view.addSubview(shotSwitch)
 
         // iPadOS pauses the camera when it treats the app as multitasking (Stage
         // Manager, Split View): say so instead of showing a silent black preview.
@@ -515,6 +730,19 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         switchNote.alpha = 0
         switchNote.isUserInteractionEnabled = false
         view.addSubview(switchNote)
+
+        // The volume buttons and Camera Control take the photo too, so a hand can stay on the patient or a retractor.
+        let buttons = AVCaptureEventInteraction { [weak self] event in
+            guard event.phase == .began else { return }
+            self?.hardwareShutter()
+        }
+        view.addInteraction(buttons)
+
+        review.isHidden = true
+        review.onRetake = { [weak self] in self?.retake() }
+        review.onUse = { [weak self] in self?.usePhoto() }
+        view.addSubview(review)
+
         // The inner camera's reserved area becomes active once the camera runs: lay out again to keep clear of it.
         centre.addObserver(self, selector: #selector(sessionStarted), name: AVCaptureSession.didStartRunningNotification, object: session)
         configureSession()
@@ -523,15 +751,16 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
     deinit {
         NotificationCenter.default.removeObserver(self)
         motion.stopDeviceMotionUpdates()
+        countdown?.timer.invalidate()
     }
 
-    /// As the camera opens, once: the head draws on from the top and the smile box widens from the centre,
+    /// As the camera opens, once: the head draws on from the top and the smile frame widens from the centre,
     /// as the photo set's guides do. With Reduce Motion they simply appear.
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         guard !playedIntro, !UIAccessibility.isReduceMotionEnabled else { return }
         playedIntro = true
-        if headImage != nil {
+        if headImage != nil, !closeUp {
             let mask = CALayer()
             mask.backgroundColor = UIColor.black.cgColor
             mask.anchorPoint = CGPoint(x: 0.5, y: 0)
@@ -544,11 +773,9 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
             mask.add(grow, forKey: "reveal")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.95) { [weak self] in self?.headView.layer.mask = nil }
         }
-        guideView.alpha = 0
-        guideView.transform = CGAffineTransform(scaleX: 0.15, y: 1)
+        smileFrame.transform = CGAffineTransform(scaleX: 0.15, y: 1)
         UIView.animate(withDuration: 0.7, delay: 0.45, usingSpringWithDamping: 0.75, initialSpringVelocity: 0, options: []) {
-            self.guideView.alpha = 1
-            self.guideView.transform = .identity
+            self.smileFrame.transform = .identity
         }
     }
 
@@ -556,18 +783,42 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         super.viewDidLayoutSubviews()
         let safe = view.safeAreaLayoutGuide.layoutFrame
         let portrait = view.bounds.height >= view.bounds.width
-        let top: CGFloat = 62, bottom: CGFloat = portrait ? 222 : 168
-        let area = CGRect(x: safe.minX + 12, y: safe.minY + top, width: safe.width - 24, height: safe.height - top - bottom)
-        // The live view has the photo's own shape, so it shows the whole photo and the guide maps exactly.
+        let side = sideways
+        // Turning the device is a fresh start: it sets the shot again (sideways on a phone is a close-up).
+        if layoutWasSideways != nil && layoutWasSideways != side { chosenShot = nil; seenShot = nil; shotEvidence = nil; smoothedMouth = nil }
+        layoutWasSideways = side
+        let close = closeUp
+        // The live view has the photo's own shape, so it shows the whole photo and the guides map exactly.
         let aspect: CGFloat = portrait ? 3.0 / 4.0 : 4.0 / 3.0
-        var size = CGSize(width: area.width, height: area.width / aspect)
-        if size.height > area.height { size = CGSize(width: area.height * aspect, height: area.height) }
-        previewHost.frame = CGRect(x: area.midX - size.width / 2, y: area.midY - size.height / 2, width: size.width, height: size.height)
+        // A narrower column where the display is narrow (the closed iPhone Duo on its side, beside the system's own bar).
+        let column: CGFloat = safe.width < 700 ? 116 : 140, margin: CGFloat = 60
+        var size: CGSize
+        var origin: CGPoint
+        if portrait {
+            // Upright: a slim row of buttons, the picture as wide as the screen, then the checks and the shutter.
+            let top = safe.minY + 52
+            let maxHeight = safe.maxY - 140 - top
+            size = CGSize(width: view.bounds.width, height: view.bounds.width / aspect)
+            if size.height > maxHeight { size = CGSize(width: maxHeight * aspect, height: maxHeight) }
+            origin = CGPoint(x: view.bounds.midX - size.width / 2, y: top)
+        } else {
+            // Sideways (any device): the picture takes the full height, with the controls in a column on the right.
+            let area = CGRect(x: safe.minX + margin, y: safe.minY + 8, width: safe.width - margin - column, height: safe.height - 16)
+            size = CGSize(width: area.height * aspect, height: area.height)
+            if size.width > area.width { size = CGSize(width: area.width, height: area.width / aspect) }
+            origin = CGPoint(x: area.midX - size.width / 2, y: area.midY - size.height / 2)
+        }
+        previewHost.frame = CGRect(origin: origin, size: size)
+        previewHost.layer.cornerRadius = size.width >= view.bounds.width - 1 ? 0 : 16
         CATransaction.begin(); CATransaction.setDisableActions(true)
         previewLayer.frame = previewHost.bounds
         let layout = CaptureGuidance.layout(guide: guide, aspect: aspect)
         oval = layout.oval
-        activeGuide = layout.guide
+        activeGuide = close ? CaptureGuidance.closeUpBox(aspect: aspect) : layout.guide
+        // A close-up has no head in frame: just the corner marks with the midline and the level line.
+        ovalLayer.isHidden = close || headImage != nil
+        headView.isHidden = close || headImage == nil
+        if close { headArc.isHidden = true }
         let ovalPx = CGRect(x: oval.minX * size.width, y: oval.minY * size.height, width: oval.width * size.width, height: oval.height * size.height)
         ovalLayer.path = UIBezierPath(ovalIn: ovalPx).cgPath
         if headImage != nil {
@@ -575,31 +826,92 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
             headView.frame = CGRect(x: ovalPx.midX - w / 2, y: ovalPx.minY, width: w, height: ovalPx.height)
         }
         CATransaction.commit()
-        guideView.frame = CGRect(x: activeGuide.minX * size.width, y: activeGuide.minY * size.height,
-                                 width: activeGuide.width * size.width, height: activeGuide.height * size.height)
-        crossV.frame = CGRect(x: size.width / 2 - 0.5, y: 0, width: 1, height: size.height)
-        crossH.frame = CGRect(x: 0, y: ovalPx.midY - 0.5, width: size.width, height: 1)
+        tickTop.frame = CGRect(x: size.width / 2 - 1, y: 0, width: 2, height: 14)
+        tickBottom.frame = CGRect(x: size.width / 2 - 1, y: size.height - 14, width: 2, height: 14)
+        let levelY = (close ? activeGuide.midY : oval.minY + oval.height * 0.36) * size.height
+        let levelLength = close ? activeGuide.width * size.width * 0.9 : min(size.width * 0.5, 220)
+        horizon.transform = .identity
+        horizon.frame = CGRect(x: size.width / 2 - levelLength / 2, y: levelY - 1, width: levelLength, height: 2)
+        horizonLeft.frame = CGRect(x: 0, y: 0, width: levelLength * 0.38, height: 2)
+        horizonRight.frame = CGRect(x: levelLength * 0.62, y: 0, width: levelLength * 0.38, height: 2)
+        horizonCentre.frame = CGRect(x: size.width / 2 - levelLength * 0.12, y: levelY - 1, width: levelLength * 0.24, height: 2)
+        shotSwitch.selectedSegmentIndex = close ? 1 : 0
+        applyShotTitles()
+        placeSmileFrame(animated: false)
         drawHeadArc()
         applyRotation()
 
-        closeButton.frame = CGRect(x: safe.minX + 16, y: safe.minY + 9, width: 44, height: 44)
-        // Portrait: the instruction sits just below the photo; landscape: over its lower edge.
-        let barWidth = min(size.width - 24, 520)
-        hintBar.frame = portrait
-            ? CGRect(x: previewHost.frame.midX - size.width / 2, y: previewHost.frame.maxY + 10, width: size.width, height: 46)
-            : CGRect(x: previewHost.frame.midX - barWidth / 2, y: previewHost.frame.maxY - 58, width: barWidth, height: 46)
-        hint.frame = hintBar.bounds.insetBy(dx: 14, dy: 0)
-        zoomBar.frame = CGRect(x: safe.midX - 80, y: safe.maxY - 152, width: 160, height: 40)
-        zoomOut.frame = CGRect(x: 0, y: 0, width: 48, height: 40)
-        zoomIn.frame = CGRect(x: 112, y: 0, width: 48, height: 40)
-        zoomLabel.frame = CGRect(x: 48, y: 0, width: 64, height: 40)
-        shutter.frame = CGRect(x: safe.midX - 32, y: safe.maxY - 92, width: 64, height: 64)
-        view.viewWithTag(42)?.frame = shutter.frame.insetBy(dx: -7, dy: -7)
-        view.viewWithTag(42)?.layer.cornerRadius = (shutter.frame.width + 14) / 2
-        flipButton.frame = CGRect(x: safe.maxX - 76, y: safe.maxY - 82, width: 44, height: 44)
-        let noteWidth = min((switchNote.text as NSString?)?.size(withAttributes: [.font: switchNote.font as Any]).width ?? 0, previewHost.frame.width - 40) + 32
-        switchNote.frame = CGRect(x: previewHost.frame.midX - noteWidth / 2, y: previewHost.frame.minY + 14, width: noteWidth, height: 34)
+        let pic = previewHost.frame
+        let d: CGFloat = 44
+        if portrait {
+            closeButton.frame = CGRect(x: safe.minX + 16, y: safe.minY + 4, width: d, height: d)
+            autoButton.frame = CGRect(x: safe.maxX - 16 - d, y: safe.minY + 4, width: d, height: d)
+            shotSwitch.frame = CGRect(x: safe.midX - 66, y: safe.minY + 10, width: 132, height: 32)
+            layoutLenses(vertical: false)
+            lensBack.frame.origin = CGPoint(x: pic.midX - lensBack.frame.width / 2, y: pic.maxY - 12 - lensBack.frame.height)
+            chips.axis = .horizontal
+            let chipsSize = chips.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
+            chips.frame = CGRect(x: pic.midX - chipsSize.width / 2, y: pic.maxY + 12, width: chipsSize.width, height: 26)
+            let cy = min(safe.maxY - 48, max(chips.frame.maxY + 50, (chips.frame.maxY + safe.maxY) / 2))
+            shutter.frame = CGRect(x: safe.midX - 31, y: cy - 31, width: 62, height: 62)
+            flipButton.frame = CGRect(x: safe.maxX - 32 - d, y: cy - d / 2, width: d, height: d)
+            torchButton.frame = CGRect(x: safe.minX + 32, y: cy - d / 2, width: d, height: d)
+        } else {
+            let col = safe.maxX - column / 2
+            let tall = safe.height >= 560
+            closeButton.frame = CGRect(x: safe.minX + 8, y: safe.minY + 10, width: d, height: d)
+            autoButton.frame = CGRect(x: safe.minX + 8, y: safe.maxY - 10 - d, width: d, height: d)
+            torchButton.frame = CGRect(x: safe.minX + 8, y: autoButton.frame.minY - 12 - d, width: d, height: d)
+            let switchWidth = min(112, column - 12)
+            shotSwitch.frame = CGRect(x: col - switchWidth / 2, y: safe.minY + 12, width: switchWidth, height: 32)
+            // Tall displays (iPad, the open Duo) keep the shutter mid-height with the checks at the foot of the column;
+            // a phone on its side stacks from the foot, with the checks along the bottom of the picture.
+            let cy = tall ? safe.midY + 20 : safe.maxY - 12 - d - 12 - 31
+            shutter.frame = CGRect(x: col - 31, y: cy - 31, width: 62, height: 62)
+            flipButton.frame = CGRect(x: col - d / 2, y: cy + 39 + 12, width: d, height: d)
+            layoutLenses(vertical: true)
+            lensBack.frame.origin = CGPoint(x: col - lensBack.frame.width / 2, y: cy - 39 - 14 - lensBack.frame.height)
+            if tall {
+                chips.axis = .vertical
+                chips.alignment = .fill
+                let chipsSize = chips.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
+                chips.frame = CGRect(x: col - max(chipsSize.width, 96) / 2, y: safe.maxY - 12 - chipsSize.height, width: max(chipsSize.width, 96), height: chipsSize.height)
+            } else {
+                chips.axis = .horizontal
+                chips.alignment = .center
+                let chipsSize = chips.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
+                chips.frame = CGRect(x: pic.midX - chipsSize.width / 2, y: pic.maxY - 12 - 26, width: chipsSize.width, height: 26)
+            }
+        }
+        shutterHost.frame = shutter.frame.insetBy(dx: -8, dy: -8)
+        let ring = UIBezierPath(arcCenter: CGPoint(x: shutterHost.bounds.midX, y: shutterHost.bounds.midY), radius: shutterHost.bounds.width / 2 - 2,
+                                startAngle: -.pi / 2, endAngle: 1.5 * .pi, clockwise: true).cgPath
+        shutterTrack.path = ring
+        shutterRing.path = ring
+        shutterLabel.frame = shutter.bounds
+        updateTorchButton()
+        layoutInstruction()
+        let noteWidth = min((switchNote.text as NSString?)?.size(withAttributes: [.font: switchNote.font as Any]).width ?? 0, pic.width - 40) + 32
+        switchNote.frame = CGRect(x: pic.midX - noteWidth / 2, y: pic.minY + 66, width: noteWidth, height: 34)
+        review.frame = view.bounds
+        review.layout(picture: pic, safe: safe)
         avoidCameraRegions()
+    }
+
+    /// The instruction pill, as wide as its words (within the picture), at the top of the picture.
+    private func layoutInstruction() {
+        let pic = previewHost.frame
+        let words = (hint.text as NSString?)?.size(withAttributes: [.font: hint.font as Any]).width ?? 0
+        let width = min(words + 40, pic.width - 32)
+        instruction.frame = CGRect(x: pic.midX - width / 2, y: pic.minY + 14, width: width, height: 40)
+        instruction.layer.cornerRadius = 20
+        instructionGold.frame = instruction.bounds
+        hint.frame = instruction.bounds.insetBy(dx: 16, dy: 0)
+    }
+
+    private func applyShotTitles() {
+        let titles = closeUp ? ["Level", "Centred", "Size", "Teeth showing"] : ["Level", "Centred", "Distance", "Smile"]
+        for (chip, title) in zip(chipViews, titles) where chip.title != title { chip.title = title }
     }
 
     // MARK: iPhone Duo
@@ -612,7 +924,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         let free = view.bounds.inset(by: view.safeAreaInsets)
         var changed = false
         var targets: [(UIView, CGRect)] = []
-        for control in [closeButton, flipButton, zoomBar, shutter, hintBar] as [UIView] {
+        for control in [closeButton, flipButton, torchButton, autoButton, lensBack, shutter, instruction, shotSwitch, chips] as [UIView] {
             let base = control.frame
             var shift = CGVector.zero
             if let region = regions.first(where: { $0.intersects(base) }) {
@@ -626,7 +938,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         }
         let apply = {
             targets.forEach { $0.0.frame = $0.1 }
-            self.view.viewWithTag(42)?.frame = self.shutter.frame.insetBy(dx: -7, dy: -7)
+            self.shutterHost.frame = self.shutter.frame.insetBy(dx: -8, dy: -8)
         }
         if changed && view.window != nil {
             UIView.animate(withDuration: 0.32, delay: 0, options: [.beginFromCurrentState, .curveEaseOut], animations: apply)
@@ -642,6 +954,10 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         UIView.animate(withDuration: 0.16, delay: 0, options: [.beginFromCurrentState, .curveEaseOut]) { self.previewHost.alpha = 0.25 }
         UIView.animate(withDuration: 0.3, delay: 0.42, options: [.beginFromCurrentState, .curveEaseInOut]) { self.previewHost.alpha = 1 }
         guard let note else { return }
+        showNote(note)
+    }
+
+    private func showNote(_ note: String) {
         switchNote.text = note
         view.setNeedsLayout(); view.layoutIfNeeded()
         switchNote.transform = CGAffineTransform(translationX: 0, y: -6)
@@ -708,21 +1024,14 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         }
     }
 
-    /// Preview and analysis frames upright for the current orientation (rotation
-    /// angles on iOS 17+, where the older orientation property is deprecated).
+    /// Preview and analysis frames upright for the current orientation.
     private func applyRotation() {
-        if #available(iOS 17.0, *), let coordinator = rotationCoordinator as? AVCaptureDevice.RotationCoordinator {
+        if let coordinator = rotationCoordinator as? AVCaptureDevice.RotationCoordinator {
             let previewAngle = coordinator.videoRotationAngleForHorizonLevelPreview
             let captureAngle = coordinator.videoRotationAngleForHorizonLevelCapture
             if let c = previewLayer.connection, c.isVideoRotationAngleSupported(previewAngle) { c.videoRotationAngle = previewAngle }
             sessionQueue.async {
                 if let c = self.videoOutput.connection(with: .video), c.isVideoRotationAngleSupported(captureAngle) { c.videoRotationAngle = captureAngle }
-            }
-        } else {
-            let orientation = currentOrientation()
-            if let c = previewLayer.connection, c.isVideoOrientationSupported { c.videoOrientation = orientation }
-            sessionQueue.async {
-                if let c = self.videoOutput.connection(with: .video), c.isVideoOrientationSupported { c.videoOrientation = orientation }
             }
         }
     }
@@ -740,17 +1049,22 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
 
     private func configureSession() {
         let front = self.front
+        if torchOn { torchOn = false; updateTorchButton() }
         sessionQueue.async {
             self.session.beginConfiguration()
             self.session.sessionPreset = .photo
-            if #available(iOS 16.0, *), self.session.isMultitaskingCameraAccessSupported {
+            if self.session.isMultitaskingCameraAccessSupported {
                 self.session.isMultitaskingCameraAccessEnabled = true
             }
             self.session.inputs.forEach { self.session.removeInput($0) }
             let chosen = self.chosenCameraID.flatMap { AVCaptureDevice(uniqueID: $0) }
             guard let device = chosen ?? Self.camera(front: front), let input = try? AVCaptureDeviceInput(device: device), self.session.canAddInput(input) else {
                 self.session.commitConfiguration()
+                #if targetEnvironment(simulator)
+                DispatchQueue.main.async { self.startSimulatedCamera() }
+                #else
                 DispatchQueue.main.async { self.finish(.failed("The camera couldn’t be started.")) }
+                #endif
                 return
             }
             self.session.addInput(input)
@@ -781,17 +1095,31 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
             self.device = device
             self.zoomBase = base
             self.zoomMax = min(device.maxAvailableVideoZoomFactor, max(base * 5, start))
+            let stops = CaptureGuidance.lensStops(front: front, base: base, switchOvers: switchOvers, maxZoom: self.zoomMax)
+            if (try? device.lockForConfiguration()) != nil {
+                // Close up, a Pro iPhone would hop to its ultra-wide lens for macro, which distorts a smile: the
+                // lens only changes when the zoom does.
+                if device.isVirtualDevice, !device.constituentDevices.isEmpty {
+                    device.setPrimaryConstituentDeviceSwitchingBehavior(.restricted, restrictedSwitchingBehaviorConditions: [.videoZoomChanged])
+                }
+                let bias = max(device.minExposureTargetBias, min(device.maxExposureTargetBias, self.exposureBias))
+                device.setExposureTargetBias(bias, completionHandler: nil)
+                device.unlockForConfiguration()
+            }
             self.setZoom(start)
             DispatchQueue.main.async {
-                if #available(iOS 17.0, *) {
-                    self.rotationCoordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: self.previewLayer)
-                }
+                self.lensStops = stops
+                self.buildLenses()
+                self.lastMeterPoint = nil
+                self.rotationCoordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: self.previewLayer)
                 // Mirror what faces the person holding the phone, whichever camera that is (not where it sits).
                 if let c = self.previewLayer.connection, c.isVideoMirroringSupported {
                     c.automaticallyAdjustsVideoMirroring = false
                     c.isVideoMirrored = front
                 }
                 self.applyRotation()
+                self.updateTorchButton()
+                self.view.setNeedsLayout()
                 self.watchCameraDirections()
                 self.watchFrontCamera(device)
             }
@@ -832,12 +1160,75 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         let request = VNDetectFaceLandmarksRequest()
         let handler = VNImageRequestHandler(cvPixelBuffer: pixels, orientation: .up)
         try? handler.perform([request])
-        let face = (request.results ?? []).max { $0.boundingBox.width < $1.boundingBox.width }.flatMap(Self.describe)
+        analysed(request.results)
+    }
+
+    /// Vision's faces for one frame, handed to the guidance on the main queue.
+    private func analysed(_ results: [VNFaceObservation]?) {
+        let largest = (results ?? []).max { $0.boundingBox.width < $1.boundingBox.width }
+        let face = largest.flatMap(Self.describe)
+        let evidence = largest.flatMap(Self.shotEvidence)
         DispatchQueue.main.async {
+            guard !self.reviewing else { return }
             self.latestFace = face
             if let face { self.pitchDirection.observe(face) }
+            self.observe(evidence)
             self.updateGuidance()
         }
+    }
+
+    /// Face or close-up, as this frame shows it (see CaptureGuidance.shot).
+    private static func shotEvidence(_ observation: VNFaceObservation) -> CaptureGuidance.Shot? {
+        let box = observation.boundingBox
+        func points(_ region: VNFaceLandmarkRegion2D?) -> [CGPoint] {
+            (region?.normalizedPoints ?? []).map { CGPoint(x: box.minX + $0.x * box.width, y: box.minY + $0.y * box.height) }
+        }
+        let lips = points(observation.landmarks?.outerLips)
+        let eyes = points(observation.landmarks?.leftEye) + points(observation.landmarks?.rightEye)
+        // A garbled reading (it happens) says nothing.
+        guard (lips + eyes).allSatisfy({ $0.x.isFinite && $0.y.isFinite && abs($0.x) < 3 && abs($0.y) < 3 }) else { return nil }
+        let mouth = lips.isEmpty ? nil : (lips.map(\.x).max()! - lips.map(\.x).min()!)
+        return CaptureGuidance.shot(box: box, eyes: eyes, mouthWidth: mouth)
+    }
+
+    /// The shot follows the picture once it has shown the other kind for most of a second (never after a tap).
+    private func observe(_ evidence: CaptureGuidance.Shot?) {
+        guard chosenShot == nil, let evidence else { return }
+        let now = Date()
+        if evidence == shot { shotEvidence = nil; return }
+        if let e = shotEvidence, e.shot == evidence, now.timeIntervalSince(e.last) < 0.5 {
+            shotEvidence = (evidence, e.since, now)
+            if now.timeIntervalSince(e.since) >= 0.8 {
+                seenShot = evidence
+                shotEvidence = nil
+                shotChanged(note: evidence == .smile ? "Smile close-up" : "Full face")
+            }
+        } else {
+            shotEvidence = (evidence, now, now)
+        }
+    }
+
+    @objc private func shotChosen() {
+        chosenShot = shotSwitch.selectedSegmentIndex == 1 ? .smile : .face
+        seenShot = nil
+        shotEvidence = nil
+        shotChanged(note: nil)
+    }
+
+    /// The guide eases from the head to the close-up corners (or back) and the guidance starts over.
+    private func shotChanged(note: String?) {
+        UISelectionFeedbackGenerator().selectionChanged()
+        readySince = nil
+        wasReady = false
+        smoothedMouth = nil
+        lastMeterPoint = nil
+        cancelCountdown()
+        if !closeUp, torchOn { setTorch(false) }
+        if let note { showNote(note) }
+        UIView.animate(withDuration: 0.3, delay: 0, options: [.beginFromCurrentState, .curveEaseInOut]) {
+            self.view.setNeedsLayout(); self.view.layoutIfNeeded()
+        }
+        updateGuidance()
     }
 
     /// Vision coordinates (normalised, origin bottom-left) to the photo frame's, origin top-left.
@@ -849,21 +1240,20 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
             region.normalizedPoints.map { CGPoint(x: box.minX + $0.x * box.width, y: 1 - (box.minY + $0.y * box.height)) }
         }
         let lips = points(outer), opening = points(inner), eyes = points(leftEye) + points(rightEye)
+        guard (lips + opening + eyes).allSatisfy({ $0.x.isFinite && $0.y.isFinite && abs($0.x) < 3 && abs($0.y) < 3 }) else { return nil }
         guard let minX = lips.map(\.x).min(), let maxX = lips.map(\.x).max(), let minY = lips.map(\.y).min(), let maxY = lips.map(\.y).max(),
               let innerTop = opening.map(\.y).min(), let innerBottom = opening.map(\.y).max(), let noseBase = points(nose).map(\.y).max(),
               maxX > minX, !eyes.isEmpty else { return nil }
         let eyeY = eyes.map(\.y).reduce(0, +) / CGFloat(eyes.count)
         let mouthY = (minY + maxY) / 2
         let degrees: (NSNumber?) -> CGFloat = { CGFloat(($0?.doubleValue ?? 0) * 180 / .pi) }
-        var pitch: CGFloat = 0
-        if #available(iOS 15.0, *) { pitch = degrees(observation.pitch) }
         return CaptureGuidance.Face(
             centreX: box.midX,
             mouth: CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY),
             opening: (innerBottom - innerTop) / (maxX - minX),
             rollDegrees: degrees(observation.roll),
             yawDegrees: degrees(observation.yaw),
-            pitchDegrees: pitch,
+            pitchDegrees: degrees(observation.pitch),
             noseRatio: mouthY > eyeY ? (noseBase - eyeY) / (mouthY - eyeY) : 0)
     }
 
@@ -872,27 +1262,135 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
     private var chinDown: CGFloat { (latestFace?.pitchDegrees ?? 0) * (pitchDirection.sign ?? 1) }
 
     private func updateGuidance() {
+        guard !reviewing else { return }
         let gravity = motion.deviceMotion.map { ($0.gravity.x, $0.gravity.y, $0.gravity.z) }
-        let step = CaptureGuidance.step(face: latestFace, guide: activeGuide, gravity: gravity, chinDown: chinDown, known: pitchDirection.sign != nil)
+        let close = closeUp
+        let box = activeGuide
+        let step = close ? CaptureGuidance.closeUpStep(face: latestFace, box: box, gravity: gravity)
+            : CaptureGuidance.step(face: latestFace, guide: box, gravity: gravity, chinDown: chinDown, known: pitchDirection.sign != nil)
+        let checks = CaptureGuidance.checks(face: latestFace, guide: box, gravity: gravity, chinDown: chinDown, closeUp: close)
         let ready = step == .ready
         readySince = ready ? (readySince ?? Date()) : nil
         let steady = ready && Date().timeIntervalSince(readySince!) > 0.6
-        setHint(steady ? "Lined up — take the photo" : CaptureGuidance.message(step), ready: ready)
+        if !ready { cancelCountdown() }
+        if autoCapture, steady, countdown == nil, shutter.isEnabled { startCountdown() }
+        if countdown == nil {
+            let text = steady ? (autoCapture ? "Hold still" : "Lined up — take the photo") : close ? CaptureGuidance.closeUpMessage(step) : CaptureGuidance.message(step)
+            setHint(text, ready: ready)
+        }
         if steady && !wasReady { haptic.impactOccurred() }
         wasReady = steady
 
-        let centred = latestFace.map { abs($0.centreX - 0.5) <= 0.06 } ?? false
-        let deviceLevel = gravity.map { abs(CaptureGuidance.deviceLevel(gravity: $0).sideDegrees) <= 3 } ?? true
-        let headLevel = latestFace != nil && abs(chinDown) <= CaptureGuidance.maxPitch
-        crossV.backgroundColor = centred ? Self.gold : Self.quiet
-        crossH.backgroundColor = headLevel && deviceLevel ? Self.gold : Self.quiet
+        for (chip, met) in zip(chipViews, checks) { chip.done = met }
+        let progress = CGFloat(checks.filter { $0 }.count) / CGFloat(max(1, checks.count))
+        shutterRing.strokeEnd = progress
+        shutter.backgroundColor = steady ? Self.gold : .white
+        tickTop.backgroundColor = checks.count > 1 && checks[1] ? Self.gold : Self.quiet
+        tickBottom.backgroundColor = tickTop.backgroundColor
+        let roll = gravity.map { CaptureGuidance.deviceLevel(gravity: $0).sideDegrees } ?? 0
+        let level = abs(roll) <= 3
+        UIView.animate(withDuration: 0.12, delay: 0, options: [.beginFromCurrentState, .curveLinear]) {
+            self.horizon.transform = CGAffineTransform(rotationAngle: CGFloat(max(-15, min(15, roll))) * .pi / 180)
+        }
+        horizonLeft.backgroundColor = level ? Self.gold : .white
+        horizonRight.backgroundColor = horizonLeft.backgroundColor
+        horizonCentre.isHidden = level
+        placeSmileFrame(animated: true)
+
+        // Focus and exposure follow the mouth (or the close-up box until the mouth is found).
+        if let f = latestFace { meter(at: CGPoint(x: f.mouth.midX, y: f.mouth.midY), near: close) }
+        else if close { meter(at: CGPoint(x: box.midX, y: box.midY), near: true) }
         drawHeadArc()
+    }
+
+    /// The smile frame: in a face photo it hugs the patient's own smile (eased so it doesn't jitter), or marks where
+    /// the smile should sit until one is found; in a close-up it marks the target box. Gold once lined up.
+    private func placeSmileFrame(animated: Bool) {
+        let size = previewHost.bounds.size
+        guard size.width > 0 else { return }
+        var target: CGRect
+        var faint = false
+        if !closeUp, let m = latestFace?.mouth {
+            let hug = CGRect(x: m.minX - m.width * 0.12, y: m.minY - m.height * 0.18, width: m.width * 1.24, height: m.height * 1.36)
+            if let s = smoothedMouth {
+                let k: CGFloat = 0.45
+                smoothedMouth = CGRect(x: s.minX + (hug.minX - s.minX) * k, y: s.minY + (hug.minY - s.minY) * k,
+                                       width: s.width + (hug.width - s.width) * k, height: s.height + (hug.height - s.height) * k)
+            } else { smoothedMouth = hug }
+            target = smoothedMouth!
+        } else {
+            if !closeUp { smoothedMouth = nil; faint = true }
+            target = activeGuide
+        }
+        let frame = CGRect(x: target.minX * size.width, y: target.minY * size.height, width: target.width * size.width, height: target.height * size.height)
+        let ready = shutter.backgroundColor == Self.gold || readySince != nil
+        smileFrame.length = closeUp ? 28 : 18
+        smileFrame.color = ready ? Self.gold : .white
+        let apply = {
+            self.smileFrame.frame = frame
+            self.smileFrame.alpha = faint ? 0.5 : 1
+            // The exposure sun sits beside the frame, on whichever side has room.
+            let right = frame.maxX + 34 <= size.width
+            let x = right ? frame.maxX + 6 : frame.minX - 26
+            self.exposureMark.frame = CGRect(x: x, y: frame.midY - 26, width: 20, height: 52)
+            self.layoutExposureMark()
+            self.exposureMark.alpha = faint ? 0 : 1
+        }
+        if animated { UIView.animate(withDuration: 0.14, delay: 0, options: [.beginFromCurrentState, .curveLinear], animations: apply) } else { apply() }
+    }
+
+    private func layoutExposureMark() {
+        let h = exposureMark.bounds.height
+        let t = CGFloat((exposureBias + 1.5) / 3) // 0 darkest … 1 brightest
+        let sunY = (h - 18) * (1 - t)
+        exposureSun.frame = CGRect(x: 1, y: sunY, width: 18, height: 18)
+        exposureTrack.frame = CGRect(x: 9.25, y: 0, width: 1.5, height: h)
+        exposureTrack.alpha = 0.7
+    }
+
+    /// Focus and exposure on a point of the picture (normalised, top-left origin); a smile close-up also tells the
+    /// lens to search near distances first. Only moved when the point moves, so the picture doesn't pulse.
+    private func meter(at point: CGPoint, near: Bool) {
+        let size = previewHost.bounds.size
+        guard size.width > 0 else { return }
+        if let last = lastMeterPoint, hypot(last.x - point.x, last.y - point.y) < 0.04, Date().timeIntervalSince(lastMeterTime) < 3 { return }
+        lastMeterPoint = point
+        lastMeterTime = Date()
+        let devicePoint = previewLayer.captureDevicePointConverted(fromLayerPoint: CGPoint(x: point.x * size.width, y: point.y * size.height))
+        sessionQueue.async {
+            guard let d = self.device, (try? d.lockForConfiguration()) != nil else { return }
+            if d.isFocusPointOfInterestSupported, d.isFocusModeSupported(.continuousAutoFocus) {
+                d.focusPointOfInterest = devicePoint
+                d.focusMode = .continuousAutoFocus
+            }
+            if d.isExposurePointOfInterestSupported, d.isExposureModeSupported(.continuousAutoExposure) {
+                d.exposurePointOfInterest = devicePoint
+                d.exposureMode = .continuousAutoExposure
+            }
+            if d.isAutoFocusRangeRestrictionSupported { d.autoFocusRangeRestriction = near ? .near : .none }
+            d.unlockForConfiguration()
+        }
+    }
+
+    /// Drag up to brighten, down to darken (within ±1.5 stops), as in the Camera app.
+    @objc private func panned(_ gesture: UIPanGestureRecognizer) {
+        let dy = gesture.translation(in: previewHost).y
+        gesture.setTranslation(.zero, in: previewHost)
+        exposureBias = max(-1.5, min(1.5, exposureBias - Float(dy / 140)))
+        let bias = exposureBias
+        layoutExposureMark()
+        sessionQueue.async {
+            guard let d = self.device, (try? d.lockForConfiguration()) != nil else { return }
+            d.setExposureTargetBias(max(d.minExposureTargetBias, min(d.maxExposureTargetBias, bias)), completionHandler: nil)
+            d.unlockForConfiguration()
+        }
     }
 
     /// The head's eye-level "equator", pinned to the oval's sides at the centre
     /// line. It curves down as the chin drops and up as it lifts (the front of a
     /// ring around the head, seen from the camera), and disappears once level.
     private func drawHeadArc() {
+        if closeUp { headArc.isHidden = true; return }
         let size = previewHost.bounds.size
         guard latestFace != nil, abs(chinDown) > CaptureGuidance.maxPitch, size.width > 0 else { headArc.isHidden = true; return }
         let x0 = oval.minX * size.width, x1 = oval.maxX * size.width, y = oval.midY * size.height
@@ -909,16 +1407,77 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
     }
 
     private func setHint(_ text: String, ready: Bool) {
+        let changed = hint.text != text
         hint.text = text
-        hint.textColor = ready ? .black : .white
-        hintBar.backgroundColor = ready ? Self.gold : UIColor(white: 0.1, alpha: 0.82)
+        hint.textColor = ready ? Self.ink : .white
+        UIView.animate(withDuration: 0.2) { self.instructionGold.alpha = ready ? 1 : 0 }
         ovalLayer.strokeColor = (ready ? Self.gold : UIColor(white: 1, alpha: 0.9)).cgColor
-        headView.tintColor = ready ? Self.gold : UIColor(white: 1, alpha: 0.9)
-        guideView.layer.borderColor = (ready ? Self.gold : UIColor(white: 1, alpha: 0.6)).cgColor
-        view.viewWithTag(42)?.layer.borderColor = (ready ? Self.gold : UIColor.white).cgColor
+        headView.tintColor = ready ? Self.gold : UIColor(white: 1, alpha: 0.88)
+        if changed {
+            UIView.animate(withDuration: 0.18, delay: 0, options: [.beginFromCurrentState, .curveEaseOut]) { self.layoutInstruction() }
+        }
     }
 
-    // MARK: Zoom, flip, capture
+    // MARK: Lenses
+
+    private func buildLenses() {
+        lensButtons.forEach { $0.removeFromSuperview() }
+        lensButtons = lensStops.enumerated().map { i, stop in
+            let b = UIButton(type: .custom)
+            b.tag = i
+            b.layer.cornerRadius = 19
+            b.addTarget(self, action: #selector(lensTapped(_:)), for: .touchUpInside)
+            b.accessibilityLabel = "Zoom \(Self.format(stop))×"
+            lensBar.addArrangedSubview(b)
+            return b
+        }
+        lensBack.isHidden = lensStops.count < 2
+        updateLensTitles()
+        view.setNeedsLayout()
+    }
+
+    private func layoutLenses(vertical: Bool) {
+        lensBar.axis = vertical ? .vertical : .horizontal
+        let n = CGFloat(lensButtons.count), d: CGFloat = 38
+        let long = n * d + max(0, n - 1) * 4 + 8
+        lensBack.frame.size = vertical ? CGSize(width: d + 8, height: long) : CGSize(width: long, height: d + 8)
+        lensBack.layer.cornerRadius = (d + 8) / 2
+        lensBar.frame = lensBack.bounds.insetBy(dx: 4, dy: 4)
+    }
+
+    private static func format(_ v: CGFloat) -> String {
+        abs(v - v.rounded()) < 0.05 ? String(Int(v.rounded())) : String(format: "%.1f", v)
+    }
+
+    /// The chosen lens reads in gold with "×"; between stops, the nearest shows the exact zoom.
+    private func updateLensTitles() {
+        let current = currentZoom / zoomBase
+        let nearest = lensStops.enumerated().min { abs($0.element - current) < abs($1.element - current) }?.offset
+        for (i, b) in lensButtons.enumerated() {
+            let selected = i == nearest
+            let stop = lensStops[i]
+            let title = selected ? "\(Self.format(abs(stop - current) < 0.06 ? stop : current))×" : Self.format(stop)
+            b.setTitle(title, for: .normal)
+            b.setTitleColor(selected ? Self.gold : .white, for: .normal)
+            b.titleLabel?.font = .systemFont(ofSize: selected ? 13 : 12, weight: selected ? .bold : .semibold)
+            b.backgroundColor = selected ? UIColor(white: 1, alpha: 0.16) : .clear
+            b.accessibilityTraits = selected ? [.button, .selected] : .button
+        }
+    }
+
+    @objc private func lensTapped(_ sender: UIButton) {
+        guard lensStops.indices.contains(sender.tag) else { return }
+        let target = lensStops[sender.tag] * zoomBase
+        UISelectionFeedbackGenerator().selectionChanged()
+        sessionQueue.async {
+            guard let d = self.device, (try? d.lockForConfiguration()) != nil else { return }
+            d.ramp(toVideoZoomFactor: min(max(target, self.zoomBase), self.zoomMax), withRate: 12)
+            d.unlockForConfiguration()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { self.updateLensTitles() }
+        }
+    }
+
+    // MARK: Zoom, light, auto capture, flip
 
     private func setZoom(_ factor: CGFloat) {
         guard let device = device else { return }
@@ -927,12 +1486,7 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
             device.videoZoomFactor = clamped
             device.unlockForConfiguration()
         }
-        let shown = clamped / zoomBase
-        DispatchQueue.main.async {
-            self.zoomLabel.text = String(format: "%.1f×", shown)
-            self.zoomOut.isEnabled = clamped > self.zoomBase + 0.01
-            self.zoomIn.isEnabled = clamped < self.zoomMax - 0.01
-        }
+        DispatchQueue.main.async { self.updateLensTitles() }
     }
 
     private var currentZoom: CGFloat { device?.videoZoomFactor ?? zoomBase }
@@ -943,38 +1497,116 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
         sessionQueue.async { self.setZoom(target) }
     }
 
-    @objc private func stepZoomIn() { let z = currentZoom; sessionQueue.async { self.setZoom(z + self.zoomBase * 0.5) } }
-    @objc private func stepZoomOut() { let z = currentZoom; sessionQueue.async { self.setZoom(z - self.zoomBase * 0.5) } }
+    /// The back camera's light, for close-ups (it would flatten a face photo, so it shows only for a smile).
+    private var torchAvailable: Bool { closeUp && !front && (device?.hasTorch ?? false) }
+
+    private func updateTorchButton() {
+        torchButton.isHidden = !torchAvailable
+        let symbols = UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold)
+        torchButton.setImage(UIImage(systemName: torchOn ? "flashlight.on.fill" : "flashlight.off.fill", withConfiguration: symbols), for: .normal)
+        torchButton.tintColor = torchOn ? Self.ink : .white
+        torchButton.backgroundColor = torchOn ? Self.gold : UIColor(white: 1, alpha: 0.14)
+        torchButton.accessibilityValue = torchOn ? "On" : "Off"
+    }
+
+    @objc private func toggleTorch() { setTorch(!torchOn) }
+
+    private func setTorch(_ on: Bool) {
+        torchOn = on && torchAvailable
+        updateTorchButton()
+        let wanted = torchOn
+        sessionQueue.async {
+            guard let d = self.device, d.hasTorch, (try? d.lockForConfiguration()) != nil else { return }
+            if wanted, d.isTorchAvailable { try? d.setTorchModeOn(level: 0.5) } else { d.torchMode = .off }
+            d.unlockForConfiguration()
+        }
+    }
+
+    private func updateAutoButton() {
+        autoButton.tintColor = autoCapture ? Self.ink : .white
+        autoButton.backgroundColor = autoCapture ? Self.gold : UIColor(white: 1, alpha: 0.14)
+        autoButton.accessibilityValue = autoCapture ? "On" : "Off"
+        shutterLabel.text = autoCapture ? "AUTO" : nil
+    }
+
+    /// Auto capture: once lined up and held still, two ticks and the photo is taken (no voice).
+    @objc private func toggleAuto() {
+        autoCapture.toggle()
+        UserDefaults.standard.set(autoCapture, forKey: Self.autoKey)
+        UISelectionFeedbackGenerator().selectionChanged()
+        updateAutoButton()
+        showNote(autoCapture ? "Auto capture on" : "Auto capture off")
+        if !autoCapture { cancelCountdown() }
+        updateGuidance()
+    }
+
+    private func startCountdown() {
+        let tick = { (left: Int) in
+            AudioServicesPlaySystemSound(1103)
+            self.setHint("Taking in \(left)…", ready: true)
+        }
+        tick(2)
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.6, repeats: true) { [weak self] timer in
+            guard let self, let c = self.countdown else { timer.invalidate(); return }
+            let left = c.left - 1
+            if left <= 0 {
+                self.cancelCountdown()
+                self.capture()
+            } else {
+                self.countdown = (left, timer)
+                tick(left)
+            }
+        }
+        countdown = (2, timer)
+    }
+
+    private func cancelCountdown() {
+        countdown?.timer.invalidate()
+        countdown = nil
+    }
+
+    private func hardwareShutter() {
+        if reviewing { return }
+        capture()
+    }
 
     @objc private func flip() {
         front.toggle()
         chosenCameraID = nil
         latestFace = nil
+        smoothedMouth = nil
         configureSession()
     }
 
     @objc private func cancel() { finish(.cancelled) }
 
+    // MARK: Capture and the quick check
+
     private var guideAtCapture = CGRect.zero
+    private var closeUpAtCapture = false
 
     @objc private func capture() {
+        guard shutter.isEnabled, !reviewing else { return }
+        cancelCountdown()
         shutter.isEnabled = false
-        guideAtCapture = activeGuide
-        let orientation = currentOrientation()
-        var captureAngle: CGFloat?
-        if #available(iOS 17.0, *), let coordinator = rotationCoordinator as? AVCaptureDevice.RotationCoordinator {
-            captureAngle = coordinator.videoRotationAngleForHorizonLevelCapture
-        }
+        // The smile as found (in a face photo) or the box (otherwise), returned as the photo's framing.
+        let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
+        guideAtCapture = (!closeUp ? smoothedMouth?.intersection(unit) : nil).flatMap { $0.isNull || $0.width < 0.02 ? nil : $0 } ?? activeGuide
+        closeUpAtCapture = closeUp
+        levelAtCapture = motion.deviceMotion.map { CaptureGuidance.deviceLevel(gravity: ($0.gravity.x, $0.gravity.y, $0.gravity.z)).sideDegrees } ?? 0
+        let captureAngle = (rotationCoordinator as? AVCaptureDevice.RotationCoordinator)?.videoRotationAngleForHorizonLevelCapture
         let mirrored = front
+        #if targetEnvironment(simulator)
+        if let frame = simFrame, let data = UIImage(cgImage: frame).jpegData(compressionQuality: 0.9) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.showReview(data) }
+            return
+        }
+        #endif
         sessionQueue.async {
             let settings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
             settings.photoQualityPrioritization = .quality
             if let connection = self.photoOutput.connection(with: .video) {
-                if #available(iOS 17.0, *), let angle = captureAngle {
-                    if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
-                } else if connection.isVideoOrientationSupported {
-                    connection.videoOrientation = orientation
-                }
+                if let angle = captureAngle, connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
                 // The front camera's photo matches its mirrored live view, as the web capture does.
                 if connection.isVideoMirroringSupported {
                     connection.automaticallyAdjustsVideoMirroring = false
@@ -996,15 +1628,391 @@ final class SmileCameraViewController: UIViewController, AVCapturePhotoCaptureDe
             }
             return
         }
-        DispatchQueue.main.async { self.finish(.captured(data, self.guideAtCapture)) }
+        DispatchQueue.main.async { self.showReview(data) }
+    }
+
+    /// The photo with a quick check — sharp on the teeth, teeth not too bright, eyes open, level — then
+    /// Retake or Use photo. The check runs on the device and only advises; it never blocks the photo.
+    private func showReview(_ data: Data) {
+        pendingPhoto = data
+        reviewing = true
+        if torchOn { setTorch(false) }
+        let closeUp = closeUpAtCapture, box = closeUpAtCapture ? activeGuide : guideAtCapture, level = levelAtCapture
+        review.show(image: nil, rows: nil)
+        review.isHidden = false
+        review.alpha = 0
+        UIView.animate(withDuration: 0.2) { self.review.alpha = 1 }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let image = PhotoCheck.uprightImage(data, maxSide: 1600)
+            let rows = image.map { PhotoCheck.review($0, closeUp: closeUp, fallback: box, levelDegrees: level) } ?? []
+            DispatchQueue.main.async {
+                guard self.reviewing else { return }
+                self.review.show(image: image.map { UIImage(cgImage: $0) }, rows: rows)
+                UIAccessibility.post(notification: .screenChanged, argument: self.review)
+            }
+        }
+    }
+
+    private func retake() {
+        pendingPhoto = nil
+        reviewing = false
+        readySince = nil
+        wasReady = false
+        UIView.animate(withDuration: 0.18, animations: { self.review.alpha = 0 }) { _ in self.review.isHidden = true }
+        shutter.isEnabled = true
+        updateGuidance()
+    }
+
+    private func usePhoto() {
+        guard let data = pendingPhoto else { return }
+        finish(.captured(data, guideAtCapture, closeUp: closeUpAtCapture))
     }
 
     private func finish(_ result: Result) {
         guard !finished else { return }
         finished = true
+        cancelCountdown()
+        #if targetEnvironment(simulator)
+        simTimer?.invalidate()
+        #endif
         motion.stopDeviceMotionUpdates()
-        sessionQueue.async { if self.session.isRunning { self.session.stopRunning() } }
+        sessionQueue.async {
+            if let d = self.device, d.hasTorch, d.torchMode != .off, (try? d.lockForConfiguration()) != nil { d.torchMode = .off; d.unlockForConfiguration() }
+            if self.session.isRunning { self.session.stopRunning() }
+        }
         dismiss(animated: true) { self.completion(result) }
+    }
+}
+
+#if targetEnvironment(simulator)
+/// Simulator only (there is no camera): the sample face bundled with the app stands in for the live picture, cropped
+/// to the current shape (the mouth for a close-up) and run through the same Vision guidance, so layouts and the
+/// photo check can be tried. Launch a Debug build with `-SmileCameraPreview face` (or `smile`) to open it directly.
+extension SmileCameraViewController {
+    func startSimulatedCamera() {
+        guard simSource == nil, let url = Bundle.main.url(forResource: "p-sofia-before", withExtension: "webp", subdirectory: "public/onboarding/intro"),
+              let image = UIImage(contentsOfFile: url.path)?.cgImage else { cancelSimulated(); return }
+        simSource = image
+        simLayer.contentsGravity = .resizeAspectFill
+        installSimulatedLayer()
+        showSimulatedLenses()
+        if UserDefaults.standard.string(forKey: "SmileCameraPreview") == "smile" { chooseSimulatedSmile() }
+        simTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in self?.simulatedFrame() }
+    }
+
+    private func simulatedFrame() {
+        guard let source = simSource, let size = simulatedSize, size.width > 0 else { return }
+        let aspect = size.width / size.height
+        let W = CGFloat(source.width), H = CGFloat(source.height)
+        var crop: CGRect
+        if simulatedCloseUp {
+            let w = (196 / 900 * W) / 0.62, h = w / aspect
+            crop = CGRect(x: 490 / 900 * W - w / 2, y: 583 / 1200 * H - h / 2, width: w, height: h)
+        } else {
+            var w = W, h = W / aspect
+            if h > H { h = H; w = H * aspect }
+            crop = CGRect(x: (W - w) / 2, y: max(0, min(H - h, 0.42 * H - h / 2)), width: w, height: h)
+        }
+        guard let frame = source.cropping(to: crop.integral) else { return }
+        simFrame = frame
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        simLayer.frame = CGRect(origin: .zero, size: size)
+        simLayer.contents = frame
+        CATransaction.commit()
+        simulatedAnalysis(crop: crop.integral, scale: W / 900)
+    }
+}
+#endif
+
+/// Four corner marks round a rectangle, with rounded corners; the path eases with the frame when animated.
+final class CornerFrameView: UIView {
+    override class var layerClass: AnyClass { CAShapeLayer.self }
+    private var shape: CAShapeLayer { layer as! CAShapeLayer }
+    var color: UIColor = .white { didSet { shape.strokeColor = color.cgColor } }
+    var length: CGFloat = 20 { didSet { if oldValue != length { setNeedsLayout() } } }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        shape.fillColor = nil
+        shape.lineWidth = 3
+        shape.lineCap = .round
+        shape.lineJoin = .round
+        shape.strokeColor = UIColor.white.cgColor
+        isUserInteractionEnabled = false
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let r = bounds.insetBy(dx: 1.5, dy: 1.5)
+        guard r.width > 4, r.height > 4 else { shape.path = nil; return }
+        let l = min(length, r.width / 3, r.height / 3), c = min(10, l / 2)
+        let p = UIBezierPath()
+        p.move(to: CGPoint(x: r.minX, y: r.minY + l)); p.addLine(to: CGPoint(x: r.minX, y: r.minY + c))
+        p.addQuadCurve(to: CGPoint(x: r.minX + c, y: r.minY), controlPoint: CGPoint(x: r.minX, y: r.minY)); p.addLine(to: CGPoint(x: r.minX + l, y: r.minY))
+        p.move(to: CGPoint(x: r.maxX - l, y: r.minY)); p.addLine(to: CGPoint(x: r.maxX - c, y: r.minY))
+        p.addQuadCurve(to: CGPoint(x: r.maxX, y: r.minY + c), controlPoint: CGPoint(x: r.maxX, y: r.minY)); p.addLine(to: CGPoint(x: r.maxX, y: r.minY + l))
+        p.move(to: CGPoint(x: r.maxX, y: r.maxY - l)); p.addLine(to: CGPoint(x: r.maxX, y: r.maxY - c))
+        p.addQuadCurve(to: CGPoint(x: r.maxX - c, y: r.maxY), controlPoint: CGPoint(x: r.maxX, y: r.maxY)); p.addLine(to: CGPoint(x: r.maxX - l, y: r.maxY))
+        p.move(to: CGPoint(x: r.minX + l, y: r.maxY)); p.addLine(to: CGPoint(x: r.minX + c, y: r.maxY))
+        p.addQuadCurve(to: CGPoint(x: r.minX, y: r.maxY - c), controlPoint: CGPoint(x: r.minX, y: r.maxY)); p.addLine(to: CGPoint(x: r.minX, y: r.maxY - l))
+        let duration = UIView.inheritedAnimationDuration
+        if duration > 0, let from = shape.presentation()?.path ?? shape.path {
+            let ease = CABasicAnimation(keyPath: "path")
+            ease.fromValue = from
+            ease.duration = duration
+            shape.add(ease, forKey: "path")
+        }
+        shape.path = p.cgPath
+    }
+}
+
+/// One of the camera's checks: a small pill that turns gold, with a tick, once it is met.
+final class CheckChip: UILabel {
+    var title = "" { didSet { refresh() } }
+    var done = false { didSet { if oldValue != done { refresh() } } }
+
+    init() {
+        super.init(frame: .zero)
+        font = .systemFont(ofSize: 12.5, weight: .semibold)
+        textAlignment = .center
+        layer.cornerRadius = 13
+        layer.masksToBounds = true
+        refresh()
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override var intrinsicContentSize: CGSize {
+        let s = super.intrinsicContentSize
+        return CGSize(width: s.width + 20, height: 26)
+    }
+
+    private func refresh() {
+        let gold = UIColor(red: 208 / 255, green: 164 / 255, blue: 102 / 255, alpha: 1)
+        let text = NSMutableAttributedString()
+        if done, let tick = UIImage(systemName: "checkmark", withConfiguration: UIImage.SymbolConfiguration(pointSize: 10, weight: .bold))?.withTintColor(gold, renderingMode: .alwaysOriginal) {
+            text.append(NSAttributedString(attachment: NSTextAttachment(image: tick)))
+            text.append(NSAttributedString(string: " "))
+        }
+        text.append(NSAttributedString(string: title))
+        attributedText = text
+        textColor = done ? gold : UIColor(white: 1, alpha: 0.8)
+        backgroundColor = done ? UIColor(red: 0.16, green: 0.125, blue: 0.086, alpha: 0.82) : UIColor(white: 0.08, alpha: 0.62)
+        accessibilityLabel = "\(title): \(done ? "done" : "not yet")"
+        invalidateIntrinsicContentSize()
+    }
+}
+
+/// The photo just taken, with the quick check and Retake / Use photo.
+final class PhotoReviewView: UIView {
+    var onRetake: (() -> Void)?
+    var onUse: (() -> Void)?
+    private let imageView = UIImageView()
+    private let heading = UILabel()
+    private let card = UIVisualEffectView(effect: UIBlurEffect(style: .systemThickMaterialDark))
+    private let rowsStack = UIStackView()
+    private let checking = UILabel()
+    private let retakeButton = UIButton(type: .system)
+    private let useButton = UIButton(type: .system)
+    private var picture = CGRect.zero
+    private var safe = CGRect.zero
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = UIColor(red: 14 / 255, green: 13 / 255, blue: 12 / 255, alpha: 1)
+        imageView.contentMode = .scaleAspectFit
+        imageView.clipsToBounds = true
+        addSubview(imageView)
+        heading.text = "Check the photo"
+        heading.textColor = UIColor(red: 246 / 255, green: 241 / 255, blue: 232 / 255, alpha: 1)
+        heading.font = .systemFont(ofSize: 17, weight: .semibold)
+        heading.textAlignment = .center
+        heading.accessibilityTraits = .header
+        addSubview(heading)
+        card.clipsToBounds = true
+        card.layer.cornerRadius = 22
+        addSubview(card)
+        rowsStack.axis = .vertical
+        rowsStack.spacing = 8
+        card.contentView.addSubview(rowsStack)
+        checking.text = "Checking the photo…"
+        checking.textColor = UIColor(white: 1, alpha: 0.75)
+        checking.font = .systemFont(ofSize: 14, weight: .medium)
+        card.contentView.addSubview(checking)
+        let gold = UIColor(red: 208 / 255, green: 164 / 255, blue: 102 / 255, alpha: 1)
+        for (button, title) in [(retakeButton, "Retake"), (useButton, "Use photo")] {
+            button.setTitle(title, for: .normal)
+            button.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
+            button.layer.cornerRadius = 23
+            card.contentView.addSubview(button)
+        }
+        retakeButton.backgroundColor = UIColor(white: 1, alpha: 0.12)
+        retakeButton.setTitleColor(.white, for: .normal)
+        useButton.backgroundColor = gold
+        useButton.setTitleColor(UIColor(red: 26 / 255, green: 22 / 255, blue: 18 / 255, alpha: 1), for: .normal)
+        retakeButton.addTarget(self, action: #selector(retakeTapped), for: .touchUpInside)
+        useButton.addTarget(self, action: #selector(useTapped), for: .touchUpInside)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    @objc private func retakeTapped() { onRetake?() }
+    @objc private func useTapped() { onUse?() }
+
+    /// `rows` nil while the check runs; each row is what was found and whether it is fine.
+    func show(image: UIImage?, rows: [(String, Bool)]?) {
+        if let image { imageView.image = image } else if rows == nil { imageView.image = nil }
+        rowsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        checking.isHidden = rows != nil
+        useButton.isEnabled = rows != nil
+        useButton.alpha = rows != nil ? 1 : 0.5
+        let gold = UIColor(red: 208 / 255, green: 164 / 255, blue: 102 / 255, alpha: 1)
+        let amber = UIColor(red: 1, green: 0.72, blue: 0.35, alpha: 1)
+        for (text, fine) in rows ?? [] {
+            let label = UILabel()
+            let line = NSMutableAttributedString()
+            let symbol = UIImage(systemName: fine ? "checkmark" : "exclamationmark.triangle.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 13, weight: .bold))?
+                .withTintColor(fine ? gold : amber, renderingMode: .alwaysOriginal)
+            if let symbol { line.append(NSAttributedString(attachment: NSTextAttachment(image: symbol))) }
+            line.append(NSAttributedString(string: "  " + text))
+            label.attributedText = line
+            label.textColor = UIColor(red: 246 / 255, green: 241 / 255, blue: 232 / 255, alpha: 1)
+            label.font = .systemFont(ofSize: 14.5, weight: fine ? .medium : .semibold)
+            label.numberOfLines = 0
+            label.accessibilityLabel = fine ? text : "Check: \(text)"
+            rowsStack.addArrangedSubview(label)
+        }
+        setNeedsLayout()
+    }
+
+    func layout(picture: CGRect, safe: CGRect) {
+        self.picture = picture
+        self.safe = safe
+        setNeedsLayout()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard picture.width > 0 else { return }
+        imageView.frame = picture
+        imageView.layer.cornerRadius = picture.width >= bounds.width - 1 ? 0 : 16
+        let portrait = bounds.height >= bounds.width
+        heading.frame = CGRect(x: safe.minX, y: portrait ? safe.minY + 10 : picture.minY + 12, width: safe.width, height: 30)
+        if !portrait { heading.isHidden = true } else { heading.isHidden = false }
+        let width = min(safe.width - 32, 420)
+        let inner = width - 36
+        let rowsHeight = rowsStack.arrangedSubviews.isEmpty ? 20 : rowsStack.systemLayoutSizeFitting(CGSize(width: inner, height: 0), withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel).height
+        let height = 18 + rowsHeight + 16 + 46 + 18
+        let y = portrait ? safe.maxY - 12 - height : min(picture.maxY - 24, safe.maxY - 12) - height
+        card.frame = CGRect(x: (portrait ? safe.midX : picture.midX) - width / 2, y: max(safe.minY + 8, y), width: width, height: height)
+        rowsStack.frame = CGRect(x: 18, y: 18, width: inner, height: rowsHeight)
+        checking.frame = rowsStack.frame
+        let bw = (inner - 12) / 2
+        retakeButton.frame = CGRect(x: 18, y: height - 18 - 46, width: bw, height: 46)
+        useButton.frame = CGRect(x: 18 + bw + 12, y: height - 18 - 46, width: bw, height: 46)
+    }
+}
+
+/// The quick check of a photo just taken, on the device: sharpness and over-bright pixels on the smile, eyes open
+/// (face photos), teeth showing (close-ups) and how level the device was. Advice only.
+enum PhotoCheck {
+    /// The photo upright, no larger than `maxSide` pixels.
+    static func uprightImage(_ data: Data, maxSide: Int) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true,
+                                        kCGImageSourceThumbnailMaxPixelSize: maxSide]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+    }
+
+    /// A region (normalised, top-left origin) as grey pixels about `width` wide.
+    static func grey(_ image: CGImage, region: CGRect, width: Int) -> (pixels: [UInt8], w: Int, h: Int)? {
+        let r = region.intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
+        guard !r.isNull, r.width > 0.01, r.height > 0.01 else { return nil }
+        let crop = CGRect(x: r.minX * CGFloat(image.width), y: r.minY * CGFloat(image.height),
+                          width: r.width * CGFloat(image.width), height: r.height * CGFloat(image.height)).integral
+        guard let cropped = image.cropping(to: crop), cropped.width > 4, cropped.height > 4 else { return nil }
+        let w = min(width, cropped.width), h = max(8, Int(CGFloat(w) * CGFloat(cropped.height) / CGFloat(cropped.width)))
+        var pixels = [UInt8](repeating: 0, count: w * h)
+        let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(data: buffer.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w,
+                                          space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return false }
+            context.interpolationQuality = .high
+            context.draw(cropped, in: CGRect(x: 0, y: 0, width: w, height: h))
+            return true
+        }
+        return drawn ? (pixels, w, h) : nil
+    }
+
+    /// Variance of the Laplacian: high on crisp edges (tooth outlines), low when blurred.
+    static func sharpness(_ p: [UInt8], w: Int, h: Int) -> Double {
+        guard w > 2, h > 2, p.count >= w * h else { return 0 }
+        var sum = 0.0, squares = 0.0, n = 0.0
+        for y in 1..<(h - 1) {
+            for x in 1..<(w - 1) {
+                let i = y * w + x
+                let v = 4 * Double(p[i]) - Double(p[i - 1]) - Double(p[i + 1]) - Double(p[i - w]) - Double(p[i + w])
+                sum += v; squares += v * v; n += 1
+            }
+        }
+        let mean = sum / n
+        return squares / n - mean * mean
+    }
+
+    /// Share of pixels that are pure white (detail lost).
+    static func clipped(_ p: [UInt8]) -> Double {
+        guard !p.isEmpty else { return 0 }
+        var count = 0
+        for v in p where v >= 250 { count += 1 }
+        return Double(count) / Double(p.count)
+    }
+
+    static let softBelow = 40.0
+    static let brightAbove = 0.06
+
+    static func review(_ image: CGImage, closeUp: Bool, fallback: CGRect, levelDegrees: Double) -> [(String, Bool)] {
+        let request = VNDetectFaceLandmarksRequest()
+        // If face detection itself fails, the face rows are left out rather than reporting "no face".
+        let detected = (try? VNImageRequestHandler(cgImage: image, orientation: .up).perform([request])) != nil
+        let face = (request.results ?? []).max { $0.boundingBox.width < $1.boundingBox.width }
+        let W = CGFloat(image.width), H = CGFloat(image.height)
+        func pixels(_ region: VNFaceLandmarkRegion2D?, in box: CGRect) -> [CGPoint] {
+            (region?.normalizedPoints ?? []).map { CGPoint(x: (box.minX + $0.x * box.width) * W, y: (1 - (box.minY + $0.y * box.height)) * H) }
+        }
+        var smile = fallback
+        var opening: CGFloat?
+        var eyesOpen: Bool?
+        if let face {
+            let box = face.boundingBox
+            let lips = pixels(face.landmarks?.outerLips, in: box)
+            if let minX = lips.map(\.x).min(), let maxX = lips.map(\.x).max(), let minY = lips.map(\.y).min(), let maxY = lips.map(\.y).max(), maxX > minX {
+                let w = maxX - minX, h = maxY - minY
+                smile = CGRect(x: (minX - w * 0.1) / W, y: (minY - h * 0.1) / H, width: w * 1.2 / W, height: h * 1.2 / H)
+                let inner = pixels(face.landmarks?.innerLips, in: box)
+                if let top = inner.map(\.y).min(), let bottom = inner.map(\.y).max() { opening = (bottom - top) / w }
+            }
+            let ratios = [face.landmarks?.leftEye, face.landmarks?.rightEye].compactMap { region -> CGFloat? in
+                let pts = pixels(region, in: box)
+                guard pts.count >= 4, let minX = pts.map(\.x).min(), let maxX = pts.map(\.x).max(), let minY = pts.map(\.y).min(), let maxY = pts.map(\.y).max(), maxX > minX else { return nil }
+                return (maxY - minY) / (maxX - minX)
+            }
+            if !ratios.isEmpty { eyesOpen = ratios.reduce(0, +) / CGFloat(ratios.count) >= 0.15 }
+        }
+        var rows: [(String, Bool)] = []
+        if let g = grey(image, region: smile, width: 400) {
+            let sharp = sharpness(g.pixels, w: g.w, h: g.h) >= softBelow
+            rows.append(sharp ? ("Sharp on the teeth", true) : ("The teeth may be blurred", false))
+            let bright = clipped(g.pixels) <= brightAbove
+            rows.append(bright ? ("Teeth not too bright", true) : ("The teeth look too bright", false))
+        }
+        if closeUp {
+            if let opening { rows.append(opening >= 0.1 ? ("Teeth showing", true) : ("The teeth aren’t showing", false)) }
+        } else if face == nil {
+            if detected { rows.append(("No face found — check the framing", false)) }
+        } else if let eyesOpen {
+            rows.append(eyesOpen ? ("Eyes open", true) : ("The eyes may be closed", false))
+        }
+        let tilt = abs(levelDegrees)
+        rows.append(tilt <= 3 ? (String(format: "Level (%.1f°)", tilt), true) : (String(format: "Tilted %.1f°", tilt), false))
+        return rows
     }
 }
 
@@ -1467,31 +2475,5 @@ final class PhotoSetCameraViewController: UIViewController, AVCapturePhotoCaptur
             if self.session.isRunning { self.session.stopRunning() }
         }
         dismiss(animated: true) { self.completion(photos, cancelled) }
-    }
-}
-
-
-/// A dashed guide line; its colour is set like a view's background (the camera turns it gold when lined up).
-final class DashedLineView: UIView {
-    override class var layerClass: AnyClass { CAShapeLayer.self }
-    private var shape: CAShapeLayer { layer as! CAShapeLayer }
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        shape.lineWidth = 1.5
-        shape.lineDashPattern = [6, 6]
-        shape.fillColor = nil
-        super.backgroundColor = .clear
-    }
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-    override var backgroundColor: UIColor? {
-        get { super.backgroundColor }
-        set { shape.strokeColor = newValue?.cgColor }
-    }
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        let p = UIBezierPath()
-        if bounds.width < bounds.height { p.move(to: CGPoint(x: bounds.midX, y: 0)); p.addLine(to: CGPoint(x: bounds.midX, y: bounds.height)) }
-        else { p.move(to: CGPoint(x: 0, y: bounds.midY)); p.addLine(to: CGPoint(x: bounds.width, y: bounds.midY)) }
-        shape.path = p.cgPath
     }
 }

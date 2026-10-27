@@ -116,7 +116,7 @@ public class CaseMediaPlugin: CAPPlugin, CAPBridgedPlugin {
             AVCaptureDevice.requestAccess(for: .video) { granted in
                 DispatchQueue.main.async {
                     guard granted else { self.open = false; call.reject("Camera access is turned off.", "camera_denied"); return }
-                    let scanner = FaceScanViewController(captures: captures, guide: guide, allowRear: call.getBool("labs") ?? false) { scans in
+                    let scanner = FaceScanViewController(captures: captures, guide: guide) { scans in
                         guard !scans.isEmpty else { self.open = false; call.resolve(["cancelled": true]); return }
                         self.work.async {
                             let saved = try? FaceScanStore.save(scans, caseId: caseId)
@@ -285,6 +285,10 @@ public class CaseMediaPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func alignIntraoral(_ call: CAPPluginCall) {
         guard let caseId = call.getString("caseId"), let id = call.getString("id"), let folder = CaseMediaStore.recordFolder(caseId, id),
               let info = CaseMediaStore.readInfo(folder), let captures = info["captures"] as? [[String: Any]] else { call.reject("That scan isn’t on this device."); return }
+        guard !captures.contains(where: { $0["building"] as? Bool == true }) else {
+            call.reject("Wait for the detailed face to finish before lining it up with the intraoral scan.", "scan_build_pending")
+            return
+        }
         let pick = captures.first(where: { $0["id"] as? String == "retracted" }) ?? captures.first(where: { $0["id"] as? String == "smile" }) ?? captures.first
         guard let pick, let faceURL = CaseMediaStore.file(pick["mesh"], in: folder) else { call.reject("That scan has no face to line up."); return }
         let obj = CaseMediaStore.file(pick["model"], in: folder), tex = CaseMediaStore.file(pick["modelTexture"], in: folder)
@@ -305,7 +309,7 @@ public class CaseMediaPlugin: CAPPlugin, CAPBridgedPlugin {
                         let aligner = IntraoralAlignViewController(face: face, skin: skin, intraoral: ios, title: pick["title"] as? String ?? "Wide smile") { outcome in
                             guard let outcome else { call.resolve(["cancelled": true]); return }
                             self.work.async {
-                                guard let saved = IntraoralExport.save(outcome, fileName: url.lastPathComponent, folder: folder) else { call.reject("The lined-up scans couldn’t be saved."); return }
+                                guard let saved = IntraoralExport.save(outcome, fileName: url.lastPathComponent, folder: folder, referenceScanId: pick["id"] as? String) else { call.reject("The lined-up scans couldn’t be saved."); return }
                                 call.resolve(["cancelled": false, "record": self.publish(folder, saved)])
                             }
                         }
@@ -380,7 +384,16 @@ enum CaseMediaStore {
 
     static func list(_ caseId: String) -> [(URL, [String: Any])] {
         guard let folder = caseFolder(caseId), let items = try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil) else { return [] }
-        return items.compactMap { url in readInfo(url).map { (url, $0) } }
+        return items.compactMap { url -> (URL, [String: Any])? in
+            guard let info = readInfo(url) else { return nil }
+            if let reconciled = FaceScanBuildState.reconcile(info, sessionID: BackgroundFaceBuilder.sessionID) {
+                // A killed process cannot resume its in-memory photo job. Keep the original scan and make the
+                // interruption visible on this and subsequent opens instead of leaving a permanent spinner.
+                try? writeInfo(reconciled, to: url)
+                return (url, reconciled)
+            }
+            return (url, info)
+        }
             .sorted { ($0.1["createdAt"] as? String ?? "") > ($1.1["createdAt"] as? String ?? "") }
     }
 
@@ -917,10 +930,47 @@ final class SpeechCameraViewController: UIViewController, AVCaptureFileOutputRec
 
 // MARK: - 3D face scan
 
-/// Scans are always made with the rear LiDAR scanner, which measures distance directly, point by point.
+/// Rear-camera scans require measured depth as well as photographs.
 enum LidarScanner {
     static var available: Bool { ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) }
 }
+
+// BEGIN FACE_SCAN_CAPTURE_POLICY
+/// One capture owns its asynchronous photographs and its monotonically advancing depth stream.
+/// Pure policy so cancellation, failed writes and camera timestamp edge cases can be replayed off-device.
+struct FaceScanCapturePolicy {
+    private(set) var runID = UUID()
+    private(set) var pendingPhoto: UUID?
+    private(set) var lastDepthTimestamp: TimeInterval?
+
+    mutating func reset() {
+        runID = UUID()
+        pendingPhoto = nil
+        lastDepthTimestamp = nil
+    }
+    func isCurrent(_ run: UUID) -> Bool { run == runID }
+
+    mutating func acceptDepth(imageTimestamp: TimeInterval, depthTimestamp: TimeInterval) -> Bool {
+        guard imageTimestamp.isFinite, depthTimestamp.isFinite,
+              imageTimestamp > 0, depthTimestamp > 0,
+              abs(imageTimestamp - depthTimestamp) <= 0.05,
+              lastDepthTimestamp.map({ depthTimestamp > $0 }) ?? true else { return false }
+        lastDepthTimestamp = depthTimestamp
+        return true
+    }
+    mutating func beginPhoto(run: UUID) -> UUID? {
+        guard isCurrent(run), pendingPhoto == nil else { return nil }
+        let ticket = UUID()
+        pendingPhoto = ticket
+        return ticket
+    }
+    mutating func finishPhoto(_ ticket: UUID, run: UUID) -> Bool {
+        guard isCurrent(run), pendingPhoto == ticket else { return false }
+        pendingPhoto = nil
+        return true
+    }
+}
+// END FACE_SCAN_CAPTURE_POLICY
 
 struct FaceCaptureSpec {
     let id, title, hint, expression: String
@@ -980,6 +1030,74 @@ struct FaceScanResult {
     var buildLater: Bool { wantsDetailed && canBuildDetailed }
 }
 
+/// An independently oriented expression must never inherit another expression's intraoral registration.
+/// Older records without shared-frame evidence remain readable; only their selected reference is exported.
+enum FaceScanBuildState {
+    /// Returns only a changed record. Same-process queued/running jobs and completed scans stay untouched.
+    static func reconcile(_ info: [String: Any], sessionID: String) -> [String: Any]? {
+        guard info["kind"] as? String == "scan", var captures = info["captures"] as? [[String: Any]] else { return nil }
+        var changed = false
+        for i in captures.indices where captures[i]["building"] as? Bool == true && captures[i]["buildSession"] as? String != sessionID {
+            captures[i]["building"] = false
+            captures[i]["detailedStatus"] = "interrupted"
+            captures[i].removeValue(forKey: "buildSession")
+            changed = true
+        }
+        guard changed else { return nil }
+        var result = info
+        result["captures"] = captures
+        return result
+    }
+}
+
+enum FaceScanFrames {
+    static func referenceId(_ captures: [[String: Any]], preferred: String? = nil) -> String? {
+        if let preferred { return captures.contains(where: { $0["id"] as? String == preferred }) ? preferred : nil }
+        return (captures.first(where: { $0["id"] as? String == "retracted" })
+            ?? captures.first(where: { $0["id"] as? String == "smile" }) ?? captures.first)?["id"] as? String
+    }
+
+    static func groupId(_ capture: [String: Any]) -> String? {
+        guard let id = capture["id"] as? String, !id.isEmpty,
+              let fit = capture["sharedFitMm"] as? Double, fit.isFinite, fit >= 0 else { return nil }
+        if let base = capture["registeredTo"] as? String, !base.isEmpty { return base }
+        return fit == 0 ? id : nil
+    }
+
+    static func sharesFrame(_ capture: [String: Any], with reference: [String: Any]) -> Bool {
+        if let id = capture["id"] as? String, id == reference["id"] as? String { return true }
+        guard let group = groupId(reference) else { return false }
+        return groupId(capture) == group
+    }
+
+    static func allShareFrame(_ captures: [[String: Any]]) -> Bool {
+        guard let first = captures.first else { return false }
+        return captures.allSatisfy { sharesFrame($0, with: first) }
+    }
+
+    /// Geometry changed after a legacy coarse alignment. Retire active links, without deleting its private files.
+    static func invalidateIntraoral(_ info: [String: Any], changedScanId: String) -> [String: Any] {
+        guard var captures = info["captures"] as? [[String: Any]] else { return info }
+        var retired: [[String: Any]] = []
+        for i in captures.indices {
+            var files: [String: Any] = ["scanId": captures[i]["id"] as? String ?? ""]
+            for key in Array(captures[i].keys) where key == "intraoralMesh" || key.hasPrefix("intraoralModel") {
+                files[key] = captures[i].removeValue(forKey: key)
+            }
+            if files.count > 1 { retired.append(files) }
+        }
+        guard info["intraoral"] != nil || !retired.isEmpty else { return info }
+        var result = info, previous = info["intraoral"] as? [String: Any] ?? [:]
+        previous["derivedFiles"] = retired
+        result["previousIntraoralRegistration"] = previous
+        result.removeValue(forKey: "intraoral")
+        result["intraoralStatus"] = "registrationRequired"
+        result["intraoralInvalidatedByScanId"] = changedScanId
+        result["captures"] = captures
+        return result
+    }
+}
+
 enum FaceScanStore {
     static func save(_ scans: [FaceScanResult], caseId: String) throws -> (URL, [String: Any]) {
         let (id, folder) = try CaseMediaStore.newRecord(caseId, kind: "scan")
@@ -1025,6 +1143,9 @@ enum FaceScanStore {
                     "asScanned": scan.unrotated != nil ? raw : "",
                     "holesFilled": scan.holesFilled, "scaleCorrection": (Double(scan.scaleCorrection) * 10000).rounded() / 10000
                 ]
+                if scan.buildLater { capture["detailedStatus"] = "pending" }
+                else if source != "lidar" { capture["detailedStatus"] = "complete" }
+                if scan.buildLater { capture["buildSession"] = BackgroundFaceBuilder.sessionID }
                 if let o {
                     capture["midlinePlane"] = [o.midlinePlane.x, o.midlinePlane.y, o.midlinePlane.z, o.midlinePlane.w].map { (Double($0) * 10000).rounded() / 10000 }
                     capture["midlineTilt"] = (Double(o.midlineTilt) * 10).rounded() / 10
@@ -1064,11 +1185,14 @@ enum FaceScanStore {
                 if let E = scan.exportFromScan { entry["exportFromAsScanned"] = (0..<4).flatMap { c in (0..<4).map { r in (Double(E[c][r]) * 100000).rounded() / 100000 } } }
                 landmarks[scan.id] = entry
             }
+            let sharedFrame = FaceScanFrames.allShareFrame(captures)
             let file: [String: Any] = [
                 "units": "mm",
                 "frame": "+y true vertical (natural head position, from gravity), +x towards the patient's left (horizontal), +z forward out of the face; origin at subnasale",
                 "facialMidline": "x = 0 is the vertical plane along the midline's direction; the midline plane itself is given per scan with how far it leans from true vertical",
-                "registration": scans.count > 1 ? "the expressions are in one frame: register the scan that shows the teeth to the intraoral scan once and the others follow" : "register the scan to the intraoral scan on the front teeth visible in the smile",
+                "registration": scans.count <= 1 ? "register the scan to the intraoral scan on the front teeth visible in the smile"
+                    : sharedFrame ? "the expressions are in one registered frame: register the scan that shows the teeth to the intraoral scan once and the registered others follow"
+                    : "some expressions have independent frames: only the selected intraoral reference and expressions with matching shared-frame evidence can follow its registration",
                 "exportFromAsScanned": "column-major 4×4 from each *-as-scanned.ply to the exported scan",
                 "scans": landmarks
             ]
@@ -1089,6 +1213,15 @@ enum FaceScanStore {
 
     /// What a lab needs to read the files without opening landmarks.json (CAD software ignores sidecar files).
     static func readme(_ scans: [FaceScanResult]) -> String {
+        let groups: [[String: Any]] = scans.map { scan in
+            var value: [String: Any] = ["id": scan.id]
+            if let fit = scan.sharedFit { value["sharedFitMm"] = Double(fit) }
+            if let base = scan.registeredTo { value["registeredTo"] = base }
+            return value
+        }
+        let frameNote = scans.count <= 1 ? "Registration: line the scan up with the intraoral scan on the front teeth visible in the smile."
+            : FaceScanFrames.allShareFrame(groups) ? "Shared frame: every expression has shared-frame registration evidence. Register the scan that shows the teeth to the intraoral scan (anterior teeth) and the registered others are placed with it."
+            : "Independent frames: one or more expressions could not be registered to the shared frame. Do not apply another expression's intraoral transform to them; they require their own registration."
         var lines = [
             "SmileCompose 3D face scan",
             "",
@@ -1096,13 +1229,15 @@ enum FaceScanStore {
             "Axes: +y is true vertical (natural head position, from the phone's gravity sensor when the scan started), +x points to the patient's left and is horizontal, +z points forward out of the face.",
             "Origin: subnasale (the base of the nose on the midline).",
             "Midline: x = 0 is the vertical plane along the facial midline's direction. The midline itself is found from the face's own symmetry; any lean from true vertical is reported below, not removed.",
-            scans.count > 1 ? "Shared frame: every expression is in the same frame. Register the scan that shows the teeth to the intraoral scan (anterior teeth) and the others are placed with it." : "Registration: line the scan up with the intraoral scan on the front teeth visible in the smile.",
+            frameNote,
             "",
             "Files per scan: <scan>.ply (vertex colour) and, where present, face-scan-<scan>.obj + .mtl + .jpg (photographic texture), all in the frame above; <scan>-as-scanned.ply is the same scan in the scanner's own frame. landmarks.json has the numbers.",
             "",
         ]
         for s in scans {
             var parts = ["\(s.title):"]
+            parts.append(s.sensor == "lidar" && s.textured == nil ? "coarse LiDAR geometry (photographic reconstruction is not complete)" : s.sensor == "trueDepth" ? "TrueDepth geometry" : "photographic reconstruction")
+            if scans.count > 1, s.sharedFit == nil { parts.append("independent frame; not registered to the other expressions") }
             if let o = s.orientation { parts.append(String(format: "midline leans %.1f° from true vertical", o.midlineTilt)) }
             if let e = s.eyes { let d = e.left - e.right; parts.append(String(format: "eye line %.1f° from true horizontal", atan2f(d.y, d.x) * 180 / .pi)) }
             if let fit = s.sharedFit, s.registeredTo != nil { parts.append(String(format: "lined up on the upper face (%.2f mm fit)", fit)) }
@@ -1121,17 +1256,24 @@ enum FaceScanStore {
         guard let folder = CaseMediaStore.recordFolder(caseId, recordId), var info = CaseMediaStore.readInfo(folder),
               var captures = info["captures"] as? [[String: Any]], let i = captures.firstIndex(where: { $0["id"] as? String == scanId }) else { return nil }
         var capture = captures[i]
+        var geometryReplaced = false
         capture["building"] = false
+        capture["detailedStatus"] = "failed"
+        capture.removeValue(forKey: "buildSession")
         if let face {
             let mesh = face.faceMesh()
             let stem = "face-scan-\(CaseMediaPlugin.slug(title))"
+            let detailedMesh = "\(scanId)-detailed.ply"
             let files = face.obj(name: stem, comment: "\(title), built from photographs")
             if let jpeg = UIImage(cgImage: face.texture).jpegData(compressionQuality: 0.9),
                (try? CaseMediaStore.write(files.obj, to: folder.appendingPathComponent("\(stem).obj"))) != nil,
                (try? CaseMediaStore.write(files.mtl, to: folder.appendingPathComponent("\(stem).mtl"))) != nil,
                (try? CaseMediaStore.write(jpeg, to: folder.appendingPathComponent("\(stem).jpg"))) != nil,
-               (try? CaseMediaStore.write(mesh.ply(comment: "\(title), built from photographs, lined up on the LiDAR scan"), to: folder.appendingPathComponent("\(scanId).ply"))) != nil {
+               (try? CaseMediaStore.write(mesh.ply(comment: "\(title), built from photographs, lined up on the LiDAR scan"), to: folder.appendingPathComponent(detailedMesh))) != nil {
                 capture["source"] = "photos"
+                capture["mesh"] = detailedMesh
+                capture["detailedStatus"] = "complete"
+                geometryReplaced = true
                 capture["model"] = "\(stem).obj"; capture["modelMaterial"] = "\(stem).mtl"; capture["modelTexture"] = "\(stem).jpg"
                 capture["vertices"] = mesh.positions.count; capture["triangles"] = mesh.triangles.count / 3
                 // A new name for the new preview, so nothing shows the old picture from a cache.
@@ -1155,6 +1297,18 @@ enum FaceScanStore {
         }
         captures[i] = capture
         info["captures"] = captures
+        if geometryReplaced {
+            info = FaceScanFrames.invalidateIntraoral(info, changedScanId: scanId)
+            if info["intraoralStatus"] as? String == "registrationRequired" {
+                let landmarksURL = folder.appendingPathComponent("landmarks.json")
+                if let data = try? Data(contentsOf: landmarksURL), var file = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+                    if let previous = file.removeValue(forKey: "intraoralRegistration") { file["previousIntraoralRegistration"] = previous }
+                    file["intraoralStatus"] = "registrationRequired"
+                    file["intraoralInvalidatedByScanId"] = scanId
+                    if let out = try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys]) { try? CaseMediaStore.write(out, to: landmarksURL) }
+                }
+            }
+        }
         guard (try? CaseMediaStore.writeInfo(info, to: folder)) != nil else { return nil }
         return (folder, info)
     }
@@ -1165,6 +1319,8 @@ enum FaceScanStore {
 /// little extra time if it goes to the background; a build that can't finish leaves the LiDAR face in place.
 final class BackgroundFaceBuilder {
     static let shared = BackgroundFaceBuilder()
+    /// Process-scoped: unfinished in-memory jobs from a previous launch must not remain marked as running.
+    static let sessionID = UUID().uuidString
     struct Job { let caseId, recordId, scanId, title: String; let shots: PhotoShots; let lidar: FaceMesh; let orientation: simd_float4x4? }
 
     var onUpdate: ((String, URL, [String: Any]) -> Void)?
@@ -1398,6 +1554,13 @@ final class FaceVolume {
     private(set) var frames = 0
     /// Where the surface has been seen, on a 2.5 mm grid, and how many times: the live picture of the scan.
     private var seen: [Int64: (SIMD3<Float>, UInt16)] = [:]
+    /// A coarse index of measured surface locations, not a second reconstructed surface. Live registration
+    /// reads nearby zero crossings from the same fused TSDF used by the final mesh, instead of scanning every
+    /// unobserved cube. One seed per 3 mm cell bounds storage independently of the number of captured frames.
+    private let trackingSpacing: Float
+    private let trackingNX, trackingNY, trackingNZ: Int
+    private var trackingCells: [Int32]
+    private var trackingLocations: [SIMD3<Float>] = []
     func seenPoints(limit: Int = 16000) -> [(SIMD3<Float>, UInt16)] {
         let all = Array(seen.values)
         guard all.count > limit else { return all }
@@ -1428,6 +1591,11 @@ final class FaceVolume {
         nx = Int(((hi.x - lo.x) / voxel).rounded())
         ny = Int(((hi.y - lo.y) / voxel).rounded())
         nz = Int(((hi.z - lo.z) / voxel).rounded())
+        trackingSpacing = max(0.003, voxel * 2)
+        trackingNX = Int(ceilf((hi.x - lo.x) / trackingSpacing))
+        trackingNY = Int(ceilf((hi.y - lo.y) / trackingSpacing))
+        trackingNZ = Int(ceilf((hi.z - lo.z) / trackingSpacing))
+        trackingCells = [Int32](repeating: -1, count: trackingNX * trackingNY * trackingNZ)
         let n = nx * ny * nz
         dist = .allocate(capacity: n); dist.initialize(repeating: 1, count: n)
         weight = .allocate(capacity: n); weight.initialize(repeating: 0, count: n)
@@ -1472,6 +1640,7 @@ final class FaceVolume {
         let lo = self.lo, hi = self.hi, v = voxel, inv = 1 / voxel, trunc = self.trunc, steps = Int((trunc / v).rounded(.up))
         let nx = self.nx, ny = self.ny, nz = self.nz, plane = nx * ny
         let st = max(1, f.stride), edge = 0.012 as Float
+        let trackingInv = 1 / trackingSpacing
         var vv = st
         while vv < dh - st {
             let row = vv * dStride
@@ -1511,6 +1680,17 @@ final class FaceVolume {
                 let luma = Float(yp[iv * yRow + iu]), chroma = (iv / 2) * cRow + (iu / 2) * 2
                 let cb = Float(cp[chroma]) - 128, cr = Float(cp[chroma + 1]) - 128
                 let colour = SIMD3<Float>(luma + 1.402 * cr, luma - 0.344136 * cb - 0.714136 * cr, luma + 1.772 * cb)
+                let ti = min(trackingNX - 1, Int((p.x - lo.x) * trackingInv))
+                let tj = min(trackingNY - 1, Int((p.y - lo.y) * trackingInv))
+                let tl = min(trackingNZ - 1, Int((p.z - lo.z) * trackingInv))
+                let key = (tl * trackingNY + tj) * trackingNX + ti
+                let seed = Int(trackingCells[key])
+                if seed < 0 {
+                    trackingCells[key] = Int32(trackingLocations.count)
+                    trackingLocations.append(p)
+                } else {
+                    trackingLocations[seed] = p
+                }
                 for k in -steps...steps {
                     let s = Float(k) * v
                     let q = p + ray * s
@@ -2302,6 +2482,48 @@ enum Similarity {
 }
 
 extension FaceVolume {
+    /// A bounded tracking target made only of current measured TSDF crossings. At most `limit` spatial seeds
+    /// are examined, each in a 3×3×3 neighbourhood; sparse/unobserved neighbours cannot invent a target. This
+    /// leaves the full surface extraction for final reconstruction, not the serial live-fusion queue.
+    func trackingSurface(limit: Int = 25000, minWeight: Float = 3) -> [(SIMD3<Float>, SIMD3<Float>)] {
+        guard limit > 0, !trackingLocations.isEmpty else { return [] }
+        let count = min(limit, trackingLocations.count), step = Double(trackingLocations.count) / Double(count)
+        let plane = nx * ny
+        var out: [(SIMD3<Float>, SIMD3<Float>)] = []
+        out.reserveCapacity(count)
+        for sample in 0..<count {
+            let seedCell = (trackingLocations[Int(Double(sample) * step)] - lo) / voxel
+            let sx = min(nx - 2, max(1, Int(seedCell.x.rounded())))
+            let sy = min(ny - 2, max(1, Int(seedCell.y.rounded())))
+            let sz = min(nz - 2, max(1, Int(seedCell.z.rounded())))
+            var nearest: (point: SIMD3<Float>, normal: SIMD3<Float>, distance: Float)?
+            for l in max(1, sz - 1)...min(nz - 2, sz + 1) {
+                for j in max(1, sy - 1)...min(ny - 2, sy + 1) {
+                    for i in max(1, sx - 1)...min(nx - 2, sx + 1) {
+                        let k = l * plane + j * nx + i
+                        guard Float(weight[k]) >= minWeight else { continue }
+                        let d0 = Float(dist[k])
+                        for (offset, axis) in [(1, 0), (nx, 1), (plane, 2)] where Float(weight[k + offset]) >= minWeight {
+                            let d1 = Float(dist[k + offset])
+                            guard (d0 < 0) != (d1 < 0) else { continue }
+                            var cell = SIMD3<Float>(Float(i), Float(j), Float(l))
+                            cell[axis] += d0 / (d0 - d1)
+                            let distance = simd_length_squared(cell - seedCell)
+                            if let nearest, distance >= nearest.distance { continue }
+                            var normal = SIMD3<Float>(Float(dist[k + 1]) - Float(dist[k - 1]), Float(dist[k + nx]) - Float(dist[k - nx]), Float(dist[k + plane]) - Float(dist[k - plane]))
+                            let length = simd_length(normal)
+                            guard length > 1e-4 else { continue }
+                            normal /= length
+                            nearest = ((lo + cell * voxel) * 1000, normal, distance)
+                        }
+                    }
+                }
+            }
+            if let nearest { out.append((nearest.point, nearest.normal)) }
+        }
+        return out
+    }
+
     /// The surface seen so far as points with outward normals (millimetres), for lining new frames up with it.
     func surface(minWeight: Float = 3) -> [(SIMD3<Float>, SIMD3<Float>)] {
         let nx = self.nx, ny = self.ny, nz = self.nz, plane = nx * ny
@@ -2408,7 +2630,7 @@ final class HeadTracker {
     private(set) var accepted = 0, rejected = 0, misses = 0
     private var tracked = 0, rmsTotal: Float = 0
     private(set) var keyframes: [Keyframe] = []
-    static let maxKeyframes = 160
+    static let maxKeyframes = 100
 
     /// Mean fit of the tracked frames (mm) and the share of frames kept.
     var quality: (rms: Float, kept: Float) { (tracked > 0 ? rmsTotal / Float(tracked) : 0, Float(accepted) / Float(max(1, accepted + rejected))) }
@@ -2433,6 +2655,7 @@ final class HeadTracker {
         var candidates = [velocity * correction]
         if lost {
             candidates.append(correction)
+            candidates.append(matrix_identity_float4x4)   // Apple's face tracking alone, in case the correction drifted
             for yaw in Swift.stride(from: -48, through: 48, by: 12) where yaw != 0 { candidates.append(Self.turn(yaw: Float(yaw), pitch: 0) * correction) }
             for pitch: Float in [-18, 18] { candidates.append(Self.turn(yaw: 0, pitch: pitch) * correction) }
         }
@@ -2494,15 +2717,15 @@ final class HeadTracker {
 
     private func refresh(_ volume: FaceVolume) {
         sinceRefresh += 1
-        guard target == nil ? volume.frames >= 6 : sinceRefresh >= 6 else { return }
+        guard target == nil ? volume.frames >= 6 : sinceRefresh >= 8 else { return }
         sinceRefresh = 0
-        let s = volume.surface()
+        let s = volume.trackingSurface()
         guard s.count > 2000 else { return }
         target = (FaceAlign.Grid(s.map(\.0), cell: 10), s.map(\.1))
     }
 
     private func keep(_ f: FaceVolume.Frame) {
-        guard accepted % 2 == 1, keyframes.count < Self.maxKeyframes, let small = f.compactCopy() else { return }
+        guard accepted % 3 == 1, keyframes.count < Self.maxKeyframes, let small = f.compactCopy() else { return }
         keyframes.append(Keyframe(frame: small))
     }
 
@@ -2673,16 +2896,20 @@ final class PhotoShots {
     /// photographed again.
     func add(image: CVPixelBuffer, depth: CVPixelBuffer?, visionOrientation: CGImagePropertyOrientation, maskMapping: CGImagePropertyOrientation?,
              cameraToHead: simd_float4x4, done: @escaping (Bool) -> Void = { _ in }) {
+        // Release ARKit's camera buffer before the asynchronous writer runs. The stored picture must remain the
+        // accepted frame even if the capture pipeline reuses its original pixels while this queue is busy.
+        guard let image = PixelCopy.copy(image) else { DispatchQueue.main.async { done(false) }; return }
         let depthCopy = depth.flatMap { Self.depthBytes($0) }
         queue.async { [self] in
-            let finish = { (kept: Bool) in DispatchQueue.main.async { done(kept) } }
+            var kept = false
+            defer { let result = kept; DispatchQueue.main.async { done(result) } }
             let id = stored.count
-            guard id < Self.maxShots else { return finish(false) }
+            guard id < Self.maxShots else { return }
             // Blur ruins photogrammetry: a photo much softer than the ones kept so far is left out.
             let sharp = Self.sharpness(image)
             if sharpness.count >= 5 {
                 let median = sharpness.sorted()[sharpness.count / 2]
-                if sharp < median * 0.55 { return finish(false) }
+                if sharp < median * 0.55 { return }
             }
             let base = folder.appendingPathComponent(String(format: "shot-%03d", id))
             let imageURL = base.appendingPathExtension("jpg"), maskURL = base.appendingPathExtension("png"), depthURL = base.appendingPathExtension("depth")
@@ -2713,7 +2940,7 @@ final class PhotoShots {
             if let (bytes, w, h) = depthCopy, (try? bytes.write(to: depthURL)) != nil { hasDepth = true; size = (w, h) }
             stored.append(Shot(id: id, image: imageURL, mask: maskURL, depth: depthURL, hasMask: hasMask, hasDepth: hasDepth, depthSize: size, cameraToHead: cameraToHead))
             sharpness.append(sharp)
-            finish(true)
+            kept = true
         }
     }
 
@@ -2759,7 +2986,11 @@ final class PhotoShots {
             context.render(m, to: mask, bounds: CGRect(x: 0, y: 0, width: w, height: h), colorSpace: nil)
             sample.objectMask = mask
         }
-        if s.hasDepth, let data = try? Data(contentsOf: s.depth), let depth = Self.buffer(s.depthSize.0, s.depthSize.1, kCVPixelFormatType_DepthFloat32) {
+        let (pixels, pixelOverflow) = s.depthSize.0.multipliedReportingOverflow(by: s.depthSize.1)
+        let (depthBytes, byteOverflow) = pixels.multipliedReportingOverflow(by: MemoryLayout<Float32>.size)
+        if s.hasDepth, s.depthSize.0 > 0, s.depthSize.1 > 0, !pixelOverflow, !byteOverflow,
+           let data = try? Data(contentsOf: s.depth), data.count == depthBytes,
+           let depth = Self.buffer(s.depthSize.0, s.depthSize.1, kCVPixelFormatType_DepthFloat32) {
             CVPixelBufferLockBaseAddress(depth, [])
             if let base = CVPixelBufferGetBaseAddress(depth) {
                 let row = CVPixelBufferGetBytesPerRow(depth), w4 = s.depthSize.0 * 4
@@ -3300,13 +3531,14 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     /// the screen towards the patient, who follows the prompts. Rear: the LiDAR scanner and camera; the patient keeps
     /// still while the clinician moves round them, and the detailed face is built from the photos taken on the way.
     enum Sensor: String { case front, rear }
-    static var frontAvailable: Bool { ARFaceTrackingConfiguration.isSupported }
-    /// The rear scanner is an experiment (LiDAR can't resolve the lips): offered only behind the Labs switch, or
-    /// on a device without the Face ID sensor.
-    private let rearAllowed: Bool
-    private var rearAvailable: Bool { LidarScanner.available && (rearAllowed || !Self.frontAvailable) }
+    static var frontAvailable: Bool {
+        ARFaceTrackingConfiguration.isSupported && AVCaptureDevice.default(.builtInTrueDepthCamera, for: .video, position: .front) != nil
+    }
+    private var rearAvailable: Bool { LidarScanner.available }
     private var sensor: Sensor
-    private let sensorPicker = UISegmentedControl(items: ["Face ID · detailed", "Rear camera · experimental"])
+    private var switchingSensor = false
+    private let sensorPicker = UISegmentedControl(items: ["Front · Face ID", "Rear · camera + LiDAR"])
+    private var capturePolicy = FaceScanCapturePolicy()
     /// Gravity's up in the head frame when the scan started: natural head position for the lab.
     private var gravityUp: SIMD3<Float>?
     /// Automatic start: the face centred, frontal and still for a moment, then a short counted start.
@@ -3328,6 +3560,15 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     private let scaleButton = UIButton(type: .system)
     /// The count-in (3, 2, 1) and the finished tick, large in the middle of the outline, readable at arm's length.
     private let countLabel = UILabel()
+    /// Face ID scans use a calm page: the camera only inside a face-shaped window, a ring of ticks round it that fills
+    /// where the face has been captured, and the one instruction at the top.
+    private let eggMask = CAShapeLayer()
+    private let tickRing = TickRingView()
+    /// Round the face window the room stays visible but frosted, so the face stands out without a blank page.
+    private let frosted = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterialDark))
+    private let frostedHole = CAShapeLayer()
+    private static let ivory = UIColor(red: 0.98, green: 0.976, blue: 0.965, alpha: 1)
+    private static let ink = UIColor(red: 0.14, green: 0.13, blue: 0.12, alpha: 1)
     /// Front: from the face anchor's frame to the head frame (origin 10 cm behind the nose tip, at its height).
     private var faceOffset: simd_float4x4?
     /// Front: whether the camera's raw image runs mirrored to ARKit's camera (checked when the scan starts).
@@ -3352,8 +3593,8 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     /// The sharp photos for the detailed build, and where they were taken from (head frame directions).
     private var shots: PhotoShots?
     private var shotDirections: [SIMD3<Float>] = []
-    private var shotPending = false
     private var lastShotAt: CFTimeInterval = 0
+    private var finishAfterPhoto = false
     /// How fast the view of the head is turning (degrees a second); photos are taken only when it's steady.
     private var lastTurnRate: Float = 0
     private var latestDepth: CVPixelBuffer?
@@ -3386,7 +3627,6 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     private var lidarEyes: (left: SIMD3<Float>, right: SIMD3<Float>)?
     /// Sharp front-camera photos from different angles during a Face ID scan (up to 12), for photographic skin.
     private var frontViews: [FrontView] = []
-    private var frontViewPending = false
     private let photoContext = CIContext(options: [.cacheIntermediates: false])
     private var noseTip: SIMD3<Float>?
     private var lastPromptTap: CFTimeInterval = 0
@@ -3415,13 +3655,12 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     private let spinner = UIActivityIndicatorView(style: .large)
     private let topFade = CAGradientLayer(), bottomFade = CAGradientLayer()
 
-    init(captures: [FaceCaptureSpec], guide: UIImage?, allowRear: Bool, completion: @escaping ([FaceScanResult]) -> Void) {
+    init(captures: [FaceCaptureSpec], guide: UIImage?, completion: @escaping ([FaceScanResult]) -> Void) {
         self.captures = captures
         self.guide = guide
-        self.rearAllowed = allowRear
         self.completion = completion
         let saved = UserDefaults.standard.string(forKey: "faceScanSensor").flatMap(Sensor.init(rawValue:))
-        switch (saved, Self.frontAvailable, LidarScanner.available && (allowRear || !Self.frontAvailable)) {
+        switch (saved, Self.frontAvailable, LidarScanner.available) {
         case (.some(.rear), _, true), (_, false, true): sensor = .rear
         default: sensor = .front
         }
@@ -3434,6 +3673,8 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         super.viewDidLoad()
         view.backgroundColor = .black
         sceneView.session.delegate = self
+        sensorPicker.accessibilityIdentifier = "faceScan.sensor"
+        sensorPicker.accessibilityLabel = "Scan camera"
         sceneView.automaticallyUpdatesLighting = false
         sceneView.scene = SCNScene()
         view.addSubview(sceneView)
@@ -3513,12 +3754,14 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         closeButton.addTarget(self, action: #selector(close), for: .touchUpInside)
 
         startButton.setTitle("Start scan", for: .normal)
+        startButton.accessibilityIdentifier = "faceScan.start"
         startButton.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
         startButton.setTitleColor(UIColor(white: 0.08, alpha: 1), for: .normal)
         startButton.backgroundColor = Self.gold
         startButton.layer.cornerRadius = 27
         startButton.addTarget(self, action: #selector(start), for: .touchUpInside)
         finishButton.setTitle("Finish", for: .normal)
+        finishButton.accessibilityIdentifier = "faceScan.finish"
         finishButton.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
         finishButton.tintColor = .white
         finishButton.backgroundColor = UIColor(white: 0.1, alpha: 0.45)
@@ -3540,6 +3783,12 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         countLabel.layer.shadowRadius = 12
         countLabel.layer.shadowOffset = .zero
         view.addSubview(countLabel)
+        view.insertSubview(frosted, aboveSubview: sceneView)
+        view.insertSubview(tickRing, aboveSubview: frosted)
+        frosted.isUserInteractionEnabled = false
+        frostedHole.fillRule = .evenOdd
+        let holeView = UIView(); holeView.layer.addSublayer(frostedHole)
+        frosted.mask = holeView
         scaleButton.setTitle("Check scale", for: .normal)
         scaleButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
         scaleButton.tintColor = .white
@@ -3599,6 +3848,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
 
     private func runSession() {
         meter.mirrored = sensor == .front
+        tickRing.mirrored = sensor == .front
         if sensor == .front {
             let c = ARFaceTrackingConfiguration()
             c.isLightEstimationEnabled = false
@@ -3665,7 +3915,71 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         progressTrack.frame = CGRect(x: 22, y: 82, width: barWidth - 44 - 64, height: 5)
         mapped.frame = CGRect(x: barWidth - 22 - 56, y: 72, width: 56, height: 24)
         progressFill.frame = CGRect(x: 0, y: 0, width: progressTrack.bounds.width * CGFloat(min(1, coverage.fraction / Self.mappedTarget)), height: 5)
+        layoutForSensor(safe)
         view.keepClearOfCamera([closeButton, startButton, finishButton, skipButton, scaleButton])
+    }
+
+    /// Front: an ivory page with the camera in a face-shaped window and the instruction at the top. Rear (Labs):
+    /// the full camera picture with the prompts in a panel at the foot.
+    private func layoutForSensor(_ safe: CGRect) {
+        let front = sensor == .front
+        view.backgroundColor = front ? Self.ivory : .black
+        [topFade, bottomFade, shade].forEach { $0.isHidden = front }
+        guideView.isHidden = front
+        meter.isHidden = front
+        bar.isHidden = front
+        tickRing.isHidden = !front
+        frosted.isHidden = !front
+        titleLabel.isHidden = front; stepLabel.isHidden = front
+        if front { sensorLabel.isHidden = true }
+        let moveTo: UIView = front ? view : bar.contentView
+        for v in [prompt, detail, mapped] where v.superview !== moveTo { moveTo.addSubview(v) }
+        // On the dark frosting the words are white, as on the camera picture.
+        prompt.textColor = .white
+        detail.textColor = UIColor(white: 1, alpha: 0.72)
+        mapped.textColor = front ? UIColor(white: 1, alpha: 0.7) : .white
+        for b in [closeButton, finishButton, scaleButton] {
+            b.tintColor = .white
+            b.backgroundColor = front ? UIColor(white: 1, alpha: 0.14) : UIColor(white: 0.1, alpha: 0.45)
+        }
+        spinner.color = .white
+        guard front else {
+            sceneView.layer.mask = nil
+            wellSeen.mask = nil; partlySeen.mask = nil
+            prompt.font = .systemFont(ofSize: 20, weight: .semibold)
+            detail.font = .systemFont(ofSize: 14)
+            countLabel.layer.shadowOpacity = 0.7
+            return
+        }
+        // The window: a face shape, a little narrower at the chin.
+        let w = min(safe.width * 0.68, 330), h = w * 1.3
+        let window = CGRect(x: safe.midX - w / 2, y: safe.minY + 172, width: w, height: h)
+        let egg = TickRingView.egg(in: window)
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        // The camera fills the screen; frosting covers all but the face window.
+        sceneView.layer.mask = nil
+        frosted.frame = view.bounds
+        frosted.mask?.frame = view.bounds
+        frostedHole.frame = view.bounds
+        let cutout = UIBezierPath(rect: view.bounds); cutout.append(egg)
+        frostedHole.path = cutout.cgPath
+        let clip = CAShapeLayer(); clip.path = egg.cgPath
+        let clip2 = CAShapeLayer(); clip2.path = egg.cgPath
+        wellSeen.mask = clip; partlySeen.mask = clip2
+        CATransaction.commit()
+        tickRing.frame = view.bounds
+        tickRing.faceWindow = window
+        prompt.font = .systemFont(ofSize: 22, weight: .semibold)
+        prompt.frame = CGRect(x: safe.minX + 24, y: safe.minY + 58, width: safe.width - 48, height: 30)
+        detail.font = .systemFont(ofSize: 14)
+        detail.frame = CGRect(x: safe.minX + 32, y: safe.minY + 92, width: safe.width - 64, height: 36)
+        countLabel.font = .systemFont(ofSize: 44, weight: .semibold)
+        countLabel.layer.shadowOpacity = 0
+        // The count-in and the tick sit where the grey line is (it's blank then), clear of the ring.
+        countLabel.frame = CGRect(x: safe.midX - 70, y: safe.minY + 86, width: 140, height: 50)
+        mapped.textAlignment = .center
+        mapped.frame = CGRect(x: safe.midX - 80, y: window.maxY + 34, width: 160, height: 20)
+        progressTrack.isHidden = true
     }
 
     // MARK: Steps
@@ -3673,18 +3987,20 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     private var capture: FaceCaptureSpec { captures[index] }
 
     private func resetCapture() {
+        capturePolicy.reset()
+        fusing = false
         gravityUp = nil
         milestone = 0
         steadySince = nil
         cancelCountdown()
         frontViews = []
-        frontViewPending = false
+        finishAfterPhoto = false
         faceOffset = nil
         expressionIssue = nil
         shots?.remove()
         shots = nil
         shotDirections = []
-        shotPending = false
+        lastShotAt = 0
         volume = nil
         tracker = nil
         trackingIssue = nil
@@ -3707,6 +4023,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         dots.isHidden = captures.count == 1
         for (n, d) in dots.arrangedSubviews.enumerated() { d.backgroundColor = n < i ? Self.gold : n == i ? .white : UIColor(white: 1, alpha: 0.25) }
         meter.lit = []; meter.current = nil; meter.heading = nil
+        tickRing.lit = []; tickRing.current = nil; tickRing.done = false
         guideView.tintColor = UIColor(white: 1, alpha: 0.45)
         if sensor == .front { prompt.text = "Point the screen at the patient"; detail.text = Self.scaleUnchecked ? "Check the scale once on this iPad first (top right)." : "Level with their eyes, 25–35 cm away" }
         else { prompt.text = capture.hint; detail.text = readyDetail }
@@ -3720,7 +4037,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         if sensor == .front, Self.scaleUnchecked { return "Check the scale once on this iPad before scanning: tap Check scale, then hold a bank card flat towards the screen." }
         return sensor == .front
             ? "Hold the phone level with the patient’s eyes, 25–35 cm away, screen towards them, in even light. Ask for a wide smile showing the teeth: it starts once they’re smiling and still, or press a volume button."
-            : "Experimental: the patient keeps still against the headrest. Hold the phone 30–50 cm away and move slowly round them; photos are taken for the detailed face."
+            : "The patient keeps their head and expression still. Move the phone slowly round them, 30–50 cm away, in even light. Sharp overlapping photos build the detailed face."
     }
 
     /// Before the scan: one short instruction for the patient (big) with a line under it, changed without a tap.
@@ -3747,7 +4064,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     /// Works held in the hand (a stand is optional): steadiness is the face against the camera, so a hand's small
     /// movements count like the head's, and eye level comes from gravity.
     private func considerAutoStart(_ face: ARFaceAnchor, frame: ARFrame, cameraToAnchor: simd_float4x4, distance d: Float) {
-        guard sensor == .front, !scaleMode, ProcessInfo.processInfo.thermalState != .critical else { return }
+        guard sensor == .front, !switchingSensor, !scaleMode, ProcessInfo.processInfo.thermalState != .critical else { return }
         let toCamera = simd_normalize(SIMD3(cameraToAnchor.columns.3.x, cameraToAnchor.columns.3.y, cameraToAnchor.columns.3.z))
         let frontal = toCamera.z > cosf(14 * .pi / 180)
         var still = false
@@ -3801,7 +4118,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     private func tick() {
         Self.tone(1103)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        setReady("Hold still", "Keep smiling at the screen")
+        setReady("Hold still", sensor == .front ? " " : "Keep smiling at the screen")
         showCount("\(countdown)")
     }
     private func cancelCountdown() { countdownTimer?.invalidate(); countdownTimer = nil; showCount(nil) }
@@ -3814,6 +4131,8 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         scaleButton.isHidden = !(phase == .ready && sensor == .front && UIDevice.current.userInterfaceIdiom == .pad)
         scaleButton.setTitle(scaleMode ? "Cancel" : "Check scale", for: .normal)
         startButton.isHidden = phase != .ready
+        startButton.isEnabled = !switchingSensor
+        sensorPicker.isEnabled = !switchingSensor
         finishButton.isHidden = phase != .scanning
         skipButton.isHidden = phase == .building || phase == .locking || captures.count == 1
         skipButton.setTitle(phase == .refining ? "Use quick versions" : "Skip", for: .normal)
@@ -3840,17 +4159,25 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     }
 
     @objc private func sensorChanged() {
-        guard phase == .ready else { return }
+        guard phase == .ready, !switchingSensor else { return }
+        switchingSensor = true
+        cancelCountdown()
+        capturePolicy.reset()
+        updateControls()
         sensor = sensorPicker.selectedSegmentIndex == 0 ? .front : .rear
         UserDefaults.standard.set(sensor.rawValue, forKey: "faceScanSensor")
         UIView.animate(withDuration: 0.16) { self.sceneView.alpha = 0.2 } completion: { _ in
+            guard !self.finished, !self.finishing else { return }
+            self.switchingSensor = false
             self.runSession()
-            self.detail.text = self.readyDetail
+            self.show(self.index)
+            self.view.setNeedsLayout()
             UIView.animate(withDuration: 0.3, delay: 0.25) { self.sceneView.alpha = 1 }
         }
     }
 
     @objc private func start() {
+        guard !switchingSensor, phase == .ready else { return }
         cancelCountdown()
         if scaleMode { return }
         if sensor == .front { startFront(); return }
@@ -3870,12 +4197,13 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         updateControls()
         detail.text = "Finding the face…"
         let orientation = Self.imageOrientation(view.window?.windowScene?.interfaceOrientation ?? .portrait)
+        let run = capturePolicy.runID
         fuseQueue.async {
             let eyes = Self.pupils(frame, orientation: orientation)
             let head = Self.headFrame(nose: nose, camera: frame.camera.transform, eyes: eyes)
             let mapping = Self.maskMapping(frame, nose: nose, orientation: orientation)
             DispatchQueue.main.async {
-                guard !self.finished, self.phase == .locking else { return }
+                guard !self.finished, self.capturePolicy.isCurrent(run), self.phase == .locking else { return }
                 self.headToWorld = head
                 self.gravityUp = SIMD3(0, 1, 0)   // the rear head frame is built on gravity
                 self.visionOrientation = orientation
@@ -3933,6 +4261,8 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
 
     private func finish() {
         guard !finished, !finishing else { return }
+        capturePolicy.reset()
+        finishAfterPhoto = false
         cancelCountdown()
         sceneView.session.pause()
         holdExposure(false)
@@ -4103,15 +4433,25 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     /// The finished capture becomes a mesh and its preview, then the next.
     private func build() {
         guard phase == .scanning, let volume else { return }
+        // The final accepted view may still be encoding. Do not lose it or let an old
+        // callback append to the next expression; finish this capture only after it drains.
+        if capturePolicy.pendingPhoto != nil {
+            finishAfterPhoto = true
+            detail.text = "Saving the last sharp photograph…"
+            return
+        }
+        finishAfterPhoto = false
         phase = .building
         updateControls()
         say("Done – you can relax", force: true)
         showCount("✓")
+        tickRing.done = true
         Self.tone(1114)
-        detail.text = "Building the 3D face…"
+        detail.text = sensor == .front ? " " : "Building the 3D face…"
         let capture = self.capture, reach = self.reach, coverage = self.coverage.fraction
         let eyes = lidarEyes.map { (left: $0.left * 1000, right: $0.right * 1000) }
         let tracker = self.tracker
+        let run = capturePolicy.runID, captureSensor = sensor
         let shots = self.shots
         self.shots = nil
         let views = sensor == .front ? frontViews : []
@@ -4125,7 +4465,10 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             let mesh = tracker?.rebuild(from: volume)?.mesh() ?? volume.mesh()
             let quality: (rms: Float, kept: Float) = tracker?.quality ?? (0, 1)
             DispatchQueue.main.async {
-                guard !self.finished else { return }
+                guard !self.finished, !self.finishing, self.capturePolicy.isCurrent(run), self.phase == .building else {
+                    shots?.remove()
+                    return
+                }
                 self.volume = nil
                 self.tracker = nil
                 guard let mesh else {
@@ -4142,7 +4485,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
                 result.views = views
                 result.gravityUp = gravity
                 result.shots = shots
-                result.sensor = self.sensor == .front ? "trueDepth" : "lidar"
+                result.sensor = captureSensor == .front ? "trueDepth" : "lidar"
                 guard result.trackingPoor else {
                     self.results.append(result)
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -4184,7 +4527,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     }
 
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
-        guard !finished, phase != .building, phase != .locking, phase != .refining else { return }
+        guard !finished, !finishAfterPhoto, phase != .building, phase != .locking, phase != .refining else { return }
         if sensor == .front { frontFrame(frame); return }
         if frame.sceneDepth == nil && frame.smoothedSceneDepth == nil {
             framesWithoutDepth += 1
@@ -4232,7 +4575,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             lastView = (cam, now)
         } else if lastView == nil { lastView = (cam, now) }
         guard let view = viewing(cam, slowDown: tooFast) else { return }
-        guard !fusing else { return }
+        guard !fusing, capturePolicy.acceptDepth(imageTimestamp: frame.timestamp, depthTimestamp: frame.timestamp) else { return }
         var item = FaceVolume.Frame(depth: depth.depthMap, confidence: depth.confidenceMap, image: frame.capturedImage, depthK: depthK,
                                     imageK: frame.camera.intrinsics, cameraToHead: cameraToHead, cameraInHead: cam, stride: 1, nearest: 0.2, farthest: 1.0)
         item.nearest = 0.2
@@ -4271,6 +4614,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         let distance = simd_length(cam)
         let rx = azimuth / capture.turn, ry = elevation / capture.tilt, r = (rx * rx + ry * ry).squareRoot()
         meter.current = r > 0.15 ? (atan2f(ry, rx) * 180 / .pi, r >= 0.75) : nil
+        tickRing.current = meter.current
         var problem: String?
         if distance > 0.75 { problem = "Bring the phone closer" }
         else if distance < 0.22 { problem = "Move the phone back a little" }
@@ -4285,7 +4629,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             return nil
         }
         say(problem ?? nextPrompt(azimuth, elevation))
-        detail.text = sensor == .front ? " " : problem == nil ? "The patient keeps still; move slowly round them in a circle." : (problem == trackingIssue?.text ? "That part wasn’t added, so the face stays sharp." : " ")
+        detail.text = sensor == .front ? (problem == nil ? "Keep turning slowly until the ring fills" : " ") : problem == nil ? "\(shotDirections.count) sharp photos · keep the expression still; move the phone slowly." : (problem == trackingIssue?.text ? "That part wasn’t added, so the face stays sharp." : " ")
         // A tracking message doesn't stop the scan: the next frames are tried again.
         return problem == nil || problem == trackingIssue?.text ? Viewing(azimuth: azimuth, elevation: elevation) : nil
     }
@@ -4294,6 +4638,7 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
     private func track(_ item: FaceVolume.Frame, guess: simd_float4x4, tracker: HeadTracker, into volume: FaceVolume, view: Viewing) {
         fusing = true
         let mapping = maskMapping, upright = visionOrientation
+        let run = capturePolicy.runID, front = sensor == .front, turnRate = lastTurnRate
         fuseQueue.async {
             var item = item
             // The patient cut out from the room, so the background never pulls on the face.
@@ -4304,19 +4649,27 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             let outcome = tracker.process(item, guess: guess, volume: volume)
             let corrected = tracker.correction * guess
             let points = outcome == .accepted && volume.frames % 3 == 0 ? volume.seenPoints() : nil
+            let acceptedFrame = item
             DispatchQueue.main.async {
+                guard self.capturePolicy.isCurrent(run), self.volume === volume else { return }
                 self.fusing = false
                 if let points { self.livePoints = points }
-                guard self.volume === volume, self.phase == .scanning else { return }
+                guard self.phase == .scanning else { return }
                 switch outcome {
                 case .accepted:
                     self.trackingIssue = nil
                     let c = SIMD3(corrected.columns.3.x, corrected.columns.3.y, corrected.columns.3.z)
+                    // A photograph and its pose come from the same accepted sensor frame.
+                    // Neither a later camera frame nor an earlier depth map may stand in for it.
+                    if front {
+                        self.keepFrontView(image: acceptedFrame.image, intrinsics: acceptedFrame.imageK, cameraToHead: corrected, at: c, turnRate: turnRate, run: run)
+                    } else {
+                        self.maybeTakeShot(acceptedFrame, cameraToHead: corrected, turnRate: turnRate, run: run)
+                    }
                     self.record(Viewing(azimuth: atan2f(c.x, c.z) * 180 / .pi, elevation: atan2f(c.y, (c.x * c.x + c.z * c.z).squareRoot()) * 180 / .pi))
-                    self.maybeTakeShot(corrected)
                 case .moved: self.trackingIssue = (self.sensor == .front ? "Turn a little more slowly" : "Ask the patient to keep still", CACurrentMediaTime())
                 case .expression: self.trackingIssue = (self.sensor == .front ? "Hold the expression" : "Ask the patient to hold the expression", CACurrentMediaTime())
-                case .lost: self.trackingIssue = (self.sensor == .front ? "Look back at the screen" : "Point the phone back at the face", CACurrentMediaTime())
+                case .lost: self.trackingIssue = (self.sensor == .front ? "Hold still a moment" : "Point the phone back at the face", CACurrentMediaTime())
                 }
                 _ = view
             }
@@ -4352,9 +4705,14 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         let quarter = Int(min(1, coverage.fraction / Self.mappedTarget) * 4)
         if quarter > milestone, quarter < 4 { milestone = quarter; Self.tone(1104) }
         meter.lit = lit
+        tickRing.lit = lit
         updateControls()
         let settled = coverage.fraction >= Self.settledFraction && CACurrentMediaTime() - lastCoverageGain > Self.settleSeconds
-        if ringComplete, coverage.fraction >= Self.mappedTarget || settled { build() }
+        let photoReady = sensor == .front || !PhotoRefiner.isSupported || shots == nil || shotDirections.count >= PhotoRefiner.minimumShots
+        if ringComplete, coverage.fraction >= Self.mappedTarget || settled {
+            if photoReady { build() }
+            else { detail.text = "\(shotDirections.count) of \(PhotoRefiner.minimumShots) sharp photos · make another slow pass for the detailed face." }
+        }
     }
 
     /// Towards the nearest part of the ring not yet lit, so the phone sweeps round in one circle (starting at the
@@ -4411,10 +4769,15 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             say("Point the screen at the patient’s face", force: true)
             return
         }
+        guard frame.capturedDepthData != nil, frame.capturedDepthDataTimestamp > 0 else {
+            setReady("Waiting for Face ID depth", "Keep the face in view. No depth has been added yet.")
+            return
+        }
         resetCapture()
-        // Short sweeps (the wide smile) at 0.8 mm over the front of the face, where the lips and teeth are; a long
-        // sweep at 1 mm over the whole head.
-        volume = capture.turn <= 40 ? FaceVolume(voxel: 0.0008, lo: FaceVolume.frontLo, hi: FaceVolume.frontHi) : FaceVolume(voxel: 0.001)
+        // Short sweeps (the wide smile) over the front of the face, where the lips and teeth are.
+        // 1 mm cubes over the front of the face for the short smile sweep (0.8 mm was too slow for live tracking on
+        // the phone: build 19 lost the face and stalled); 1.2 mm over the whole head for a long sweep.
+        volume = capture.turn <= 40 ? FaceVolume(voxel: 0.001, lo: FaceVolume.frontLo, hi: FaceVolume.frontHi) : FaceVolume(voxel: 0.0012)
         tracker = HeadTracker()
         maskMapping = nil
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -4453,6 +4816,14 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             return
         }
         let cameraToAnchor = face.transform.inverse * frame.camera.transform
+        // Face tracking alone is not a measured depth frame. Do not count in or
+        // begin a volume until the actual sensor stream has arrived.
+        guard frame.capturedDepthData != nil, frame.capturedDepthDataTimestamp > 0 else {
+            steadySince = nil
+            if countdownTimer != nil { cancelCountdown() }
+            setReady("Waiting for Face ID depth", "Keep the face in view. No depth has been added yet.")
+            return
+        }
         if phase == .ready {
             guideView.tintColor = Self.gold.withAlphaComponent(0.8)
             let d = simd_length(SIMD3(cameraToAnchor.columns.3.x, cameraToAnchor.columns.3.y, cameraToAnchor.columns.3.z))
@@ -4479,8 +4850,8 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
             lastView = (cam, now)
         } else if lastView == nil { lastView = (cam, now) }
         guard let view = viewing(cam, slowDown: tooFast), expressionIssue == nil else { return }
-        keepFrontView(frame, cameraToHead: cameraToHead, at: cam)
-        guard !fusing, let depthData = frame.capturedDepthData, abs(frame.capturedDepthDataTimestamp - frame.timestamp) < 0.05 else { return }
+        guard !fusing, let depthData = frame.capturedDepthData,
+              capturePolicy.acceptDepth(imageTimestamp: frame.timestamp, depthTimestamp: frame.capturedDepthDataTimestamp) else { return }
         let converted = depthData.converting(toDepthDataType: kCVPixelFormatType_DepthFloat32)
         let map = converted.depthDataMap
         let dw = Float(CVPixelBufferGetWidth(map)), dh = Float(CVPixelBufferGetHeight(map))
@@ -4495,23 +4866,24 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         track(item, guess: guess, tracker: tracker, into: volume, view: view)
     }
 
-    /// A photo from a new angle (8° from the others), taken only while the head turns slowly.
-    private func keepFrontView(_ frame: ARFrame, cameraToHead: simd_float4x4, at cam: SIMD3<Float>) {
-        guard !frontViewPending, frontViews.count < 12, lastTurnRate < 18, trackingIssue == nil else { return }
+    /// A photo from the accepted depth frame, using that frame's final corrected pose.
+    private func keepFrontView(image buffer: CVPixelBuffer, intrinsics: simd_float3x3, cameraToHead: simd_float4x4,
+                               at cam: SIMD3<Float>, turnRate: Float, run: UUID) {
+        guard capturePolicy.pendingPhoto == nil, frontViews.count < 12, turnRate < 18,
+              trackingIssue == nil, capturePolicy.isCurrent(run) else { return }
         let dir = simd_normalize(cam)
         guard frontViews.allSatisfy({ simd_dot(simd_normalize(SIMD3($0.cameraToHead.columns.3.x, $0.cameraToHead.columns.3.y, $0.cameraToHead.columns.3.z)), dir) < cosf(8 * .pi / 180) }) else { return }
-        var K = frame.camera.intrinsics
-        let size = frame.camera.imageResolution
-        if frontMirror { K = Self.mirror(K, width: Float(size.width)) }
-        guard let picture = PixelCopy.copy(frame.capturedImage) else { return }
-        frontViewPending = true
+        guard let picture = PixelCopy.copy(buffer), let ticket = capturePolicy.beginPhoto(run: run) else { return }
+        let width = CVPixelBufferGetWidth(picture), height = CVPixelBufferGetHeight(picture)
         let image = CIImage(cvPixelBuffer: picture), context = photoContext
         DispatchQueue.global(qos: .userInitiated).async {
-            let jpeg = context.jpegRepresentation(of: image, colorSpace: CGColorSpaceCreateDeviceRGB(), options: [kCGImageDestinationLossyCompressionQuality as CIImageRepresentationOption: 0.88])
+            let jpeg = context.jpegRepresentation(of: image, colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!, options: [kCGImageDestinationLossyCompressionQuality as CIImageRepresentationOption: 0.94])
             DispatchQueue.main.async {
-                self.frontViewPending = false
-                guard let jpeg, self.phase == .scanning else { return }
-                self.frontViews.append(FrontView(jpeg: jpeg, width: Int(size.width), height: Int(size.height), K: K, cameraToHead: cameraToHead))
+                guard self.capturePolicy.finishPhoto(ticket, run: run), self.phase == .scanning else { return }
+                if let jpeg {
+                    self.frontViews.append(FrontView(jpeg: jpeg, width: width, height: height, K: intrinsics, cameraToHead: cameraToHead))
+                }
+                if self.finishAfterPhoto { self.build() }
             }
         }
     }
@@ -4573,32 +4945,24 @@ final class FaceScanViewController: UIViewController, ARSessionDelegate {
         return k
     }
 
-    /// A sharp photo for the detailed build, when the view is new (6° from the others) and steady.
-    private func maybeTakeShot(_ cameraToHead: simd_float4x4) {
-        guard phase == .scanning, let shots, let headToWorld, !shotPending, shotDirections.count < PhotoShots.maxShots,
-              CACurrentMediaTime() - lastShotAt > 0.3, lastTurnRate < 15 else { return }
+    /// Store RGB/depth and the corrected pose from ONE accepted frame. Capturing a
+    /// later high-resolution still with an old tracking correction misregistered
+    /// photographs; falling back to latestDepth paired two different instants.
+    private func maybeTakeShot(_ frame: FaceVolume.Frame, cameraToHead: simd_float4x4, turnRate: Float, run: UUID) {
+        guard phase == .scanning, let shots, shotDirections.count < PhotoShots.maxShots,
+              CACurrentMediaTime() - lastShotAt > 0.3, turnRate < 15, capturePolicy.isCurrent(run) else { return }
         let dir = simd_normalize(SIMD3(cameraToHead.columns.3.x, cameraToHead.columns.3.y, cameraToHead.columns.3.z))
         guard shotDirections.allSatisfy({ simd_dot($0, dir) < cosf(4 * .pi / 180) }) else { return }
-        shotPending = true
+        guard let ticket = capturePolicy.beginPhoto(run: run) else { return }
         lastShotAt = CACurrentMediaTime()
-        let depth = latestDepth, upright = visionOrientation, mapping = maskMapping
-        let use = { (f: ARFrame) in
-            guard let tracker = self.tracker, self.phase == .scanning, self.shots === shots else { self.shotPending = false; return }
-            let pose = tracker.correction * headToWorld.inverse * f.camera.transform
-            shots.add(image: f.capturedImage, depth: (f.smoothedSceneDepth ?? f.sceneDepth)?.depthMap ?? depth,
-                      visionOrientation: upright, maskMapping: mapping, cameraToHead: pose) { kept in
-                // A blurred photo isn't counted, so that view is taken again.
-                if kept {
-                    self.shotDirections.append(dir)
-                    self.sensorLabel.text = "LiDAR scanner · rear camera · \(self.shotDirections.count) photos"
-                }
-                self.shotPending = false
+        shots.add(image: frame.image, depth: frame.depth, visionOrientation: visionOrientation,
+                  maskMapping: maskMapping, cameraToHead: cameraToHead) { kept in
+            guard self.capturePolicy.finishPhoto(ticket, run: run), self.phase == .scanning, self.shots === shots else { return }
+            if kept {
+                self.shotDirections.append(dir)
+                self.sensorLabel.text = "Rear camera + LiDAR · \(self.shotDirections.count) sharp photos"
             }
-        }
-        sceneView.session.captureHighResolutionFrame { frame, _ in
-            DispatchQueue.main.async {
-                if let frame { use(frame) } else if let f = self.sceneView.session.currentFrame { use(f) } else { self.shotPending = false }
-            }
+            if self.finishAfterPhoto { self.build() }
         }
     }
 
@@ -5330,29 +5694,51 @@ struct IntraoralOutcome {
 }
 
 enum IntraoralExport {
-    /// Every scan of the visit saved again in the intraoral scan's frame (they share one frame, so one transform
-    /// places them all), and the registration recorded in the record and landmarks.json.
-    static func save(_ o: IntraoralOutcome, fileName: String, folder: URL) -> [String: Any]? {
-        guard var info = CaseMediaStore.readInfo(folder), var captures = info["captures"] as? [[String: Any]] else { return nil }
+    /// The selected reference and only its registered shared-frame peers are saved in the intraoral frame.
+    /// Legacy/independently oriented expressions are preserved, but need their own registration.
+    static func save(_ o: IntraoralOutcome, fileName: String, folder: URL, referenceScanId: String? = nil) -> [String: Any]? {
+        guard var info = CaseMediaStore.readInfo(folder), var captures = info["captures"] as? [[String: Any]],
+              !captures.contains(where: { $0["building"] as? Bool == true }),
+              let referenceId = FaceScanFrames.referenceId(captures, preferred: referenceScanId),
+              let reference = captures.first(where: { $0["id"] as? String == referenceId }) else { return nil }
         let intraoralFromFace = o.faceFromIntraoral.inverse
+        let exportVersion = UUID().uuidString.lowercased()
+        var included: [String] = [], excluded: [String] = []
         for i in captures.indices {
-            guard let url = CaseMediaStore.file(captures[i]["mesh"], in: folder), let mesh = FaceMesh.read(url) else { continue }
-            let id = captures[i]["id"] as? String ?? "scan\(i)", name = "\(id)-intraoral-frame.ply"
+            let id = captures[i]["id"] as? String ?? "scan\(i)", name = "\(id)-intraoral-\(exportVersion)-frame.ply"
+            // Remove any previous derived-file reference before a new fit, including files exported by older builds
+            // that applied one transform to independently oriented expressions. Original scans remain untouched.
+            captures[i].removeValue(forKey: "intraoralMesh")
+            guard FaceScanFrames.sharesFrame(captures[i], with: reference),
+                  let url = CaseMediaStore.file(captures[i]["mesh"], in: folder), let mesh = FaceMesh.read(url) else { excluded.append(id); continue }
             let title = captures[i]["title"] as? String ?? id
-            guard (try? CaseMediaStore.write(mesh.transformed(intraoralFromFace).ply(comment: "\(title), in the intraoral scan's frame (\(fileName))"), to: folder.appendingPathComponent(name))) != nil else { continue }
+            guard (try? CaseMediaStore.write(mesh.transformed(intraoralFromFace).ply(comment: "\(title), in the intraoral scan's frame (\(fileName)); registration requires independent verification"), to: folder.appendingPathComponent(name))) != nil else { excluded.append(id); continue }
             captures[i]["intraoralMesh"] = name
+            included.append(id)
         }
+        guard included.contains(referenceId) else { return nil }
         let matrix = (0..<4).flatMap { c in (0..<4).map { r in (Double(o.faceFromIntraoral[c][r]) * 100000).rounded() / 100000 } }
+        let metric = o.refined ? "trimmed point-to-plane RMS residual (not independent accuracy)" : "point-pair RMS residual (surface refinement did not converge)"
         info["captures"] = captures
-        info["intraoral"] = ["file": fileName, "fitMm": (Double(o.fitMm) * 100).rounded() / 100, "pairs": o.pairs, "refined": o.refined, "at": CaseMediaStore.iso.string(from: Date())]
+        info.removeValue(forKey: "intraoralStatus")
+        info.removeValue(forKey: "intraoralInvalidatedByScanId")
+        info["intraoral"] = ["file": fileName, "fitMm": (Double(o.fitMm) * 100).rounded() / 100, "pairs": o.pairs, "refined": o.refined,
+                             "referenceScanId": referenceId, "fitMetric": metric, "includedScanIds": included, "excludedScanIds": excluded,
+                             "at": CaseMediaStore.iso.string(from: Date())]
         let landmarksURL = folder.appendingPathComponent("landmarks.json")
         if let data = try? Data(contentsOf: landmarksURL), var file = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+            file.removeValue(forKey: "intraoralStatus")
+            file.removeValue(forKey: "intraoralInvalidatedByScanId")
             file["intraoralRegistration"] = [
                 "intraoralFile": fileName,
                 "method": o.refined ? "\(o.pairs) point pairs on the front teeth (or bite fork), then ICP on the front teeth" : "\(o.pairs) point pairs",
                 "frontTeethFitMm": (Double(o.fitMm) * 100).rounded() / 100,
+                "fitMetric": metric,
+                "referenceScanId": referenceId,
+                "includedScanIds": included,
+                "excludedScanIds": excluded,
                 "faceFromIntraoral": matrix,
-                "files": "*-intraoral-frame.ply are the face scans in the intraoral scan's own frame"
+                "files": "*-intraoral-frame.ply include only the selected reference and its registered shared-frame peers; excluded expressions require separate registration"
             ]
             if let out = try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys]) { try? CaseMediaStore.write(out, to: landmarksURL) }
         }
@@ -5521,4 +5907,69 @@ final class IntraoralAlignViewController: UIViewController {
 
     @objc private func save() { guard let outcome else { return }; dismiss(animated: true) { self.done(outcome) } }
     @objc private func cancel() { dismiss(animated: true) { self.done(nil) } }
+}
+
+
+/// The ring of short ticks round the face window (Face ID scans): pale where the face hasn't been captured yet, gold
+/// where it has, darker and longer where the head is now; all gold when the scan is done. Angles match the scanner's
+/// ring (0° the patient's left, 90° above; mirrored on the front camera).
+final class TickRingView: UIView {
+    private static let gold = UIColor(red: 208 / 255, green: 164 / 255, blue: 102 / 255, alpha: 1)
+    var faceWindow: CGRect = .zero { didSet { setNeedsDisplay() } }
+    var lit = Set<Int>() { didSet { if lit != oldValue { setNeedsDisplay() } } }
+    var current: (Float, Bool)? { didSet { setNeedsDisplay() } }
+    var mirrored = true { didSet { setNeedsDisplay() } }
+    var done = false { didSet { setNeedsDisplay() } }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isOpaque = false
+        isUserInteractionEnabled = false
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    /// A point on the face shape (θ = 0 at the top, clockwise), a little narrower towards the chin.
+    static func eggPoint(_ r: CGRect, _ theta: CGFloat) -> CGPoint {
+        let a = r.width / 2, b = r.height / 2
+        let narrow = 1 - 0.17 * pow(max(0, -cos(theta)), 1.6)
+        return CGPoint(x: r.midX + a * sin(theta) * narrow, y: r.midY - b * cos(theta))
+    }
+    static func egg(in r: CGRect) -> UIBezierPath {
+        let path = UIBezierPath()
+        for i in 0...120 { let p = eggPoint(r, CGFloat(i) / 120 * 2 * .pi); if i == 0 { path.move(to: p) } else { path.addLine(to: p) } }
+        path.close()
+        return path
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard faceWindow.width > 0 else { return }
+        let n = 110, c = CGPoint(x: faceWindow.midX, y: faceWindow.midY)
+        for i in 0..<n {
+            let theta = CGFloat(i) / CGFloat(n) * 2 * .pi
+            let p = Self.eggPoint(faceWindow, theta), q = Self.eggPoint(faceWindow, theta + 0.01), o = Self.eggPoint(faceWindow, theta - 0.01)
+            var normal = CGPoint(x: q.y - o.y, y: -(q.x - o.x))
+            let len = max(1e-6, hypot(normal.x, normal.y)); normal = CGPoint(x: normal.x / len, y: normal.y / len)
+            if (p.x - c.x) * normal.x + (p.y - c.y) * normal.y < 0 { normal = CGPoint(x: -normal.x, y: -normal.y) }
+            // This tick's angle on the scanner's ring.
+            let screen = atan2(-(p.y - c.y), p.x - c.x) * 180 / .pi
+            var ring = mirrored ? 180 - screen : screen
+            ring = (ring.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+            let k = Int((ring / 6).rounded()) % 60
+            let isLit = done || lit.contains(k)
+            var here = false
+            if let (deg, _) = current, !done {
+                var d = abs(CGFloat(deg) - ring).truncatingRemainder(dividingBy: 360); if d > 180 { d = 360 - d }
+                here = d < 8
+            }
+            let inner: CGFloat = 9, outer: CGFloat = here ? 26 : 19
+            let path = UIBezierPath()
+            path.move(to: CGPoint(x: p.x + normal.x * inner, y: p.y + normal.y * inner))
+            path.addLine(to: CGPoint(x: p.x + normal.x * outer, y: p.y + normal.y * outer))
+            path.lineWidth = here ? 3.2 : 2.4
+            path.lineCapStyle = .round
+            (here ? Self.gold.withAlphaComponent(1) : isLit ? Self.gold : UIColor(white: 1, alpha: 0.32)).setStroke()
+            path.stroke()
+        }
+    }
 }

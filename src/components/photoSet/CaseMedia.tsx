@@ -2,7 +2,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Box, Crosshair, Layers, Play, RefreshCw, Share, Trash2, X } from "lucide-react";
-import { features } from "@/config/features";
 import { SPEECH_STEPS, scanNotes, speechNotes, trackingLabel, type CaseMediaRecord, type FaceScanRecord, type SpeechRecord } from "@/lib/caseMedia";
 import { alignWithIntraoral, faceScanAvailable, listCaseMedia, openFaceScan, recordSpeechVideo, removeCaseMedia, scanFace, setSpeechFrame, shareCaseMedia, watchScanBuilds } from "@/native/caseMedia";
 import { haptic } from "@/native/haptics";
@@ -84,7 +83,7 @@ export function CaseMediaGroup({ caseId, reference, disabled, delay, onStatus }:
       if (kind === "scan" && !(await faceScanAvailable())) { onStatus("The face scan needs an iPhone with Face ID or the LiDAR scanner."); return; }
       // The speech camera shows the At rest guide; the face scan only the head's outline (no filled shapes over the face).
       const outline = await svgToPng(kind === "speech" ? guideSvg("rest") : headGuide().svg).catch(() => undefined);
-      const record = kind === "speech" ? await recordSpeechVideo(caseId, outline) : await scanFace(caseId, outline, features.labExport);
+      const record = kind === "speech" ? await recordSpeechVideo(caseId, outline) : await scanFace(caseId, outline);
       if (!record) return;
       await keep(record);
       haptic("success");
@@ -210,7 +209,7 @@ function ScanViewer({ caseId, record, visits, building, onPick, onClose, onShare
   const [note, setNote] = useState("");
   // Optional: line the visit up with the intraoral scan here, so the lab receives the face already in its frame.
   const align = () => void alignWithIntraoral(caseId, record.id)
-    .then(r => { if (r) { onAligned(r); setNote(`Lined up with ${r.intraoral?.file ?? "the intraoral scan"} · ${(r.intraoral?.fitMm ?? 0).toFixed(2)} mm average gap on the front teeth.`); } })
+    .then(r => { if (r) { onAligned(r); setNote(`Lined up with ${r.intraoral?.file ?? "the intraoral scan"} · ${(r.intraoral?.fitMm ?? 0).toFixed(2)} mm fitting residual. Inspect the alignment before lab use.`); } })
     .catch((e: unknown) => setNote(e instanceof Error && e.message ? e.message : "The intraoral scan couldn’t be lined up."));
   const open = (compare: boolean) => void openFaceScan(caseId, record.id, compare).catch(() => setNote("The scan couldn’t be opened."));
   const captures = visits.reduce((n, v) => n + v.captures.length, 0);
@@ -223,17 +222,17 @@ function ScanViewer({ caseId, record, visits, building, onPick, onClose, onShare
       <div className="mv-scans">
         {record.captures.map(c => <figure key={c.id} className="mv-scan">
           {c.preview ? <img src={c.preview} alt={`${c.title} scan`} draggable={false} /> : <span className="mv-step-blank" />}
-          <figcaption><strong>{c.title}</strong><span>{c.building ? buildingLabel(building[`${record.id}/${c.id}`]) : c.source === "photos" ? "From photos" : c.source === "trueDepth" ? "Face ID sensor" : "LiDAR only · low detail"} · face mapped {Math.round(c.coverage * 100)}%{c.tracking ? ` · ${trackingLabel(c.tracking)}` : ""}</span></figcaption>
+          <figcaption><strong>{c.title}</strong><span>{c.building ? buildingLabel(building[`${record.id}/${c.id}`]) : c.source === "photos" ? "From photos" : c.source === "trueDepth" ? "Face ID sensor" : c.detailedStatus === "interrupted" ? "Detailed build interrupted · coarse scan retained" : c.detailedStatus === "failed" ? "Detailed build failed · coarse scan retained" : "LiDAR only · low detail"} · views covered {Math.round(c.coverage * 100)}%{c.tracking ? ` · ${trackingLabel(c.tracking)}` : ""}</span></figcaption>
         </figure>)}
       </div>
       <div className="mv-open-row">
         <button type="button" className="primary-button mv-open" onClick={() => open(false)}><Box size={17} strokeWidth={1.8} aria-hidden="true" />View in 3D</button>
         {captures > 1 && <button type="button" className="secondary-button mv-open" onClick={() => open(true)}><Layers size={17} strokeWidth={1.8} aria-hidden="true" />Compare scans</button>}
       </div>
-      <button type="button" className="text-button mv-align" onClick={align}><Crosshair size={16} strokeWidth={1.8} aria-hidden="true" />{record.intraoral ? "Line up with the intraoral scan again" : "Line up with intraoral scan"}</button>
-      {record.intraoral && !note && <p className="mv-hint" role="status">Lined up with {record.intraoral.file} · {record.intraoral.fitMm.toFixed(2)} mm average gap on the front teeth. Shared scans include them in its frame.</p>}
+      <button type="button" className="text-button mv-align" disabled={record.captures.some(c => c.building)} onClick={align}><Crosshair size={16} strokeWidth={1.8} aria-hidden="true" />{record.captures.some(c => c.building) ? "Finish the detailed build before lining up" : record.intraoral ? "Line up with the intraoral scan again" : "Line up with intraoral scan"}</button>
+      {record.intraoral && !note && <p className="mv-hint" role="status">Lined up with {record.intraoral.file} · {record.intraoral.fitMm.toFixed(2)} mm fitting residual. Only registered expressions share this transform; inspect the alignment before lab use.</p>}
       {note && <p className="mv-hint" role="status">{note}</p>}
-      <p className="mv-hint">Face ID sensor scans are the most detailed (about 0.4 mm average difference from CBCT in studies); rear LiDAR scans about 1.5 mm, with “From photos” faces built from the scan’s photographs for photographic skin. Use them for facial proportions and planes. The wide smile shows the teeth, which the lab lines up with the intraoral scan; the scan is saved in natural head position. Guides shows the facial midline and true vertical, and the eye line against true horizontal. Compare lines two scans up on the forehead, eyes and nose and shows how far apart they are.</p>
+      <p className="mv-hint">Front scans combine Face ID depth with photographs. Rear scans use camera photographs and LiDAR; a coarse scan stays labelled until the photographic reconstruction completes. Review the textured and plain geometry views, scale and registration before sharing with the lab. Use the intraoral scan for tooth geometry. Phone-scan measurement accuracy has not been independently validated.</p>
       <p className="mv-privacy">Kept on this device only. Sharing sends an identifiable scan of the patient’s face: check they have agreed before it goes to the lab.</p>
     </div>
   </div>;

@@ -413,7 +413,7 @@ function SubscriptionStep({ configured, onDefer }: { configured: boolean; onDefe
   return (
     <Frame step="subscription" configured={configured} onDismiss={onDefer} hero={<ProHero />} head={<>
       <p className="ob-eyebrow">SmileCompose Pro</p>
-      <h1 ref={heading} tabIndex={-1} className="ob-title">Every consultation, visualised.</h1>
+      <h1 ref={heading} tabIndex={-1} className="ob-title">Choose your plan</h1>
     </>}>
       <div className="ob-plans"><ProPlans /></div>
     </Frame>

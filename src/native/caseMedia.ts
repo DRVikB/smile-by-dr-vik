@@ -42,7 +42,7 @@ export async function recordSpeechVideo(caseId: string, guide?: string): Promise
   return record?.kind === "speech" ? record : null;
 }
 
-/** The 3D face scan with the front Face ID sensor (the rear camera and LiDAR only with Labs on). Null when cancelled. */
+/** Front TrueDepth or rear camera/LiDAR on supported hardware. Null when cancelled. */
 export async function scanFace(caseId: string, guide?: string, labs = false): Promise<FaceScanRecord | null> {
   if (!isNativeApp()) throw new Error("The face scan runs in the iOS app.");
   let result: RawResult;

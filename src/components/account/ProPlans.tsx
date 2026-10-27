@@ -90,10 +90,7 @@ export function ProPlans({ onPurchased }: { onPurchased?: () => void }) {
 
   return (
     <div className="pro-plans">
-      <ul className="paywall-features">
-        {PRO_FEATURES.map(feature => <li key={feature}><Check size={15} strokeWidth={2} aria-hidden="true" />{feature}</li>)}
-      </ul>
-
+      {/* Plans and prices first; what Pro includes follows, so the price shows without scrolling. */}
       {!configured ? (
         <p className="sheet-sub">Subscriptions aren’t available in this version of SmileCompose.</p>
       ) : !user ? (
@@ -149,6 +146,11 @@ export function ProPlans({ onPurchased }: { onPurchased?: () => void }) {
           <p className="paywall-offer">Have an offer code? <button type="button" className="text-button" disabled={busy} onClick={() => void redeem()}>Redeem Code</button></p>
         </div>
       )}
+
+      <p className="paywall-features-label">{hasProAccess ? "Included in your plan" : "Included in both plans"}</p>
+      <ul className="paywall-features">
+        {PRO_FEATURES.map(feature => <li key={feature}><Check size={15} strokeWidth={2} aria-hidden="true" />{feature}</li>)}
+      </ul>
 
       {message && <p className="save-status" role="status">{message}</p>}
       <AccessCodeForm onRedeemed={onPurchased} />

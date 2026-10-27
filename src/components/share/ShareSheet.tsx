@@ -2,7 +2,7 @@
 import { ComposingMark } from "@/components/ComposingMark";
 import { RailButton, RailItems, SideRailLayer, useSideRail } from "@/components/sideRail/SideRail";
 import { getCaseRepository } from "@/services/cases/caseRepository";
-import { AI_CONCEPT_DISCLAIMER } from "@/lib/brand";
+import { AI_CONCEPT_DISCLAIMER, AI_CONCEPT_SHORT } from "@/lib/brand";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, ChevronRight, Copy, Download, FileText, Film, Mail, Share2, X } from "lucide-react";
 import {
@@ -67,6 +67,7 @@ export function ShareSheet({
 }) {
   const [repository] = useState(getCaseRepository);
   const [step, setStep] = useState<Step>("choose");
+  const [conceptOpen, setConceptOpen] = useState(false);
   const rail = useSideRail();
   const goBack = () => setStep(step === "ready" && made?.kind === "report" ? "review" : "choose");
   const [making, setMaking] = useState<ExportKind>("preview");
@@ -257,7 +258,8 @@ export function ShareSheet({
             : <button ref={closeButton} type="button" className="icon-button" aria-label="Close" onClick={onClose}><X size={16} /></button>}
         </div>
 
-        <p className="share-concept-note">{AI_CONCEPT_DISCLAIMER}</p>
+        {/* Choosing what to send comes first; the disclaimer follows as one line, in full a tap away. */}
+        {step !== "choose" && <p className="share-concept-note">{AI_CONCEPT_DISCLAIMER}</p>}
         {error && <p className="share-error" role="alert">{error}</p>}
 
         {step === "choose" && (
@@ -294,6 +296,10 @@ export function ShareSheet({
                 <Film size={16} strokeWidth={1.6} /> Or send the reveal video
               </button>
             )}
+            <p className="share-concept-note is-short">
+              {conceptOpen ? AI_CONCEPT_DISCLAIMER : AI_CONCEPT_SHORT}{" "}
+              <button type="button" className="inline-link" aria-expanded={conceptOpen} onClick={() => setConceptOpen(o => !o)}>{conceptOpen ? "Show less" : "Read more"}</button>
+            </p>
           </div>
         )}
 

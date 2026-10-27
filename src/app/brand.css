@@ -51,7 +51,7 @@ input[type="range"] { accent-color: var(--accent); }
 .report-summary .sc-lockup { gap: 7px; }
 .report-summary .sc-symbol { width: 23px; height: 23px; }
 .report-summary .sc-wordmark { font-size: 13px; letter-spacing: 0; }
-.compare-label { font-size: 11px; letter-spacing: 0; }
+.compare-label { font-size: 12px; letter-spacing: 0; }
 .photo-heading { font-family: var(--font-sans); font-size: clamp(29px, 4vw, 42px); font-weight: 400; letter-spacing: -.025em; }
 .generation-splash .sc-wordmark { font-size: 17px; }
 

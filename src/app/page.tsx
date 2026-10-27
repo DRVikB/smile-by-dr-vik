@@ -8,7 +8,6 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import {
   ArrowRight,
   ChevronDown,
-  Share2,
   ImagePlus,
   Maximize2,
   Minus,
@@ -58,6 +57,7 @@ import {
   caseMaterials,
   SMILE_GUIDE,
   type Photo,
+  type ShotType,
   type LibraryCase,
   type PreviewPreferences,
   type Screen,
@@ -69,6 +69,7 @@ import {
 
 import { isNativeApp } from "@/native/platform";
 import { takeNativePhoto } from "@/native/photos";
+import { smileRegion } from "@/lib/photoFocus";
 import type { ShortcutAction } from "@/native/shortcuts";
 
 import { thumbnail } from "@/lib/thumb";
@@ -427,7 +428,11 @@ export default function Smile() {
     return () => window.removeEventListener("keydown", onKey);
   });
   // Back from each step of a design: the header's Back button, the left-edge swipe and ⌘[ all use it.
-  const screenBack = screen === "photo" ? () => setScreen("start") : screen === "design" ? () => setScreen("photo") : screen === "preview" ? () => setScreen("design") : undefined;
+  // Back from a result opens the studio on Review (the design as it was), not its first step, so a tweak is a tap away.
+  const studioStart = useRef<"teeth" | "review">("teeth");
+  const screenBack = screen === "photo" ? () => setScreen("start") : screen === "design" ? () => setScreen("photo")
+    : screen === "preview" ? () => { studioStart.current = "review"; setScreen("design"); } : undefined;
+  useEffect(() => { if (screen !== "design") return; const id = window.setTimeout(() => { studioStart.current = "teeth"; }, 0); return () => window.clearTimeout(id); }, [screen]);
   useSwipeBack(true, busy ? undefined : screenBack, () => document.querySelector<HTMLElement>(".app-shell > main > section"), { screen: true });
   // ⌘N, ⌘F and ⌘, with an iPad keyboard (from the iOS shell's shortcut list, or a keyboard in a browser).
   useEffect(() => {
@@ -701,11 +706,14 @@ export default function Smile() {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [screen]);
 
-  async function selectPhoto(p: Photo) {
+  /** `shotType` when the camera already knows it (an iPhone held sideways takes a close-up); otherwise it is read from the photo. */
+  async function selectPhoto(p: Photo, shotType?: ShotType) {
     p={...p,sourceProvenance:p.sourceProvenance??"prepared"};
     const nextCaseId = testMode || !caseId ? crypto.randomUUID() : caseId;
     setCaseId(nextCaseId);
-    const nextSettings = testMode ? { ...defaultSettings } : settings;
+    const base = testMode ? { ...defaultSettings } : settings;
+    const nextSettings = shotType && base.shotType !== shotType ? { ...base, shotType } : base;
+    if (nextSettings !== settings) setSettings(nextSettings);
     const nextReference = testMode ? null : reference;
     setValidationCaseId(undefined);
     setAiConsent(null);
@@ -715,7 +723,6 @@ export default function Smile() {
     if (testMode) {
       resetCaseCosts();
       setRequestLimit(0);
-      setSettings(nextSettings);
       setReference(null);
       setPinnedCases([]);
       setPatientName("");
@@ -727,6 +734,7 @@ export default function Smile() {
     setTestPreview(null);
     setError("");
     setCamera(false);
+    if (!shotType) readShotType(p, nextSettings.shotType);
     // Commit the selection immediately, even while still on the start screen.
     try {
       await persistCase({ caseId: nextCaseId, uploadAuthority, photo: p, settings: nextSettings, reference: nextReference, result: null, aiConsent: null,
@@ -735,6 +743,21 @@ export default function Smile() {
     } catch (e) {
       storageFailed("save-photo", e);
     }
+  }
+
+  /**
+   * Full face or close-up, read from the photo on the device. It is applied only while the same photo is open
+   * and the photo type is still what it was, so a choice made by hand in the meantime is never overwritten.
+   */
+  const shotTypeRead = useRef<string | null>(null);
+  const openPhoto = useRef(photo);
+  openPhoto.current = photo;
+  function readShotType(p: Photo, before: ShotType) {
+    shotTypeRead.current = p.dataUrl;
+    void import("@/lib/photoType").then(m => m.detectShotType(p)).then(found => {
+      if (!found || shotTypeRead.current !== p.dataUrl || openPhoto.current?.dataUrl !== p.dataUrl) return;
+      setSettings(s => s.shotType === before && s.shotType !== found ? { ...s, shotType: found } : s);
+    }).catch(() => { /* the photo type stays as it is and can be set by hand */ });
   }
 
   // Home Screen quick actions: queued until the saved case has been restored, so neither overwrites the other.
@@ -784,7 +807,9 @@ export default function Smile() {
       const taken = await takeNativePhoto(SMILE_GUIDE);
       if (!taken) return;
       const prepared = await preparePhoto(taken.file);
-      // Every capture in the iPhone selfie camera's 3:4 portrait shape (an iPad's front camera is landscape).
+      // An iPhone held sideways takes a smile close-up, kept in its own 4:3 landscape shape.
+      if (taken.closeUp) { await selectPhoto({ ...prepared, framing: taken.framing }, "Close-up"); return; }
+      // Every other capture in the iPhone selfie camera's 3:4 portrait shape (an iPad's front camera is landscape).
       const { toSelfieAspect } = await import("@/lib/photoAspect");
       await selectPhoto(await toSelfieAspect({ ...prepared, framing: taken.framing }));
     } catch (e) {
@@ -1588,12 +1613,7 @@ export default function Smile() {
               Reset design
             </button>
           )}
-          {screen === "preview" && (
-            <button className="nav-action" onClick={() => setShareOpen(true)}>
-              <Share2 size={16} strokeWidth={1.7} />
-              Share
-            </button>
-          )}
+          {/* The result's own Share button sends it, so the menu doesn't repeat it. */}
         </div>
       }
     >
@@ -1723,6 +1743,7 @@ export default function Smile() {
                 Patient Smile Design
               </h1>
               <DesignStudio
+                startTab={studioStart.current}
                 photoAspect={photo.width && photo.height ? photo.width / photo.height : undefined}
                 toothMap={toothMap}
                 goals={testMode ? undefined : { summary: goalsSummary(consultation), onEdit: () => setGoalsOpen(true) }}
@@ -1754,7 +1775,9 @@ export default function Smile() {
                     />
                   </div>
                 ) : (
-                  <PatientPhoto photo={photo} focus={INTERNAL_SINGLE_TOOTH && teethStep && toothMap.mode !== "hidden" ? toothFocus(photo.toothMap) : null} overlay={INTERNAL_SINGLE_TOOTH && teethStep && settings.treatmentMode !== "full_arch" ? (zoom) => (
+                  // After the Teeth step the smile stays framed close up, so shade and treatment are judged on teeth you can see.
+                  <PatientPhoto photo={photo} focus={teethStep ? (INTERNAL_SINGLE_TOOTH && toothMap.mode !== "hidden" ? toothFocus(photo.toothMap) : null)
+                    : photo.smileGuide ? guideFocus(photo.smileGuide, photo.width, photo.height) : smileRegion(photo)} overlay={INTERNAL_SINGLE_TOOTH && teethStep && settings.treatmentMode !== "full_arch" ? (zoom) => (
                     <ToothMapOverlay controller={toothMap} settings={settings} width={photo.width} height={photo.height} scale={zoom} />
                   ) : undefined} />
                 )}
@@ -2167,7 +2190,7 @@ export default function Smile() {
         </p>
       )}
       {goalsOpen && photo && <PatientGoalsSheet consultation={consultation} onChange={setConsultation} onClose={() => setGoalsOpen(false)} hasPreferred={Boolean(caseRecord.preferredDesignId)} />}
-      {logOpen && <CaseLog onSignIn={() => { setLogOpen(false); setLogFrom(undefined); account.openAuth("signIn"); }} initialEntryId={logEntry} continueFrom={logFrom} onReopen={async id=>{await designMore(id);setLogOpen(false);setLogEntry(undefined);setLogFrom(undefined);}} onClose={() => { setLogOpen(false); setLogEntry(undefined); setLogFrom(undefined); }} />}
+      {logOpen && <CaseLog onNewDesign={() => { setLogOpen(false); setLogEntry(undefined); setLogFrom(undefined); startNewSmile(); }} onSignIn={() => { setLogOpen(false); setLogFrom(undefined); account.openAuth("signIn"); }} initialEntryId={logEntry} continueFrom={logFrom} onReopen={async id=>{await designMore(id);setLogOpen(false);setLogEntry(undefined);setLogFrom(undefined);}} onClose={() => { setLogOpen(false); setLogEntry(undefined); setLogFrom(undefined); }} />}
       {libraryOpen && (
         <CaseLibrary
           onClose={() => { setLibraryOpen(false); void caseLibrary.refresh(); }}

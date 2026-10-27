@@ -88,7 +88,7 @@ test("the lab notes say what each frame checks, how the scan is oriented, and ho
     { id: "rest", title: "Relaxed", mesh: "", preview: "", vertices: 1, triangles: 1, turned: [45, 45], tilted: [20, 20], coverage: 0.9, source: "trueDepth", building: false, scaleCorrection: 1 },
     { id: "smile", title: "Smile", mesh: "", preview: "", vertices: 1, triangles: 1, turned: [25, 25], tilted: [8, 8], coverage: 0.9, source: "trueDepth", building: false, scaleCorrection: 1 },
   ] });
-  assert.match(two, /one frame/, "older visits with several expressions still explain the shared frame");
+  assert.match(two, /Independent expressions need their own registration/, "legacy visits without frame evidence cannot inherit another expression's transform");
   assert.match(scan, /x = 0 is the vertical plane along the facial midline/);
   assert.match(scan, /midline 1\.2° from true vertical/);
   assert.match(scan, /eye line 0\.8° from true horizontal/);
@@ -100,12 +100,35 @@ test("the lab notes say what each frame checks, how the scan is oriented, and ho
   assert.match(scan, /built from photographs/);
   assert.match(scan, /textured OBJ/);
   assert.match(scan, /face mapped 94%/);
-  assert.match(scan, /1\.5 mm/);
-  assert.match(scan, /0\.4 mm/);
+  assert.match(scan, /not been independently validated/);
+  assert.doesNotMatch(scan, /0\.4 mm|1\.5 mm/, "published results for another scanner must not imply this app's accuracy");
   assert.match(scan, /intraoral scan/);
   const aligned = scanNotes({ createdAt: "2026-10-24T10:00:00Z", captures: [], intraoral: { file: "upper.stl", fitMm: 0.42, pairs: 3 } });
   assert.match(aligned, /Already lined up with the intraoral scan "upper\.stl".*0\.42 mm/);
   assert.match(aligned, /intraoral-frame\.ply/);
+});
+
+test("interrupted rear reconstruction and registration provenance survive reopening", () => {
+  const record = readRecord({ kind: "scan", id: "visit", createdAt: "2026-10-26", base: "capacitor://localhost/private/visit",
+    captures: [{ id: "smile", title: "Smile", mesh: "smile.ply", source: "lidar", building: false, detailedStatus: "interrupted" }],
+    intraoral: { file: "upper.stl", fitMm: 0.6, pairs: 4, referenceScanId: "smile", refined: false, fitMetric: "point-pair RMS residual", includedScanIds: ["smile"], excludedScanIds: ["rest"] } });
+  assert.ok(record?.kind === "scan");
+  assert.equal(record.captures[0].detailedStatus, "interrupted");
+  assert.equal(record.intraoral?.referenceScanId, "smile");
+  assert.equal(record.intraoral?.refined, false);
+  assert.deepEqual(record.intraoral?.excludedScanIds, ["rest"]);
+  const notes = scanNotes(record);
+  assert.match(notes, /interrupted/i);
+  assert.match(notes, /point-pair RMS residual/i);
+  assert.match(notes, /not.*accuracy/i);
+});
+
+test("unknown or legacy reconstruction status does not invent a completed detailed face", () => {
+  const record = readRecord({ kind: "scan", id: "legacy", createdAt: "2026-10-26", base: "capacitor://localhost/private/visit",
+    captures: [{ id: "smile", mesh: "smile.ply", source: "lidar", detailedStatus: "unexpected" }] });
+  assert.ok(record?.kind === "scan");
+  assert.equal(record.captures[0].detailedStatus, undefined);
+  assert.match(scanNotes(record), /coarse LiDAR/i);
 });
 
 test("the turning cube shows three faces and comes to rest on the owner's drawing", () => {

@@ -162,6 +162,17 @@ class SmileComposeBridgeViewController: CAPBridgeViewController {
     /// launching with `-SmileOrientation landscape` (or `portrait`) asks the scene for that orientation.
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        #if targetEnvironment(simulator)
+        // `-SmileCameraPreview face` (or `smile`) opens the photo camera with its simulator stand-in picture.
+        if UserDefaults.standard.string(forKey: "SmileCameraPreview") != nil, presentedViewController == nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let self, self.presentedViewController == nil else { return }
+                let camera = SmileCameraViewController(guide: CGRect(x: 0.3, y: 0.54, width: 0.4, height: 0.15), front: false) { _ in }
+                camera.modalPresentationStyle = .fullScreen
+                self.present(camera, animated: false)
+            }
+        }
+        #endif
         guard let wanted = UserDefaults.standard.string(forKey: "SmileOrientation"),
               let scene = view.window?.windowScene else { return }
         // "landscape" turns the device anticlockwise, which keeps iPhone Duo's side bar on the right.
