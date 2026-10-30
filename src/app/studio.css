@@ -254,6 +254,8 @@ input[type="checkbox"][role="switch"],
 .app-shell .studio-stage .photo-framing-toggle { top: 12px; right: 12px; }
 .app-shell .studio-stage .zoompan-reset { top: 64px; right: 12px; }
 .app-shell .studio-stage .zoompan-hint { top: auto; bottom: 12px; right: 12px; }
+/* On the photo page the hint sits in the photo's corner, not over the lips. */
+.app-shell .photo-step .zoompan-hint { top: auto; bottom: 12px; right: 12px; left: auto; }
 .app-shell .studio-stage .compare-label { bottom: 14px; }
 .app-shell .studio-stage .patient-photo .photo-label { left: 14px; bottom: 14px; }
 .app-shell .studio-stage .patient-photo .sample-photo-label { left: auto; right: 14px; bottom: 14px; }
@@ -485,8 +487,7 @@ input[type="checkbox"][role="switch"],
   .studio-generate { margin: auto calc(-1 * max(20px, var(--app-safe-right))) 0 -20px; padding: 22px max(20px, var(--app-safe-right)) calc(12px + var(--app-safe-bottom)) 20px; }
 }
 /* iPad landscape: the frame takes the photograph's own shape, so there are no blurred bands beside it, and
-   the steps get the width that's left. A portrait photo runs the full height; a landscape one the frame's
-   width, centred. */
+   the steps get the width that's left. */
 @media (min-width: 900px) and (min-height: 600px) and (orientation: landscape) {
   .studio-stage .photo-backdrop { display: none; }
   .studio:has(> .studio-stage[data-photo-shape]) { container-type: size; }
@@ -494,7 +495,10 @@ input[type="checkbox"][role="switch"],
     flex: none; align-self: stretch; height: auto;
     width: min(60cqw, calc((100cqh - max(20px, var(--app-safe-bottom))) * var(--photo-aspect)));
   }
-  .studio-stage[data-photo-shape="landscape"] { flex: none; width: 58cqw; height: auto; aspect-ratio: var(--photo-aspect); align-self: center; }
+  /* A landscape photo (usually a close-up) also runs the full height, framed on the smile, rather than
+     floating with empty bands above and below. It leaves the steps their 400pt (plus the stage's margin),
+     so on iPhone Duo they stay clear of the side bar. */
+  .studio-stage[data-photo-shape="landscape"] { flex: none; width: min(58cqw, 100cqw - 420px); height: auto; align-self: stretch; }
   .studio-stage[data-photo-shape] + .studio-dock { flex: 1 1 0; min-width: 400px; }
   .studio-stage[data-photo-shape] + .studio-dock :is(.studio-tabs, .studio-cards, .studio-steps-nav) { max-width: 760px; }
 }
@@ -973,6 +977,21 @@ input[type="checkbox"][role="switch"],
 .studio-more-body.is-shown { display: grid; gap: 18px; padding-top: 16px; border-top: 1px solid var(--separator); }
 
 
+/* iPhone upright: the chosen photo's frame takes the photo's own shape (between 3:4 and 7:5), so a sideways
+   close-up shows without blurred bands above and below it; anything outside that range is cropped, not banded. */
+@media (max-width: 599px) and (orientation: portrait) {
+  .photo-step .photo-stage { aspect-ratio: clamp(.75, var(--photo-aspect, 1), 1.4); }
+  .photo-step .photo-stage .photo-backdrop { display: none; }
+  .photo-step .photo-stage .photo-stage-original { object-fit: cover; }
+}
+/* A short screen on its side (a phone, the closed iPhone Duo): the frame keeps its size; the photo fills it
+   rather than sitting on a blurred band. */
+@media (orientation: landscape) and (max-height: 599px) {
+  .app-shell .photo-step .photo-stage { width: 100%; height: auto; min-height: 0; max-height: 100%; aspect-ratio: clamp(.75, var(--photo-aspect, 1), 1.4); align-self: start; position: sticky; top: 12px; }
+  .app-shell .photo-step .photo-stage .photo-backdrop { display: none; }
+  .app-shell .photo-step .photo-stage .photo-stage-original { object-fit: cover; }
+}
+
 /* ============================================================
    iPad and the open Duo: the photo steps fit the screen without scrolling
    ============================================================ */
@@ -991,7 +1010,8 @@ input[type="checkbox"][role="switch"],
   .photo-step .photo-aside .photo-sub { margin-top: -4px; }
   .photo-step .quick-smile-goal { min-height: 58px; padding-block: 10px; }
   .photo-step .photo-filename { margin: -4px 2px 0; }
-  .photo-step .photo-extras { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
+  /* Side by side when there's room; one above the other in a narrow column (the open Duo on its side). */
+  .photo-step .photo-extras { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; align-items: start; }
   .photo-step .photo-extras > .photo-tips-disclosure > summary { min-height: 62px; }
 }
 /* Upright: the photo takes the height the choices leave. */
@@ -1086,4 +1106,26 @@ input[type="checkbox"][role="switch"],
 .studio-dock > .studio-generate { flex: none; margin-top: -22px; }
 @media (min-width: 600px) and (orientation: portrait) {
   .studio-dock > .studio-cards { width: calc(100% + 20px); max-width: 900px; margin-inline: auto; }
+}
+
+/* iPad portrait: the Shape step fits without scrolling. Shapes run across the top; the guide switch and
+   nudges sit on the left with the three sliders beside them. The long guide note is dropped here unless it
+   warns that the teeth couldn't be measured. */
+@media (min-width: 700px) and (orientation: portrait) {
+  .studio-card.studio-page:has(> .smile-guide-controls) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 28px; row-gap: 10px; align-content: start; }
+  .studio-card.studio-page:has(> .smile-guide-controls) > * { margin: 0; min-width: 0; }
+  .studio-card.studio-page:has(> .smile-guide-controls) > :is(header, .studio-shapes-fit, .studio-more) { grid-column: 1 / -1; }
+  .studio-card.studio-page:has(> .smile-guide-controls) > .studio-summary { display: none; }
+  .studio-card.studio-page > .smile-guide-controls { display: contents; }
+  .smile-guide-controls > .studio-switch-row { grid-column: 1; grid-row: 3; }
+  .smile-guide-controls > .smile-guide-nudge { grid-column: 1; grid-row: 4; }
+  .smile-guide-controls > .smile-guide-slider { grid-column: 2; margin: 0; }
+  .smile-guide-controls > .smile-guide-slider:nth-child(2) { grid-row: 3; }
+  .smile-guide-controls > .smile-guide-slider:nth-child(3) { grid-row: 4; }
+  .smile-guide-controls > .smile-guide-slider:nth-child(4) { grid-row: 5; }
+  .smile-guide-controls > .smile-guide-slider .range-labels { display: none; }
+  .smile-guide-controls > .smile-guide-slider .intensity-slider { min-height: 34px; }
+  .smile-guide-controls > .smile-guide-hint { display: none; }
+  .smile-guide-controls > .smile-guide-hint.is-warning { display: block; grid-column: 1; grid-row: 5; align-self: start; }
+  .studio-card.studio-page:has(> .smile-guide-controls) > .studio-more { grid-row: 6; }
 }

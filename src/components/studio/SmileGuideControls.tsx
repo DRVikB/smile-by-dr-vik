@@ -52,7 +52,7 @@ export function SmileGuideControls({ guide }: { guide: SmileGuideState }) {
             <RotateCcw size={15} aria-hidden="true" />Reset
           </button>
         </div>
-        <p className="control-hint">{g.shape.measured
+        <p className={`control-hint smile-guide-hint${g.shape.measured ? "" : " is-warning"}`}>{g.shape.measured
           ? "Fitted to this patient’s teeth: the dental midline, each tooth’s width, the gum line and the biting edges. "
           : "The teeth couldn’t be measured clearly, so the guide is placed from the lips. Adjust it to the teeth. "}
           The outlines use the tooth form chosen above.{g.nasal ? " The dashed lines mark the width of the nose, a common reference for the canines." : ""} Drag the points on the guide to match this smile: blue for the gum line, orange for the biting edges, green for each tooth’s width. The dot below the midline moves the whole guide. A planning guide for you and the patient; the visualisation doesn’t use it.</p>

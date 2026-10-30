@@ -1,6 +1,7 @@
 "use client";
 import { ComposingMark } from "@/components/ComposingMark";
 import { RailButton, RailItems, SheetClose, SideRailLayer, useSideRail } from "@/components/sideRail/SideRail";
+import { useMediaQuery } from "@/components/settings/settingsParts";
 import { PatientSyncStatus } from "./PatientSyncStatus";
 import { CaseMediaStatus } from "./CaseMediaStatus";
 import { type CaseMediaPreload, useCaseMedia } from "./useCaseMedia";
@@ -64,16 +65,21 @@ const coverThumbs = (group: CaseGroup) =>
 const timeOf = (ms: number) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 const versionTitle = (entry: CaseLogEntry, index: number, total: number) => entry.label || `Version ${total - index}`;
 
-export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSignIn, onNewDesign }: {
+export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSignIn, onNewDesign, onSample }: {
   onClose: () => void; initialEntryId?: string;
   /** Opened from Recent cases: that sheet's top edge. This sheet grows up from there instead of rising from the foot. */
   continueFrom?: number;
   onReopen?: (caseId:string)=>Promise<void>; onSignIn?: () => void;
   /** With no cases yet, the empty state offers the next step. */
   onNewDesign?: () => void;
+  /** With no cases yet, the empty state also offers the sample case. */
+  onSample?: () => void;
 }) {
   // iPhone Duo: Back and Close sit in the side bar.
   const rail = useSideRail();
+  // The open iPhone Duo on its side has room for one more level, as Mail does: the list stays on the left
+  // and the chosen case opens beside it, so the bar only needs Close. (Set once the cases are known, below.)
+  const roomForSplit = useMediaQuery("(min-width: 860px) and (orientation: landscape)");
   const panel = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = panel.current;
@@ -180,6 +186,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
 
   const all = useMemo(() => groupCases(entries ?? []), [entries]);
   const shown = all.filter(group => !query.trim() || group.versions.some(v => matchesQuery(v, query)));
+  const split = rail && roomForSplit && all.length > 0;
   const current = openCase ? all.find(g => g.key === openCase) ?? null : null;
   const versions = current ? current.versions.filter(v => !onlyFavourites || v.favourite) : [];
   // The patient's preferred version leads the case page, otherwise the newest; the rest scroll beneath it.
@@ -197,7 +204,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
 
   // Swipe in from the left edge: a version back to its case, a case back to the list. On the list itself
   // the swipe does nothing (Cases is a sheet; it closes with a pull down or Close).
-  useSwipeBack(true, photoSet ? () => setPhotoSet(null) : open ? () => setOpen(null) : current ? () => setOpenCase(null) : undefined,
+  useSwipeBack(true, photoSet ? () => setPhotoSet(null) : open ? () => setOpen(null) : current && !split ? () => setOpenCase(null) : undefined,
     () => (open || photoSet ? frame.current : document.querySelector<HTMLElement>(".sheet-backdrop > .log-panel .case-page")));
 
   // Long-press menus, the way Photos and Files offer actions on an item.
@@ -255,6 +262,11 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
   }, [entries, initialEntryId, openedInitial]);
   // Until that case is found, the list stays out of sight rather than flashing up first.
   const awaitingInitial = Boolean(initialEntryId) && !openedInitial;
+  // Side by side, a case is always showing: the newest one the search finds, until another is chosen.
+  const firstShown = shown[0]?.key;
+  useEffect(() => {
+    if (split && !awaitingInitial && !current && firstShown) setOpenCaseNow(firstShown);
+  }, [split, awaitingInitial, current, firstShown]);
 
   async function toggleFavourite(entry: CaseLogEntry) {
     const next = !entry.favourite;
@@ -348,15 +360,10 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
     </p>
   );
 
-  return (
-    <SideRailLayer>
-    <div className={`sheet-backdrop${continueFrom !== undefined ? " is-continued" : ""}`} role="dialog" aria-modal="true" aria-label="Cases" onClick={onClose}>
-      <div ref={panel} className={`log-panel${continueFrom !== undefined ? " continues" : ""}`} data-nav={nav ?? undefined} onClick={(e) => e.stopPropagation()}>
-        <PatientSyncStatus showPending={false} />
-        {awaitingInitial ? null : current ? (
+  const casePage = current && (
           <div className={`case-page${nav === "push" ? " push" : ""}`} key={current.key}>
             <div className="case-page-head">
-              {rail ? <RailItems order={0}>
+              {split ? null : rail ? <RailItems order={0}>
                 <RailButton label="Back to Cases" onClick={() => setOpenCase(null)}><ChevronLeft size={22} strokeWidth={1.8} /></RailButton>
                 <RailButton label="Close" onClick={onClose}><X size={21} strokeWidth={1.9} /></RailButton>
               </RailItems> : <>
@@ -397,7 +404,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
             </p>
             {renaming !== null && <p className="control-hint case-hint">Use initials or a practice reference, not the patient’s full name.</p>}
 
-            {errorBanner}
+            {!split && errorBanner}
             {onReopen&&<button type="button" className="primary-button case-design-more" disabled={reopening} onClick={()=>void reopenDesign(current.key)}><PenLine size={17} strokeWidth={1.9} aria-hidden="true" />{reopening ? "Opening the studio…" : "Design more"}</button>}
             {syncIndicators[current.key] && <p className="control-hint" role="status">{syncIndicators[current.key]}</p>}
 
@@ -480,8 +487,9 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
             </div>
             </div>
           </div>
-        ) : (
-          <>
+  );
+  const listView = (
+    <>
             <div className="log-head">
               <h2>Cases</h2>
               {rail ? <RailItems order={0}><RailButton label="Close" onClick={onClose}><X size={21} strokeWidth={1.9} /></RailButton></RailItems>
@@ -511,8 +519,9 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
                 <div className="empty-state">
                   <span className="icon-tile icon-tile-lg empty-state-tile" aria-hidden="true"><ComposingMark motion="draw" tone="auto" quick className="empty-state-mark" /></span>
                   <p className="empty-state-title">No smile designs yet</p>
-                  <p className="empty-state-body">Upload a patient photograph to begin visualising treatment possibilities. Your saved designs will appear here.</p>
+                  <p className="empty-state-body">Each finished design is saved here with its before and after, ready to reopen, refine or share.</p>
                   {onNewDesign && <button type="button" className="primary-button empty-state-action" onClick={onNewDesign}>New Smile Design</button>}
+                  {onSample && <button type="button" className="secondary-button empty-state-sample" onClick={onSample}>Explore a sample case</button>}
                 </div>
               ) : (
                 <p className="log-empty">No cases match that search.</p>
@@ -520,13 +529,13 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
             ) : (
               <ul className="log-list">
                 {shown.map((group) => (
-                  <li key={group.key} className={group.updatedAt > seenAt ? "is-new" : undefined}>
+                  <li key={group.key} className={[group.updatedAt > seenAt ? "is-new" : "", split && group.key === openCase ? "is-selected" : ""].filter(Boolean).join(" ") || undefined}>
                     <SwipeRow actions={[
                       { label: "Archive", icon: <Archive size={18} strokeWidth={1.8} aria-hidden="true" />, onSelect: () => void forWholeCase(group, "archive") },
                       { label: "Delete", tone: "destructive", icon: <Trash2 size={18} strokeWidth={1.8} aria-hidden="true" />, onSelect: () => void forWholeCase(group, "delete") },
                     ]}>
                     <Pressable onLong={(el) => openContextMenu(el, caseMenu(group), { image: coverThumbs(group)[0]?.thumb, title: caseName(group), subtitle: `${group.versions.length} ${group.versions.length === 1 ? "version" : "versions"} · ${formatLogDate(group.updatedAt)}` })}>{(press) => (
-                    <button className="log-row case-row" {...press} onClick={() => setOpenCase(group.key)}>
+                    <button className="log-row case-row" {...press} aria-current={split && group.key === openCase ? "true" : undefined} onClick={() => setOpenCase(group.key)}>
                       <span className={`case-cover count-${Math.min(3, group.versions.length)}`} aria-hidden="true">
                         {coverThumbs(group).map(v => v.thumb ? <img key={v.id} src={v.thumb} alt="" draggable={false} /> : <SmileSymbol key={v.id} size={26} />)}
                       </span>
@@ -581,8 +590,20 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
                   <button className="text-button" onClick={() => setConfirmClear(true)}>Clear cases</button>
                 ))}
             </div>}
-          </>
-        )}
+    </>
+  );
+
+  return (
+    <SideRailLayer>
+    <div className={`sheet-backdrop${continueFrom !== undefined ? " is-continued" : ""}`} role="dialog" aria-modal="true" aria-label="Cases" onClick={onClose}>
+      <div ref={panel} className={`log-panel${continueFrom !== undefined ? " continues" : ""}${entries !== null && all.length === 0 ? " is-empty" : ""}`} data-nav={nav ?? undefined} onClick={(e) => e.stopPropagation()}>
+        <PatientSyncStatus showPending={false} />
+        {awaitingInitial ? null : split ? (
+          <div className="log-split">
+            <div className="log-split-list">{listView}</div>
+            {casePage}
+          </div>
+        ) : current ? casePage : listView}
       </div>
 
       {photoSet && !open && (
@@ -695,7 +716,8 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
           </div>
         </div>
       )}
-      {viewing && open?.media && <SavedCaseViewer entry={open.entry} media={open.media} analysis={viewing === "analysis"} onExported={() => void refreshExports()} onClose={() => setViewing(false)} />}
+      {viewing && open?.media && <SavedCaseViewer entry={open.entry} media={open.media} analysis={viewing === "analysis"} onExported={() => void refreshExports()} onClose={() => setViewing(false)}
+        onDesign={onReopen && !open.entry.testMode ? () => void reopenDesign(caseIdOf(open.entry)) : undefined} designing={reopening} />}
       {sharing && open?.media && (
         <ShareSheet
           input={savedCaseExport(open.entry, open.media, openRecord)}

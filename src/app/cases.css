@@ -69,10 +69,14 @@
 
 /* A case made since the list was last open settles in at the top, outlined in gold for a moment. */
 .log-list > li.is-new { animation: case-arrive 640ms var(--ease-soft, ease) 120ms both; }
-.log-list > li.is-new .case-row { animation: case-arrive-ring 2400ms ease 500ms both; }
+/* The outline is drawn inside the card (the row clips anything outside it), and fades away completely. */
+.log-list > li.is-new .case-row::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 0 0 1.5px var(--sc-gold); animation: case-arrive-ring 2400ms ease 500ms both;
+}
 @keyframes case-arrive { from { max-height: 0; opacity: 0; transform: translateY(-10px); } to { max-height: 140px; opacity: 1; transform: none; } }
-@keyframes case-arrive-ring { 0%, 55% { box-shadow: 0 0 0 1.5px var(--sc-gold); } 100% { box-shadow: 0 0 0 1.5px transparent; } }
-@media (prefers-reduced-motion: reduce) { .log-list > li.is-new { animation: none; } }
+@keyframes case-arrive-ring { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .log-list > li.is-new { animation: none; } .log-list > li.is-new .case-row::after { display: none; } }
 @keyframes case-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes star-pop { 0% { transform: scale(1); } 45% { transform: scale(1.35); } 100% { transform: scale(1); } }
 
@@ -382,3 +386,8 @@
 
 /* Empty Cases: the next step, under the explanation. */
 .empty-state .empty-state-action { margin-top: 18px; min-height: 46px; padding: 0 26px; }
+.empty-state .empty-state-sample { min-height: 44px; padding: 0 22px; border-radius: 999px; }
+/* iPad: with no cases yet the sheet is only as tall as its message, not a full-height white page. */
+@media (min-width: 600px) {
+  .sheet-backdrop > .log-panel.is-empty { width: min(720px, calc(100vw - 96px)); height: auto; max-height: calc(100dvh - 32px - var(--safe-top) - var(--safe-bottom)); overflow-y: auto; }
+}

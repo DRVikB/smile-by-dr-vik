@@ -4,7 +4,8 @@ import { analyseSmile } from "../face/analysis";
 import { INNER_LIP, pick, type Point } from "../face/geometry";
 import { fillPolygon } from "../toothMap/segment";
 import { rgbToLab, toothWeights } from "../whitening";
-import { GUIDE_SAMPLES, mouthLine, placeTemplate, type SmileFrameFit, type SmileGuideShape } from "./frame";
+import { DIVISIONS, GUIDE_SAMPLES, mouthLine, placeTemplate, type SmileFrameFit, type SmileGuideShape } from "./frame";
+import type { ToothMap } from "../toothMap/types";
 import { measureSmile, openingFromTeeth, type SmileMeasurement } from "./measure";
 
 function load(src: string): Promise<HTMLImageElement> {
@@ -76,7 +77,8 @@ export async function fitGuideToPhoto(photo: Pick<Photo, "dataUrl" | "width" | "
   };
   const line = found && found.length >= 468 ? mouthLine(found) : null;
   if (!found || !line) {
-    const closeUp = fitCloseUp(image);
+    // A close-up has no face to find: its teeth by colour, else the teeth the tooth map finds.
+    const closeUp = fitCloseUp(image) ?? await fitFromToothMap(photo.dataUrl, nw, nh, signal);
     return closeUp ? { fit: toPhoto(closeUp.fit), shape: closeUp.shape } : null;
   }
   // Nasal width lines (smile analysis): through each nose wing's outer edge, parallel to the facial midline, nose to chin.
@@ -134,4 +136,78 @@ function fitCloseUp(image: HTMLImageElement): Fitted | null {
   const measured = measureSmile(rgba, w, h, teeth.opening, hw, (teeth.x0 + teeth.x1) / 2);
   if (!measured || measured.found < MIN_FOUND) return null;
   return { fit: { cx: measured.boundaries[3] * k, cy: row0 * k, halfWidth: hw * k, angle: 0 }, shape: shapeFrom(measured, hw, row0) };
+}
+
+/** The tooth map's teeth (found on the device, as for the suggested edit area) as a guide, in natural image pixels. */
+async function fitFromToothMap(dataUrl: string, nw: number, nh: number, signal?: AbortSignal): Promise<Fitted | null> {
+  const { detectToothMap } = await import("../toothMap/detect");
+  const map = await detectToothMap({ dataUrl }, "Close-up", undefined, { refine: false, signal }).catch(() => null);
+  return map && !signal?.aborted ? guideFromToothMap(map, nw, nh) : null;
+}
+
+type Box = { x0: number; x1: number; top: number; bottom: number; cx: number; fdi: number | null };
+const FRONT = [13, 12, 11, 21, 22, 23];
+
+/**
+ * A smile guide from a tooth map: the two central incisors (by number, else the widest neighbouring pair near the
+ * middle) and up to two teeth either side give the seven boundaries and each tooth's top and edge. Missing laterals
+ * or canines are filled from the guide's proportions (1 : 0.71 : 0.54). The mouth is taken as level (the camera
+ * guides that), and its half-width from the canines, as the template places them. Null with fewer than two teeth.
+ */
+export function guideFromToothMap(map: Pick<ToothMap, "teeth">, nw: number, nh: number): Fitted | null {
+  const boxes: Box[] = map.teeth.filter(t => t.visible !== false && t.outline.length >= 3).map(t => {
+    const xs = t.outline.map(p => p[0] * nw), ys = t.outline.map(p => p[1] * nh);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs);
+    return { x0, x1, top: Math.min(...ys), bottom: Math.max(...ys), cx: (x0 + x1) / 2, fdi: t.fdi };
+  }).filter(b => b.x1 - b.x0 > 2 && b.bottom - b.top > 2).sort((a, b) => a.cx - b.cx);
+  if (boxes.length < 2) return null;
+  // The centrals: numbered 11 and 21 if the map says so, else the widest neighbouring pair in the middle half.
+  let left = boxes.findIndex((b, i) => i + 1 < boxes.length && FRONT.slice(2, 4).includes(b.fdi ?? -1) && FRONT.slice(2, 4).includes(boxes[i + 1].fdi ?? -1));
+  if (left < 0) {
+    const lo = Math.min(...boxes.map(b => b.x0)), hi = Math.max(...boxes.map(b => b.x1)), mid = (lo + hi) / 2;
+    let best = -1;
+    boxes.forEach((b, i) => {
+      if (i + 1 >= boxes.length) return;
+      const pair = (b.x1 - b.x0) + (boxes[i + 1].x1 - boxes[i + 1].x0), centre = (b.x1 + boxes[i + 1].x0) / 2;
+      const score = pair - Math.abs(centre - mid) * 0.8;
+      if (best < 0 || score > best) { best = score; left = i; }
+    });
+  }
+  if (left < 0) return null;
+  const slot = (k: number): Box | null => boxes[left + k - 2] ?? null; // slots 0..5: 13 12 11 | 21 22 23
+  const L = slot(2)!, R = slot(3)!;
+  const w = (b: Box) => b.x1 - b.x0;
+  let found = 0;
+  const join = (a: Box | null, b: Box | null, fallback: number) => { if (a && b) { found++; return (a.x1 + b.x0) / 2; } return fallback; };
+  const b3 = join(L, R, (L.x1 + R.x0) / 2);
+  const centralW = (w(L) + w(R)) / 2;
+  const lateralW = centralW * (DIVISIONS[2] - DIVISIONS[1]) / DIVISIONS[1];
+  const canineW = centralW * (DIVISIONS[3] - DIVISIONS[2]) / DIVISIONS[1];
+  const b2 = join(slot(1), L, L.x0), b4 = join(R, slot(4), R.x1);
+  const b1 = slot(1) ? join(slot(0), slot(1), slot(1)!.x0) : b2 - lateralW;
+  const b5 = slot(4) ? join(slot(4), slot(5), slot(4)!.x1) : b4 + lateralW;
+  const b0 = slot(0) ? (found++, slot(0)!.x0) : b1 - canineW;
+  const b6 = slot(5) ? (found++, slot(5)!.x1) : b5 + canineW;
+  const boundaries = [b0, b1, b2, b3, b4, b5, b6];
+  if (!boundaries.every((v, i) => i === 0 || v > boundaries[i - 1])) return null;
+  const hw = Math.max(b3 - b0, b6 - b3) / DIVISIONS[3];
+  // Each tooth's top and edge, a missing one taken from its neighbour towards the middle.
+  const rows: [number, number][] = [0, 1, 2, 3, 4, 5].map(k => {
+    const b = slot(k) ?? (k < 3 ? (slot(k + 1) ?? slot(2)) : (slot(k - 1) ?? slot(3)))!;
+    return [b.top, b.bottom];
+  });
+  const centres = [0, 1, 2, 3, 4, 5].map(k => (boundaries[k] + boundaries[k + 1]) / 2);
+  const through = (values: number[]) => (x: number) => {
+    if (x <= centres[0]) return values[0];
+    for (let i = 1; i < centres.length; i++) if (x <= centres[i]) { const t = (x - centres[i - 1]) / (centres[i] - centres[i - 1]); return values[i - 1] + (values[i] - values[i - 1]) * t; }
+    return values[values.length - 1];
+  };
+  const tops = rows.map(r => r[0]), edges = rows.map(r => r[1]);
+  // The guide's row 0 sits a little above the gum line, where the template puts the lip line.
+  const row0 = Math.min(rows[2][0], rows[3][0]) - 0.1 * hw;
+  const measured: SmileMeasurement = {
+    span: [Math.min(...boxes.map(b => b.x0)), Math.max(...boxes.map(b => b.x1))],
+    gumAt: through(tops), edgeAt: through(edges), boundaries, teeth: rows, found,
+  };
+  return { fit: { cx: b3, cy: row0, halfWidth: hw, angle: 0 }, shape: shapeFrom(measured, hw, row0) };
 }

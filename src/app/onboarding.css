@@ -275,6 +275,13 @@
   .ob-cta { max-width: 440px; }
 }
 
+/* Upright but not so tall (the open iPhone Duo, 951pt): the picture takes the height the card leaves, so the
+   whole card fits and sits at the foot of the screen with no empty band below it. */
+@media (min-width: 600px) and (orientation: portrait) and (max-height: 1000px) {
+  .has-hero .ob-visual, .ob-welcome.has-hero .ob-visual { flex: 1 1 auto; height: auto; min-height: 36dvh; }
+  .has-hero .ob-sheet, .ob-frame.ob-welcome.has-hero .ob-sheet { flex: none; }
+}
+
 /* iPad landscape (and phones sideways): the picture on the left, fading into its dark ground, and the
    content on a floating card to the right, over the picture's edge */
 @media (min-width: 600px) and (orientation: landscape) {
@@ -353,8 +360,24 @@
   .ob-dismiss { top: calc(var(--safe-top) + 36px); right: max(36px, calc(var(--safe-right) + 12px)); }
 }
 
+/* iPad landscape: a wider plans card with the two plans side by side, so the page fits without scrolling.
+   The picture narrows with it (it fills the space left of the card), keeping the face in view. */
+@media (min-width: 900px) and (min-height: 600px) and (orientation: landscape) {
+  .onboarding[data-step="subscription"] .ob-layout { --ob-card-w: min(660px, 58%); }
+  .onboarding[data-step="subscription"] .plan-options { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .onboarding[data-step="subscription"] .paywall-features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 22px; }
+}
+
 @media (min-width: 600px) and (orientation: landscape) and (max-height: 520px) {
-  .ob-display { font-size: 40px; }
+  .ob-display, .ob-welcome .ob-display { font-size: clamp(30px, 5.4vw, 40px); }
+  /* The welcome card fits the short screen (iPhone SE or the closed iPhone Duo on its side), Get Started included. */
+  .ob-welcome .ob-welcome-mark { width: 34px; height: 34px; }
+  .ob-welcome .ob-welcome-brand { gap: 6px; }
+  .ob-welcome .ob-display { margin-top: 10px; }
+  .ob-welcome .ob-copy { margin-top: 8px; font-size: 13px; }
+  .ob-welcome .ob-body { gap: 10px; padding-top: 12px; }
+  .ob-welcome .ob-cta { min-height: 46px; font-size: 16px; }
+  .has-hero .ob-sheet { overflow-y: auto; overscroll-behavior: contain; }
   .ob-title { font-size: 30px; }
 }
 
@@ -390,8 +413,10 @@
 .nav-avatar { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--sc-gold); color: var(--sc-charcoal); font-size: 11px; font-weight: 700; letter-spacing: .02em; }
 
 /* iPhone: the card never scrolls. It takes the height its content needs (sized by the screen's height
-   as well as its width) and the picture fills whatever is left above it. */
-@media (max-width: 699px) {
+   as well as its width) and the picture fills whatever is left above it. Phones upright only: a small phone or the
+   closed iPhone Duo on its side uses the landscape layout (picture left, card right), and the open Duo upright
+   (669pt) the iPad one (picture above, floating card). */
+@media (max-width: 599px) and (orientation: portrait) {
   /* The photo always keeps a generous share of the screen; a shorter phone scrolls rather than losing it. */
   /* The picture takes the spare height first (up to its limit); whatever is left goes to the card, so a
      card with little in it still reaches the foot of the screen instead of leaving the dark page showing. */
@@ -430,13 +455,13 @@
 
 /* Portrait phones with a status strip beside the screen (the folded iPhone Duo): the picture and the card share the same inset,
    so the card's content is centred under the picture's centre line. (Without side insets this changes nothing.) */
-@media (max-width: 699px) {
+@media (max-width: 599px) and (orientation: portrait) {
   .onboarding.has-hero { background: #141210; }
   .has-hero .ob-layout { padding-inline: var(--safe-left) var(--safe-right); }
   .has-hero .ob-sheet { padding-inline: 22px; }
 }
 /* iPhone: the welcome page is a card rising over the picture, like every other page. */
-@media (max-width: 699px) {
+@media (max-width: 599px) and (orientation: portrait) {
   .ob-frame.ob-welcome.has-hero .ob-sheet { margin-top: -28px; border-radius: 22px 22px 0 0; box-shadow: 0 -14px 30px -22px rgba(0, 0, 0, .5); padding-top: clamp(18px, 2.6dvh, 26px); }
   /* Before and Concept sit clear of the card's rounded edge. */
   .ob-welcome .ob-visual .reveal-tag { bottom: 46px; }

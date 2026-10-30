@@ -362,7 +362,7 @@ body { background: var(--background); }
 /* ============================================================
    Cases: image-led, light cards
    ============================================================ */
-.log-list { gap: 12px; padding: 2px 2px 8px; }
+.log-list { gap: 12px; padding: 2px 2px 8px; --swipe-radius: 22px; }
 .log-row {
   gap: 16px; padding: 10px 16px 10px 10px; border-radius: 22px;
   background: var(--card); border: 1px solid var(--card-border); box-shadow: var(--shadow-sm);
@@ -720,6 +720,11 @@ html, body { overflow-x: clip; max-width: 100%; }
 .saved-case-footer > p { color: var(--text-secondary); text-align: center; }
 .saved-case-footer .saved-case-actions { gap: 8px; }
 .saved-case-footer .saved-case-actions > button { flex: 1 1 0; justify-content: center; min-height: 46px; }
+/* Three actions on a phone: Export & share takes the first row, Smile analysis and Edit design share the second. */
+@media (max-width: 599px) {
+  .saved-case-footer .saved-case-actions:has(> button:nth-child(3)) { flex-wrap: wrap; }
+  .saved-case-footer .saved-case-actions:has(> button:nth-child(3)) > .primary-button { flex-basis: 100%; }
+}
 .saved-case-footer .saved-case-analysis { border: 0; color: var(--text-primary); background: var(--control-background); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .saved-case-viewer .compare-label, .saved-case-viewer .overlay-controls { bottom: calc(max(10px, var(--safe-bottom)) + 150px); }
 @media (orientation: landscape) and (max-height: 500px) {

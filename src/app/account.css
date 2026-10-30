@@ -104,3 +104,6 @@
 .access-code-row input:focus-visible { outline: 2px solid var(--focus-ring, var(--accent)); outline-offset: 1px; }
 .access-code-row .secondary-button { flex: none; min-height: 46px; }
 .settings-panel .access-code { padding: 12px 16px; }
+/* Sign-in, plans and other account sheets: the page behind is blurred and dimmed, so a large headline
+   (Home's "Smile design, visualised.") never shows crisply beside the card. */
+.sheet-backdrop.account-backdrop { background: rgba(20, 18, 16, .45); -webkit-backdrop-filter: blur(20px) saturate(.9); backdrop-filter: blur(20px) saturate(.9); }

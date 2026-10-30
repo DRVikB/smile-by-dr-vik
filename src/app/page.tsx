@@ -1,6 +1,6 @@
 "use client";
 import { useSwipeBack } from "@/components/appGestures";
-import { SheetClose, SideRailLayer } from "@/components/sideRail/SideRail";
+import { SheetClose, SideRailLayer, useFold } from "@/components/sideRail/SideRail";
 import type { MouthAlignmentDiagnostic } from "@/lib/face/alignmentDiagnostic";
 import { normalizeTreatmentScope, standardTreatmentSummary } from "@/lib/fullArch";
 import { generationUnavailable, INTERNAL_SINGLE_TOOTH } from "@/lib/generation/availability";
@@ -366,6 +366,15 @@ export default function Smile() {
     desktop.addEventListener("change", update);
     return () => desktop.removeEventListener("change", update);
   }, [desktopReviewEligible, resultVariationId]);
+  // iPhone Duo folded like a laptop: the lower half is Review & refine's, so it opens there on reaching a
+  // result (and closes again on unfolding, if folding opened it). It runs after the desktop rule above, so it wins.
+  const foldAxis = useFold()?.axis;
+  const reviewForFold = useRef(false);
+  const onResult = screen === "preview" && Boolean(result);
+  useEffect(() => {
+    if (foldAxis === "horizontal" && onResult) { setReviewOpen(open => { if (!open) reviewForFold.current = true; return true; }); }
+    else if (foldAxis !== "horizontal" && reviewForFold.current) { reviewForFold.current = false; setReviewOpen(false); }
+  }, [foldAxis, onResult, resultVariationId]);
   // Pinned cases override the automatic match, and are a chairside choice for
   // this session rather than something saved with the case.
   const [pinnedCases, setPinnedCases] = useState<string[]>([]);
@@ -1766,17 +1775,19 @@ export default function Smile() {
                   )} />
                 ) : result && !(INTERNAL_SINGLE_TOOTH && teethStep && settings.treatmentMode !== "full_arch" && (toothMap.picking || toothMap.editing || toothMap.adding || toothMap.mode !== "hidden")) ? (
                   <div className="preview-stage">
+                    {/* Filled around the smile, so a close-up has no blurred bands above and below it. */}
                     <BeforeAfterSlider
                       original={photo.dataUrl}
                       preview={result.image}
                       isMock={result.mode === "mock"}
                       mode={previewMode}
                       onModeChange={setPreviewMode}
+                      fill={photo}
                     />
                   </div>
                 ) : (
                   // After the Teeth step the smile stays framed close up, so shade and treatment are judged on teeth you can see.
-                  <PatientPhoto photo={photo} focus={teethStep ? (INTERNAL_SINGLE_TOOTH && toothMap.mode !== "hidden" ? toothFocus(photo.toothMap) : null)
+                  <PatientPhoto photo={photo} focus={teethStep ? (INTERNAL_SINGLE_TOOTH && toothMap.mode !== "hidden" ? toothFocus(photo.toothMap) : smileRegion(photo))
                     : photo.smileGuide ? guideFocus(photo.smileGuide, photo.width, photo.height) : smileRegion(photo)} overlay={INTERNAL_SINGLE_TOOTH && teethStep && settings.treatmentMode !== "full_arch" ? (zoom) => (
                     <ToothMapOverlay controller={toothMap} settings={settings} width={photo.width} height={photo.height} scale={zoom} />
                   ) : undefined} />
@@ -1860,6 +1871,7 @@ export default function Smile() {
                   fill={photo}
                   reveal={reveal}
                   onRevealed={() => setReveal(false)}
+                  pagesOnFold
                 />
                 {savedNote > 0 && (
                   <p key={savedNote} className="saved-note" role="status">
@@ -2190,7 +2202,7 @@ export default function Smile() {
         </p>
       )}
       {goalsOpen && photo && <PatientGoalsSheet consultation={consultation} onChange={setConsultation} onClose={() => setGoalsOpen(false)} hasPreferred={Boolean(caseRecord.preferredDesignId)} />}
-      {logOpen && <CaseLog onNewDesign={() => { setLogOpen(false); setLogEntry(undefined); setLogFrom(undefined); startNewSmile(); }} onSignIn={() => { setLogOpen(false); setLogFrom(undefined); account.openAuth("signIn"); }} initialEntryId={logEntry} continueFrom={logFrom} onReopen={async id=>{await designMore(id);setLogOpen(false);setLogEntry(undefined);setLogFrom(undefined);}} onClose={() => { setLogOpen(false); setLogEntry(undefined); setLogFrom(undefined); }} />}
+      {logOpen && <CaseLog onNewDesign={() => { setLogOpen(false); setLogEntry(undefined); setLogFrom(undefined); startNewSmile(); }} onSample={() => { setLogOpen(false); setLogEntry(undefined); setLogFrom(undefined); void openTestMode(); }} onSignIn={() => { setLogOpen(false); setLogFrom(undefined); account.openAuth("signIn"); }} initialEntryId={logEntry} continueFrom={logFrom} onReopen={async id=>{await designMore(id);setLogOpen(false);setLogEntry(undefined);setLogFrom(undefined);}} onClose={() => { setLogOpen(false); setLogEntry(undefined); setLogFrom(undefined); }} />}
       {libraryOpen && (
         <CaseLibrary
           onClose={() => { setLibraryOpen(false); void caseLibrary.refresh(); }}

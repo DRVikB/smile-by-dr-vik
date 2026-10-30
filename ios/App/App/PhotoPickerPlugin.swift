@@ -1893,11 +1893,15 @@ final class PhotoReviewView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         guard picture.width > 0 else { return }
+        let portrait = bounds.height >= bounds.width
+        if !portrait {
+            layoutSideways()
+            return
+        }
         imageView.frame = picture
         imageView.layer.cornerRadius = picture.width >= bounds.width - 1 ? 0 : 16
-        let portrait = bounds.height >= bounds.width
-        heading.frame = CGRect(x: safe.minX, y: portrait ? safe.minY + 10 : picture.minY + 12, width: safe.width, height: 30)
-        if !portrait { heading.isHidden = true } else { heading.isHidden = false }
+        heading.textAlignment = .center
+        heading.frame = CGRect(x: safe.minX, y: safe.minY + 10, width: safe.width, height: 30)
         let width = min(safe.width - 32, 420)
         let inner = width - 36
         let rowsHeight = rowsStack.arrangedSubviews.isEmpty ? 20 : rowsStack.systemLayoutSizeFitting(CGSize(width: inner, height: 0), withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel).height
@@ -1909,6 +1913,30 @@ final class PhotoReviewView: UIView {
         let bw = (inner - 12) / 2
         retakeButton.frame = CGRect(x: 18, y: height - 18 - 46, width: bw, height: 46)
         useButton.frame = CGRect(x: 18 + bw + 12, y: height - 18 - 46, width: bw, height: 46)
+    }
+
+    /// Sideways the check sits in a column beside the photo (it would otherwise cover the smile): the heading,
+    /// the findings, then Use photo over Retake. The photo takes the rest of the width at its own shape.
+    private func layoutSideways() {
+        let cardWidth = min(340, max(272, safe.width * 0.36))
+        let inner = cardWidth - 36
+        let area = CGRect(x: safe.minX + 12, y: safe.minY + 8, width: safe.width - cardWidth - 36, height: safe.height - 16)
+        let size = imageView.image?.size ?? picture.size
+        let aspect = size.height > 0 ? size.width / size.height : 4.0 / 3.0
+        var fit = CGSize(width: area.height * aspect, height: area.height)
+        if fit.width > area.width { fit = CGSize(width: area.width, height: area.width / aspect) }
+        imageView.frame = CGRect(x: area.midX - fit.width / 2, y: area.midY - fit.height / 2, width: fit.width, height: fit.height)
+        imageView.layer.cornerRadius = 16
+        let rowsHeight = rowsStack.arrangedSubviews.isEmpty ? 20 : rowsStack.systemLayoutSizeFitting(CGSize(width: inner, height: 0), withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel).height
+        let height = min(safe.height - 16, 18 + 26 + 12 + rowsHeight + 18 + 46 + 10 + 46 + 18)
+        card.frame = CGRect(x: safe.maxX - 12 - cardWidth, y: safe.midY - height / 2, width: cardWidth, height: height)
+        heading.textAlignment = .left
+        heading.frame = CGRect(x: card.frame.minX + 18, y: card.frame.minY + 16, width: inner, height: 26)
+        bringSubviewToFront(heading)
+        rowsStack.frame = CGRect(x: 18, y: 18 + 26 + 12, width: inner, height: rowsHeight)
+        checking.frame = rowsStack.frame
+        useButton.frame = CGRect(x: 18, y: height - 18 - 46 - 10 - 46, width: inner, height: 46)
+        retakeButton.frame = CGRect(x: 18, y: height - 18 - 46, width: inner, height: 46)
     }
 }
 

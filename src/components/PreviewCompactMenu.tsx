@@ -1,6 +1,7 @@
 "use client";
 
-import { SheetClose } from "@/components/sideRail/SideRail";
+import { RailButton, RailItems, SheetClose, useSideRail } from "@/components/sideRail/SideRail";
+import { useMediaQuery } from "@/components/settings/settingsParts";
 import { useEffect, useRef, useState } from "react";
 import {
   CircleCheck,
@@ -55,6 +56,11 @@ export function PreviewCompactMenu({
   const [open, setOpen] = useState(false);
   const closeButton = useRef<HTMLButtonElement>(null);
   const optionsButton = useRef<HTMLButtonElement>(null);
+  // iPhone Duo closed: Share and Options are the side bar's main action and tool (under Back, above More),
+  // so the photo keeps its full height and only the AI-concept line stays at its foot.
+  const rail = useSideRail();
+  const narrow = useMediaQuery("(max-width: 699px)");
+  const inBar = rail && narrow;
 
   useEffect(() => {
     if (open) closeButton.current?.focus();
@@ -80,7 +86,7 @@ export function PreviewCompactMenu({
           onClick={closeMenu}
         />
       )}
-      <div className="compact-preview-dock">
+      <div className={`compact-preview-dock${inBar ? " is-note-only" : ""}`}>
         {open && (
           <div
             className="compact-options-popover"
@@ -159,6 +165,11 @@ export function PreviewCompactMenu({
             </div>
           </div>
         )}
+        {inBar && <>
+          <RailItems order={1}><RailButton label="Share" prominent disabled={busy} onClick={() => choose(onShare)}><Share2 size={20} strokeWidth={1.8} /></RailButton></RailItems>
+          <RailItems order={2}><RailButton label="Options" pressed={open} buttonRef={optionsButton} onClick={() => setOpen(!open)}><SlidersHorizontal size={20} strokeWidth={1.8} /></RailButton></RailItems>
+        </>}
+        {!inBar && <>
         <button className="compact-dock-save" type="button" disabled={busy} onClick={() => choose(onShare)}>
           <Share2 size={19} strokeWidth={1.7} />
           Share
@@ -174,6 +185,7 @@ export function PreviewCompactMenu({
           <SlidersHorizontal size={19} strokeWidth={1.7} />
           Options
         </button>
+        </>}
         <p className="compact-concept-note">{AI_CONCEPT_SUMMARY}</p>
       </div>
     </>

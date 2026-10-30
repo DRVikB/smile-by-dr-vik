@@ -6,6 +6,8 @@ import { watchSideBar, type Fold, type SideBar } from "@/native/sideBar";
 
 interface RailState {
   bar: SideBar | null;
+  /** Where the screen folds while iPhone Duo is partly folded. */
+  fold: Fold | null;
   host: HTMLElement | null;
   /** The surface whose controls show: the one opened most recently. */
   top: string | null;
@@ -17,7 +19,7 @@ const FOLD_GLIDE = [".case-body > .case-hero", ".log-detail-frame .log-pair"];
 
 /** Counts surfaces as they first render, so a sheet always outranks the screen it opened over. */
 let opened = 0;
-const RailContext = createContext<RailState>({ bar: null, host: null, top: null, enter: () => {}, leave: () => {} });
+const RailContext = createContext<RailState>({ bar: null, fold: null, host: null, top: null, enter: () => {}, leave: () => {} });
 const LayerContext = createContext<string | null>(null);
 
 /**
@@ -95,7 +97,7 @@ export function SideRailProvider({ children }: { children: React.ReactNode }) {
   const enter = useCallback((id: string, at: number) => setLayers(current => [...current.filter(x => x.id !== id), { id, opened: at }]), []);
   const leave = useCallback((id: string) => setLayers(current => current.filter(x => x.id !== id)), []);
   const top = layers.reduce<{ id: string; opened: number } | null>((best, layer) => (!best || layer.opened > best.opened ? layer : best), null)?.id ?? null;
-  const value = useMemo(() => ({ bar, host, top, enter, leave }), [bar, host, top, enter, leave]);
+  const value = useMemo(() => ({ bar, fold, host, top, enter, leave }), [bar, fold, host, top, enter, leave]);
 
   return (
     <RailContext.Provider value={value}>
@@ -108,6 +110,11 @@ export function SideRailProvider({ children }: { children: React.ReactNode }) {
 /** Whether controls belong in the side bar right now. */
 export function useSideRail(): boolean {
   return useContext(RailContext).bar !== null;
+}
+
+/** Where iPhone Duo folds right now (partly folded, in any pose), or null when the screen is flat. */
+export function useFold(): Fold | null {
+  return useContext(RailContext).fold;
 }
 
 /**

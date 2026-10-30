@@ -49,15 +49,16 @@ body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none
 @keyframes cm-close { to { opacity: 0; transform: scale(.94); } }
 
 /* ---------- a row that swipes left to show its actions ---------- */
-.swipe-row { position: relative; overflow: hidden; border-radius: 16px; touch-action: pan-y; }
+/* --swipe-radius matches the card inside, so the layer behind never shows past the card's corners. */
+.swipe-row { position: relative; overflow: hidden; border-radius: var(--swipe-radius, 16px); touch-action: pan-y; }
 .swipe-actions { position: absolute; top: 0; right: 0; bottom: 0; display: flex; }
 .swipe-actions button {
   flex: 1; display: grid; place-items: center; align-content: center; gap: 4px; border: 0; margin: 0;
   background: #8e8e93; color: #fff; font: inherit; font-size: 12.5px; font-weight: 600;
 }
 .swipe-actions button.is-destructive { background: var(--destructive, #d1453b); }
-.swipe-actions button:last-child { border-radius: 0 16px 16px 0; }
-.swipe-content { position: relative; z-index: 1; background: var(--background); transition: transform 380ms cubic-bezier(.32, .72, 0, 1); }
+.swipe-actions button:last-child { border-radius: 0 var(--swipe-radius, 16px) var(--swipe-radius, 16px) 0; }
+.swipe-content { position: relative; z-index: 1; border-radius: inherit; background: var(--background); transition: transform 380ms cubic-bezier(.32, .72, 0, 1); }
 .swipe-content.is-dragging { transition: none; }
 .log-list > li > .swipe-row { margin: 0; }
 

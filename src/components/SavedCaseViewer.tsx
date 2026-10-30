@@ -1,7 +1,7 @@
 "use client";
 import { SheetClose } from "@/components/sideRail/SideRail";
 import { useEffect, useRef, useState } from "react";
-import { Share2 } from "lucide-react";
+import { PenLine, Share2 } from "lucide-react";
 import { BeforeAfterSlider } from "./BeforeAfterSlider";
 import { CenteredBrandHeader } from "./ui/Surface";
 import { AnalysisSymbol } from "@/components/icons/SmileIcons";
@@ -13,8 +13,10 @@ import { RevealVideoSheet } from "./RevealVideoSheet";
 import type { CaseLogEntry, CaseLogMedia } from "@/lib/types";
 
 /** View the saved pixels without replacing the active case or generating again. */
-export function SavedCaseViewer({ entry, media, analysis: startWithAnalysis = false, onClose, onExported }: {
+export function SavedCaseViewer({ entry, media, analysis: startWithAnalysis = false, onClose, onExported, onDesign, designing = false }: {
   entry: CaseLogEntry; media: CaseLogMedia; analysis?: boolean; onClose: () => void; onExported?: () => void;
+  /** Back into the design studio with this case's photo and design (the case page's Design more). */
+  onDesign?: () => void; designing?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [analysis, setAnalysis] = useState(startWithAnalysis);
@@ -43,7 +45,8 @@ export function SavedCaseViewer({ entry, media, analysis: startWithAnalysis = fa
       <footer className="saved-case-footer">
         <span>{entry.patientName || "Saved case"} · {entry.label || "Before & after"}</span>
         <div className="saved-case-actions"><button type="button" className="primary-button" onClick={() => setSharing(true)}><Share2 size={17} />Export &amp; share</button>
-        {!analysis && <button type="button" className="saved-case-analysis" onClick={() => setAnalysis(true)}><AnalysisSymbol size={16} />Smile analysis</button>}</div>
+        {!analysis && <button type="button" className="saved-case-analysis" onClick={() => setAnalysis(true)}><AnalysisSymbol size={16} />Smile analysis</button>}
+        {onDesign && <button type="button" className="saved-case-analysis" disabled={designing} onClick={onDesign}><PenLine size={16} strokeWidth={1.9} />{designing ? "Opening…" : "Edit design"}</button>}</div>
         <p>{isDemo ? "Demo concept · Sample imagery, not a patient result." : AI_CONCEPT_SUMMARY}</p>
       </footer>
     </div>

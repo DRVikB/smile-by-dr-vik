@@ -207,7 +207,12 @@
     max-height: calc(100dvh - var(--photo-header) - max(10px, var(--app-safe-bottom, 0px)) - 8px);
   }
   .compact-preview-dock { right: max(16px, var(--app-safe-right, 0px)); }
-  .app-shell .preview-screen .review-drawer.is-open { right: 16px; left: auto; transform: none; bottom: 78px; }
+  /* Review & refine opens over the dock, as the options do, in the same column (clear of iPhone Duo's side bar). */
+  .app-shell .preview-screen .review-drawer.is-open {
+    right: max(16px, var(--app-safe-right, 0px)); left: auto; transform: none; z-index: 25;
+    width: min(380px, calc(100% - 32px)); bottom: max(10px, var(--app-safe-bottom, 0px));
+    max-height: calc(100dvh - var(--photo-header) - max(10px, var(--app-safe-bottom, 0px)) - 8px);
+  }
   .app-shell .preview-screen .compare-label { bottom: 80px; }
   .app-shell .preview-screen .preview-label { left: auto; right: 16px; }
 }

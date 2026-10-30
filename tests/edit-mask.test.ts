@@ -39,3 +39,25 @@ test("the fade is a small share of the painted width, and nothing paints nothing
   assert.equal(editMaskFeather(mask, w, h), 6);
   assert.deepEqual([...featherEditMask(mask, w, h, 0)], [...mask]);
 });
+
+test("a tooth lengthened past the painted edge keeps its new edge; lips and unchanged pixels stay restored", async () => {
+  const { growToothEdges } = await import("../src/lib/editMask");
+  const w = 60, h = 40, n = w * h;
+  const original = new Uint8ClampedArray(n * 4), edited = new Uint8ClampedArray(n * 4), mask = new Uint8ClampedArray(n * 4);
+  const set = (a: Uint8ClampedArray, x: number, y: number, r: number, g: number, b: number) => { const i = (y * w + x) * 4; a[i] = r; a[i + 1] = g; a[i + 2] = b; a[i + 3] = 255; };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { set(original, x, y, 40, 20, 20); set(edited, x, y, 40, 20, 20); }
+  // Painted teeth: rows 10–19, columns 10–49.
+  for (let y = 10; y < 20; y++) for (let x = 10; x < 50; x++) { mask[(y * w + x) * 4 + 3] = 255; set(edited, x, y, 235, 228, 215); }
+  // The design lengthened the teeth by two rows; a red lip lies below that.
+  for (let y = 20; y < 22; y++) for (let x = 10; x < 50; x++) set(edited, x, y, 235, 228, 215);
+  for (let x = 10; x < 50; x++) set(edited, x, 22, 200, 90, 100);
+  // A light patch beyond the band, not joined to the teeth.
+  for (let x = 10; x < 50; x++) set(edited, x, 35, 235, 228, 215);
+  const { mask: grown, added } = growToothEdges(original, edited, mask, w, h);
+  const alpha = (x: number, y: number) => grown[(y * w + x) * 4 + 3];
+  assert.equal(added, 80);
+  assert.equal(alpha(30, 21), 255);
+  assert.equal(alpha(30, 22), 0);
+  assert.equal(alpha(30, 35), 0);
+  assert.equal(alpha(5, 15), 0);
+});

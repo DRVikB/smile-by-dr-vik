@@ -2886,15 +2886,62 @@ button.option-card:hover {
 
 .cost-explainer summary { cursor: pointer; font-size: 12px; padding: 10px 0; min-height: 44px; }
 .design-select { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-solid); color: var(--text-primary); font: inherit; font-size: 14px; }
-.edit-area-sheet { width: min(900px, 96vw); max-height: calc(100dvh - var(--display-toolbar-height) - 24px); overflow-y: auto; }
-.edit-area-viewport { max-height: 40dvh; overflow: auto; background: #202020; border-radius: 12px; margin-top: 12px; overscroll-behavior: contain; }
-.edit-area-image { position: relative; }
+/* Edit area: one screen with no scrolling. The photo takes the free height; the action is pinned at the foot. */
+.edit-area-sheet { width: min(900px, 96vw); height: min(900px, calc(100dvh - var(--display-toolbar-height) - 24px)); display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+.edit-area-sheet > * { flex: none; margin-block: 0; }
+.edit-area-sheet .sheet-heading { margin-bottom: 0; }
+.edit-area-required { font-size: 14px; }
+.edit-area-tools { display: grid; gap: 6px; }
+.edit-area-viewport { flex: 1 1 0; min-height: 160px; container-type: size; overflow: auto; background: #202020; border-radius: 12px; overscroll-behavior: contain; display: flex; flex-direction: column; }
+/* At 100% the photo fits the frame both ways; centred with auto margins, which (unlike centring) never clip it when zoomed in. */
+.edit-area-image { margin: auto; flex: none; }
+.edit-area-image { position: relative; overflow: hidden; border-radius: 12px; }
 .edit-area-image img { display: block; width: 100%; user-select: none; -webkit-user-drag: none; }
 .edit-area-image canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .55; }
-.edit-area-sliders, .edit-area-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 12px 0; }
-.edit-area-sliders label { flex: 1; min-width: 150px; font-size: 13px; }
-.edit-area-sliders input { display: block; width: 100%; min-height: 44px; }
-.edit-area-actions .primary-button { min-width: 170px; margin-left: auto; }
+.edit-area-sliders { display: flex; align-items: center; gap: 16px; }
+.edit-area-sliders label { flex: 1; min-width: 0; font-size: 13px; }
+.edit-area-sliders input { display: block; width: 100%; min-height: 36px; }
+.edit-area-status, .edit-area-error { margin: 0; font-size: 13px; }
+.edit-area-help summary { min-height: 36px; display: flex; align-items: center; color: var(--accent-text); font-size: 14px; font-weight: 600; cursor: pointer; }
+.edit-area-help p { margin: 4px 0 8px; font-size: 13px; line-height: 1.45; color: var(--text-secondary); }
+.edit-area-help[open] { max-height: 30dvh; overflow-y: auto; }
+.edit-area-footer { display: grid; gap: 4px; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.edit-area-secondary { display: flex; justify-content: center; gap: 24px; }
+.edit-area-footer .primary-button { width: 100%; min-height: 52px; }
+/* Short screens upright (the closed iPhone Duo, iPhone SE): the photo gives up a little height so the sheet never scrolls. */
+@media (max-height: 700px) and (orientation: portrait) {
+  .edit-area-viewport { min-height: 110px; }
+}
+/* iPad landscape (and any screen on its side): the photo takes the full height on the left and the tools run
+   down a column on the right. */
+@media (min-width: 900px) and (min-height: 600px) and (orientation: landscape), (min-width: 600px) and (max-height: 599px) and (orientation: landscape) {
+  .edit-area-sheet { width: min(1140px, calc(100vw - 44px)); max-width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: repeat(6, auto) 1fr auto; column-gap: 22px; row-gap: 12px; }
+  .edit-area-sheet > * { grid-column: 2; min-width: 0; }
+  .edit-area-sheet > .sheet-heading { grid-column: 1 / -1; grid-row: 1; }
+  .edit-area-sheet > .edit-area-viewport { grid-column: 1; grid-row: 2 / -1; min-height: 0; }
+  .edit-area-sheet > .edit-area-footer { grid-row: -2; align-self: end; }
+  .edit-area-sheet .edit-area-tools { display: grid; gap: 12px; }
+  .edit-area-sheet .edit-area-sliders { flex-direction: column; align-items: stretch; gap: 6px; }
+  .edit-area-sheet .edit-area-secondary { justify-content: space-between; }
+}
+/* Short screens on their side (a phone, the closed iPhone Duo): a narrower tools column with compact controls. */
+@media (min-width: 600px) and (max-height: 599px) and (orientation: landscape) {
+  .edit-area-sheet { grid-template-columns: minmax(0, 1fr) 236px; row-gap: 8px; padding: 14px 16px; height: calc(100dvh - 24px - var(--safe-top) - var(--safe-bottom)); max-height: none; }
+  .edit-area-sheet .sheet-heading h2 { font-size: 17px; }
+  .edit-area-sheet .segmented button { min-height: 34px; font-size: 13px; }
+  .edit-area-sheet .edit-area-sliders input { min-height: 26px; }
+  .edit-area-sheet .edit-area-sliders label { font-size: 12px; }
+  .edit-area-sheet .edit-area-status, .edit-area-sheet .edit-area-required { font-size: 12px; line-height: 1.35; }
+  .edit-area-sheet .edit-area-help summary { min-height: 30px; font-size: 13px; }
+  .edit-area-sheet .edit-area-secondary .text-button { min-height: 34px; font-size: 13px; }
+  .edit-area-sheet .edit-area-footer .primary-button { min-height: 44px; }
+  /* The title joins the tools column, so the photo runs the full height; Brush and Zoom share a row. */
+  .edit-area-sheet > .sheet-heading { grid-column: 2; }
+  .edit-area-sheet > .edit-area-viewport { grid-row: 1 / -1; }
+  .edit-area-sheet .sheet-heading { min-height: 0; }
+  .edit-area-sheet .sheet-heading .text-button { min-height: 32px; }
+  .edit-area-sheet .edit-area-sliders { flex-direction: row; gap: 10px; }
+}
 .design-fieldset .segmented[aria-label="Treatment"] { flex-wrap: wrap; }
 .design-fieldset .segmented[aria-label="Treatment"] button { flex: 1 1 90px; white-space: normal; min-height: 48px; }
 
