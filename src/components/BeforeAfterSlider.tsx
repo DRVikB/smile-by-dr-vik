@@ -11,7 +11,6 @@ import { AnalysisPanel, GuideLines, guidesPresent, useSmileGuides } from "./Smil
 import type { GuideKey } from "@/lib/face/guides";
 import { levelTransform } from "@/lib/face/level";
 import { AI_CONCEPT_SUMMARY } from "@/lib/brand";
-import { useFold } from "./sideRail/SideRail";
 
 export type CompareMode = "slide" | "overlay";
 
@@ -49,7 +48,6 @@ export function BeforeAfterSlider({
   fill,
   reveal = false,
   onRevealed,
-  pagesOnFold = false,
 }: {
   original: string;
   preview: string;
@@ -63,8 +61,6 @@ export function BeforeAfterSlider({
   /** The illustration has just been made: uncover it once, then call `onRevealed`. */
   reveal?: boolean;
   onRevealed?: () => void;
-  /** iPhone Duo folded like a book: Before and After become the two pages, so nothing sits on the fold. */
-  pagesOnFold?: boolean;
 }) {
   // Found on the patient's own photo: the face they're measured against.
   const guides = useSmileGuides(original, analysis);
@@ -87,8 +83,6 @@ export function BeforeAfterSlider({
   const mode = controlledMode ?? localMode;
   const changeMode = (next: CompareMode) => { setLocalMode(next); onModeChange?.(next); };
   const overlay = mode === "overlay";
-  const fold = useFold();
-  const pages = pagesOnFold && fold?.axis === "vertical" && !overlay && !analysis;
   const root = useRef<HTMLDivElement>(null);
   const photoFrame = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<ReturnType<typeof containedPhotoRect>>(null);
@@ -185,11 +179,6 @@ export function BeforeAfterSlider({
     place(next);
   };
   const shown = intro ?? position;
-  const pageSmile = pages && fill ? smileRegion(fill) : null;
-  const pageFit: React.CSSProperties = {
-    objectFit: wholePhoto ? "contain" : "cover",
-    objectPosition: pageSmile ? `${Math.round((pageSmile.x + pageSmile.width / 2) * 100)}% ${Math.round((pageSmile.y + pageSmile.height / 2) * 100)}%` : "50% 45%",
-  };
   const dragging = useRef<number | null>(null);
   // The divider's handle slides the comparison at any zoom level. Zoomed in,
   // dragging anywhere else pans the photo instead.
@@ -198,10 +187,10 @@ export function BeforeAfterSlider({
     if (box?.width) move(Math.round(Math.min(100, Math.max(0, ((clientX - box.left) / box.width) * 100))));
   };
   return (
-    <div className={`comparison${overlay ? " comparison-overlay" : ""}${analysis ? " has-guides" : ""}${filling ? " is-filled" : ""}${pages ? " has-pages" : ""}`}>
+    <div className={`comparison${overlay ? " comparison-overlay" : ""}${analysis ? " has-guides" : ""}${filling ? " is-filled" : ""}`}>
       <div ref={root} className="compare-canvas">
       <img className="photo-backdrop" src={original} alt="" aria-hidden="true" />
-      <div ref={photoFrame} className="compare-frame" aria-hidden={pages || undefined} style={viewport ? { inset: "auto", ...viewport, overflow: "hidden", ...maskStyle(edgeMask) } : { visibility: "hidden" }}>
+      <div ref={photoFrame} className="compare-frame" style={viewport ? { inset: "auto", ...viewport, overflow: "hidden", ...maskStyle(edgeMask) } : { visibility: "hidden" }}>
         <ZoomPan
           className="comparison-zoom"
           resetKey={`${preview}|${filling}`}
@@ -276,13 +265,6 @@ export function BeforeAfterSlider({
         </div>
       )}
       </div>
-      {pages && (
-        // Each page frames the smile the same way, so the two read as one before and after.
-        <div className="compare-pages">
-          <div className="compare-page"><img src={original} alt="Original smile" style={pageFit} draggable={false} /></div>
-          <div className="compare-page"><img src={preview} alt={isMock ? "Illustrative demo concept" : "AI-generated smile concept"} style={pageFit} draggable={false} /></div>
-        </div>
-      )}
       <div className="compare-vignette" aria-hidden="true" />
       {!overlay && !analysis && <><span className="compare-label original-label">Before</span><span className="compare-label preview-label">{previewLabel}</span></>}
       {analysis ? (

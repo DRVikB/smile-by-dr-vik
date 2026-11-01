@@ -5,17 +5,19 @@ import { planForProduct } from "@/config/subscriptions";
 import { describeAllowance, entitlementOf, isUnlimited, widgetAllowance } from "@/lib/allowance";
 import { isNativeApp } from "@/native/platform";
 import { AccessCodeForm, accessCodesShown } from "@/components/account/AccessCodeForm";
+import { useAdmin } from "@/components/portal/AdminView";
 import { openManageSubscriptions, purchasesAvailable, redeemOfferCode, restorePurchases } from "@/services/purchases/purchases";
 import { Group, Row, UsageBar, formatBytes, formatDate, useSettingsNav } from "./settingsParts";
 
 /** One entitlement from the server: plan, status, balance and renewal (display only). */
 function usePlan() {
   const { status, statusState } = useAccount();
+  const { isAdmin } = useAdmin();
   const entitlement = status ? entitlementOf(status) : null;
   const allowance = entitlement ? describeAllowance(entitlement) : null;
   const plan = entitlement?.plan ?? null;
   const planName = !entitlement ? null
-    : plan === "complimentary" ? "Complimentary access"
+    : plan === "complimentary" ? (isAdmin ? "Admin" : "Complimentary access")
       : plan === "trial" ? `SmileCompose Pro ${planForProduct(status?.subscription?.productId) === "annual" ? "Annual" : "Monthly"} · free trial`
         : plan ? `SmileCompose Pro ${plan === "annual" ? "Annual" : "Monthly"}`
           : "Not subscribed";
@@ -32,7 +34,7 @@ function usePlan() {
       none: "Not subscribed",
     } as const)[entitlement.subscriptionStatus];
   const inactive = entitlement ? entitlement.subscriptionStatus === "expired" || entitlement.subscriptionStatus === "none" : false;
-  return { entitlement, allowance, plan, planName, end, statusLine, inactive };
+  return { entitlement, allowance, plan, planName, end, statusLine, inactive, isAdmin };
 }
 
 /**
@@ -45,13 +47,14 @@ export function PlanCard() {
   const account = useAccount();
   const { configured, user, status, statusState } = account;
   const nav = useSettingsNav();
-  const { entitlement, plan, statusLine, inactive } = usePlan();
+  const { entitlement, plan, statusLine, inactive, isAdmin } = usePlan();
   const title = !configured || !user || !entitlement ? "SmileCompose Pro"
     : inactive ? (entitlement.subscriptionStatus === "expired" ? "SmileCompose Pro" : "SmileCompose Free")
       : plan === "annual" ? "SmileCompose Pro · Annual" : plan === "monthly" ? "SmileCompose Pro · Monthly" : "SmileCompose Pro";
   const sub = !configured ? "Not available in this version"
     : !user ? "Sign in to see your plan and generations"
       : !entitlement ? statusLine
+        : plan === "complimentary" && isAdmin ? "Admin"
         : plan === "complimentary" ? (status?.overrideExpiresAt ? `Complimentary access · until ${formatDate(status.overrideExpiresAt)}` : "Complimentary access")
           : entitlement.subscriptionStatus === "active" ? (describeAllowance(entitlement).renewal ?? statusLine) : statusLine;
   const showBalance = Boolean(entitlement && !inactive);

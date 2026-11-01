@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Camera, Minus, Plus, X } from "lucide-react";
 import { SMILE_GUIDE, type Photo } from "@/lib/types";
 import { preparePhoto } from "@/lib/photos";
+import { holdOriginal } from "@/lib/originals";
 import { zoomedCrop } from "@/lib/capture";
 import { clampPan, zoomAbout, IDENTITY, type ZoomState } from "./ZoomPan";
 
@@ -258,10 +259,9 @@ export function CameraSheet({
           0.95,
         ),
       );
-      const photo = await preparePhoto(
-        new File([blob], "smile-photo.jpg", { type: "image/jpeg" }),
-      );
-      if (mounted.current) await onCapture({ ...photo, framing: SMILE_GUIDE });
+      const file = new File([blob], "smile-photo.jpg", { type: "image/jpeg" });
+      const photo = await preparePhoto(file);
+      if (mounted.current) await onCapture({ ...photo, framing: SMILE_GUIDE, pendingOriginal: holdOriginal(file, file.name) });
     } catch {
       if (mounted.current) setError("We couldn’t capture that photo. Please try again.");
     } finally {
@@ -428,7 +428,7 @@ export function CameraSheet({
               setBusy(true);
               try {
                 const prepared = await preparePhoto(file);
-                if (mounted.current) await onCapture(prepared);
+                if (mounted.current) await onCapture({ ...prepared, pendingOriginal: holdOriginal(file, file.name) });
               } catch (err) {
                 if (mounted.current) setError(
                   err instanceof Error ? err.message : "Could not open photo.",

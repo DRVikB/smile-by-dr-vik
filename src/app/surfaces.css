@@ -339,6 +339,16 @@ body { background: var(--background); }
   .photo-option-gallery img:nth-child(4) { grid-column: 6 / 9; }
   .photo-option-gallery img:nth-child(5) { grid-column: 9 / 13; }
 }
+/* A phone on its side: the screen's width in use, as on iPad. The two photo sources sit side by side under the
+   confirmation, each with a shorter picture, so both choices are on screen at once. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .photo-start { width: auto; max-width: none; gap: 10px; padding-top: 4px; margin-inline: max(16px, var(--safe-left)) max(16px, var(--safe-right)); }
+  .photo-start .upload-authority { gap: 4px; }
+  .photo-start .ai-consent-check { padding: 10px 14px; }
+  .photo-start .photo-options { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .photo-start .photo-option { min-height: 0; gap: 8px; padding: 12px; }
+  .photo-start .photo-option .photo-option-visual { height: 96px; min-height: 0; }
+}
 
 /* ============================================================
    Settings: floating profile card, labelled floating groups
@@ -677,6 +687,23 @@ button.settings-stat:focus-visible { outline: 2px solid var(--focus-ring); outli
 @media (max-width: 440px) {
   .settings-stat { justify-content: center; text-align: center; }
   .settings-stat-icon { display: none; }
+}
+/* Where the three figures are narrow but keep their symbols (iPad upright, a phone on its side, the open Duo),
+   each stacks its symbol, number and label so the label reads in full. Where they already fit (iPad Pro 13-inch,
+   iPads on their side), nothing changes. Narrow phones and the closed Duo drop the symbol instead (above and
+   side-rail.css). */
+.settings-panel .settings-list > .settings-stats { container: storage-figures / inline-size; }
+@media (min-width: 441px) {
+  @container storage-figures (max-width: 560px) {
+    html:not([data-side-bar]) .settings-stat { flex-direction: column; align-items: flex-start; gap: 6px; }
+    html:not([data-side-bar]) .settings-stat-text small { overflow: visible; white-space: normal; text-overflow: clip; }
+  }
+}
+@media (min-width: 700px) {
+  @container storage-figures (max-width: 560px) {
+    html[data-side-bar] .settings-stat { flex-direction: column; align-items: flex-start; gap: 6px; }
+    html[data-side-bar] .settings-stat-text small { overflow: visible; white-space: normal; text-overflow: clip; }
+  }
 }
 
 /* Preferences: one compact System | Light | Dark control */

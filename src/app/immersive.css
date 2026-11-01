@@ -122,7 +122,9 @@
   letter-spacing: 0;
   line-height: 1;
 }
-.generation-splash-actions { display: flex; align-items: center; gap: 24px; }
+/* As tall as Cancel even when Cancel is in iPhone Duo's side bar, so the header (and the wordmark centred in
+   it) keeps the same height and position on every device. */
+.generation-splash-actions { display: flex; align-items: center; gap: 24px; min-height: 44px; }
 .generation-splash-actions img {
   display: block;
   width: auto;

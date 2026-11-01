@@ -1,6 +1,6 @@
 "use client";
 
-import { SideRailLayer, useSideRail } from "@/components/sideRail/SideRail";
+import { RailButton, RailItems, SideRailLayer, useSideRail } from "@/components/sideRail/SideRail";
 import { useEffect, useRef, useState } from "react";
 import { ComposingMark } from "./ComposingMark";
 import { CenteredBrandHeader } from "./ui/Surface";
@@ -110,7 +110,11 @@ export function GenerationState({
         }
       }}
     >
-      <SideRailLayer />
+      {/* On iPhone Duo, Cancel is the first control in the side bar, as Close is on every sheet. The header
+          keeps its height without it (immersive.css), so SMILECOMPOSE stays where it is. */}
+      <SideRailLayer>
+        {centred && <RailItems order={0}><RailButton label="Cancel generation" onClick={onCancel} buttonRef={cancelButton}><X size={21} strokeWidth={1.9} /></RailButton></RailItems>}
+      </SideRailLayer>
       <img className="photo-backdrop generation-backdrop" src={photo} alt="" aria-hidden="true" />
       <FocusedPhoto className="generation-splash-image" src={photo} focus={focus} layout={centred ? centredLayout : composingLayout} />
       <CenteredBrandHeader
@@ -118,10 +122,12 @@ export function GenerationState({
         inverse
         right={
           <div className="generation-splash-actions">
-            <button ref={cancelButton} type="button" onClick={onCancel} aria-label="Cancel generation">
-              <X size={17} strokeWidth={1.8} />
-              <span>Cancel</span>
-            </button>
+            {!centred && (
+              <button ref={cancelButton} type="button" onClick={onCancel} aria-label="Cancel generation">
+                <X size={17} strokeWidth={1.8} />
+                <span>Cancel</span>
+              </button>
+            )}
           </div>
         }
       />

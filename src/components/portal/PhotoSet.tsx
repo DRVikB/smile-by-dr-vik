@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ImageDown, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { MAX_PHOTOS, PHOTO_SLOTS, type PhotoSlot } from "@/lib/portal";
 import { photoForSlot, type SlotPhotos } from "./portalData";
 
@@ -72,19 +72,31 @@ export function PhotoSet({ thumbs, designThumb, layout = "strip", busy, onAdd, o
   </div>;
 }
 
-/** Full-screen view of one photo from the set, with replace, remove and previous/next. */
-export function PhotoViewer({ slot, filled, load, onClose, onReplace, onRemove, onMove }: {
+/** Full-screen view of one photo from the set, with replace, remove, share the original and previous/next. */
+export function PhotoViewer({ slot, filled, load, onClose, onReplace, onRemove, onMove, original }: {
   slot: PhotoSlot;
   /** Filled slots in order, for previous/next. */
   filled: PhotoSlot[];
   load: (slot: PhotoSlot) => Promise<string | null>;
   onClose: () => void;
-  onReplace?: (slot: PhotoSlot, photo: string) => void;
+  /** `file` is the photo exactly as chosen, kept full size beside the case by the app. */
+  onReplace?: (slot: PhotoSlot, photo: string, file?: File) => void;
   /** Absent for the design photo, which belongs to the design. */
   onRemove?: (slot: PhotoSlot) => void;
   onMove: (slot: PhotoSlot) => void;
+  /** The view's full-size original on this device (the app only): whether there is one, and sharing it. */
+  original?: { has: (slot: PhotoSlot) => Promise<boolean>; share: (slot: PhotoSlot) => Promise<void> };
 }) {
   const [src, setSrc] = useState<string | null>(null);
+  const [hasOriginal, setHasOriginal] = useState(false);
+  const originalRef = useRef(original);
+  originalRef.current = original;
+  useEffect(() => {
+    let live = true;
+    setHasOriginal(false);
+    originalRef.current?.has(slot).then(found => { if (live) setHasOriginal(found); }, () => {});
+    return () => { live = false; };
+  }, [slot]);
   const [state, setState] = useState<"loading" | "ready" | "missing">("loading");
   const input = useRef<HTMLInputElement>(null);
   // Load once per slot, not on every render of the parent.
@@ -111,6 +123,7 @@ export function PhotoViewer({ slot, filled, load, onClose, onReplace, onRemove, 
     <div className="pt-viewer-top" onClick={e => e.stopPropagation()}>
       <span>{labelOf(slot)}{filled.length > 1 && <small> · {at + 1} of {filled.length}</small>}</span>
       <span className="pt-viewer-actions">
+        {original && hasOriginal && <button type="button" onClick={() => void original.share(slot)}><ImageDown size={15} />Share original</button>}
         {onReplace && <button type="button" onClick={() => input.current?.click()}><RefreshCw size={15} />Replace</button>}
         {onRemove && <button type="button" onClick={() => { onRemove(slot); onClose(); }}><Trash2 size={15} />Remove</button>}
         <button type="button" aria-label="Close" onClick={onClose}><X size={18} /></button>
@@ -124,7 +137,7 @@ export function PhotoViewer({ slot, filled, load, onClose, onReplace, onRemove, 
     </div>
     <input ref={input} type="file" accept="image/*,.heic,.heif" hidden onChange={async e => {
       const file = e.target.files?.[0]; e.target.value = "";
-      if (file && onReplace) { const photo = await photoForSlot(file); setSrc(photo); setState("ready"); onReplace(slot, photo); }
+      if (file && onReplace) { const photo = await photoForSlot(file); setSrc(photo); setState("ready"); setHasOriginal(Boolean(original)); onReplace(slot, photo, file); }
     }} />
   </div>;
 }

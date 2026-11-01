@@ -156,7 +156,9 @@
     right: 0;
     bottom: calc(100% + 10px);
     width: min(410px, calc(100vw - 32px));
-    max-height: min(74dvh, 570px);
+    /* Never taller than the room between the header (and its Test mode note) and the dock, so on a small
+       iPhone the title and Close stay below the header; the list scrolls inside. */
+    max-height: min(74dvh, 570px, calc(100dvh - var(--photo-header) - max(16px, var(--safe-bottom)) - 96px));
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 14px 18px;

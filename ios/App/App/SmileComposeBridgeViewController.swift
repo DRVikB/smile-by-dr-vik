@@ -36,6 +36,12 @@ class SmileComposeBridgeViewController: CAPBridgeViewController {
                 self.view.setNeedsLayout()
             }
         }
+        // The reader's text size follows Settings › Display & Brightness › Text Size as it changes.
+        if #available(iOS 17.0, *) {
+            registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: Self, _: UITraitCollection) in
+                self.applyTextSize()
+            }
+        }
 
         // Warm ivory in Light and deep charcoal in Dark behind the web view, so
         // launch, rotation and overscroll never flash white.
@@ -150,9 +156,11 @@ class SmileComposeBridgeViewController: CAPBridgeViewController {
         return data.flatMap { String(data: $0, encoding: .utf8) }.map { String($0.dropFirst().dropLast()) } ?? "\"\""
     }
 
+    /// iOS 15 and 16 only; from iOS 17 the trait registration in capacitorDidLoad does this.
+    @available(iOS, deprecated: 17.0)
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
-        if previous?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory { applyTextSize() }
+        if #unavailable(iOS 17.0), previous?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory { applyTextSize() }
     }
 
     // MARK: iPhone Duo side bar

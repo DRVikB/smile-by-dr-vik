@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getCaseRepository } from "@/services/cases/caseRepository";
 import { caseIdOf } from "@/models/case";
 import { standardTreatmentSummary } from "@/lib/fullArch";
-import { isCaseStatus, type CaseStatus, type PhotoSlot } from "@/lib/portal";
+import { isCaseStatus, type CaseAppointment, type CaseEvent, type CaseInvoice, type CaseStatus, type PhotoSlot } from "@/lib/portal";
 import type { CaseLogEntry, CaseLogMedia, SmileSettings } from "@/lib/types";
 
 export interface PortalCaseCard {
@@ -22,6 +22,18 @@ export interface PortalCaseCard {
   tags: string[];
   concepts: number;
   photoCount: number;
+  /** When each saved concept was made, newest first. */
+  conceptTimes: number[];
+  /** Smile Previews and reports sent to the patient. */
+  sent: { kind: string; at: number }[];
+  hasConsent: boolean;
+  fee?: number;
+  feeNote?: string;
+  invoices: CaseInvoice[];
+  appointment?: CaseAppointment;
+  history: CaseEvent[];
+  stageAt?: number;
+  archived: boolean;
 }
 
 const TAGS = /(whiten|veneer|porcelain|composite|bonding|align|straighten|full arch|all-on|one tooth|zirconia)/i;
@@ -29,7 +41,8 @@ const TAGS = /(whiten|veneer|porcelain|composite|bonding|align|straighten|full a
 /** "Porcelain · 8 teeth · Whiten" → ["Porcelain", "Whiten"]: the treatment words only. */
 export function tagsFrom(summary: string | undefined): string[] {
   if (!summary) return [];
-  const parts = summary.split(/\s*(?:·|\+|,)\s*/).map(p => p.trim()).filter(Boolean);
+  // "Upper + lower full arch" is one treatment: don't let the "+" split it into "Lower full arch".
+  const parts = summary.replace(/\b(?:upper|lower)\s*\+\s*(?:upper|lower)\s+full arch/i, "Full arch").split(/\s*(?:·|\+|,)\s*/).map(p => p.trim()).filter(Boolean);
   return [...new Set(parts.filter(p => TAGS.test(p)).map(p => p.replace(/^./, c => c.toUpperCase())))].slice(0, 3);
 }
 
@@ -37,11 +50,12 @@ export function tagsFrom(summary: string | undefined): string[] {
 export function usePortalCases() {
   const [repository] = useState(getCaseRepository);
   const [cases, setCases] = useState<PortalCaseCard[] | null>(null);
+  const [allCases, setAllCases] = useState<PortalCaseCard[] | null>(null);
   const load = useCallback(async () => {
     const [entries, index] = await Promise.all([repository.listLog(), repository.portalIndex()]);
     const byCase = new Map<string, CaseLogEntry[]>();
     for (const entry of entries) {
-      if (entry.testMode || entry.mode === "mock" || entry.deletedAt || entry.archivedAt) continue;
+      if (entry.testMode || entry.mode === "mock" || entry.deletedAt) continue;
       const id = caseIdOf(entry);
       byCase.set(id, [...(byCase.get(id) ?? []), entry]);
     }
@@ -53,18 +67,25 @@ export function usePortalCases() {
       const status = isCaseStatus(details?.status) ? details.status : "progress";
       return {
         id, name, reference: details?.reference ?? "", status, thumb: sorted[0].thumb, updatedAt: sorted[0].createdAt,
-        createdAt: sorted[sorted.length - 1].createdAt, labels: details?.tags ?? [],
+        createdAt: Math.min(details?.createdAt ?? Infinity, sorted[sorted.length - 1].createdAt), labels: details?.tags ?? [],
         favourite: saved.some(e => e.favourite), latestEntryId: saved[0]?.id ?? null,
         tags: tagsFrom(saved[0]?.summary), concepts: saved.length, photoCount: details?.photoCount ?? 0,
+        conceptTimes: saved.map(e => e.createdAt),
+        sent: saved.flatMap(e => (e.exports ?? []).map(x => ({ kind: x.kind, at: x.createdAt }))).sort((a, b) => b.at - a.at),
+        hasConsent: Boolean(details?.hasConsent), fee: details?.fee, feeNote: details?.feeNote, invoices: details?.invoices ?? [],
+        appointment: details?.appointment, history: details?.history ?? [], stageAt: details?.stageAt,
+        archived: Boolean(details?.archived) || group.every(e => e.archivedAt),
       };
     }).sort((a, b) => b.updatedAt - a.updatedAt);
-    setCases(cards);
+    // Archived cases leave the lists but keep their invoices in Billing.
+    setAllCases(cards);
+    setCases(cards.filter(c => !c.archived));
   }, [repository]);
   useEffect(() => {
     void load().catch(() => setCases([]));
     return repository.subscribe(() => void load().catch(() => {}));
   }, [repository, load]);
-  return { cases, reload: load, repository };
+  return { cases, allCases, reload: load, repository };
 }
 
 export interface CaseVersion { entry: CaseLogEntry; media: CaseLogMedia }

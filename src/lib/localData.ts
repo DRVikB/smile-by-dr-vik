@@ -1,6 +1,6 @@
 import { captureWorkspace, invalidateWorkspace, workspaceDatabase, type WorkspaceLease } from "./workspace";
 /** Original databases are explicitly legacy/unowned; never read as an account's cache. */
-export const LOCAL_DATABASES = ["smile-temporary-case", "smile-case-log", "smile-case-library", "smile-validation", "smile-patient-sync"] as const;
+export const LOCAL_DATABASES = ["smile-temporary-case", "smile-case-log", "smile-case-library", "smile-validation", "smile-patient-sync", "smile-originals"] as const;
 /** A blocked request remains pending. onversionchange on our connections releases it. */
 export function deleteDatabase(name: string, factory: IDBFactory): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -34,7 +34,7 @@ export async function deleteAllLocalData(factory: IDBFactory = indexedDB, storag
 }
 /** Only this workspace's cases/draft. Other accounts and references are kept. */
 export async function deleteAllCases(factory: IDBFactory = indexedDB, scope = captureWorkspace()): Promise<void> {
-  const names = ["smile-temporary-case", "smile-case-log", "smile-patient-sync"].map(name => workspaceDatabase(name, scope));
+  const names = ["smile-temporary-case", "smile-case-log", "smile-patient-sync", "smile-originals"].map(name => workspaceDatabase(name, scope));
   invalidateWorkspace();
   await Promise.all(names.map(name => deleteDatabase(name, factory)));
 }

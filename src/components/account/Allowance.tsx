@@ -3,23 +3,27 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { describeAllowance, entitlementOf, type AllowanceView } from "@/lib/allowance";
 import { useAccount } from "./AccountProvider";
+import { useAdmin } from "@/components/portal/AdminView";
 
 const DISMISS_KEY = "smile.allowance.dismissed";
 
 /** The signed-in Pro clinician's allowance, or null (signed out, no Pro, or not loaded). Display only. */
 export function useAllowance(): AllowanceView | null {
   const { configured, status, hasProAccess } = useAccount();
+  const { isAdmin } = useAdmin();
   if (!configured || !status || !hasProAccess) return null;
-  return describeAllowance(entitlementOf(status));
+  const allowance = describeAllowance(entitlementOf(status));
+  // Admin accounts read "Admin"; testers and other complimentary accounts keep "Complimentary access".
+  return isAdmin && allowance.plan === "complimentary" ? { ...allowance, renewal: "Admin" } : allowance;
 }
 
 /** "38 generations remaining · Renews 14 October": quiet, and opens Subscription. */
-export function AllowancePill({ className = "" }: { className?: string }) {
+export function AllowancePill({ className = "", onOpen }: { className?: string; onOpen?: () => void }) {
   const allowance = useAllowance();
   const { openSettings } = useAccount();
   if (!allowance) return null;
   return (
-    <button type="button" className={`allowance-pill level-${allowance.level} ${className}`.trim()} onClick={() => openSettings("subscription")}
+    <button type="button" className={`allowance-pill level-${allowance.level} ${className}`.trim()} onClick={() => (onOpen ? onOpen() : openSettings("subscription"))}
       aria-label={`${allowance.summary}${allowance.renewal ? `. ${allowance.renewal}` : ""}. Open subscription.`}>
       <span className="allowance-dot" aria-hidden="true" />
       <span>{allowance.summary}{allowance.renewal && <small> · {allowance.renewal}</small>}</span>

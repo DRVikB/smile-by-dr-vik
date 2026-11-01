@@ -196,6 +196,10 @@ export interface Photo {
   name: string;
   width: number;
   height: number;
+  /** The full-size original this working copy was made from, kept on the device (src/lib/originals.ts). */
+  originalId?: string;
+  /** Between reading a photo and the case accepting it: the token its original is held under. Never saved. */
+  pendingOriginal?: string;
   isSample?: boolean;
   framing?: Framing;
   /** A quick local read on sharpness/exposure, advisory only. */

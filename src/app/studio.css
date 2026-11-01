@@ -271,16 +271,17 @@ input[type="checkbox"][role="switch"],
   .studio-stage { height: 30dvh; min-height: 170px; }
   .studio-dock { gap: 10px; padding-top: 10px; }
 }
-/* iPhone upright: after the Teeth step the photo gives up some height (it stays framed on the smile), so each
-   step's choices show without scrolling. Shape keeps a little more for dragging the smile guide. */
+/* iPhone upright: the photo gives up some height on every step (it stays framed on the smile), so each step's
+   choices show above Next without scrolling. Teeth and Shape keep a little more, for the arch and for dragging
+   the smile guide. */
 @media (max-width: 599px) and (orientation: portrait) {
   .studio-stage { transition: height 340ms var(--ease-soft, cubic-bezier(.2, .8, .2, 1)), min-height 340ms var(--ease-soft, cubic-bezier(.2, .8, .2, 1)); }
-  .studio[data-step="shape"] .studio-stage { height: 30dvh; min-height: 200px; }
+  .studio:is([data-step="teeth"], [data-step="shape"]) .studio-stage { height: 30dvh; min-height: 200px; }
   .studio:is([data-step="shade"], [data-step="treatment"], [data-step="review"]) .studio-stage { height: 25dvh; min-height: 180px; }
   .studio[data-step="review"] .studio-review-row { min-height: 52px; padding-block: 7px; }
 }
 @media (max-width: 599px) and (max-height: 720px) and (orientation: portrait) {
-  .studio[data-step="shape"] .studio-stage { height: 26dvh; min-height: 160px; }
+  .studio:is([data-step="teeth"], [data-step="shape"]) .studio-stage { height: 26dvh; min-height: 160px; }
   .studio:is([data-step="shade"], [data-step="treatment"], [data-step="review"]) .studio-stage { height: 22dvh; min-height: 140px; }
 }
 @media (prefers-reduced-motion: reduce) { .studio-stage { transition: none; } }
@@ -363,7 +364,6 @@ input[type="checkbox"][role="switch"],
 /* Sized by the card they sit in, so the four tiles and their labels fit a narrow column as well as a wide one. */
 .studio-shapes { container: studio-shapes / inline-size; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 @container studio-shapes (max-width: 300px) { .studio-shape { padding-inline: 2px; font-size: 12.5px; letter-spacing: -.01em; } }
-@media (max-width: 420px) { .studio-shapes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .studio-shape {
   display: grid; justify-items: center; gap: 6px; padding: 12px 6px 10px;
   border-radius: 16px; background: var(--background); border: 1px solid var(--border);
@@ -372,12 +372,17 @@ input[type="checkbox"][role="switch"],
 }
 .studio-shape-figure { width: 100%; max-width: 88px; }
 /* Every tile keeps its icon and name inside it: the layout never grows past the tile, so the four icons
-   and names sit at the same size and height. Where four in a row would be too narrow for "Rectangle"
-   on one line (the Duo's screens, an iPhone on its side), the shapes go two by two. */
+   and names sit at the same size and height. The four forms stay in one row wherever that row is at least
+   290pt wide (iPhone upright, the closed Duo, a phone on its side), with smaller tiles under 360pt; only a
+   narrower column goes two by two. */
 .studio-shape { grid-template-columns: minmax(0, 1fr); min-width: 0; }
 .studio-shape > span:last-child { max-width: 100%; white-space: nowrap; }
 .studio-shapes-fit { container: shape-row / inline-size; }
-@container shape-row (max-width: 360px) { .studio-shapes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container shape-row (max-width: 360px) {
+  .studio-shapes { gap: 6px; }
+  .studio-shape { gap: 4px; padding: 8px 2px 6px; font-size: 11.5px; letter-spacing: -.01em; }
+}
+@container shape-row (max-width: 289px) { .studio-shapes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .studio-shape[aria-pressed="true"] { background: var(--surface-elevated); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent), 0 6px 16px -10px rgba(120, 88, 40, .5); }
 .studio-shape[aria-pressed="true"] .tooth-form-main path { fill: #FFFFFF; stroke: var(--accent-text); stroke-width: 2.2; }
 
@@ -503,22 +508,25 @@ input[type="checkbox"][role="switch"],
   .studio-stage[data-photo-shape] + .studio-dock :is(.studio-tabs, .studio-cards, .studio-steps-nav) { max-width: 760px; }
 }
 /* iPhone landscape: the iPad workflow, compressed. The photograph fills the left at full
-   height; the steps scroll in their own column on the right, with Back / Next (or
-   Generate) pinned at its foot, all inside the safe areas. */
+   height, about 40% of the width and framed on the smile; the steps get the rest and scroll
+   in their own column, with Back / Next (or Generate) pinned at its foot, all inside the
+   safe areas. The tab names the step, so its one-line description gives way. */
 @media (orientation: landscape) and (max-height: 500px) {
   .studio { flex-direction: row; gap: 0; }
   .studio-stage {
-    flex: 1 1 auto; height: auto; min-height: 0; border-radius: 16px;
+    flex: none; width: 40%; height: auto; min-height: 0; border-radius: 16px;
     margin: 0 0 max(8px, var(--app-safe-bottom)) max(12px, var(--app-safe-left));
   }
-  .studio-dock { flex: 0 0 calc(min(400px, 50%) + 12px); gap: 10px; padding: 0 max(12px, var(--app-safe-right)) 0 12px; }
+  .studio-dock { flex: 1 1 auto; min-width: 0; gap: 10px; padding: 0 max(12px, var(--app-safe-right)) 0 12px; }
+  .studio-card.studio-page { gap: 8px; padding: 12px 16px; }
+  .studio-card-head, .studio-arch-fit { margin: 0; }
   .studio-tabs, .studio-cards, .studio-steps-nav { max-width: none; margin-inline: 0; }
   .studio-tabs { padding: 3px; border-radius: 16px; }
   .studio-tabs::before { display: none; }
   .studio-tabs button { flex-direction: column; gap: 2px; min-height: 46px; padding: 4px 2px; border-radius: 12px; font-size: 11px; }
   .studio-tabs button svg { width: 18px; height: 18px; }
   .studio-card-head h3 { font-size: 21px; }
-  .studio-card-head p { font-size: 13px; }
+  .studio-card-head p { display: none; }
   .studio-arch { zoom: 1; }
   .studio-generate {
     margin: auto calc(-1 * max(12px, var(--app-safe-right))) 0 -12px;
@@ -977,12 +985,30 @@ input[type="checkbox"][role="switch"],
 .studio-more-body.is-shown { display: grid; gap: 18px; padding-top: 16px; border-top: 1px solid var(--separator); }
 
 
-/* iPhone upright: the chosen photo's frame takes the photo's own shape (between 3:4 and 7:5), so a sideways
-   close-up shows without blurred bands above and below it; anything outside that range is cropped, not banded. */
+/* iPhone upright (and the closed iPhone Duo): the chosen photo sits in a band about a third of the screen high,
+   in its own shape and centred, as on iPad. The question, every goal and "Design step by step" show with it
+   without scrolling; pinch to zoom still works on the photo. */
 @media (max-width: 599px) and (orientation: portrait) {
-  .photo-step .photo-stage { aspect-ratio: clamp(.75, var(--photo-aspect, 1), 1.4); }
+  .photo-step { gap: 12px; }
+  .photo-step .photo-stage {
+    container-type: size; height: min(32dvh, 300px); min-height: 150px; aspect-ratio: auto;
+    border: 0; border-radius: 0; background: none; overflow: visible;
+  }
   .photo-step .photo-stage .photo-backdrop { display: none; }
-  .photo-step .photo-stage .photo-stage-original { object-fit: cover; }
+  .photo-step .photo-stage > .photo-stage-zoom {
+    inset: 0; margin: auto; border-radius: 22px;
+    width: min(100cqw, calc(100cqh * var(--photo-aspect, .75))); height: min(100cqh, calc(100cqw / var(--photo-aspect, .75)));
+  }
+  .photo-step .photo-aside { gap: 8px; }
+  .photo-step .quick-smile { gap: 8px; }
+  .photo-step .quick-smile-goal { min-height: 50px; padding-block: 6px; }
+}
+/* A short phone upright (iPhone SE, the closed Duo): a shallower band, so "Design step by step" still shows. The
+   photo is too small there for the "Pinch to zoom" hint, which would cover the face; pinching still works. */
+@media (max-width: 599px) and (max-height: 720px) and (orientation: portrait) {
+  .photo-step .photo-stage { height: 23dvh; min-height: 136px; }
+  .photo-step .photo-aside .photo-heading { font-size: 30px; }
+  .app-shell .photo-step .zoompan-hint { display: none; }
 }
 /* A short screen on its side (a phone, the closed iPhone Duo): the frame keeps its size; the photo fills it
    rather than sitting on a blurred band. */

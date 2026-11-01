@@ -1,6 +1,6 @@
 "use client";
 import { useSwipeBack } from "@/components/appGestures";
-import { SheetClose, SideRailLayer, useFold } from "@/components/sideRail/SideRail";
+import { SheetClose, SideRailLayer } from "@/components/sideRail/SideRail";
 import type { MouthAlignmentDiagnostic } from "@/lib/face/alignmentDiagnostic";
 import { normalizeTreatmentScope, standardTreatmentSummary } from "@/lib/fullArch";
 import { generationUnavailable, INTERNAL_SINGLE_TOOTH } from "@/lib/generation/availability";
@@ -74,6 +74,7 @@ import type { ShortcutAction } from "@/native/shortcuts";
 
 import { thumbnail } from "@/lib/thumb";
 import { ensurePhotoDimensions, preparePhoto } from "@/lib/photos";
+import { createOriginalStore, holdOriginal, takeHeldOriginal } from "@/lib/originals";
 import { useCaseRecord } from "@/components/useCaseRecord";
 import { adoptLegacyPriorities, goalsSummary, normaliseConsultation, type CaseConsultation } from "@/lib/caseConsultation";
 import { PatientGoalsCard, PatientGoalsSheet } from "@/components/consultation/PatientGoals";
@@ -241,6 +242,7 @@ function guideFocus(guide: Photo["smileGuide"], width: number, height: number): 
 export default function Smile() {
   const [repository] = useState(getCaseRepository);
   const [deviceLibrary] = useState(() => createLibraryStore(repository.scope));
+  const [originals] = useState(() => createOriginalStore(repository.scope));
   const { readCase, persistCase, updateLogReview } = repository;
   const [screen, setScreen] = useState<Screen>("start");
   const [photo, setPhoto] = useState<Photo | null>(null);
@@ -292,11 +294,12 @@ export default function Smile() {
     return () => { active = false; };
   }, []);
   const [ready, setReady] = useState(false);
-  // Signed in on a computer-sized browser: the web portal replaces the app's Home screen.
+  // Signed in on a browser wider than a phone: the web portal replaces the app's Home screen.
   const [wideWeb, setWideWeb] = useState(false);
   useEffect(() => {
     if (isNativeApp()) return;
-    const query = window.matchMedia("(min-width: 1024px)");
+    // Tablets and narrow browser windows get the dashboard too (its sidebar folds to icons); phones keep the app.
+    const query = window.matchMedia("(min-width: 640px)");
     const update = () => setWideWeb(query.matches);
     update();
     query.addEventListener("change", update);
@@ -366,15 +369,6 @@ export default function Smile() {
     desktop.addEventListener("change", update);
     return () => desktop.removeEventListener("change", update);
   }, [desktopReviewEligible, resultVariationId]);
-  // iPhone Duo folded like a laptop: the lower half is Review & refine's, so it opens there on reaching a
-  // result (and closes again on unfolding, if folding opened it). It runs after the desktop rule above, so it wins.
-  const foldAxis = useFold()?.axis;
-  const reviewForFold = useRef(false);
-  const onResult = screen === "preview" && Boolean(result);
-  useEffect(() => {
-    if (foldAxis === "horizontal" && onResult) { setReviewOpen(open => { if (!open) reviewForFold.current = true; return true; }); }
-    else if (foldAxis !== "horizontal" && reviewForFold.current) { reviewForFold.current = false; setReviewOpen(false); }
-  }, [foldAxis, onResult, resultVariationId]);
   // Pinned cases override the automatic match, and are a chairside choice for
   // this session rather than something saved with the case.
   const [pinnedCases, setPinnedCases] = useState<string[]>([]);
@@ -610,6 +604,9 @@ export default function Smile() {
     if(c)restoreWorkingCase(c);else{newSmile();setScreen("start");}
   }),[repository]);
 
+  // Once per launch: full-size originals of cases that have gone since (src/lib/originals.ts).
+  useEffect(() => { void repository.pruneOriginals().catch(() => {}); }, [repository]);
+
   useEffect(() => {
     let active = true;
     readCase({ forLaunch: true })
@@ -717,8 +714,16 @@ export default function Smile() {
 
   /** `shotType` when the camera already knows it (an iPhone held sideways takes a close-up); otherwise it is read from the photo. */
   async function selectPhoto(p: Photo, shotType?: ShotType) {
-    p={...p,sourceProvenance:p.sourceProvenance??"prepared"};
+    const { pendingOriginal, ...accepted } = p;
+    p={...accepted,sourceProvenance:accepted.sourceProvenance??"prepared"};
     const nextCaseId = testMode || !caseId ? crypto.randomUUID() : caseId;
+    // The full-size original is kept beside the case on this device, for a lab or the patient's records; only its
+    // id travels with the working photo, so autosaves stay small.
+    const original = takeHeldOriginal(pendingOriginal);
+    if (original) {
+      try { p = { ...p, originalId: (await originals.save({ caseId: nextCaseId, role: "design", blob: original.blob, name: original.name })).id }; }
+      catch (e) { storageFailed("save-original", e); }
+    }
     setCaseId(nextCaseId);
     const base = testMode ? { ...defaultSettings } : settings;
     const nextSettings = shotType && base.shotType !== shotType ? { ...base, shotType } : base;
@@ -815,7 +820,8 @@ export default function Smile() {
     try {
       const taken = await takeNativePhoto(SMILE_GUIDE);
       if (!taken) return;
-      const prepared = await preparePhoto(taken.file);
+      // The camera's own full-resolution file is kept beside the case (src/lib/originals.ts).
+      const prepared = { ...await preparePhoto(taken.file), pendingOriginal: holdOriginal(taken.file, taken.file.name) };
       // An iPhone held sideways takes a smile close-up, kept in its own 4:3 landscape shape.
       if (taken.closeUp) { await selectPhoto({ ...prepared, framing: taken.framing }, "Close-up"); return; }
       // Every other capture in the iPhone selfie camera's 3:4 portrait shape (an iPad's front camera is landscape).
@@ -1172,7 +1178,7 @@ export default function Smile() {
             summary: `${toothSummary(used)} · ${used.treatmentMode === "full_arch" && used.fullArch ? (used.fullArch.restorationType === "zirconia" ? "Zirconia" : "Provisional") : standardTreatmentSummary(used)} · ${used.targetShade} · ${used.shape}`,
             thumb,
           },
-          { id, image: entryResult.image, originalImage: photo.dataUrl, photoMetadata: { sourceProvenance:photo.sourceProvenance,name:photo.name,width:photo.width,height:photo.height,framing:photo.framing,quality:photo.quality,toothMap:photo.toothMap,analysisSnapshot:photo.analysisSnapshot }, analysisSnapshot:photo.analysisSnapshot, preferences: entryResult.preferences ?? { settings: used, testMode }, review: entryResult.review, scaleFlag: entryResult.scaleFlag, aiConsent: testMode ? undefined : consent ?? aiConsent ?? undefined, generation: entryResult.generation },
+          { id, image: entryResult.image, originalImage: photo.dataUrl, photoMetadata: { sourceProvenance:photo.sourceProvenance,originalId:photo.originalId,name:photo.name,width:photo.width,height:photo.height,framing:photo.framing,quality:photo.quality,toothMap:photo.toothMap,analysisSnapshot:photo.analysisSnapshot }, analysisSnapshot:photo.analysisSnapshot, preferences: entryResult.preferences ?? { settings: used, testMode }, review: entryResult.review, scaleFlag: entryResult.scaleFlag, aiConsent: testMode ? undefined : consent ?? aiConsent ?? undefined, generation: entryResult.generation },
         );
         saved = true;
       } catch (e) {
@@ -1239,7 +1245,8 @@ export default function Smile() {
     const unavailable = generationUnavailable(used);
     if (unavailable) { setError(unavailable); return; }
     if (isNoChangeDesign(used)) { setError("No change selected. Choose a different shade or design goal; no AI request was sent."); return; }
-    if (!accountReadyForGeneration()) return;
+    // Whitening is drawn on this device and uses no generation, so it needs no account; AI designs do.
+    if (!isOnDeviceWhitening(used) && !accountReadyForGeneration()) return;
     // Claim synchronously, before consent fingerprinting/persistence can yield.
     // React's busy state alone cannot reject a second tap in this interval.
     const controller = new AbortController();
@@ -1871,7 +1878,6 @@ export default function Smile() {
                   fill={photo}
                   reveal={reveal}
                   onRevealed={() => setReveal(false)}
-                  pagesOnFold
                 />
                 {savedNote > 0 && (
                   <p key={savedNote} className="saved-note" role="status">

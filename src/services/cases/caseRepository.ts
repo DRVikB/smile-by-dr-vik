@@ -1,5 +1,6 @@
 import { createCaseLogStore } from "@/lib/caseLog";
 import { createDraftStore } from "@/lib/storage";
+import { createOriginalStore } from "@/lib/originals";
 import { captureWorkspace, guardStore, type WorkspaceLease } from "@/lib/workspace";
 import type { CaseLogEntry, CaseLogMedia, SmileCase } from "@/lib/types";
 import { buildCase, caseIdOf, summariseCases } from "@/models/case";
@@ -9,14 +10,16 @@ import { createSyncCoordinator } from "./sync/coordinator";
 import { encodePatientState, hydrate, referencedAssets } from "./sync/media";
 import { caseMediaStatus } from "./sync/mediaStatus";
 import { stableJson, uuidValid, type Json, type PatientApi } from "./sync/types";
-import { PHOTO_SLOTS, cleanTags, isCaseStatus, isPhotoSlot, validConsent, type CaseConsent, mergePortal, type PhotoSlot, type PortalDetails, type PortalPatch } from "@/lib/portal";
+import { PHOTO_SLOTS, cleanTags, readBilling, isCaseStatus, isPhotoSlot, validConsent, type CaseConsent, mergePortal, type PhotoSlot, type PortalDetails, type PortalPatch } from "@/lib/portal";
 
 /** A case's speech video and face scan are kept by the iOS app itself, outside this store: removed with the case. */
 const dropNativeMedia=(caseId:string)=>{if(typeof window!=="undefined"&&(window as {Capacitor?:{isNativePlatform?:()=>boolean}}).Capacitor?.isNativePlatform?.())void import("@/native/caseMedia").then(m=>m.removeCaseMediaFor(caseId)).catch(()=>{});};
 
 /** UI -> this session-bound repository -> immediate local working copy + durable cloud outbox. */
 export function createCaseRepository(scope: WorkspaceLease) {
- const log=createCaseLogStore(scope),drafts=createDraftStore(scope),local=createPatientLocalStore(scope);
+ const log=createCaseLogStore(scope),drafts=createDraftStore(scope),local=createPatientLocalStore(scope),originals=createOriginalStore(scope);
+ /** The case's files kept outside its record: the full-size original photos here, the iOS app's media natively. */
+ const dropDeviceMedia=(caseId:string)=>{dropNativeMedia(caseId);void originals.removeCase(caseId).catch(()=>{});};
  const listeners=new Set<()=>void>();let writes=Promise.resolve();let lastThumb:{src:string;image:string}|undefined;
  const workingListeners=new Set<(draft:SmileCase|null)=>void>();
  const workingChange=(draft:SmileCase|null)=>{scope.assert();for(const fn of workingListeners)fn(draft);};
@@ -131,12 +134,12 @@ export function createCaseRepository(scope: WorkspaceLease) {
   async setPreferredDesign(id:string,designId:string|null){return write(async()=>{await snapshot(id);const c=await local.getCase(id);if(!c)return;if(designId&&!c.state.entries.some(e=>e&&typeof e==="object"&&!Array.isArray(e)&&e.id===designId))throw new Error("Choose a version from this case.");await sync.enqueue(id,{...c.state,preferredDesignId:designId},c.summary);});},
   async deleteCase(id:string){return write(async()=>{
    await snapshot(id);const c=await local.getCase(id);if(c&&!c.deletedAt)await sync.enqueue(id,c.state,c.summary,[],true);
-   await log.replaceCaseMetadata(id,[]);const d=await drafts.readCase();if(d?.caseId===id){await drafts.persistCase(null);workingChange(null);}dropNativeMedia(id);change();
+   await log.replaceCaseMetadata(id,[]);const d=await drafts.readCase();if(d?.caseId===id){await drafts.persistCase(null);workingChange(null);}dropDeviceMedia(id);change();
   });},
   async deleteLogEntry(id:string){return write(async()=>{
    const entry=(await log.listAllLog()).find(e=>e.id===id);await log.deleteLogEntry(id);if(!entry)return;
    const caseId=caseIdOf(entry),remaining=(await log.listAllLog()).filter(e=>caseIdOf(e)===caseId);
-   if(remaining.length)await snapshot(caseId);else{const c=await local.getCase(caseId);if(c&&!c.deletedAt)await sync.enqueue(caseId,c.state,c.summary,[],true);const d=await drafts.readCase();if(d?.caseId===caseId){await drafts.persistCase(null);workingChange(null);}dropNativeMedia(caseId);}change();
+   if(remaining.length)await snapshot(caseId);else{const c=await local.getCase(caseId);if(c&&!c.deletedAt)await sync.enqueue(caseId,c.state,c.summary,[],true);const d=await drafts.readCase();if(d?.caseId===caseId){await drafts.persistCase(null);workingChange(null);}dropDeviceMedia(caseId);}change();
   });},
   async moveAllToRecentlyDeleted(now=Date.now()){for(const e of await log.listLog())await methods.moveToRecentlyDeleted(e.id,now);},
   async emptyRecentlyDeleted(){const entries=await log.listLog(["deleted"]);for(const e of entries)await methods.deleteLogEntry(e.id);return entries.length;},
@@ -149,8 +152,10 @@ export function createCaseRepository(scope: WorkspaceLease) {
     if(draft.screen==="start")draft.screen=draft.result?"preview":"design";
     await restoreAnalysisSnapshot(draft.photo.dataUrl,draft.photo.analysisSnapshot);scope.assert();sync.pinCase(id);await drafts.persistCase(draft);return draft;},
   async syncStatuses(){return local.cases();},
+  /** Full-size originals whose case is no longer on this device (deleted here while offline, or on another device). */
+  async pruneOriginals(){const keep=new Set<string>([...(await log.listAllLog()).map(caseIdOf),...(await local.cases()).filter(c=>!c.deletedAt).map(c=>c.id)]);const d=await drafts.readCase();if(d?.caseId)keep.add(d.caseId);return originals.prune(keep);},
   /** Web portal: reference, status and notes for every case (no photos). */
-  async portalIndex(){const index:Record<string,{reference?:string;status?:string;name?:string;tags:string[];hasDraft:boolean;photoCount:number}>={};for(const c of await local.cases()){if(c.deletedAt)continue;const p=(c.state.portal??{}) as Record<string,Json>;const photos=p.photos&&typeof p.photos==="object"?Object.keys(p.photos):[];index[c.id]={reference:typeof p.reference==="string"?p.reference:undefined,status:typeof p.status==="string"?p.status:undefined,name:typeof p.name==="string"?p.name:undefined,tags:cleanTags(p.tags),hasDraft:Boolean(c.state.draft),photoCount:photos.length};}return index;},
+  async portalIndex(){const index:Record<string,{reference?:string;status?:string;name?:string;tags:string[];hasDraft:boolean;photoCount:number;hasConsent:boolean;createdAt:number;archived:boolean}&ReturnType<typeof readBilling>>={};for(const c of await local.cases()){if(c.deletedAt)continue;const p=(c.state.portal??{}) as Record<string,Json>;const photos=p.photos&&typeof p.photos==="object"?Object.keys(p.photos):[];index[c.id]={reference:typeof p.reference==="string"?p.reference:undefined,status:typeof p.status==="string"?p.status:undefined,name:typeof p.name==="string"?p.name:undefined,tags:cleanTags(p.tags),hasDraft:Boolean(c.state.draft),photoCount:photos.length,hasConsent:Boolean(p.consent),createdAt:Date.parse(c.createdAt)||Date.now(),archived:Boolean(c.archivedAt),...readBilling(p as Record<string,unknown>)};}return index;},
   /**
    * Web portal and app: one case's details with small photo previews only (full photos load on request,
    * so opening a case downloads a few hundred KB, not the whole set). Older sets without previews fall back to the photo.
@@ -159,7 +164,7 @@ export function createCaseRepository(scope: WorkspaceLease) {
    const raw=(c.state.portal??{}) as Record<string,Json>;const photos=(raw.photos??{}) as Record<string,Json>,thumbRefs=(raw.thumbs??{}) as Record<string,Json>;
    const thumbs:Partial<Record<PhotoSlot,string>>={};
    for(const slot of Object.keys(photos)){if(!isPhotoSlot(slot))continue;const ref=thumbRefs[slot]??photos[slot];const url=await hydrate<string>(ref,aid=>sync.loadAsset(id,aid),scope).catch(()=>"");if(url)thumbs[slot]=url;}
-   const portal:PortalDetails={name:typeof raw.name==="string"?raw.name:undefined,reference:typeof raw.reference==="string"?raw.reference:undefined,status:isCaseStatus(raw.status)?raw.status:undefined,notes:typeof raw.notes==="string"?raw.notes:undefined,tags:cleanTags(raw.tags),thumbs};
+   const portal:PortalDetails={name:typeof raw.name==="string"?raw.name:undefined,reference:typeof raw.reference==="string"?raw.reference:undefined,status:isCaseStatus(raw.status)?raw.status:undefined,notes:typeof raw.notes==="string"?raw.notes:undefined,tags:cleanTags(raw.tags),thumbs,...readBilling(raw as Record<string,unknown>)};
    if(raw.consent&&typeof raw.consent==="object"){const consent=await hydrate<CaseConsent>(raw.consent,aid=>sync.loadAsset(id,aid),scope).catch(()=>null);if(validConsent(consent))portal.consent=consent;}
    const draft=c.state.draft as Record<string,Json>|null;
    const designRef=(draft?.photo as Record<string,Json>|undefined)?.dataUrl;

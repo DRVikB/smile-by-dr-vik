@@ -1317,11 +1317,14 @@ enum FaceScanStore {
 /// Builds rear scans' detailed faces from their photographs after the scanner has closed, one at a time, so the
 /// clinician isn't kept waiting (the quick LiDAR face is saved straight away). Runs while the app is open, with a
 /// little extra time if it goes to the background; a build that can't finish leaves the LiDAR face in place.
-final class BackgroundFaceBuilder {
+/// Every piece of state here is read and changed on the main queue only (each entry point hops there first),
+/// which is what lets its closures cross threads safely.
+final class BackgroundFaceBuilder: @unchecked Sendable {
     static let shared = BackgroundFaceBuilder()
     /// Process-scoped: unfinished in-memory jobs from a previous launch must not remain marked as running.
     static let sessionID = UUID().uuidString
-    struct Job { let caseId, recordId, scanId, title: String; let shots: PhotoShots; let lidar: FaceMesh; let orientation: simd_float4x4? }
+    /// Immutable once queued; its photographs are only removed on the main queue when the job ends.
+    struct Job: @unchecked Sendable { let caseId, recordId, scanId, title: String; let shots: PhotoShots; let lidar: FaceMesh; let orientation: simd_float4x4? }
 
     var onUpdate: ((String, URL, [String: Any]) -> Void)?
     var onProgress: ((String, String, String, Double) -> Void)?

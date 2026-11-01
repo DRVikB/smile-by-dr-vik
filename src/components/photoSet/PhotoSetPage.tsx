@@ -5,6 +5,7 @@ import { SheetClose } from "@/components/sideRail/SideRail";
 import { PhotoViewer } from "@/components/portal/PhotoSet";
 import { photoForSlot, type SlotPhotos } from "@/components/portal/portalData";
 import { getCaseRepository } from "@/services/cases/caseRepository";
+import { createOriginalStore, originalFileName } from "@/lib/originals";
 import { PHOTO_SET_VIEWS, PHOTO_SLOTS, type PhotoSlot } from "@/lib/portal";
 import { isNativeApp } from "@/native/platform";
 import { haptic } from "@/native/haptics";
@@ -43,6 +44,7 @@ export function PhotoSetPage({ caseId, before, concept, onBack, onClose }: {
   caseId: string; before?: string; concept?: string; onBack: () => void; onClose: () => void;
 }) {
   const [repository] = useState(getCaseRepository);
+  const [originals] = useState(() => createOriginalStore(repository.scope));
   const [thumbs, setThumbs] = useState<SlotPhotos>({});
   const [designThumb, setDesignThumb] = useState("");
   const [designFront, setDesignFront] = useState(false);
@@ -73,18 +75,40 @@ export function PhotoSetPage({ caseId, before, concept, onBack, onClose }: {
   const taken = PHOTO_SET_VIEWS.filter(v => srcOf(v.id)).length;
   const others = PHOTO_SLOTS.filter(s => s.group === "other" && thumbs[s.id]);
 
-  const save = async (photos: Partial<Record<PhotoSlot, string | null>>, done: string) => {
+  /** Each view's full-size original is kept beside the case (src/lib/originals.ts) under this role. */
+  const roleOf = (slot: PhotoSlot) => `photo-set:${slot}`;
+  const save = async (photos: Partial<Record<PhotoSlot, string | null>>, done: string, files: Partial<Record<PhotoSlot, File>> = {}) => {
     setStatus("Saving…");
-    try { await repository.updatePortal(caseId, { photos }); setStatus(done); haptic("success"); }
-    catch { setStatus("The photo set couldn’t be saved. Check your connection and try again."); }
+    try { await repository.updatePortal(caseId, { photos }); }
+    catch { setStatus("The photo set couldn’t be saved. Check your connection and try again."); return; }
+    // A new photo replaces its view's original; a removed view, or one replaced without its file, loses it.
+    let kept = true;
+    for (const [slot, value] of Object.entries(photos) as [PhotoSlot, string | null][]) {
+      const file = files[slot];
+      try {
+        if (value && file) await originals.save({ caseId, role: roleOf(slot), blob: file, name: file.name, replace: true });
+        else await originals.removeRole(caseId, roleOf(slot));
+      } catch { if (value && file) kept = false; }
+    }
+    setStatus(kept ? done : `${done}. The full-size original couldn’t be kept on this device.`); haptic("success");
+  };
+  const original = {
+    // The Smiling view can be the design's own photo, whose original belongs to the design.
+    has: async (slot: PhotoSlot) => Boolean(await originals.latest(caseId, slot === "front" && designFront ? "design" : roleOf(slot))),
+    share: async (slot: PhotoSlot) => {
+      const found = await originals.latest(caseId, slot === "front" && designFront ? "design" : roleOf(slot));
+      if (!found) { setStatus("The original photo isn’t on this device."); return; }
+      try { const { shareFile } = await import("@/lib/share"); await shareFile(found.blob, originalFileName(found, reference), "Original photo"); }
+      catch { setStatus("The original photo couldn’t be shared. Please try again."); }
+    },
   };
   const fromFiles = async (list: File[], start?: PhotoSlot) => {
     const empty = PHOTO_SET_VIEWS.map(v => v.id).filter(id => !srcOf(id));
     const slots = start ? [start, ...empty.filter(id => id !== start)] : empty;
-    const photos: Partial<Record<PhotoSlot, string>> = {};
-    try { for (let i = 0; i < Math.min(list.length, slots.length); i++) photos[slots[i]] = await photoForSlot(list[i]); }
+    const photos: Partial<Record<PhotoSlot, string>> = {}, files: Partial<Record<PhotoSlot, File>> = {};
+    try { for (let i = 0; i < Math.min(list.length, slots.length); i++) { photos[slots[i]] = await photoForSlot(list[i]); files[slots[i]] = list[i]; } }
     catch (e) { setStatus(e instanceof Error ? e.message : "That photo couldn’t be added."); return; }
-    if (Object.keys(photos).length) await save(photos, Object.keys(photos).length === 1 ? "Photo added" : `${Object.keys(photos).length} photos added`);
+    if (Object.keys(photos).length) await save(photos, Object.keys(photos).length === 1 ? "Photo added" : `${Object.keys(photos).length} photos added`, files);
   };
 
   /** The guided camera, from `views` in order (the iOS app); a browser picks files instead. */
@@ -103,9 +127,9 @@ export function PhotoSetPage({ caseId, before, concept, onBack, onClose }: {
         };
       }));
       const shots = await takeNativePhotoSet(views);
-      const photos: Partial<Record<PhotoSlot, string>> = {};
-      for (const shot of shots) photos[shot.id as PhotoSlot] = await photoForSlot(shot.file);
-      if (shots.length) await save(photos, shots.length === 1 ? "Photo added" : `${shots.length} photos added`);
+      const photos: Partial<Record<PhotoSlot, string>> = {}, files: Partial<Record<PhotoSlot, File>> = {};
+      for (const shot of shots) { photos[shot.id as PhotoSlot] = await photoForSlot(shot.file); files[shot.id as PhotoSlot] = shot.file; }
+      if (shots.length) await save(photos, shots.length === 1 ? "Photo added" : `${shots.length} photos added`, files);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "The camera couldn’t be opened.");
     } finally { setBusy(false); }
@@ -165,7 +189,8 @@ export function PhotoSetPage({ caseId, before, concept, onBack, onClose }: {
     {viewing && <PhotoViewer slot={viewing} filled={filled}
       load={slot => (slot === "front" && designFront ? repository.portalDesignPhoto(caseId) : repository.portalPhoto(caseId, slot))}
       onClose={() => setViewing(null)} onMove={setViewing}
-      onReplace={(slot, photo) => void save({ [slot]: photo }, "Photo replaced")}
+      onReplace={(slot, photo, file) => void save({ [slot]: photo }, "Photo replaced", file ? { [slot]: file } : {})}
+      original={original}
       onRemove={viewing === "front" && designFront ? undefined : slot => void save({ [slot]: null }, "Photo removed")} />}
   </>;
 }

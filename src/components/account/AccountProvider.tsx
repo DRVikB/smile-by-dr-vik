@@ -20,7 +20,7 @@ import { customerHasPro, identifyPurchaser, onCustomerInfo, refreshCustomerInfo,
 import { developmentEntitlements, setEntitlementProvider } from "@/services/entitlements/entitlements";
 import { AuthSheet, type AuthMode } from "./AuthSheet";
 import { WebAuthPage, requestedWebAuthMode } from "./WebAuthPage";
-import { rememberWebAccount } from "@/lib/webEntry";
+import { markWebWelcome, rememberWebAccount } from "@/lib/webEntry";
 import { Paywall } from "./Paywall";
 import { SettingsView, type SettingsSection } from "@/components/settings/SettingsView";
 import { PrivacyNoticeSheet, type LegalDocument } from "./PrivacyNoticeSheet";
@@ -232,7 +232,7 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
         const flow = params.get("flow") as AuthFlow | null;
         if (flow || params.get("code") || params.get("error_description")) {
           if (params.get("error_description")) setNotice("That link couldn’t be used. Please request a new one.");
-          else handleFlow(flow);
+          else { if (!flow && params.get("code")) markWebWelcome(); handleFlow(flow); }
           window.history.replaceState(null, "", window.location.pathname);
         }
       }
@@ -356,6 +356,12 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
     writeCachedNames(null);
     setCachedNames(null);
     setSheet(null);
+    // On the website, signing out returns to the website's home page rather than leaving the
+    // visitor on the app's start screen. The iOS app stays where it is.
+    if (!isNativeApp()) {
+      rememberWebAccount(false);
+      window.location.assign("/welcome");
+    }
   }, [applyUser]);
 
   const deleteAccount = useCallback(async ({ deleteLocalData }: { deleteLocalData: boolean }) => {
@@ -485,7 +491,7 @@ export function AccountProvider({ children, Inner = Fragment }: { children: Reac
       <Inner key={workspaceKey}>
       <PatientSyncLifecycle />
       {children}
-      {webAuth && ready && !user && <WebAuthPage initialMode={webAuth} onSignedIn={() => setWebAuth(null)} />}
+      {webAuth && ready && !user && <WebAuthPage initialMode={webAuth} onSignedIn={() => { markWebWelcome(); setWebAuth(null); }} />}
       {sheet?.kind === "auth" && <AuthSheet initialMode={sheet.mode} reason={sheet.reason} onClose={() => setSheet(null)} onSignedIn={() => setSheet(null)} />}
       {sheet?.kind === "paywall" && <Paywall onClose={() => setSheet(null)} />}
       {sheet?.kind === "settings" && (

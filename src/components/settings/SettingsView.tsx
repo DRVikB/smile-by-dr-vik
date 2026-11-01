@@ -79,17 +79,20 @@ const STACK_ORDER: SettingsSection[] = ["subscription", "profile", "cases", "app
  * iPhone (narrow): an account summary, then grouped sections with pushed sub-pages.
  * iPad / desktop (≥ 768 px): a sidebar of sections and a detail pane.
  */
-export function SettingsView({ initialSection, onClose, onSectionChange }: {
+export function SettingsView({ initialSection, onClose, onSectionChange, embedded = false }: {
   initialSection?: SettingsSection;
   onClose: () => void;
   onSectionChange?: (section: SettingsSection) => void;
+  /** The web dashboard: a page in its main area instead of a sheet, so there is nothing to close. */
+  embedded?: boolean;
 }) {
   const account = useAccount();
   const admin = useAdmin();
   // iPhone Duo: Back and Done sit in the side bar; the bar across the top keeps the title.
   const rail = useSideRail();
   // Sidebar and detail need room: the closed iPhone Duo on its side and the open Duo upright (under 720 pt) use the iPhone list.
-  const wide = useMediaQuery("(min-width: 720px)");
+  const wideScreen = useMediaQuery("(min-width: 720px)");
+  const wide = embedded || wideScreen;
   const online = useOnline();
   const [chosen, setSection] = useState<SettingsSection>(initialSection ?? "profile");
   const scroller = useRef<HTMLDivElement>(null);
@@ -136,20 +139,22 @@ export function SettingsView({ initialSection, onClose, onSectionChange }: {
     if (motion === "pop" && !page && scroller.current) scroller.current.scrollTop = listScroll.current;
   }, [motion, page]);
 
+  useEffect(() => { if (embedded && initialSection) { setSection(initialSection); setPageNow(null); } }, [embedded, initialSection]);
+
   const back = useCallback(() => setPage(null), [setPage]);
   // Swipe in from the left edge: a Settings page back to the list (the list itself closes with Close).
   useSwipeBack(true, page ? back : undefined, () => document.querySelector<HTMLElement>(".settings-panel .settings-page"));
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || (embedded && !confirm && !page)) return;
       if (confirm) setConfirm(null);
       else if (page) setPage(null);
       else onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [confirm, page, onClose]);
+  }, [confirm, page, onClose, embedded]);
 
   const nav = useMemo<SettingsNav>(() => ({
     openPage: next => { setPage(next); scroller.current?.scrollTo({ top: 0 }); },
@@ -179,9 +184,9 @@ export function SettingsView({ initialSection, onClose, onSectionChange }: {
     <SettingsContext.Provider value={nav}>
       <SideRailLayer>
       {page && <RailItems order={0}><RailButton label={wide ? "Back" : "Back to Settings"} onClick={back}><ChevronLeft size={22} strokeWidth={1.8} /></RailButton></RailItems>}
-      <RailItems order={1}><RailButton label="Done" prominent onClick={onClose}><Check size={21} strokeWidth={2} /></RailButton></RailItems>
-      <div className="settings-backdrop" onClick={onClose}>
-        <div className={`settings-panel ${wide ? "split" : "stack"}${showsAdmin ? " admin" : ""}`} role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={e => e.stopPropagation()}>
+      {!embedded && <RailItems order={1}><RailButton label="Done" prominent onClick={onClose}><Check size={21} strokeWidth={2} /></RailButton></RailItems>}
+      <div className={embedded ? "settings-embedded" : "settings-backdrop"} onClick={embedded ? undefined : onClose}>
+        <div className={`settings-panel ${wide ? "split" : "stack"}${showsAdmin ? " admin" : ""}${embedded ? " embedded" : ""}`} role={embedded ? "region" : "dialog"} aria-modal={embedded ? undefined : true} aria-labelledby="settings-title" onClick={e => e.stopPropagation()}>
           {wide ? (
             <>
               <aside className="settings-sidebar">
@@ -210,7 +215,7 @@ export function SettingsView({ initialSection, onClose, onSectionChange }: {
                 <header className="settings-detail-head">
                   {!rail && (page ? <button type="button" className="settings-back" onClick={back} aria-label="Back"><ChevronLeft size={20} strokeWidth={1.8} /></button> : <span className="settings-back-spacer" />)}
                   <h3 className="settings-detail-title">{detailTitle}</h3>
-                  {!rail && <button type="button" className="settings-done" onClick={onClose}>Done</button>}
+                  {!rail && !embedded && <button type="button" className="settings-done" onClick={onClose}>Done</button>}
                 </header>
                 <div className="settings-detail-body" ref={scroller}>
                   <div key={pageKey} className={`settings-page${motion ? ` is-${motion}` : ""}`}>

@@ -19,3 +19,12 @@ export function opensApp(url: URL, cookieHeader: string | null): boolean {
   if (url.search.length > 1) return true;
   return (cookieHeader ?? "").split(";").some(part => part.trim() === `${WEB_ACCOUNT_COOKIE}=1`);
 }
+
+/** Website only: the dashboard greets someone once, right after they sign in ("Welcome back, Vikas"). */
+const WELCOME_KEY = "sc.welcome";
+export function markWebWelcome(): void {
+  try { sessionStorage.setItem(WELCOME_KEY, "1"); } catch { /* no greeting, nothing else changes */ }
+}
+export function takeWebWelcome(): boolean {
+  try { const due = sessionStorage.getItem(WELCOME_KEY) === "1"; sessionStorage.removeItem(WELCOME_KEY); return due; } catch { return false; }
+}

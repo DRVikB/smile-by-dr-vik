@@ -1,25 +1,21 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
-import { createPortal, flushSync } from "react-dom";
-import { watchSideBar, type Fold, type SideBar } from "@/native/sideBar";
+import { createPortal } from "react-dom";
+import { watchSideBar, type SideBar } from "@/native/sideBar";
 
 interface RailState {
   bar: SideBar | null;
-  /** Where the screen folds while iPhone Duo is partly folded. */
-  fold: Fold | null;
   host: HTMLElement | null;
   /** The surface whose controls show: the one opened most recently. */
   top: string | null;
   enter(id: string, opened: number): void;
   leave(id: string): void;
 }
-/** Pieces that move to a new place when iPhone Duo folds or unfolds (see the fold handling below). */
-const FOLD_GLIDE = [".case-body > .case-hero", ".log-detail-frame .log-pair"];
 
 /** Counts surfaces as they first render, so a sheet always outranks the screen it opened over. */
 let opened = 0;
-const RailContext = createContext<RailState>({ bar: null, fold: null, host: null, top: null, enter: () => {}, leave: () => {} });
+const RailContext = createContext<RailState>({ bar: null, host: null, top: null, enter: () => {}, leave: () => {} });
 const LayerContext = createContext<string | null>(null);
 
 /**
@@ -30,41 +26,13 @@ const LayerContext = createContext<string | null>(null);
  */
 export function SideRailProvider({ children }: { children: React.ReactNode }) {
   const [bar, setBar] = useState<SideBar | null>(null);
-  const [fold, setFold] = useState<Fold | null>(null);
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [layers, setLayers] = useState<{ id: string; opened: number }[]>([]);
 
+  // A partly folded iPhone Duo is laid out as it is flat: only the side bar is followed, not the fold.
   useEffect(() => {
     let stop = () => {}, live = true;
-    let lastFold: string | null = null, settle = 0;
-    void watchSideBar((next, folded) => {
-      if (!live) return;
-      const apply = () => { setBar(next); setFold(folded); };
-      // Folding or unfolding: for a moment the layout's pieces ease to their new places (side-rail.css,
-      // html.fold-moving). The class goes on a frame before the change so the transitions catch it.
-      const key = folded ? `${folded.axis}:${folded.x}:${folded.y}` : null;
-      const changed = key !== lastFold;
-      lastFold = key;
-      if (!changed || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { apply(); return; }
-      const root = document.documentElement;
-      root.classList.add("fold-moving");
-      window.clearTimeout(settle);
-      requestAnimationFrame(() => {
-        // Pieces that change place inside a rearranged layout glide from where they were (FLIP), resizing
-        // rather than stretching, so a photo re-crops smoothly instead of jumping.
-        const before = FOLD_GLIDE.flatMap(selector => Array.from(document.querySelectorAll<HTMLElement>(selector))).map(el => ({ el, box: el.getBoundingClientRect() }));
-        flushSync(apply);
-        for (const { el, box } of before) {
-          const now = el.getBoundingClientRect();
-          if (!el.isConnected || !now.width || (Math.abs(now.left - box.left) < 1 && Math.abs(now.top - box.top) < 1 && Math.abs(now.width - box.width) < 1)) continue;
-          el.animate([
-            { transform: `translate(${box.left - now.left}px, ${box.top - now.top}px)`, width: `${box.width}px`, height: `${box.height}px` },
-            { transform: "none", width: `${now.width}px`, height: `${now.height}px` },
-          ], { duration: 460, easing: "cubic-bezier(0.4, 0, 0.2, 1)" });
-        }
-        settle = window.setTimeout(() => root.classList.remove("fold-moving"), 600);
-      });
-    }).then(off => { if (live) stop = off; else off(); });
+    void watchSideBar(next => { if (live) setBar(next); }).then(off => { if (live) stop = off; else off(); });
     return () => { live = false; stop(); };
   }, []);
 
@@ -84,20 +52,10 @@ export function SideRailProvider({ children }: { children: React.ReactNode }) {
     return () => { delete root.dataset.sideBar; delete root.dataset.railShort; names.forEach(name => root.style.removeProperty(name)); };
   }, [bar]);
 
-  // Partly folded, in any pose: the band content keeps clear of (html[data-fold] in side-rail.css).
-  useLayoutEffect(() => {
-    if (!fold) return;
-    const root = document.documentElement;
-    const values = { "--fold-left": fold.x, "--fold-width": fold.width, "--fold-top": fold.y, "--fold-height": fold.height };
-    root.dataset.fold = fold.axis;
-    Object.entries(values).forEach(([name, value]) => root.style.setProperty(name, `${value}px`));
-    return () => { delete root.dataset.fold; Object.keys(values).forEach(name => root.style.removeProperty(name)); };
-  }, [fold]);
-
   const enter = useCallback((id: string, at: number) => setLayers(current => [...current.filter(x => x.id !== id), { id, opened: at }]), []);
   const leave = useCallback((id: string) => setLayers(current => current.filter(x => x.id !== id)), []);
   const top = layers.reduce<{ id: string; opened: number } | null>((best, layer) => (!best || layer.opened > best.opened ? layer : best), null)?.id ?? null;
-  const value = useMemo(() => ({ bar, fold, host, top, enter, leave }), [bar, fold, host, top, enter, leave]);
+  const value = useMemo(() => ({ bar, host, top, enter, leave }), [bar, host, top, enter, leave]);
 
   return (
     <RailContext.Provider value={value}>
@@ -110,11 +68,6 @@ export function SideRailProvider({ children }: { children: React.ReactNode }) {
 /** Whether controls belong in the side bar right now. */
 export function useSideRail(): boolean {
   return useContext(RailContext).bar !== null;
-}
-
-/** Where iPhone Duo folds right now (partly folded, in any pose), or null when the screen is flat. */
-export function useFold(): Fold | null {
-  return useContext(RailContext).fold;
 }
 
 /**

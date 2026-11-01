@@ -1,11 +1,17 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Archive, ArrowLeft, Heart, Maximize2, MonitorPlay, MoreHorizontal, PenLine, Plus, ScanFace, Send, Trash2 } from "lucide-react";
+import { Archive, ArrowLeft, CalendarClock, Camera, FileCheck2, Heart, Maximize2, MonitorPlay, MoreHorizontal, PenLine, Phone, Plus, ReceiptText, ScanFace, Send, Sparkles, Trash2, Waypoints, X } from "lucide-react";
 import { SavedCaseViewer } from "@/components/SavedCaseViewer";
 import { caseIdOf } from "@/models/case";
 import { savedCaseExport } from "@/lib/savedCaseExport";
 import { AI_CONCEPT_SUMMARY } from "@/lib/brand";
-import { SHOWN_CASE_STATUSES, CASE_TAGS, MAX_TAGS, PHOTO_SLOTS, caseTitle, cleanTag, initialsOf, type CaseStatus, type CaseConsent, type PhotoSlot, type PortalDetails, type PortalPatch } from "@/lib/portal";
+import { SHOWN_CASE_STATUSES, CASE_TAGS, MAX_TAGS, PHOTO_SLOTS, caseTitle, cleanTag, initialsOf, stageOf, type CaseStatus, type CaseConsent, type CaseEvent, type PhotoSlot, type PortalDetails, type PortalPatch } from "@/lib/portal";
+import { gbp, nextInvoiceNumber } from "@/lib/billing";
+import { EXPORT_NAMES } from "@/lib/consultation";
+import { CaseBilling } from "./Billing";
+import { caseActions } from "./caseSignals";
+import type { CaseTab } from "./WebPortal";
+import type { CaseLogEntry } from "@/lib/types";
 import type { CaseRepository } from "@/services/cases/caseRepository";
 import { PhotoSet, PhotoViewer } from "./PhotoSet";
 import { ConsentStatus } from "@/components/consent/ConsentSheet";
@@ -13,7 +19,9 @@ import { LabReplies, SendToLab, ShareState, useLabs, type LabPackOption } from "
 import { dataUrlToBlob, designRows, relativeDate, type CaseVersion } from "./portalData";
 import { features } from "@/config/features";
 
-type Tab = "details" | "design" | "notes" | "lab";
+type Tab = CaseTab;
+const TAB_NAMES: Record<Tab, string> = { details: "Details", activity: "Activity", billing: "Billing", design: "Design", notes: "Notes", lab: "Lab" };
+const APPOINTMENT_TYPES = ["Consultation", "Review", "Treatment", "Fit", "Follow-up"];
 
 function Compare({ before, after, afterLabel, onFullScreen, onAnalysis }: { before: string; after: string; afterLabel: string; onFullScreen?: () => void; onAnalysis?: () => void }) {
   const box = useRef<HTMLDivElement>(null);
@@ -39,7 +47,7 @@ export function PortalCase({ caseId, repository, onBack, onOpenStudio, initialTa
   caseId: string;
   repository: CaseRepository;
   onBack: () => void;
-  initialTab?: "details" | "design" | "notes" | "lab";
+  initialTab?: Tab;
   onOpenStudio: (caseId: string, start: { hasDraft: boolean; name: string; front?: string }) => void;
 }) {
   const { shares } = useLabs();
@@ -62,6 +70,8 @@ export function PortalCase({ caseId, repository, onBack, onOpenStudio, initialTa
   const [saving, setSaving] = useState("");
   const [name, setName] = useState(""), [reference, setReference] = useState(""), [notes, setNotes] = useState("");
   const [missing, setMissing] = useState(false);
+  const [entries, setEntries] = useState<CaseLogEntry[]>([]);
+  const [callNote, setCallNote] = useState("");
 
   const load = useCallback(async () => {
     const d = await repository.portalDetails(caseId);
@@ -70,6 +80,7 @@ export function PortalCase({ caseId, repository, onBack, onOpenStudio, initialTa
     const loaded: CaseVersion[] = [];
     for (const entry of entries.slice(0, 6)) { const media = await repository.readPresentationMedia(entry.id).catch(() => null); if (media) loaded.push({ entry, media }); }
     const portal = d?.portal ?? {};
+    setEntries(entries);
     setDetails(portal); setDesignThumb(d?.designThumb ?? ""); setHasDesignPhoto(Boolean(d?.hasDesignPhoto)); setHasDraft(Boolean(d?.hasDraft)); setVersions(loaded);
     setCreatedAt(d?.createdAt ? Date.parse(d.createdAt) : entries.at(-1)?.createdAt ?? Date.now());
     setTags(portal.tags ?? []);
@@ -81,10 +92,11 @@ export function PortalCase({ caseId, repository, onBack, onOpenStudio, initialTa
     setSaving("Saving…");
     try {
       await repository.updatePortal(caseId, patch);
-      const { photos, thumbs, swap, consent, ...text } = patch;
+      const { photos, thumbs, swap, consent, fee, appointment, event, ...text } = patch;
       setDetails(d => { const next: PortalDetails = { ...d, ...text }; if (consent === null) delete next.consent; else if (consent) next.consent = consent; return next; });
       setSaving(label);
-      if (photos || thumbs || swap) void load();
+      // Billing, appointments and the timeline are cleaned and stamped on save: read them back.
+      if (photos || thumbs || swap || fee !== undefined || appointment !== undefined || event || text.tags || text.invoices) void load();
     }
     catch { setSaving("Couldn’t save. Check your connection."); }
   }
@@ -119,6 +131,23 @@ export function PortalCase({ caseId, repository, onBack, onOpenStudio, initialTa
   const caseShares = shares.filter(s => s.caseId === caseId);
   const status = (details.status ?? "progress") as CaseStatus;
   const settings = version?.media.preferences?.settings;
+  const stage = stageOf(tags);
+  const sent = entries.flatMap(e => (e.exports ?? []).map(x => ({ kind: x.kind, at: x.createdAt }))).sort((a, b) => b.at - a.at);
+  const facts = { labels: tags, stageAt: details.stageAt, createdAt, updatedAt: latest?.entry.createdAt ?? createdAt, concepts: entries.length, sent,
+    hasConsent: Boolean(details.consent), photoCount: Object.keys(details.thumbs ?? {}).length + (hasDesignPhoto ? 1 : 0), fee: details.fee,
+    invoices: details.invoices ?? [], appointment: details.appointment, history: details.history };
+  const next = versions === null ? null : caseActions(facts)[0] ?? null;
+  const timeline: (CaseEvent & { icon: typeof Phone; tone?: string })[] = [
+    ...(details.history ?? []).map(e => ({ ...e, icon: e.kind === "call" ? Phone : e.kind === "stage" ? Waypoints : e.kind === "appointment" ? CalendarClock : ReceiptText, tone: e.kind === "payment" ? "green" : e.kind === "call" ? "blue" : undefined })),
+    ...entries.map((e, i) => ({ at: e.createdAt, kind: "stage" as const, text: `${e.label || `Concept ${entries.length - i}`} designed${e.summary ? ` · ${e.summary}` : ""}`, icon: Sparkles })),
+    ...sent.map(x => ({ at: x.at, kind: "stage" as const, text: `${EXPORT_NAMES[x.kind as keyof typeof EXPORT_NAMES] ?? "Export"} sent to the patient`, icon: Send, tone: "blue" })),
+    ...(details.consent ? [{ at: details.consent.signedAt, kind: "stage" as const, text: `Consent signed by ${details.consent.patientName}`, icon: FileCheck2 }] : []),
+    { at: createdAt, kind: "stage" as const, text: "Case started", icon: Camera },
+  ].sort((a, b) => b.at - a.at);
+  const nextNumber = async () => nextInvoiceNumber(Object.values(await repository.portalIndex()).flatMap(i => i.invoices ?? []));
+  // A new appointment takes its type from where the case is.
+  const apptType = details.appointment?.type ?? (stage === "Treatment booked" || stage === "In treatment" ? "Treatment" : stage === "Going ahead" ? "Review" : "Consultation");
+  const toLocalInput = (t: number) => { const d = new Date(t - new Date(t).getTimezoneOffset() * 60000); return d.toISOString().slice(0, 16); };
   const spec = designRows(settings);
 
   const packOptions: LabPackOption[] = [
@@ -149,7 +178,7 @@ export function PortalCase({ caseId, repository, onBack, onOpenStudio, initialTa
       <div>
         <h1 className="pt-h1">{caseTitle(name, reference, createdAt)}</h1>
         {tags.length > 0 && <div className="pt-labels pt-head-labels">{tags.map(t => <span key={t} className="pt-label">{t}</span>)}</div>}
-        <div className="pt-meta">{reference && <span>Case {reference}</span>}<span>{versions?.length ? `${versions.length} concept${versions.length === 1 ? "" : "s"}` : "No concept yet"}</span>{latest && <span>Updated {relativeDate(latest.entry.createdAt)}</span>}{details.consent && <span>Consent signed</span>}{saving && <span className="pt-saving" role="status">{saving}</span>}</div>
+        <div className="pt-meta">{reference && <span>Case {reference}</span>}<span>{versions?.length ? `${versions.length} concept${versions.length === 1 ? "" : "s"}` : "No concept yet"}</span>{latest && <span>Updated {relativeDate(latest.entry.createdAt)}</span>}{details.consent && <span>Consent signed</span>}{details.fee ? <span>Estimate {gbp(details.fee)}</span> : null}{saving && <span className="pt-saving" role="status">{saving}</span>}</div>
       </div>
       <div className="pt-row">
         {latest && <button className={`pt-btn pt-btn-line pt-btn-icon${favourite ? " fav" : ""}`} aria-pressed={favourite} aria-label="Favourite"
@@ -180,10 +209,11 @@ export function PortalCase({ caseId, repository, onBack, onOpenStudio, initialTa
 
     <div className="pt-case">
       <div className="pt-card pt-case-main">
-        {versions && versions.length > 1 && <div className="pt-versions" role="tablist" aria-label="Concepts">
-          {versions.map((v, i) => <button key={v.entry.id} role="tab" aria-selected={i === selected} className={i === selected ? "on" : ""} onClick={() => setSelected(i)}>{v.entry.label || `Concept ${versions.length - i}`}</button>)}
-        </div>}
-        {version ? <><Compare before={version.media.originalImage} after={version.media.image} afterLabel="AI concept" onFullScreen={() => setPresenting("view")} onAnalysis={() => setPresenting("analysis")} />
+        {version ? <><Compare before={version.media.originalImage} after={version.media.image} afterLabel={version.entry.label || "AI concept"} onFullScreen={() => setPresenting("view")} onAnalysis={() => setPresenting("analysis")} />
+          {versions && versions.length > 1 && <div className="pt-variants" role="tablist" aria-label="Concepts">
+            {versions.map((v, i) => <button key={v.entry.id} type="button" role="tab" aria-selected={i === selected} className={i === selected ? "on" : ""} onClick={() => setSelected(i)}>
+              <span className="pt-variant-img"><img src={v.media.image} alt="" /></span><span>{v.entry.label || `Concept ${versions.length - i}`}</span></button>)}
+          </div>}
           <p className="pt-disclaimer">{AI_CONCEPT_SUMMARY}</p></>
           : versions === null ? <div className="pt-compare pt-skeleton" />
           : <div className="pt-nodesign">{frontThumb ? <img src={frontThumb} alt="Smile front" /> : null}
@@ -197,9 +227,25 @@ export function PortalCase({ caseId, repository, onBack, onOpenStudio, initialTa
           onRemove={viewing === "front" && designFront ? undefined : slot => void save({ photos: { [slot]: null } }, "Photo removed")} />}
       </div>
 
+      <div className="pt-case-side">
+      {next && <div className={`pt-card pt-next tone-${next.tone}`}>
+        <span className="pt-kicker">Next step</span>
+        <h3>{next.title}</h3>
+        <p>{next.detail}</p>
+        <div className="pt-row pt-wrap">
+          {(next.kind === "follow-up" || next.kind === "preview-waiting") && <>
+            <button className="pt-btn pt-btn-gold pt-btn-small" onClick={() => setTagList([...tags.filter(t => !["Consultation", "Thinking it over"].includes(t)), "Going ahead"])}>Mark as going ahead</button>
+            <button className="pt-btn pt-btn-line pt-btn-small" onClick={() => void save({ event: { kind: "call", text: "Called the patient" } }, "Call logged")}><Phone size={14} />Log a call</button></>}
+          {(next.kind === "raise-invoice" || next.kind === "invoice-overdue" || next.kind === "awaiting-payment") && <button className="pt-btn pt-btn-gold pt-btn-small" onClick={() => setTab("billing")}><ReceiptText size={14} />Open billing</button>}
+          {next.kind === "consent" && <button className="pt-btn pt-btn-line pt-btn-small" onClick={() => setTab("details")}>Record consent</button>}
+          {(next.kind === "design" || next.kind === "prepare") && (frontThumb || hasDraft) && <button className="pt-btn pt-btn-gold pt-btn-small"
+            onClick={async () => onOpenStudio(caseId, { hasDraft, name, front: hasDraft ? undefined : (await loadFull("front")) ?? undefined })}><PenLine size={14} />Design the smile</button>}
+          {next.kind === "present" && version && <button className="pt-btn pt-btn-dark pt-btn-small" onClick={() => setPresenting("view")}><MonitorPlay size={14} />Present</button>}
+        </div>
+      </div>}
       <aside className="pt-card pt-panel">
         <div className="pt-tabs" role="tablist">
-          {(["details", "design", "notes", ...(features.labExport ? ["lab"] : [])] as Tab[]).map(t => <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{t === "lab" ? `Lab${caseShares.length ? ` (${caseShares.length})` : ""}` : t[0].toUpperCase() + t.slice(1)}</button>)}
+          {(["details", "activity", "billing", "design", "notes", ...(features.labExport ? ["lab"] : [])] as Tab[]).map(t => <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{t === "lab" ? `Lab${caseShares.length ? ` (${caseShares.length})` : ""}` : TAB_NAMES[t]}</button>)}
         </div>
         {tab === "details" && <div>
           <div className="pt-who"><span className="pt-ini">{initialsOf(name || reference)}</span><div><b>{caseTitle(name, reference, createdAt)}</b><small>{reference ? `Case ${reference}` : "No reference yet"}</small></div></div>
@@ -207,6 +253,15 @@ export function PortalCase({ caseId, repository, onBack, onOpenStudio, initialTa
           <label className="pt-field">Patient name or initials<input ref={nameInput} value={name} maxLength={60} onChange={e => setName(e.target.value)} onBlur={() => name !== (details.name ?? "") && void save({ name })} /></label>
           <label className="pt-field">Case reference<input value={reference} maxLength={40} placeholder="e.g. SR-1024" onChange={e => setReference(e.target.value)} onBlur={() => reference !== (details.reference ?? "") && void save({ reference })} />
             <span className="pt-hint">Your practice reference{features.labExport ? ". Labs see this, not the name" : ""}. Avoid dates of birth or NHS numbers.</span></label>
+          <p className="pt-sec">Next appointment</p>
+          <div className="pt-appt">
+            <input type="datetime-local" aria-label="Appointment date and time" value={details.appointment ? toLocalInput(details.appointment.at) : ""}
+              onChange={e => { const at = Date.parse(e.target.value); if (Number.isFinite(at)) void save({ appointment: { at, type: apptType }, event: { kind: "appointment", text: `${apptType} booked for ${new Date(at).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` } }, "Appointment saved"); }} />
+            <select aria-label="Appointment type" value={apptType} disabled={!details.appointment}
+              onChange={e => details.appointment && void save({ appointment: { ...details.appointment, type: e.target.value } }, "Appointment saved")}>
+              {APPOINTMENT_TYPES.map(t => <option key={t}>{t}</option>)}</select>
+            {details.appointment && <button type="button" className="pt-icon-btn" aria-label="Clear appointment" onClick={() => void save({ appointment: null }, "Appointment cleared")}><X size={15} /></button>}
+          </div>
           <p className="pt-sec">Status</p>
           <div className="pt-seg">{SHOWN_CASE_STATUSES.map(s => <button key={s.id} className={status === s.id ? "on" : ""} onClick={() => void save({ status: s.id })}>{s.label}</button>)}</div>
           <p className="pt-sec">Tags</p>
@@ -222,6 +277,17 @@ export function PortalCase({ caseId, repository, onBack, onOpenStudio, initialTa
             <button className="pt-btn pt-btn-line pt-btn-small" disabled={!newTag.trim() || tags.length >= MAX_TAGS}><Plus size={14} />Add</button>
           </form>
         </div>}
+        {tab === "activity" && <div>
+          <form className="pt-call" onSubmit={e => { e.preventDefault(); void save({ event: { kind: "call", text: callNote.trim() ? `Call · ${callNote.trim()}` : "Called the patient" } }, "Call logged"); setCallNote(""); }}>
+            <input value={callNote} maxLength={160} placeholder="Log a call, e.g. Wants to think about cost" aria-label="Call note" onChange={e => setCallNote(e.target.value)} />
+            <button className="pt-btn pt-btn-line pt-btn-small"><Phone size={14} />Log</button>
+          </form>
+          <ul className="pt-timeline">{timeline.map((e, i) => { const Icon = e.icon; return <li key={`${e.at}-${i}`} className={e.tone ? `tone-${e.tone}` : ""}>
+            <span className="pt-tl-dot"><Icon size={13} /></span>
+            <div><b>{e.text}</b><small>{relativeDate(e.at)}</small></div></li>; })}</ul>
+        </div>}
+        {tab === "billing" && <CaseBilling key={versions === null ? "loading" : "ready"} invoices={details.invoices ?? []} fee={details.fee} feeNote={details.feeNote} patient={caseTitle(name, reference, createdAt)} reference={reference}
+          stage={stage} nextNumber={nextNumber} onSave={(patch, label) => void save(patch, label)} />}
         {tab === "design" && <div>
           {spec.length ? <dl className="pt-kv">{spec.map(r => <div key={r.label}><dt>{r.label}</dt><dd>{r.value}</dd></div>)}</dl>
             : <p className="pt-hint">The design appears here once a concept has been created.</p>}
@@ -239,6 +305,7 @@ export function PortalCase({ caseId, repository, onBack, onOpenStudio, initialTa
           {!reference && <p className="pt-hint">Add a case reference in Details first.</p>}
         </div>}
       </aside>
+      </div>
     </div>
 
     {presenting && version && <SavedCaseViewer entry={version.entry} media={version.media} analysis={presenting === "analysis"} onClose={() => setPresenting(false)} />}

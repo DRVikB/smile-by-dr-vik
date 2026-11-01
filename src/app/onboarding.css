@@ -331,8 +331,10 @@
   .is-plain .ob-actions .ob-button { max-width: 420px; }
 }
 /* The plans are longer than the screen. The picture never moves (it only answers a sideways drag on
-   its slider); the card beneath it scrolls inside itself. Dismissal stays visible. */
-@media (max-width: 699px), (orientation: portrait) {
+   its slider); the card beneath it scrolls inside itself. Dismissal stays visible. Phone widths only: a
+   600–699pt screen on its side (iPhone SE, the closed iPhone Duo) uses the side-by-side layout, whose card
+   scrolls, or "Create account" ends up below the screen. */
+@media (max-width: 599px), (orientation: portrait) {
   .onboarding[data-step="subscription"] .ob-visual { flex: none; }
   .onboarding[data-step="subscription"] .ob-sheet { flex: 1 1 0; height: auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 }

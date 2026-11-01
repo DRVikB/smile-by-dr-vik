@@ -83,6 +83,40 @@ export function cleanTags(values: unknown): string[] {
   return out;
 }
 
+/** A case's place in the pipeline: its furthest stage tag. "Not proceeding" wins, as it closes the case. */
+export function stageOf(labels: readonly string[] | undefined): string | null {
+  if (!labels?.length) return null;
+  if (labels.includes("Not proceeding")) return "Not proceeding";
+  const found = (CASE_TAGS as readonly string[]).filter(t => t !== "Follow-up" && t !== "Not proceeding" && labels.includes(t));
+  return found.length ? found[found.length - 1]! : null;
+}
+/** Stages where the patient has said yes. */
+export const AGREED_STAGES = ["Going ahead", "Treatment booked", "In treatment"] as const;
+
+/* ---- Billing: an estimate and invoices per case (amounts in pounds, to the penny). ---- */
+export const INVOICE_STATUSES = ["draft", "sent", "paid", "void"] as const;
+export type InvoiceStatus = typeof INVOICE_STATUSES[number];
+export interface InvoiceItem { description: string; amount: number }
+export interface CaseInvoice {
+  id: string;
+  /** "INV-0007": numbered across the account. */
+  number: string;
+  issuedAt: number;
+  dueAt: number;
+  items: InvoiceItem[];
+  status: InvoiceStatus;
+  paidAt?: number;
+  /** How it was paid: card, bank transfer, cash, finance… */
+  method?: string;
+  note?: string;
+}
+/** Something that happened on a case, for its timeline. Photos, consent, concepts and exports come from the case itself. */
+export interface CaseEvent { at: number; kind: "stage" | "call" | "invoice" | "payment" | "appointment"; text: string }
+export interface CaseAppointment { at: number; type: string }
+export const MAX_INVOICES = 40;
+export const MAX_HISTORY = 60;
+export const MAX_FEE = 1_000_000;
+
 export interface PortalDetails {
   name?: string;
   reference?: string;
@@ -96,11 +130,25 @@ export interface PortalDetails {
   photos?: Partial<Record<PhotoSlot, string>>;
   /** A small preview of each photo (about 360 px), so lists and the app show the set without downloading full photos. */
   thumbs?: Partial<Record<PhotoSlot, string>>;
+  /** The estimated treatment fee, in pounds. */
+  fee?: number;
+  /** What the estimate covers, e.g. "8 porcelain veneers". */
+  feeNote?: string;
+  invoices?: CaseInvoice[];
+  /** The next appointment with the patient. */
+  appointment?: CaseAppointment;
+  history?: CaseEvent[];
+  /** When the case last moved stage (days in stage). */
+  stageAt?: number;
   updatedAt?: number;
 }
 
 /** A patch: a photo set to null is removed; `swap` exchanges two slots (photos and previews). */
-export type PortalPatch = Omit<PortalDetails, "photos" | "thumbs" | "consent"> & {
+export type PortalPatch = Omit<PortalDetails, "photos" | "thumbs" | "consent" | "fee" | "appointment" | "history" | "stageAt"> & {
+  fee?: number | null;
+  appointment?: CaseAppointment | null;
+  /** Added to the case's timeline. */
+  event?: Omit<CaseEvent, "at"> & { at?: number };
   /** A new signed consent (or null to remove a mistaken one). */
   consent?: CaseConsent | null;
   photos?: Partial<Record<PhotoSlot, string | null>>;
@@ -112,6 +160,48 @@ const clean = (value: string, max: number) => value.normalize("NFC").replace(/[\
 export const cleanName = (value: string) => clean(value, 60);
 export const cleanReference = (value: string) => clean(value, 40);
 export const cleanNotes = (value: string) => value.normalize("NFC").replace(/[\p{Cf}]/gu, "").slice(0, 2000);
+/** Text the sync store accepts: no control characters, and never something that reads as a link or file (the store refuses those). */
+const plain = (value: unknown, max: number) => typeof value === "string" ? clean(value, max).replace(/^(data|blob|https?):\/*/i, "") : "";
+const money = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? Math.round(Math.min(MAX_FEE, Math.max(0, value)) * 100) / 100 : null;
+const time = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.round(value) : null;
+export function cleanInvoice(value: unknown): CaseInvoice | null {
+  const v = value as Partial<CaseInvoice> | null;
+  if (!v || typeof v !== "object") return null;
+  const id = plain(v.id, 64), number = plain(v.number, 24), issuedAt = time(v.issuedAt), dueAt = time(v.dueAt);
+  if (!id || !number || !issuedAt) return null;
+  const items = (Array.isArray(v.items) ? v.items : []).slice(0, 12).map(i => ({ description: plain(i?.description, 120), amount: money(i?.amount) ?? 0 })).filter(i => i.description || i.amount);
+  const status = (INVOICE_STATUSES as readonly string[]).includes(v.status as string) ? v.status as InvoiceStatus : "draft";
+  const out: CaseInvoice = { id, number, issuedAt, dueAt: dueAt ?? issuedAt, items, status };
+  if (status === "paid") out.paidAt = time(v.paidAt) ?? Date.now();
+  const method = plain(v.method, 40); if (method) out.method = method;
+  const note = plain(v.note, 400); if (note) out.note = note;
+  return out;
+}
+export function cleanEvent(value: unknown): CaseEvent | null {
+  const v = value as Partial<CaseEvent> | null;
+  const kinds = ["stage", "call", "invoice", "payment", "appointment"];
+  if (!v || !kinds.includes(v.kind as string)) return null;
+  const text = plain(v.text, 200);
+  return text ? { at: time(v.at) ?? Date.now(), kind: v.kind as CaseEvent["kind"], text } : null;
+}
+export function cleanAppointment(value: unknown): CaseAppointment | null {
+  const v = value as Partial<CaseAppointment> | null;
+  const at = time(v?.at);
+  return at ? { at, type: plain(v?.type, 40) || "Appointment" } : null;
+}
+export const invoiceTotal = (invoice: Pick<CaseInvoice, "items">) => Math.round(invoice.items.reduce((sum, i) => sum + i.amount, 0) * 100) / 100;
+/** Read billing fields from stored case details (anything malformed is dropped). */
+export function readBilling(raw: Record<string, unknown>): Pick<PortalDetails, "fee" | "feeNote" | "invoices" | "appointment" | "history" | "stageAt"> {
+  const out: Pick<PortalDetails, "fee" | "feeNote" | "invoices" | "appointment" | "history" | "stageAt"> = {};
+  const fee = money(raw.fee); if (fee !== null) out.fee = fee;
+  const feeNote = plain(raw.feeNote, 120); if (feeNote) out.feeNote = feeNote;
+  if (Array.isArray(raw.invoices)) out.invoices = raw.invoices.map(cleanInvoice).filter((i): i is CaseInvoice => Boolean(i));
+  const appointment = cleanAppointment(raw.appointment); if (appointment) out.appointment = appointment;
+  if (Array.isArray(raw.history)) out.history = raw.history.map(cleanEvent).filter((e): e is CaseEvent => Boolean(e));
+  const stageAt = time(raw.stageAt); if (stageAt) out.stageAt = stageAt;
+  return out;
+}
+
 export const isPhotoSlot = (value: unknown): value is PhotoSlot => PHOTO_SLOTS.some(s => s.id === value);
 export const isCaseStatus = (value: unknown): value is CaseStatus => CASE_STATUSES.some(s => s.id === value);
 export const statusLabel = (status: CaseStatus | undefined) => CASE_STATUSES.find(s => s.id === (status ?? "progress"))!.label;
@@ -144,7 +234,23 @@ export function mergePortal<T>(current: Record<string, unknown> | null | undefin
   if (patch.reference !== undefined) next.reference = cleanReference(patch.reference);
   if (patch.notes !== undefined) next.notes = cleanNotes(patch.notes);
   if (patch.status !== undefined && isCaseStatus(patch.status)) next.status = patch.status;
-  if (patch.tags !== undefined) next.tags = cleanTags(patch.tags);
+  const history = Array.isArray(base.history) ? (base.history as unknown[]).map(cleanEvent).filter((e): e is CaseEvent => Boolean(e)) : [];
+  const log = (event: CaseEvent | null) => { if (event) history.push(event); };
+  if (patch.tags !== undefined) {
+    next.tags = cleanTags(patch.tags);
+    // Moving stage is part of the case's story, and starts its "days in stage".
+    const before = stageOf(cleanTags(base.tags)), after = stageOf(next.tags as string[]);
+    if (before !== after) { next.stageAt = Date.now(); log(cleanEvent({ kind: "stage", text: after ? `Moved to ${after}` : "Stage cleared" })); }
+  }
+  if (patch.fee !== undefined) { const fee = money(patch.fee); if (fee === null || patch.fee === null) delete next.fee; else next.fee = fee; }
+  if (patch.feeNote !== undefined) { const note = plain(patch.feeNote, 120); if (note) next.feeNote = note; else delete next.feeNote; }
+  if (patch.appointment !== undefined) {
+    const appointment = patch.appointment === null ? null : cleanAppointment(patch.appointment);
+    if (appointment) next.appointment = appointment; else delete next.appointment;
+  }
+  if (patch.invoices !== undefined) next.invoices = patch.invoices.map(cleanInvoice).filter((i): i is CaseInvoice => Boolean(i)).slice(-MAX_INVOICES);
+  if (patch.event) log(cleanEvent(patch.event));
+  if (history.length) next.history = history.sort((a, b) => a.at - b.at).slice(-MAX_HISTORY);
   if (patch.consent === null) delete next.consent;
   else if (patch.consent && validConsent(patch.consent)) next.consent = { ...patch.consent, patientName: cleanName(patch.consent.patientName) };
   return next;

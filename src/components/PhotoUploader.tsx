@@ -16,6 +16,7 @@ import {
 import type { Photo } from "@/lib/types";
 import { SMILE_GUIDE } from "@/lib/types";
 import { preparePhoto } from "@/lib/photos";
+import { holdOriginal } from "@/lib/originals";
 import { isNativeApp } from "@/native/platform";
 import { UPLOAD_AUTHORITY_TEXT } from "@/config/legal";
 import { CaptureSymbol, CasesSymbol, IconTile, PhotosSymbol } from "@/components/icons/SmileIcons";
@@ -136,7 +137,8 @@ export function PhotoUploader({
     setError("");
     try {
       const prepared = await preparePhoto(file);
-      if (mounted.current) await onPhoto(prepared);
+      // The file itself is kept full size beside the case (src/lib/originals.ts); the design uses the smaller copy.
+      if (mounted.current) await onPhoto({ ...prepared, pendingOriginal: holdOriginal(file, file.name) });
     } catch (e) {
       if (mounted.current) setError(e instanceof Error ? e.message : "We couldn’t open that photo.");
     } finally {

@@ -75,7 +75,7 @@
 }
 /* The open Duo: the column stays on the left half, clear of the fold. */
 @media (min-width: 600px) and (min-height: 501px) and (orientation: landscape) {
-  html[data-side-bar] .start-screen .splash-actions { width: min(46vw, 500px, calc(var(--fold-left, 50vw) - var(--home-pad-l) - 24px)); }
+  html[data-side-bar] .start-screen .splash-actions { width: min(46vw, 500px, calc(50vw - var(--home-pad-l) - 24px)); }
 }
 /* iPad portrait: the photograph above, then the welcome and full-width buttons across the foot. */
 @media (min-width: 600px) and (orientation: portrait) {

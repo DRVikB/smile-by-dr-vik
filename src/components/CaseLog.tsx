@@ -8,7 +8,8 @@ import { type CaseMediaPreload, useCaseMedia } from "./useCaseMedia";
 import { openContextMenu, Pressable, SwipeRow, useSwipeBack, type MenuItem } from "./appGestures";
 import { haptic } from "@/native/haptics";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Archive, Check, ChevronLeft, ChevronRight, CircleCheck, Maximize2, PenLine, Pencil, ScanEye, Search, Share2, Star, Trash2, X } from "lucide-react";
+import { Archive, Check, ChevronLeft, ChevronRight, CircleCheck, ImageDown, Maximize2, PenLine, Pencil, ScanEye, Search, Share2, Star, Trash2, X } from "lucide-react";
+import { createOriginalStore, originalFileName } from "@/lib/originals";
 import { AnalysisSymbol, SmileSymbol } from "@/components/icons/SmileIcons";
 import { AI_CONCEPT_DISCLAIMER } from "@/lib/brand";
 import { savedCaseExport } from "@/lib/savedCaseExport";
@@ -65,6 +66,9 @@ const coverThumbs = (group: CaseGroup) =>
 const timeOf = (ms: number) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 const versionTitle = (entry: CaseLogEntry, index: number, total: number) => entry.label || `Version ${total - index}`;
 
+/** Rows drawn at a time in the Cases list. */
+const CASE_BATCH = 40;
+
 export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSignIn, onNewDesign, onSample }: {
   onClose: () => void; initialEntryId?: string;
   /** Opened from Recent cases: that sheet's top edge. This sheet grows up from there instead of rising from the foot. */
@@ -91,6 +95,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
   // Which way the last move between the list and a case went, so each slides in from its side.
   const [nav, setNav] = useState<"push" | "pop" | null>(null);
   const [repository] = useState(getCaseRepository);
+  const [originals] = useState(() => createOriginalStore(repository.scope));
   // Cases made since the list was last open settle in at the top.
   const [seenAt] = useState(() => casesSeenAt);
   useEffect(() => () => { casesSeenAt = Date.now(); }, []);
@@ -137,9 +142,9 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
     const watch = new ResizeObserver(place);
     if (panel.current) watch.observe(panel.current);
     window.addEventListener("resize", place);
-    // A partly folded iPhone Duo moves the case card without resizing it.
+    // Opening or closing iPhone Duo can move the case card (the side bar comes and goes) without resizing it.
     const posture = new MutationObserver(place);
-    posture.observe(document.documentElement, { attributes: true, attributeFilter: ["data-fold", "data-side-bar"] });
+    posture.observe(document.documentElement, { attributes: true, attributeFilter: ["data-side-bar"] });
     return () => { watch.disconnect(); posture.disconnect(); window.removeEventListener("resize", place); };
   }, [detailOpen]);
   const { media, status: mediaStatus, retry: retryMedia } = useCaseMedia(repository, detail?.entry.id, preload);
@@ -163,6 +168,8 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
   // Share with patient from this saved version; `kind` reopens an earlier export.
   const [sharing, setSharing] = useState<null | { kind?: ExportKind; draft?: ReportDraft }>(null);
   const [notice, setNotice] = useState("");
+  // The open version's full-size original photo, when it is on this device (src/lib/originals.ts).
+  const [originalOf, setOriginalOf] = useState<{ entryId: string; id: string } | null>(null);
   const [openedInitial, setOpenedInitial] = useState(false);
 
   const refresh = useCallback(() => {
@@ -185,7 +192,21 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
   }, [repository]);
 
   const all = useMemo(() => groupCases(entries ?? []), [entries]);
-  const shown = all.filter(group => !query.trim() || group.versions.some(v => matchesQuery(v, query)));
+  const shown = useMemo(() => all.filter(group => !query.trim() || group.versions.some(v => matchesQuery(v, query))), [all, query]);
+  // A long list draws a batch at a time: the first rows show at once, and more are added as the list nears its
+  // end, so a clinic with hundreds of cases doesn't wait for every row (and its photo) before Cases appears.
+  const [batches, setBatches] = useState(1);
+  useEffect(() => { setBatches(1); }, [query]);
+  const drawn = shown.slice(0, batches * CASE_BATCH);
+  const listEnd = useRef<HTMLLIElement>(null);
+  const moreToDraw = shown.length > drawn.length;
+  useEffect(() => {
+    const end = listEnd.current;
+    if (!end || !moreToDraw) return;
+    const watch = new IntersectionObserver(found => { if (found.some(e => e.isIntersecting)) setBatches(n => n + 1); }, { root: end.closest(".log-list"), rootMargin: "600px 0px" });
+    watch.observe(end);
+    return () => watch.disconnect();
+  }, [moreToDraw, batches]);
   const split = rail && roomForSplit && all.length > 0;
   const current = openCase ? all.find(g => g.key === openCase) ?? null : null;
   const versions = current ? current.versions.filter(v => !onlyFavourites || v.favourite) : [];
@@ -244,6 +265,23 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
     const read = await Promise.race([readFull(entry.id), new Promise<null>((done) => window.setTimeout(() => done(null), 450))]);
     setPreload(read);
     setOpen({ entry, media: null });
+  }
+  const openOriginalId = open?.media?.photoMetadata?.originalId, openEntryId = open?.entry.id;
+  useEffect(() => {
+    if (!openOriginalId || !openEntryId) { setOriginalOf(null); return; }
+    let live = true;
+    originals.get(openOriginalId).then(found => { if (live) setOriginalOf(found ? { entryId: openEntryId, id: openOriginalId } : null); }, () => { if (live) setOriginalOf(null); });
+    return () => { live = false; };
+  }, [originals, openOriginalId, openEntryId]);
+  /** The photo exactly as it was taken or chosen, full size, through the share sheet (a lab, Files, the records). */
+  async function shareOriginal(id: string, label: string) {
+    setError("");
+    try {
+      const found = await originals.get(id);
+      if (!found) { setError("The original photo isn’t on this device."); return; }
+      const { shareFile } = await import("@/lib/share");
+      await shareFile(found.blob, originalFileName(found, label), "Original photo");
+    } catch { setError("The original photo couldn’t be shared. Please try again."); }
   }
   async function reopenDesign(id: string) {
     if (!onReopen || reopening) return;
@@ -528,8 +566,8 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
               )
             ) : (
               <ul className="log-list">
-                {shown.map((group) => (
-                  <li key={group.key} className={[group.updatedAt > seenAt ? "is-new" : "", split && group.key === openCase ? "is-selected" : ""].filter(Boolean).join(" ") || undefined}>
+                {drawn.map((group, index) => (
+                  <li key={group.key} className={[group.updatedAt > seenAt ? "is-new" : "", split && group.key === openCase ? "is-selected" : "", index >= CASE_BATCH ? "is-later" : ""].filter(Boolean).join(" ") || undefined}>
                     <SwipeRow actions={[
                       { label: "Archive", icon: <Archive size={18} strokeWidth={1.8} aria-hidden="true" />, onSelect: () => void forWholeCase(group, "archive") },
                       { label: "Delete", tone: "destructive", icon: <Trash2 size={18} strokeWidth={1.8} aria-hidden="true" />, onSelect: () => void forWholeCase(group, "delete") },
@@ -546,6 +584,8 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
                         <span className="log-summary">
                           {group.versions.length} {group.versions.length === 1 ? "version" : "versions"}
                           {group.favourites > 0 && <> · <Star size={11} strokeWidth={2} fill="currentColor" className="case-fav-icon" aria-hidden="true" /> {group.favourites}</>}
+                          {/* In a narrow row the Test label sits on this line instead of at the end (cases.css). */}
+                          {group.test && <span className="log-pill log-pill-inline">Test</span>}
                         </span>
                       </span>
                       {group.test && <span className="log-pill">Test</span>}
@@ -555,6 +595,7 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
                     </SwipeRow>
                   </li>
                 ))}
+                {moreToDraw && <li ref={listEnd} className="log-more" aria-hidden="true" />}
               </ul>
             )}
 
@@ -686,6 +727,11 @@ export function CaseLog({ onClose, initialEntryId, continueFrom, onReopen, onSig
                 <button type="button" className="action-row" disabled={!open.media} onClick={() => setSharing({})}>
                   <span className="action-icon" aria-hidden="true"><Share2 size={16} strokeWidth={1.7} /></span><span className="action-label">Share with patient</span><ChevronRight className="action-chevron" size={17} aria-hidden="true" />
                 </button>
+                {originalOf?.entryId === open.entry.id && (
+                  <button type="button" className="action-row" onClick={() => void shareOriginal(originalOf.id, entryCaseName(open.entry))}>
+                    <span className="action-icon" aria-hidden="true"><ImageDown size={16} strokeWidth={1.7} /></span><span className="action-label">Original photo<small>Full size, for a lab or the patient’s records</small></span><ChevronRight className="action-chevron" size={17} aria-hidden="true" />
+                  </button>
+                )}
               </div>
               <div className="action-list">
                 <button type="button" className="action-row" onClick={() => void archiveVersion(open.entry.id)}>

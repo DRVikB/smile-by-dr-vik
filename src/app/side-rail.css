@@ -95,9 +95,13 @@ html[data-side-bar] .app-shell[data-screen="design"] .app-header { min-height: 0
 @media (max-width: 699px) {
   html[data-side-bar] .onboarding.has-hero:not([data-step="subscription"]) .ob-visual { min-height: max(200px, 30dvh); }
   html[data-side-bar] .onboarding.has-hero:not([data-step="subscription"]) .ob-sheet { flex: 0 1 auto; }
-  html[data-side-bar] .onboarding[data-step="subscription"] .ob-visual { height: 44dvh; }
   /* The last line sits just above the home bar, not a band of white below it. */
   html[data-side-bar] .onboarding.has-hero .ob-sheet { padding-bottom: max(14px, calc(var(--safe-bottom) - 8px)); }
+}
+/* Upright, the plans picture sits above its card. On its side the picture fills the left beside the card,
+   as on every other phone, so it isn't given a height there (it would stop part-way down the screen). */
+@media (max-width: 699px) and (orientation: portrait) {
+  html[data-side-bar] .onboarding[data-step="subscription"] .ob-visual { height: 44dvh; }
 }
 /* "Not now" is in the rail, so the plans card's top row needs no room kept for it. */
 html[data-side-bar] .onboarding[data-step="subscription"] .ob-top { padding-right: 0; }
@@ -159,7 +163,6 @@ html[data-side-bar] .app-shell .app-header .sc-brand-header-start:not(:has(*)), 
   html[data-side-bar] .app-shell .preview-screen .analysis-panel { top: 72px; max-height: calc(100% - 72px - max(16px, var(--safe-bottom))); }
 }
 
-
 /* The open display has more height: the step buttons get full-size targets and more air between them. */
 @media (min-width: 600px) {
   .side-rail .studio-tabs { gap: 8px; }
@@ -201,82 +204,6 @@ html[data-side-bar] .side-rail .studio-tabs button { width: var(--rail-item); he
 html[data-side-bar] .side-rail:has(.studio-tabs) .rail-button > svg,
 html[data-side-bar] .side-rail .studio-tabs button svg { width: min(26px, calc(var(--rail-item) * .6)); height: min(26px, calc(var(--rail-item) * .6)); }
 
-/* ============================================================
-   iPhone Duo, partly folded: nothing sits across the crease (html[data-fold], set from the system's
-   division region in any pose). Layouts with two parts meet at the fold; single cards move to one side
-   of it. The change plays as a short view transition (SideRail.tsx), so folding reads as a small move.
-   ============================================================ */
-/* On its side (a book): the fold runs top to bottom. */
-@media (min-width: 600px) and (orientation: landscape) {
-  /* Studio: the photo on the near half, the steps on the far half. */
-  html[data-fold="vertical"] .studio { gap: calc(var(--fold-width) + 4px); }
-  html[data-fold="vertical"] .studio-stage, html[data-fold="vertical"] .studio-stage[data-photo-shape] {
-    flex: none; align-self: stretch; height: auto; aspect-ratio: auto;
-    width: calc(var(--fold-left) - max(20px, var(--app-safe-left, 0px)) - 12px);
-  }
-  html[data-fold="vertical"] .studio-dock { flex: 1 1 auto; min-width: 0; }
-  /* Smile analysis: the readings stay on the near half. */
-  html[data-fold="vertical"] .analysis-panel { max-width: calc(var(--fold-left) - 32px); }
-
-  /* Cases: the card spans the screen and its two columns meet at the fold, the lead design on the near
-     half and the name, versions and actions on the far half. A version's card does the same. */
-  html[data-fold="vertical"] { --fold-near: calc(var(--fold-left) - 12px - 28px - 12px); }
-  html[data-fold="vertical"][data-side-bar="right"] :is(.sheet-backdrop:has(> .log-panel), .log-detail-backdrop) { padding-left: 12px; }
-  html[data-fold="vertical"] .sheet-backdrop > .log-panel { width: 100%; }
-  html[data-fold="vertical"] .case-page {
-    display: grid; grid-template-columns: var(--fold-near) minmax(0, 1fr); grid-template-rows: repeat(7, auto) 1fr;
-    column-gap: calc(var(--fold-width) + 24px); row-gap: 12px; align-content: stretch;
-  }
-  html[data-fold="vertical"] .case-page > *, html[data-fold="vertical"] .case-side > * { grid-column: 2; }
-  html[data-fold="vertical"] :is(.case-body, .case-side) { display: contents; }
-  html[data-fold="vertical"] .case-body > .case-hero { grid-column: 1; grid-row: 1 / -1; height: 100%; min-height: 0; }
-  html[data-fold="vertical"] .case-body > .case-hero .case-hero-open { height: 100%; }
-  html[data-fold="vertical"] .case-body > .case-hero :is(img, .version-thumb-empty) { height: 100%; aspect-ratio: auto; }
-  html[data-fold="vertical"] .case-side .case-version-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; overflow: visible; margin: 0; padding: 0; }
-  html[data-fold="vertical"] .log-detail-body { grid-template-columns: var(--fold-near) minmax(0, 1fr) !important; column-gap: calc(var(--fold-width) + 24px); }
-
-  /* Other sheets (Recent cases and the like) move to the far half, beside the side bar. */
-  html[data-fold="vertical"] .sheet-backdrop:not(:has(> .log-panel)) { padding-left: calc(var(--fold-left) + var(--fold-width) + 12px); }
-  html[data-fold="vertical"] .sheet-backdrop:not(:has(> .log-panel)) > .sheet { width: 100%; max-height: 100%; overflow-y: auto; }
-  html[data-fold="vertical"] .recent-row { grid-auto-columns: calc((100% - 14px) / 1.6); }
-}
-/* Upright (a laptop): the fold runs across the middle. */
-@media (min-width: 600px) and (orientation: portrait) {
-  /* Studio: the photo ends above the fold and the steps start below it. */
-  html[data-fold="horizontal"] .studio-stage { height: calc(var(--fold-top) - var(--studio-top, 72px) - 12px); min-height: 0; }
-  html[data-fold="horizontal"] .studio-dock { margin-top: calc(var(--fold-height) + 12px); }
-
-  /* A case: the lead design fills the top half; the name, versions and actions sit below the fold. */
-  html[data-fold="horizontal"] { --fold-card-top: calc((100dvh - min(940px, 100dvh - 72px)) / 2); --fold-card-bottom: calc((100dvh + min(940px, 100dvh - 72px)) / 2); }
-  html[data-fold="horizontal"] .case-page > .case-page-head { order: -3; }
-  html[data-fold="horizontal"] .case-body > .case-hero {
-    order: -2; flex: none; min-height: 0;
-    /* From the card's top: its padding, the Cases / Close row and the gap under it. */
-    height: calc(var(--fold-top) - var(--fold-card-top) - 85px - 12px);
-    margin-bottom: calc(var(--fold-height) + 14px);
-  }
-  /* A version: the comparison above the fold, the note and actions below it. */
-  html[data-fold="horizontal"] .log-detail-side {
-    height: calc(var(--fold-card-bottom) - 24px - var(--fold-top) - var(--fold-height) - 12px);
-    margin-top: calc(var(--fold-height) + 10px); overflow-y: auto; overscroll-behavior: contain;
-  }
-
-  /* Other sheets move to the lower half. */
-  html[data-fold="horizontal"] .sheet-backdrop:not(:has(> .log-panel)) { padding-top: calc(var(--fold-top) + var(--fold-height) + 12px); }
-  html[data-fold="horizontal"] .sheet-backdrop:not(:has(> .log-panel)) > .sheet { max-height: 100%; overflow-y: auto; }
-}
-/* While the fold changes (html.fold-moving, a moment either side), pieces that keep their shape ease to
-   their new size and place; content that rearranges settles in with a slight fade. */
-html { --fold-ease: cubic-bezier(0.4, 0, 0.2, 1); }
-html.fold-moving :is(.studio, .studio-stage, .studio-dock, .sheet-backdrop, .log-detail-backdrop, .sheet-backdrop > :is(.log-panel, .sheet), .log-detail-side) {
-  transition: width 460ms var(--fold-ease), height 460ms var(--fold-ease), margin 460ms var(--fold-ease), padding 460ms var(--fold-ease), gap 460ms var(--fold-ease);
-}
-html.fold-moving .log-detail-frame { transition: left 460ms var(--fold-ease), top 460ms var(--fold-ease), width 460ms var(--fold-ease), height 460ms var(--fold-ease); }
-/* The rest of a rearranged page fades up in its new place while the photo glides there (SideRail.tsx). */
-html.fold-moving :is(.case-page, .log-detail-body) > :not(.case-body), html.fold-moving .case-side > *, html.fold-moving .log-detail-side { animation: fold-settle 380ms var(--fold-ease) both; }
-@keyframes fold-settle { from { opacity: .35; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { html.fold-moving * { transition: none !important; animation: none !important; } }
-
 /* The closed iPhone Duo on its side: the system's column starts at the very top edge, in the screen's
    rounded corner. The first control starts level with the top of a sheet's card (16pt) instead, on every page. */
 html[data-rail-short] { --rail-top-min: 16px; }
@@ -289,49 +216,6 @@ html[data-rail-short] { --rail-top-min: 16px; }
 /* Closed and on its side, the bar's first control (Done in Settings) starts 16pt down: the header grows to
    hold it, with the title level with it. */
 html[data-rail-short] .settings-top { box-sizing: border-box; min-height: 72px; padding-top: 16px; padding-bottom: 12px; align-items: center; }
-
-
-/* ============================================================
-   Result, folded like a book: Before on the near page and After on the far page (BeforeAfterSlider
-   pagesOnFold), so no divider or handle sits on the fold. Unfolded, the slider comes back. The brand
-   line centres on the near page; Share / Options, Review & refine and the options centre on the far page,
-   narrow enough to stay clear of the side bar.
-   ============================================================ */
-.compare-pages { position: absolute; inset: 0; z-index: 1; background: #0b0a09; pointer-events: none; }
-.compare-page { position: absolute; top: 0; bottom: 0; overflow: hidden; }
-.compare-page img { display: block; width: 100%; height: 100%; }
-.comparison.has-pages :is(.compare-frame, .photo-backdrop) { visibility: hidden; }
-.comparison.has-pages .compare-vignette { z-index: 2; }
-html[data-fold="vertical"] .compare-page:first-child { left: 0; width: var(--fold-left); }
-html[data-fold="vertical"] .compare-page:last-child { left: calc(var(--fold-left) + var(--fold-width)); right: 0; }
-html[data-fold="vertical"] .comparison.has-pages .original-label { left: 16px; right: auto; }
-html[data-fold="vertical"] .comparison.has-pages .preview-label { left: calc(var(--fold-left) + var(--fold-width) + 16px); right: auto; }
-html[data-fold="vertical"] .app-shell[data-screen="preview"]:has(.comparison.has-pages) {
-  /* The far page's middle, the width that keeps a centred box clear of the bar's column, and the
-     usable stretch of the page (fold to bar) for the larger panels. */
-  --page-centre: calc((var(--fold-left) + var(--fold-width) + 100vw) / 2);
-  --page-box: min(380px, calc(100vw - var(--fold-left) - var(--fold-width) - 32px));
-  --page-start: calc(var(--fold-left) + var(--fold-width) + 12px);
-  --page-end: calc(100vw - 12px);
-}
-html[data-fold="vertical"][data-side-bar="right"] .app-shell[data-screen="preview"]:has(.comparison.has-pages) {
-  --page-box: min(380px, calc(2 * (var(--rail-left) - 10px) - var(--fold-left) - var(--fold-width) - 100vw));
-  --page-end: calc(var(--rail-left) - 10px);
-}
-html[data-fold="vertical"] .app-shell[data-screen="preview"]:has(.comparison.has-pages) .app-header { padding-right: calc(100vw - var(--fold-left)); }
-html[data-fold="vertical"] .app-shell[data-screen="preview"]:has(.comparison.has-pages) .compact-preview-dock {
-  left: var(--page-centre); right: auto; width: var(--page-box); transform: translateX(-50%);
-}
-/* The options open over the dock and use the page from the fold to the bar (placed from the dock's left edge). */
-html[data-fold="vertical"] .app-shell[data-screen="preview"]:has(.comparison.has-pages) .compact-options-popover {
-  right: auto; left: calc(var(--page-start) - var(--page-centre) + var(--page-box) / 2 - 1px); width: calc(var(--page-end) - var(--page-start));
-}
-/* Review & refine fills the far page between the Whole photo pill and the Share box. */
-html[data-fold="vertical"] .app-shell[data-screen="preview"]:has(.comparison.has-pages) .review-drawer.is-open {
-  left: var(--page-start); right: auto; transform: none; width: calc(var(--page-end) - var(--page-start));
-  top: calc(var(--photo-header) + 8px + var(--photo-pill) + 10px); bottom: calc(max(16px, var(--safe-bottom)) + 126px); max-height: none;
-}
-html[data-fold="vertical"] .app-shell[data-screen="preview"]:has(.comparison.has-pages) .review-drawer.is-open .floating-panel-body { max-height: none; }
 
 /* Result on the closed iPhone Duo: Share and Options are in the side bar (PreviewCompactMenu), so the
    dock is only the AI-concept line, set on the photo at its foot, and the labels sit just above it. */
@@ -349,34 +233,8 @@ html[data-fold="vertical"] .app-shell[data-screen="preview"]:has(.comparison.has
 }
 
 /* ============================================================
-   Result, folded like a laptop (open and upright, the fold across the middle): the comparison fills the
-   upper half, facing the patient, and Review & refine with Share / Options sits on the lower half.
-   page.tsx opens Review & refine when the device folds this way.
-   ============================================================ */
-@media (min-width: 600px) and (orientation: portrait) {
-  html[data-fold="horizontal"] .app-shell[data-screen="preview"] .preview-screen { background: #141210; }
-  html[data-fold="horizontal"] .app-shell[data-screen="preview"] .preview-layout > .preview-stage {
-    bottom: auto; height: var(--fold-top); border-radius: 0 0 22px 22px; overflow: hidden;
-  }
-  html[data-fold="horizontal"] .app-shell[data-screen="preview"] .preview-screen :is(.compare-label, .guide-key) { bottom: 14px; }
-  html[data-fold="horizontal"] .app-shell[data-screen="preview"] .preview-screen .review-drawer.is-open {
-    position: fixed; top: calc(var(--fold-top) + var(--fold-height) + 14px); bottom: calc(max(16px, var(--safe-bottom)) + 118px);
-    left: 16px; right: 16px; width: auto; max-height: none; transform: none;
-  }
-  html[data-fold="horizontal"] .app-shell[data-screen="preview"] .preview-screen .review-drawer.is-open .floating-panel-body { max-height: none; }
-  html[data-fold="horizontal"] .app-shell[data-screen="preview"] .compact-preview-dock {
-    bottom: max(16px, var(--safe-bottom)); left: 16px; right: 16px; width: auto; transform: none;
-  }
-  /* The options open over the dock and fill the lower half, never up across the fold. */
-  html[data-fold="horizontal"] .app-shell[data-screen="preview"] .compact-options-popover {
-    bottom: -1px; right: -1px; width: calc(100% + 2px);
-    max-height: calc(100dvh - var(--fold-top) - var(--fold-height) - 14px - max(16px, var(--safe-bottom)));
-  }
-}
-
-/* ============================================================
    Cases on the open iPhone Duo, on its side (CaseLog split): the list on the left and the chosen case
-   beside it, like Mail. Folded like a book, the two columns meet at the fold.
+   beside it, like Mail.
    ============================================================ */
 .log-split { display: grid; grid-template-columns: 340px minmax(0, 1fr); flex: 1 1 auto; min-height: 0; }
 /* In the narrower column a case's name may take two lines, beside a smaller cover. */
@@ -402,54 +260,34 @@ html[data-fold="vertical"] .app-shell[data-screen="preview"]:has(.comparison.has
 .log-split .case-body > .case-hero :is(img, .version-thumb-empty) { height: auto; aspect-ratio: 16 / 10; }
 .log-split .case-side .case-version-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; overflow: visible; margin: 0; padding: 0; }
 .log-split .case-side > :is(.case-actions, .case-confirm) { margin-top: 0; }
-@media (min-width: 600px) and (orientation: landscape) {
-  html[data-fold="vertical"] .log-split { grid-template-columns: var(--fold-near) minmax(0, 1fr); column-gap: calc(var(--fold-width) + 24px); }
-  html[data-fold="vertical"] .log-split-list { padding-right: 0; border-right: 0; }
-  html[data-fold="vertical"] .log-split .case-page { display: flex; flex-direction: column; padding-left: 0; }
-  html[data-fold="vertical"] .log-split :is(.case-page > *, .case-side > *, .case-body > .case-hero) { grid-column: auto; grid-row: auto; }
-  html[data-fold="vertical"] .log-split .case-body > .case-hero, html[data-fold="vertical"] .log-split .case-body > .case-hero .case-hero-open { height: auto; }
-  html[data-fold="vertical"] .log-split .case-body > .case-hero :is(img, .version-thumb-empty) { height: auto; aspect-ratio: 16 / 10; }
-  html[data-fold="vertical"] .log-split .case-side .case-version-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
-/* Settings folded like a book: the menu fills the near page up to the fold and the detail starts after it,
-   so the account card no longer runs across the crease. */
-@media (min-width: 720px) and (orientation: landscape) {
-  html[data-fold="vertical"][data-side-bar="right"] .settings-backdrop { padding-left: 12px; }
-  html[data-fold="vertical"][data-side-bar] .settings-panel.split { width: 100%; }
-  html[data-fold="vertical"][data-side-bar="right"] .settings-sidebar {
-    width: calc(var(--fold-left) - 12px - 1px); margin-right: var(--fold-width); border-right: 0; padding-inline: 20px;
-  }
-  html[data-fold="vertical"][data-side-bar="right"] .settings-detail { border-left: 1px solid var(--border); }
-}
 
 /* ============================================================
    Studio on the open iPhone Duo, upright and flat (669pt wide: between iPhone and iPad): after the Teeth
    step the photo gives up some height, as on iPhone, and Shape sets its choices in two columns, so each
-   step's main choices are in view without scrolling under a large photo. Folded, the fold rules decide.
+   step's main choices are in view without scrolling under a large photo.
    ============================================================ */
 @media (min-width: 600px) and (max-width: 719px) and (orientation: portrait) {
-  html:not([data-fold]) .studio-stage { transition: height 340ms var(--ease-soft, cubic-bezier(.2, .8, .2, 1)); }
-  html:not([data-fold]) .studio[data-step="shape"] .studio-stage { height: 33dvh; min-height: 0; }
-  html:not([data-fold]) .studio:is([data-step="shade"], [data-step="treatment"], [data-step="review"]) .studio-stage { height: 28dvh; min-height: 0; }
-  html:not([data-fold]) .studio-card.studio-page:has(> .smile-guide-controls) {
+  .studio-stage { transition: height 340ms var(--ease-soft, cubic-bezier(.2, .8, .2, 1)); }
+  .studio[data-step="shape"] .studio-stage { height: 33dvh; min-height: 0; }
+  .studio:is([data-step="shade"], [data-step="treatment"], [data-step="review"]) .studio-stage { height: 28dvh; min-height: 0; }
+  .studio-card.studio-page:has(> .smile-guide-controls) {
     display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 24px; row-gap: 10px; align-content: start;
   }
-  html:not([data-fold]) .studio-card.studio-page:has(> .smile-guide-controls) > * { margin: 0; min-width: 0; }
-  html:not([data-fold]) .studio-card.studio-page:has(> .smile-guide-controls) > :is(header, .studio-shapes-fit, .studio-more) { grid-column: 1 / -1; }
-  html:not([data-fold]) .studio-card.studio-page:has(> .smile-guide-controls) > .studio-summary { display: none; }
-  html:not([data-fold]) .studio-card.studio-page > .smile-guide-controls { display: contents; }
-  html:not([data-fold]) .smile-guide-controls > .studio-switch-row { grid-column: 1; grid-row: 3; }
-  html:not([data-fold]) .smile-guide-controls > .smile-guide-nudge { grid-column: 1; grid-row: 4; }
-  html:not([data-fold]) .smile-guide-controls > .smile-guide-slider { grid-column: 2; margin: 0; }
-  html:not([data-fold]) .smile-guide-controls > .smile-guide-slider:nth-child(2) { grid-row: 3; }
-  html:not([data-fold]) .smile-guide-controls > .smile-guide-slider:nth-child(3) { grid-row: 4; }
-  html:not([data-fold]) .smile-guide-controls > .smile-guide-slider:nth-child(4) { grid-row: 5; }
-  html:not([data-fold]) .smile-guide-controls > .smile-guide-slider .range-labels { display: none; }
+  .studio-card.studio-page:has(> .smile-guide-controls) > * { margin: 0; min-width: 0; }
+  .studio-card.studio-page:has(> .smile-guide-controls) > :is(header, .studio-shapes-fit, .studio-more) { grid-column: 1 / -1; }
+  .studio-card.studio-page:has(> .smile-guide-controls) > .studio-summary { display: none; }
+  .studio-card.studio-page > .smile-guide-controls { display: contents; }
+  .smile-guide-controls > .studio-switch-row { grid-column: 1; grid-row: 3; }
+  .smile-guide-controls > .smile-guide-nudge { grid-column: 1; grid-row: 4; }
+  .smile-guide-controls > .smile-guide-slider { grid-column: 2; margin: 0; }
+  .smile-guide-controls > .smile-guide-slider:nth-child(2) { grid-row: 3; }
+  .smile-guide-controls > .smile-guide-slider:nth-child(3) { grid-row: 4; }
+  .smile-guide-controls > .smile-guide-slider:nth-child(4) { grid-row: 5; }
+  .smile-guide-controls > .smile-guide-slider .range-labels { display: none; }
   /* The plain tip gives way; a warning that the guide wasn't measured still shows, across both columns. */
-  html:not([data-fold]) .smile-guide-controls > .smile-guide-hint:not(.is-warning) { display: none; }
-  html:not([data-fold]) .smile-guide-controls > .smile-guide-hint.is-warning { grid-column: 1 / -1; grid-row: 7; margin: 0; }
-  html:not([data-fold]) .studio-card.studio-page:has(> .smile-guide-controls) > .studio-more { grid-row: 6; }
+  .smile-guide-controls > .smile-guide-hint:not(.is-warning) { display: none; }
+  .smile-guide-controls > .smile-guide-hint.is-warning { grid-column: 1 / -1; grid-row: 7; margin: 0; }
+  .studio-card.studio-page:has(> .smile-guide-controls) > .studio-more { grid-row: 6; }
 }
 @media (min-width: 600px) and (max-width: 719px) and (orientation: portrait) and (prefers-reduced-motion: reduce) {
   html .studio-stage { transition: none; }

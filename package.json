@@ -40,11 +40,11 @@
     "@supabase/supabase-js": "^2.117.2",
     "heic-to": "^1.5.0",
     "lucide-react": "^0.577.0",
-    "next": "^16.3.8",
+    "next": "^16.4.3",
     "onnxruntime-web": "^1.30.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "zod": "^4.3.6"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.2",

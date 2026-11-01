@@ -67,6 +67,10 @@
 @media (min-width: 600px) {
 }
 
+/* Rows added as a long list scrolls (CaseLog draws it in batches) arrive without the opening stagger, and the
+   marker that asks for the next batch takes no room. */
+.log-list > li.is-later:not(.is-new) { animation: none; }
+.log-list > li.log-more { flex: none; height: 1px; margin-top: -1px; list-style: none; pointer-events: none; }
 /* A case made since the list was last open settles in at the top, outlined in gold for a moment. */
 .log-list > li.is-new { animation: case-arrive 640ms var(--ease-soft, ease) 120ms both; }
 /* The outline is drawn inside the card (the row clips anything outside it), and fades away completely. */
@@ -119,6 +123,7 @@
 .action-list > * + * { border-top: 1px solid var(--separator); }
 .action-icon { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--accent-soft); color: var(--accent-text); }
 .action-label { flex: 1; min-width: 0; }
+.action-label small { display: block; margin-top: 1px; font-size: 12.5px; font-weight: 400; color: var(--text-secondary); }
 .action-value { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 13.5px; white-space: nowrap; }
 .action-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warning); }
 .action-chevron { flex: none; color: var(--text-tertiary); transition: transform 280ms var(--ease-sheet); }
@@ -390,4 +395,60 @@
 /* iPad: with no cases yet the sheet is only as tall as its message, not a full-height white page. */
 @media (min-width: 600px) {
   .sheet-backdrop > .log-panel.is-empty { width: min(720px, calc(100vw - 96px)); height: auto; max-height: calc(100dvh - 32px - var(--safe-top) - var(--safe-bottom)); overflow-y: auto; }
+}
+
+/* A narrow case row (iPhone upright, the closed iPhone Duo, Cases on its side) gives the name up to two lines
+   and moves the Test label onto the line with the version count, so names and dates read in full. A wide row
+   (iPad) keeps the label at its end. The open Duo's list beside a case keeps its own layout (side-rail.css). */
+.log-list > li { container: case-row / inline-size; }
+.log-pill-inline { display: none; }
+@container case-row (max-width: 520px) {
+  .case-row .log-row-text strong { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.22; }
+  .case-row .log-date { overflow: visible; text-overflow: clip; }
+  .case-row > .log-pill { display: none; }
+  .case-row .log-pill-inline { display: inline-block; margin-left: 6px; padding: 2px 7px; font-size: 10.5px; vertical-align: 1px; }
+}
+.log-split .case-row > .log-pill { display: inline-block; }
+.log-split .case-row .log-pill-inline { display: none; }
+
+/* A phone on its side (and the closed iPhone Duo on its side): Cases uses the whole screen. The title and the
+   search share the top line and the cases run in two columns of slimmer rows. A case puts its lead design on
+   the left at full height, with its name, Design more, versions and actions on the right, as on iPad. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .sheet-backdrop:has(> .log-panel:not(.is-empty)) {
+    align-items: stretch;
+    padding: 8px max(12px, var(--safe-right)) max(8px, var(--safe-bottom)) max(12px, var(--safe-left));
+  }
+  .sheet-backdrop > .log-panel:not(.is-empty):has(> :is(.log-search, .case-page)) { width: 100%; max-width: none; height: 100%; max-height: none; }
+
+  .sheet-backdrop > .log-panel:not(.is-empty):has(> .log-search) {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr) auto;
+    column-gap: 14px; row-gap: 8px; padding: 10px 14px;
+  }
+  .log-panel:has(> .log-search) > .log-head { display: contents; }
+  .log-panel:has(> .log-search) > .log-head > h2 { grid-column: 1; grid-row: 1; align-self: center; margin: 0; font-size: 24px; }
+  .log-panel:has(> .log-search) > .log-head > button { grid-column: 3; grid-row: 1; align-self: center; }
+  .log-panel:has(> .log-search) > .log-search { grid-column: 2; grid-row: 1; align-self: center; min-height: 40px; }
+  .log-panel:has(> .log-search) > :is(.log-list, .log-empty) { grid-column: 1 / -1; grid-row: 2; }
+  .log-panel:has(> .log-search) > .log-foot { grid-column: 1 / -1; grid-row: 3; padding-top: 4px; }
+  .log-panel:has(> .log-search) > :is(.error-message, .save-status, .sync-conflict) { grid-column: 1 / -1; }
+  .log-panel > .log-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; column-gap: 10px; row-gap: 8px; }
+  .log-panel > .log-list .case-row { padding: 5px 12px 5px 6px; }
+  .log-panel > .log-list .case-cover { width: 60px; height: 54px; }
+  .log-panel > .log-list .case-cover img { width: 50px; height: 50px; border-radius: 12px; }
+  .log-panel > .log-list .log-row-text strong { font-size: 14.5px; line-height: 1.2; }
+  .log-panel > .log-list .case-chevron { display: none; }
+
+  .sheet-backdrop > .log-panel:has(> .case-page) { padding: 12px 16px; }
+  .log-panel > .case-page {
+    display: grid; grid-template-columns: 44% minmax(0, 1fr); grid-template-rows: repeat(11, auto) minmax(0, 1fr);
+    column-gap: 18px; row-gap: 0; align-content: stretch;
+  }
+  .log-panel > .case-page .case-body, .log-panel > .case-page .case-side { display: contents; }
+  .log-panel > .case-page > :not(.case-body), .log-panel > .case-page .case-side > * { grid-column: 2; margin-bottom: 8px; }
+  .log-panel > .case-page .case-body > .case-hero { grid-column: 1; grid-row: 1 / -1; height: 100%; min-height: 0; }
+  .log-panel > .case-page .case-body > .case-hero .case-hero-open { height: 100%; }
+  .log-panel > .case-page .case-body > .case-hero :is(.case-hero-open img, .case-hero-open .version-thumb-empty) { height: 100%; aspect-ratio: auto; }
+  .log-panel > .case-page .case-title h2 { font-size: 24px; }
+  .log-panel > .case-page .case-design-more { min-height: 46px; }
 }
