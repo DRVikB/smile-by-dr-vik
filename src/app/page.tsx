@@ -39,6 +39,7 @@ import { ShareSheet } from "@/components/share/ShareSheet";
 import { ToothMapOverlay } from "@/components/toothMap/ToothMapOverlay";
 import { SmileGuideOverlay } from "@/components/studio/SmileGuideOverlay";
 import { QuickSmile } from "@/components/studio/QuickSmile";
+import { presetSettings, recordPresetUse, type QuickPreset } from "@/lib/quickPreset";
 import { StyleLine } from "@/components/caseLibrary/YourStyle";
 import { goalNeedsStudio, quickSmileSettings, type QuickGoal } from "@/lib/quickSmile";
 import { useToothMap } from "@/components/toothMap/useToothMap";
@@ -1181,6 +1182,7 @@ export default function Smile() {
           { id, image: entryResult.image, originalImage: photo.dataUrl, photoMetadata: { sourceProvenance:photo.sourceProvenance,originalId:photo.originalId,name:photo.name,width:photo.width,height:photo.height,framing:photo.framing,quality:photo.quality,toothMap:photo.toothMap,analysisSnapshot:photo.analysisSnapshot }, analysisSnapshot:photo.analysisSnapshot, preferences: entryResult.preferences ?? { settings: used, testMode }, review: entryResult.review, scaleFlag: entryResult.scaleFlag, aiConsent: testMode ? undefined : consent ?? aiConsent ?? undefined, generation: entryResult.generation },
         );
         saved = true;
+        if (!testMode && entryResult.mode === "live") recordPresetUse(used);
       } catch (e) {
         storageFailed("save-design", e);
       }
@@ -1463,6 +1465,13 @@ export default function Smile() {
 
   /** New Smile always starts clean: the previous patient's photo never carries over. */
   /** Quick Smile: the goal's design, generated straight away (one tooth opens the Teeth step to choose it). */
+  /** My preset: the clinician's usual design, generated straight from the photo. */
+  function quickPreset(preset: QuickPreset) {
+    setScreen("design");
+    setError("");
+    void generate(presetSettings(preset, settings));
+  }
+
   function quickSmile(goal: QuickGoal) {
     const next = quickSmileSettings(goal, settings);
     setScreen("design");
@@ -1693,7 +1702,7 @@ export default function Smile() {
                 onPhoto={selectPhoto}
                 onRemove={startNewSmile}
                 onContinue={() => setScreen("design")}
-                quick={photo ? <><QuickSmile busy={busy} onGoal={quickSmile} /><StyleLine settings={settings} onChange={changeSettings} /></> : undefined}
+                quick={photo ? <><QuickSmile busy={busy} onGoal={quickSmile} onPreset={testMode ? undefined : quickPreset} /><StyleLine settings={settings} onChange={changeSettings} /></> : undefined}
                 onCamera={() => void openCamera()}
                 onSample={() => void openTestMode()}
                 sampleBusy={sampleBusy}
