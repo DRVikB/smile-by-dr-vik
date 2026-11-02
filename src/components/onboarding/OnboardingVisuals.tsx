@@ -130,7 +130,7 @@ export function HeroPhoto({ photo, eyebrow, title, brandEyebrow = false }: {
 
 /* "A smarter way": each card's photograph fills its right-hand side. */
 function MediaCapture() {
-  return <img className="how-media-photo how-media-capture" {...EXAMPLE_PORTRAITS.man} sizes="(min-width: 700px) 280px, 46vw" alt="" draggable={false} decoding="async" />;
+  return <img className="how-media-photo how-media-capture" {...EXAMPLE_PORTRAITS.demo} alt="" draggable={false} decoding="async" />;
 }
 
 function MediaCompose() {

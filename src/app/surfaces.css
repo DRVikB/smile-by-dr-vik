@@ -281,7 +281,6 @@ body { background: var(--background); }
 .photo-option-go { top: 30px; right: 20px; color: var(--text-secondary); }
 .photo-option-visual { grid-column: 1 / -1; border-radius: 16px; }
 .photo-option-capture { aspect-ratio: 16 / 9.2; }
-.photo-option-capture img { object-position: 50% 48%; }
 /* The library: one clean row of rounded thumbnails */
 .photo-option-gallery {
   display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: auto; gap: 6px;

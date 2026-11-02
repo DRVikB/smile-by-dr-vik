@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-GB">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>SmileCompose · Smile design for dentists</title>
   <meta name="description" content="Photograph a smile, design it with your patient in the chair and show them a realistic concept shaped by your own finished cases. For iPad, iPhone and the web.">
-  <meta name="theme-color" content="#fbfaf8">
+  <meta name="theme-color" content="#ffffff">
   <link rel="canonical" href="https://smile-by-dr-vik.drvik.workers.dev/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="SmileCompose">
@@ -15,284 +15,242 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/brand/favicon-32-glass-v2.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="/brand/apple-touch-icon-glass-v2.png">
-  <link rel="preload" as="image" href="/site/hero-after.webp">
-  <link rel="stylesheet" href="/site/landing.css">
-  <script src="/site/landing.js"></script>
+  <link rel="preload" as="font" type="font/woff2" href="/site/v6/fonts/inter-latin.woff2" crossorigin>
+  <link rel="stylesheet" href="/site/v6/v6.css">
+  <script defer src="/site/v6/v6-1.js"></script>
+  <script defer src="/site/v6/v6-2.js"></script>
+  <script defer src="/site/v6/v6-3.js"></script>
 </head>
 <body>
-  <a class="skip" href="#main">Skip to content</a>
-  <div class="progress" aria-hidden="true"><span data-progress></span></div>
+<div class="intro" id="intro" aria-hidden="true">
+  <svg class="mark" id="introMark" viewBox="150 176 724 724" fill="none"></svg>
+  <div class="word"></div>
+  <div class="tagline"><span>Plan</span><i>·</i><span>Visualise</span><i>·</i><span>Communicate</span><i>·</i><span>Transform</span></div>
+  <button class="skip" type="button" id="skip">Skip</button>
+</div>
 
-  <header class="nav" data-nav>
-    <div class="nav-bar">
-      <a class="brand" href="/welcome" aria-label="SmileCompose home">
-        <img src="/brand/smilecompose-mark-animated.svg" alt="" width="28" height="28">
-        <span>SmileCompose</span>
-      </a>
-      <nav class="nav-links" aria-label="Sections">
-        <a href="#studio">Design Studio</a>
-        <a href="#quick">Quick Smile</a>
-        <a href="#style">Case Library</a>
-        <a href="#present">Present</a>
-        <a href="#pricing">Pricing</a>
-        <a href="#demo">Book a demo</a>
-      </nav>
-      <div class="nav-actions">
-        <a class="nav-signin" href="/?signin">Sign in</a>
-        <a class="btn btn-dark btn-small" href="/?app">Try SmileCompose</a>
-        <button class="nav-menu" type="button" aria-expanded="false" aria-controls="mobile-menu" aria-label="Menu" data-menu>
-          <span></span><span></span>
-        </button>
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="SmileCompose home"><svg class="mark still" viewBox="150 176 724 724" fill="none" data-mark></svg>SMILECOMPOSE</a>
+    <ul class="menu">
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#try">Treatments</a></li>
+      <li><a href="#library">Case Library</a></li>
+      <li><a href="#share">Share</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+      <li><a href="#demo">Book a demo</a></li>
+    </ul>
+    <a class="signin" href="/?signin">Sign in</a>
+    <a class="btn" href="/?app"><span class="lg">Start free trial</span><span class="sm">Free trial</span></a>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- hero -->
+<section class="hx" aria-label="SmileCompose">
+  <div class="hx-orbs" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="wrap hx-grid">
+    <div class="hx-copy">
+      <p class="eyebrow hx-up u1">Smile design for dentists</p>
+      <h1 class="hx-display"><span class="hx-w"><span>Your</span></span> <span class="hx-w"><span>style.</span></span><br><em><span class="hx-w"><span>Their</span></span> <span class="hx-w"><span>smile.</span></span></em></h1>
+      <p class="hx-lead hx-up u2">Photograph a smile, design it with your patient in the chair and show them a realistic concept, shaped by the cases you’ve already finished.</p>
+      <div class="hx-ctas hx-up u3">
+        <a class="btn shine" href="/?app">Try SmileCompose <span aria-hidden="true">→</span></a>
+        <a class="btn ghost" href="#try">Explore the Design Studio</a>
+      </div>
+      <p class="hx-meta hx-up u4"><span>iPad</span><span>iPhone</span><span>Web</span><span class="by">Designed by <img src="/site/v6/assets/brand/dr-vik-logo-bronze.png" alt="Dr. Vik"></span></p>
+    </div>
+    <div class="hx-visual" id="hxVisual">
+      <div class="hx-tilt" id="hxTilt">
+        <div class="hx-cmp" id="hxCmp" data-hx-speed="-0.06">
+          <img src="/site/v6/assets/patient/original.jpg" alt="Sample patient before, as photographed" fetchpriority="high">
+          <div class="hx-after"><img src="/site/v6/assets/patient/oval-porcelain.webp" alt="The same patient with a SmileCompose concept" fetchpriority="high"></div>
+          <div class="hx-handle" aria-hidden="true"><span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l-5 6 5 6M15 6l5 6-5 6"/></svg></span></div>
+          <span class="hx-tag l">Before</span><span class="hx-tag r">Concept</span>
+          <input class="hx-range" id="hxRange" type="range" min="0" max="100" value="50" aria-label="Compare before and concept">
+        </div>
+        <div class="hx-patients" role="group" aria-label="Sample patients" id="hxPatients">
+          <button type="button" aria-pressed="true" aria-label="Sample patient 1" data-before="/site/v6/assets/patient/original.jpg" data-after="/site/v6/assets/patient/oval-porcelain.webp"><img src="/site/v6/assets/patient/oval-porcelain.webp" alt=""></button>
+          <button type="button" aria-pressed="false" aria-label="Sample patient 2" data-before="/site/v6/assets/hero/p-marcus-before.webp" data-after="/site/v6/assets/hero/p-marcus-after.webp"><img src="/site/v6/assets/hero/p-marcus-after.webp" alt="" loading="lazy"></button>
+          <button type="button" aria-pressed="false" aria-label="Sample patient 3" data-before="/site/v6/assets/hero/p-sofia-before.webp" data-after="/site/v6/assets/hero/p-sofia-after.webp"><img src="/site/v6/assets/hero/p-sofia-after.webp" alt="" loading="lazy"></button>
+          <button type="button" aria-pressed="false" aria-label="Sample patient 4" data-before="/site/v6/assets/hero/p-james-before.webp" data-after="/site/v6/assets/hero/p-james-after.webp"><img src="/site/v6/assets/hero/p-james-after.webp" alt="" loading="lazy"></button>
+          <span>Sample patients</span>
+        </div>
+        <div class="hx-float design" aria-hidden="true" data-hx-speed="0.12"><p class="k">Design Studio</p><p class="t">Oval · Veneers</p><p class="s">Porcelain, shade BL2</p></div>
+        <div class="hx-float guide" aria-hidden="true" data-hx-speed="0.2"><span class="hx-dot"></span>Smile guide fitted to the teeth</div>
+        <div class="hx-float style" aria-hidden="true" data-hx-speed="-0.16"><span class="hx-dot gold"></span>Designing in your style</div>
       </div>
     </div>
-    <div class="mobile-menu" id="mobile-menu" hidden>
-      <a href="#studio">Design Studio</a>
-      <a href="#quick">Quick Smile</a>
-      <a href="#style">Case Library</a>
-      <a href="#present">Present</a>
-      <a href="#pricing">Pricing</a>
-      <a href="#demo">Book a demo</a>
-      <a href="/?signin">Sign in</a>
+  </div>
+  <a class="hx-cue" href="#how" aria-label="Scroll to How it works"><span></span></a>
+</section>
+
+<!-- how it works -->
+<section class="story" id="how" aria-label="How it works">
+  <div class="pin wrap">
+    <div class="chapters" id="chapters">
+      <span class="bar"></span>
+      <p class="eyebrow">How it works</p>
+      <div class="ch on"><small>01</small><h3>Photograph</h3><p>Take one photo. The camera lines up the face and the smile for you.</p></div>
+      <div class="ch"><small>02</small><h3>Design</h3><p>Choose the teeth, shape, shade and treatment. Every clinical decision stays yours.</p></div>
+      <div class="ch"><small>03</small><h3>Reveal</h3><p>Their new smile appears on their own face, ready to compare in the chair.</p></div>
+      <div class="ch"><small>04</small><h3>Share</h3><p>Send a Smile Preview or Consultation Report home the same day.</p></div>
     </div>
-  </header>
-
-  <main id="main">
-    <!-- Hero -->
-    <section class="hero">
-      <div class="orbs" aria-hidden="true"><span></span><span></span><span></span></div>
-      <div class="wrap hero-grid">
-        <div class="hero-copy">
-          <p class="eyebrow intro intro-1">Smile design for dentists</p>
-          <h1 class="display">
-            <span class="w"><span>Your</span></span> <span class="w"><span>style.</span></span><br>
-            <em><span class="w"><span>Their</span></span> <span class="w"><span>smile.</span></span></em>
-          </h1>
-          <p class="lead intro intro-2">Photograph a smile, design it with your patient in the chair and show them a realistic concept, shaped by the cases you’ve already finished.</p>
-          <div class="cta-row intro intro-3">
-            <a class="btn btn-dark btn-shine" href="/?app">Try SmileCompose <span aria-hidden="true">→</span></a>
-            <a class="btn btn-ghost" href="#studio">Explore the Design Studio</a>
-          </div>
-          <p class="hero-meta intro intro-4">
-            <span>iPad</span><span>iPhone</span><span>Web</span>
-            <span class="by">Designed by <img src="/brand/dr-vik-logo-bronze.png" alt="Dr Vik" width="1080" height="453"></span>
-          </p>
+    <div class="stage" id="stage">
+      <div class="sph" id="sph">
+        <div class="frame">
+          <img class="photo" src="/site/v6/assets/people/james-before.webp" alt="" loading="lazy">
+          <img class="photo after" src="/site/v6/assets/people/james-after.webp" alt="" loading="lazy">
+          <span class="sweep"></span>
+          <svg class="cam" viewBox="0 0 1092 1440" preserveAspectRatio="none" aria-hidden="true">
+            <path class="br" pathLength="100" d="M70 250 V110 Q70 70 110 70 H250"/>
+            <path class="br" pathLength="100" d="M842 70 H982 Q1022 70 1022 110 V250"/>
+            <path class="br" pathLength="100" d="M1022 1190 V1330 Q1022 1370 982 1370 H842"/>
+            <path class="br" pathLength="100" d="M250 1370 H110 Q70 1370 70 1330 V1190"/>
+            <ellipse class="ov" pathLength="100" cx="557" cy="556" rx="295" ry="376"/>
+          </svg>
+          <div class="flash"></div>
+          <div class="camchip"><span class="pill"><b></b><span id="camText">Move a little closer</span></span></div>
+          <div class="scrim"></div>
+          <div class="composing"><svg class="mark" id="compMark" viewBox="150 176 724 724" fill="none"></svg><p>Composing the smile…</p></div>
+          <span class="pill l tagpill">Before</span>
+          <span class="pill r tagpill"><b></b>After · AI concept</span>
         </div>
-
-        <div class="hero-visual intro intro-visual" data-tilt>
-          <div class="tilt">
-            <div class="compare" data-compare data-speed="-0.06">
-              <img class="compare-img" src="/site/hero-before.webp" alt="Patient smile before, as photographed" width="900" height="1187">
-              <div class="compare-after">
-                <img class="compare-img" src="/site/hero-after.webp" alt="The same smile as an AI concept after design" width="900" height="1187">
-              </div>
-              <div class="compare-handle" aria-hidden="true"><span>‹ ›</span></div>
-              <span class="tag tag-left">Before</span>
-              <span class="tag tag-right">Concept</span>
-              <label class="sr-only" for="compare-range">Compare before and concept</label>
-              <input id="compare-range" class="compare-range" type="range" min="0" max="100" value="50" data-compare-range>
-            </div>
-            <div class="patients" role="group" aria-label="Sample patients" data-patients>
-              <button type="button" aria-pressed="true" aria-label="Sample patient 1" data-before="/site/hero-before.webp" data-after="/site/hero-after.webp"><img src="/site/hero-after.webp" alt="" width="900" height="1187"></button>
-              <button type="button" aria-pressed="false" aria-label="Sample patient 2" data-before="/site/p-sofia-before.webp" data-after="/site/p-sofia-after.webp"><img src="/site/p-sofia-after.webp" alt="" width="900" height="1200" loading="lazy"></button>
-              <button type="button" aria-pressed="false" aria-label="Sample patient 3" data-before="/site/p-james-before.webp" data-after="/site/p-james-after.webp"><img src="/site/p-james-after.webp" alt="" width="900" height="1350" loading="lazy"></button>
-              <span class="patients-label">Sample patients</span>
-            </div>
-            <div class="float-card float-design" aria-hidden="true" data-speed="0.12">
-              <p class="float-kicker">Design Studio</p>
-              <p class="float-title">Oval · Veneers</p>
-              <p class="float-sub">Natural white, 8 upper teeth</p>
-            </div>
-            <div class="float-card float-guide" aria-hidden="true" data-speed="0.2">
-              <span class="dot"></span> Smile guide fitted to her teeth
-            </div>
-            <div class="float-card float-style" aria-hidden="true" data-speed="-0.16">
-              <span class="dot dot-gold"></span> Designing in your style
-            </div>
-          </div>
+        <div class="deck" id="deck">
+          <div class="card"><img src="/site/v6/assets/ui/teeth.webp" alt="Choosing the teeth to design" loading="lazy"></div>
+          <div class="card"><img src="/site/v6/assets/ui/shape.webp" alt="Choosing a tooth form" loading="lazy"></div>
+          <div class="card"><img src="/site/v6/assets/ui/shade.webp" alt="Setting the shade" loading="lazy"></div>
+          <div class="card"><img src="/site/v6/assets/ui/treat.webp" alt="Choosing the treatment and material" loading="lazy"></div>
+        </div>
+        <div class="docs">
+          <div class="card sc v6s1"><div class="sendto"><b>Send Smile Preview</b><span>Messages</span><span>WhatsApp</span><span>Email</span><span>Save PDF</span></div></div>
+          <div class="card doc v6s2"><div class="spdoc"><div class="sp-top"><svg class="mark still" viewBox="150 176 724 724" fill="none" data-mark></svg><span>SMILECOMPOSE</span></div>
+  <div class="sp-pair"><figure><img src="/site/v6/assets/people/james-before.webp" alt="" loading="lazy"><figcaption>Before</figcaption></figure><figure><img src="/site/v6/assets/people/james-after.webp" alt="" loading="lazy"><figcaption class="g">Concept</figcaption></figure></div>
+  <p class="sp-title">Your smile concept</p><p class="sp-sub">Designed with your dentist</p><p class="sp-meta">Shape, shade and material chosen at your consultation</p>
+  <p class="sp-fine">AI concept for discussion, not a treatment plan or a guaranteed result.</p></div></div>
         </div>
       </div>
-      <a class="scroll-cue" href="#names" aria-label="Scroll to features"><span></span></a>
-    </section>
+    </div>
+  </div>
+</section>
 
-    <!-- Feature names -->
-    <section class="names" id="names" aria-label="What's inside SmileCompose">
-      <div class="marquee">
-        <ul class="marquee-track">
-          <li>Design Studio</li><li>Quick Smile</li><li>Smile guide</li><li>Smile analysis</li><li>One tooth</li><li>Case Library</li><li>Your style</li><li>Compare 3 shapes</li><li>Consultation view</li><li>Smile Preview</li><li>Consultation Report</li><li>Reveal video</li><li>Home Screen widgets</li>
-        </ul>
-        <ul class="marquee-track" aria-hidden="true">
-          <li>Design Studio</li><li>Quick Smile</li><li>Smile guide</li><li>Smile analysis</li><li>One tooth</li><li>Case Library</li><li>Your style</li><li>Compare 3 shapes</li><li>Consultation view</li><li>Smile Preview</li><li>Consultation Report</li><li>Reveal video</li><li>Home Screen widgets</li>
-        </ul>
+<!-- try it -->
+<section class="try" id="try">
+  <div class="wrap">
+    <div class="head center">
+      <p class="eyebrow rv">One photo, every option</p>
+      <h2 class="d-l rv d1">Bonding to full arch. <em>Same face.</em></h2>
+      <p class="lede rv d2">Choose a shape and a treatment, then drag across the photo. This is the sample case from the app.</p>
+    </div>
+    <div class="try-grid">
+      <div class="cmp rv v6s3" id="cmp" role="slider" tabindex="0" aria-label="Compare today with the concept" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+        <img class="photo" src="/site/v6/assets/patient/original.jpg" alt="Sample patient today" loading="lazy">
+        <img class="photo after" id="cmpAfter" src="/site/v6/assets/patient/oval-layered.webp" alt="Sample patient with the chosen concept" loading="lazy">
+        <span class="line"></span>
+        <span class="knob"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l-5 6 5 6M15 6l5 6-5 6"/></svg></span>
+        <span class="pill l">Today</span>
+        <span class="pill r"><b></b><span id="cmpLabel">Oval · Layered · B1</span></span>
+        <div class="loading"><svg class="mark draw" viewBox="150 176 724 724" fill="none" data-mark></svg></div>
       </div>
-    </section>
-
-    <!-- Creator -->
-    <section class="creator">
-      <div class="wrap creator-inner reveal">
-        <figure class="creator-photo"><img src="/site/dr-vik.webp" alt="Dr Vikas Bajaj" width="400" height="400" loading="lazy"><img class="creator-logo" src="/brand/dr-vik-logo-bronze.png" alt="" width="1080" height="453" loading="lazy"></figure>
-        <div class="creator-copy">
-          <h2 class="creator-title">Designed by a dentist, <em>for dentists.</em></h2>
-          <p>Created by <strong>Dr Vikas Bajaj</strong>, an award-winning cosmetic and restorative dentist in London, for the moment in every consultation when a patient asks, <em>“What would it look like?”</em> Every step is built around how a real consultation runs.</p>
-        </div>
-        <a class="link" href="https://drvik.co.uk" rel="noopener">Meet Dr Vik <span aria-hidden="true">↗</span></a>
+      <div class="controls rv d1">
+        <div><h3>Shape</h3><div class="chips" data-group="shape">
+          <button class="chip" type="button" data-v="oval" aria-pressed="true">Oval</button>
+          <button class="chip" type="button" data-v="square" aria-pressed="false">Square</button>
+          <button class="chip" type="button" data-v="triangle" aria-pressed="false">Triangle</button>
+        </div></div>
+        <div><h3>Treatment</h3><div class="chips" data-group="treat">
+          <button class="chip" type="button" data-v="bonding" aria-pressed="false">Bonding</button>
+          <button class="chip" type="button" data-v="layered" aria-pressed="true">Layered composite</button>
+          <button class="chip" type="button" data-v="porcelain" aria-pressed="false">Porcelain</button>
+          <button class="chip" type="button" data-v="alignment" aria-pressed="false">Alignment</button>
+          <button class="chip" type="button" data-v="fullarch" aria-pressed="false">Full arch</button>
+        </div></div>
+        <p class="fine">Concepts are illustrative visual guides for discussion, not treatment outcomes.</p>
       </div>
-    </section>
+    </div>
+  </div>
+</section>
 
-    <!-- Every smile: parallax gallery -->
-    <section class="gallery" aria-labelledby="gallery-title">
-      <div class="wrap">
-        <header class="section-head center reveal">
-          <p class="eyebrow">Every patient</p>
-          <h2 class="display-2" id="gallery-title">Made for every smile<br><em>that sits in your chair.</em></h2>
-          <p class="lead-sm center-text">Natural light, any skin tone, any age. SmileCompose finds the face and the teeth in an everyday photo, then keeps everything else exactly as it was.</p>
+<!-- variations -->
+<section class="vari" id="variations">
+  <div class="wrap">
+    <div class="head center">
+      <p class="eyebrow rv">Smile variations</p>
+      <h2 class="d-l rv d1">Not sure which shape? <em>Show three.</em></h2>
+      <p class="lede rv d2">Today’s smile beside three concepts, so your patient can point to the one they love.</p>
+    </div>
+    <div class="vgrid rv" aria-label="Smile variations: today, oval, square and triangular">
+      <figure><img src="/site/v6/assets/patient/original.jpg" alt="Today" loading="lazy"><figcaption><b>Now</b><span>Their smile today</span></figcaption></figure>
+      <figure><img src="/site/v6/assets/patient/oval-porcelain.webp" alt="Oval concept" loading="lazy"><figcaption><b>Oval</b><span>Soft, rounded edges</span></figcaption></figure>
+      <figure><img src="/site/v6/assets/patient/square-porcelain.webp" alt="Square concept" loading="lazy"><figcaption><b>Square</b><span>Strong, straight edges</span></figcaption></figure>
+      <figure><img src="/site/v6/assets/patient/triangle-porcelain.webp" alt="Triangular concept" loading="lazy"><figcaption><b>Triangular</b><span>Tapered, youthful</span></figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<!-- case library (from the live site) -->
+<section class="cl" id="library">
+  <div class="wrap cl-grid">
+    <div class="cl-copy rv">
+      <p class="eyebrow">Case Library · Your style</p>
+      <h2>Every design starts from <em>your best work.</em></h2>
+      <p>Add your finished cases to a private Case Library. SmileCompose uses them as style references, so each new design follows the proportions, texture and shade you’d actually deliver, not a generic smile.</p>
+      <ul class="cl-ticks">
+        <li>Only you can see your Case Library</li>
+        <li>Switch your style on or off for any design</li>
+        <li>Reports note the style a design was based on</li>
+      </ul>
+    </div>
+    <div class="cl-stack" id="clStack" aria-hidden="true">
+      <div class="cl-wrap c1" data-hx-speed="-0.12"><figure class="cl-case"><img src="/site/v6/assets/cases/case-porcelain.webp" alt="" loading="lazy"><figcaption>Porcelain veneers</figcaption></figure></div>
+      <div class="cl-wrap c2" data-hx-speed="0.08"><figure class="cl-case"><img src="/site/v6/assets/cases/case-male-smile.webp" alt="" loading="lazy"><figcaption>Layered composite</figcaption></figure></div>
+      <div class="cl-wrap c3" data-hx-speed="-0.02"><figure class="cl-case"><img src="/site/v6/assets/cases/case-single-shade.webp" alt="" loading="lazy"><figcaption>Single-shade bonding</figcaption></figure></div>
+      <div class="cl-badge" data-hx-speed="0.18"><span class="hx-dot gold"></span>Designing in your style</div>
+    </div>
+  </div>
+</section>
+
+<!-- share -->
+<div class="l-root">
+<section class="l-present" id="share">
+      <div class="l-wrap">
+        <header class="l-section-head rv">
+          <p class="l-eyebrow">Present &amp; share</p>
+          <h2 class="l-display-2">Show it in the chair.<br><em>Send it home.</em></h2>
         </header>
-      </div>
-      <div class="gallery-cols" aria-hidden="true">
-        <div class="gcol" data-speed="-0.08"><figure><img src="/site/p-amara.webp" alt="" width="640" height="800" loading="lazy"></figure><figure><img src="/site/p-raj.webp" alt="" width="640" height="800" loading="lazy"></figure></div>
-        <div class="gcol gcol-low" data-speed="0.06"><figure><img src="/site/p-sofia-after.webp" alt="" width="640" height="800" loading="lazy"><span class="gtag">Concept</span></figure><figure><img src="/site/p-helen.webp" alt="" width="640" height="800" loading="lazy"></figure></div>
-        <div class="gcol" data-speed="-0.12"><figure><img src="/site/p-kenji.webp" alt="" width="640" height="800" loading="lazy"></figure><figure><img src="/site/p-claire.webp" alt="" width="640" height="800" loading="lazy"></figure></div>
-        <div class="gcol gcol-low" data-speed="0.1"><figure><img src="/site/p-priya.webp" alt="" width="640" height="800" loading="lazy"></figure><figure><img src="/site/p-hero-porcelain.webp" alt="" width="640" height="800" loading="lazy"><span class="gtag">Porcelain</span></figure></div>
-        <div class="gcol" data-speed="-0.04"><figure><img src="/site/p-aisha.webp" alt="" width="640" height="800" loading="lazy"></figure><figure><img src="/site/p-james-after.webp" alt="" width="640" height="800" loading="lazy"><span class="gtag">Concept</span></figure></div>
-      </div>
-    </section>
-
-    <!-- Design Studio: pinned iPad, steps scroll past -->
-    <section class="studio" id="studio" data-studio>
-      <div class="wrap">
-        <header class="section-head reveal">
-          <p class="eyebrow">Design Studio</p>
-          <h2 class="display-2">Five steps.<br><em>One conversation.</em></h2>
-          <p class="lead-sm">Take a photo or upload one. SmileCompose crops it to a consistent portrait and finds the face, then the Design Studio walks you and your patient through the smile, one decision at a time.</p>
-        </header>
-        <div class="studio-grid">
-          <div class="studio-steps">
-            <article class="studio-step is-active" data-step="0">
-              <span class="step-num">01 · Teeth</span>
-              <h3>Choose what changes.</h3>
-              <p>Design 4, 6, 8 or 10 upper teeth. Or switch to <strong>One tooth</strong> to rebuild a chipped tooth or fill a gap so it matches its partner across the midline.</p>
-            </article>
-            <article class="studio-step" data-step="1">
-              <span class="step-num">02 · Shape</span>
-              <h3>Fitted to their teeth.</h3>
-              <p>Pick oval, square, rectangle or triangle. The <strong>Smile guide</strong> is measured from the photo, finding the midline, gum line and edges of the teeth that are really there.</p>
-            </article>
-            <article class="studio-step" data-step="2">
-              <span class="step-num">03 · Shade</span>
-              <h3>Brighter, instantly.</h3>
-              <p>Keep the shade, whiten or bleach. Whitening happens on the device in a moment, on both arches, and never uses your allowance.</p>
-            </article>
-            <article class="studio-step" data-step="3">
-              <span class="step-num">04 · Treatment</span>
-              <h3>The plan you’d offer.</h3>
-              <p>Whitening, veneers, alignment or full arch, in bonding, layered composite or porcelain. Notes and clinical detail stay with the case.</p>
-            </article>
-            <article class="studio-step" data-step="4">
-              <span class="step-num">05 · Review</span>
-              <h3>Check, then create.</h3>
-              <p>See every choice on one page and generate the concept. Not sure on shape? <strong>Compare 3 shapes</strong> side by side and let the patient choose.</p>
-            </article>
-          </div>
-          <div class="studio-stage">
-            <div class="studio-sticky">
-              <div class="studio-tabs" aria-hidden="true">
-                <span class="studio-pill" data-studio-pill></span>
-                <span class="is-active">Teeth</span><span>Shape</span><span>Shade</span><span>Treatment</span><span>Review</span>
-              </div>
-              <figure class="device studio-device">
-                <img class="studio-screen is-active" src="/site/studio-teeth.webp" alt="Design Studio, Teeth step" width="1400" height="977">
-                <img class="studio-screen" src="/site/screen-guide.webp" alt="Design Studio, Shape step with the Smile guide" width="1400" height="977" loading="lazy">
-                <img class="studio-screen" src="/site/studio-shade.webp" alt="Design Studio, Shade step" width="1400" height="977" loading="lazy">
-                <img class="studio-screen" src="/site/screen-design.webp" alt="Design Studio, Treatment step" width="1400" height="977" loading="lazy">
-                <img class="studio-screen" src="/site/studio-review.webp" alt="Design Studio, Review step" width="1400" height="977" loading="lazy">
-              </figure>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Quick Smile -->
-    <section class="quick" id="quick">
-      <div class="wrap">
-        <header class="section-head center reveal">
-          <p class="eyebrow">Quick Smile</p>
-          <h2 class="display-2">One tap from photo<br><em>to concept.</em></h2>
-          <p class="lead-sm center-text">Short on time? Pick a goal and SmileCompose builds a complete design from your usual preferences. Refine it in the Design Studio afterwards.</p>
-        </header>
-        <div class="quick-stage">
-          <figure class="device quick-device" data-scale-in><img src="/site/screen-quick.webp" alt="Quick Smile goals beside the patient photo" width="1400" height="977" loading="lazy"></figure>
-          <ul class="goal-chips" data-stagger aria-label="Quick Smile goals">
-            <li class="chip chip-1">Whiten <small>Colour only · instant</small></li>
-            <li class="chip chip-2">Veneers <small>8 upper teeth</small></li>
-            <li class="chip chip-3">Straighten <small>Both arches</small></li>
-            <li class="chip chip-4">Fix one tooth <small>Chipped or missing</small></li>
-            <li class="chip chip-5">Full arch <small>All-on-X</small></li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <!-- Case Library -->
-    <section class="style" id="style">
-      <div class="wrap style-grid">
-        <div class="style-copy reveal">
-          <p class="eyebrow eyebrow-gold">Case Library · Your style</p>
-          <h2 class="display-2">Every design starts from <em>your best work.</em></h2>
-          <p>Add your finished cases to a private Case Library. SmileCompose uses them as style references, so each new design follows the proportions, texture and shade you’d actually deliver, not a generic smile.</p>
-          <ul class="ticks" data-stagger>
-            <li>Only you can see your Case Library</li>
-            <li>Switch your style on or off for any design</li>
-            <li>Reports note the style a design was based on</li>
-          </ul>
-        </div>
-        <div class="style-stack" aria-hidden="true">
-          <div class="case-wrap case-1" data-speed="-0.12"><figure class="case"><img src="/site/case-porcelain.webp" alt="" width="480" height="300" loading="lazy"><figcaption>Porcelain veneers</figcaption></figure></div>
-          <div class="case-wrap case-2" data-speed="0.08"><figure class="case"><img src="/site/case-male-smile.webp" alt="" width="480" height="300" loading="lazy"><figcaption>Layered composite</figcaption></figure></div>
-          <div class="case-wrap case-3" data-speed="-0.02"><figure class="case"><img src="/site/case-single-shade.webp" alt="" width="480" height="300" loading="lazy"><figcaption>Single-shade bonding</figcaption></figure></div>
-          <div class="style-badge" data-speed="0.18"><span class="dot dot-gold"></span>Designing in your style</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Present & share -->
-    <section class="present" id="present">
-      <div class="wrap">
-        <header class="section-head reveal">
-          <p class="eyebrow">Present &amp; share</p>
-          <h2 class="display-2">Show it in the chair.<br><em>Send it home.</em></h2>
-        </header>
-        <div class="present-grid" data-stagger>
-          <article class="present-card glow">
-            <div class="present-media media-dark"><img src="/site/screen-reveal.webp" alt="Consultation view" width="1400" height="977" loading="lazy"></div>
+        <div class="l-present-grid">
+          <article class="l-present-card l-glow">
+            <div class="l-present-media l-media-dark"><img src="/site/v6/assets/present/screen-reveal.webp" alt="Consultation view" width="1400" height="977" loading="lazy"></div>
             <h3>Consultation view</h3>
             <p>A clean, full-screen reveal for the patient, with no controls in the way.</p>
           </article>
-          <article class="present-card glow">
-            <div class="present-media media-split" aria-hidden="true">
-              <img src="/site/p-james-before.webp" alt="" width="900" height="1350" loading="lazy">
-              <img src="/site/p-james-after.webp" alt="" width="900" height="1350" loading="lazy">
-              <span class="split-label">Before · Concept</span>
+          <article class="l-present-card l-glow">
+            <div class="l-present-media l-media-split" aria-hidden="true">
+              <img src="/site/v6/assets/hero/p-james-before.webp" alt="" width="900" height="1350" loading="lazy">
+              <img src="/site/v6/assets/hero/p-james-after.webp" alt="" width="900" height="1350" loading="lazy">
+              <span class="l-split-label">Before · Concept</span>
             </div>
             <h3>Smile Preview</h3>
             <p>A simple before-and-after image, made for sending by message or email.</p>
           </article>
-          <article class="present-card glow">
-            <div class="present-media media-doc" aria-hidden="true">
-              <div class="doc">
-                <p class="doc-brand">Consultation Report</p>
-                <div class="doc-pics"><img src="/site/p-sofia-before.webp" alt="" loading="lazy"><img src="/site/p-sofia-after.webp" alt="" loading="lazy"></div>
-                <span class="doc-line"></span><span class="doc-line short"></span>
-                <div class="doc-rows"><span>Shape</span><b>Oval</b><span>Treatment</span><b>Veneers</b><span>Style</span><b>Your Case Library</b></div>
+          <article class="l-present-card l-glow">
+            <div class="l-present-media l-media-doc" aria-hidden="true">
+              <div class="l-doc">
+                <p class="l-doc-brand">Consultation Report</p>
+                <div class="l-doc-pics"><img src="/site/v6/assets/hero/p-sofia-before.webp" alt="" loading="lazy"><img src="/site/v6/assets/hero/p-sofia-after.webp" alt="" loading="lazy"></div>
+                <span class="l-doc-line"></span><span class="l-doc-line l-short"></span>
+                <div class="l-doc-rows"><span>Shape</span><b>Oval</b><span>Treatment</span><b>Veneers</b><span>Style</span><b>Your Case Library</b></div>
               </div>
             </div>
             <h3>Consultation Report</h3>
             <p>The design, the reasoning and next steps in one branded document.</p>
           </article>
-          <article class="present-card glow">
-            <div class="present-media media-dark media-video" aria-hidden="true">
-              <img src="/site/screen-result.webp" alt="" width="1400" height="915" loading="lazy">
-              <span class="play"></span>
-              <span class="video-bar"><span></span></span>
+          <article class="l-present-card l-glow">
+            <div class="l-present-media l-media-dark l-media-video" aria-hidden="true">
+              <img src="/site/v6/assets/present/screen-result.webp" alt="" width="1400" height="915" loading="lazy">
+              <span class="l-play"></span>
+              <span class="l-video-bar"><span></span></span>
             </div>
             <h3>Reveal video</h3>
             <p>A short before-to-after animation they’ll want to show their friends.</p>
@@ -300,158 +258,78 @@
         </div>
       </div>
     </section>
+</div>
 
-    <!-- Whole practice -->
-    <section class="team" id="team">
-      <div class="wrap">
-        <header class="section-head reveal">
-          <p class="eyebrow">For the whole practice</p>
-          <h2 class="display-2">One smile.<br><em>Everyone on the same page.</em></h2>
+<!-- account -->
+<section class="acct" id="account">
+  <div class="wrap">
+    <div class="head center">
+      <p class="eyebrow rv">Your account</p>
+      <h2 class="d-l rv d1">Every case, <em>on every device.</em></h2>
+      <p class="lede rv d2">One account for iPad, iPhone and the web. Sign in at your desk and your cases, Case Library and allowance are waiting.</p>
+    </div>
+    <div class="acct-grid">
+      <div class="acct-steps rv" id="acctSteps" role="tablist" aria-label="Account steps">
+        <button class="acct-step on" type="button" role="tab" aria-selected="true" data-i="0"><i></i><strong>Create your account, sign in anywhere</strong><span>Sign up with Apple or your email in under a minute. The same account works on iPad, iPhone and the web, with two-factor authentication if you want it.</span></button>
+        <button class="acct-step" type="button" role="tab" aria-selected="false" data-i="1"><i></i><strong>Pick up where you left off</strong><span>Your dashboard shows recent cases, your Case Library and how many concepts you have left.</span></button>
+      </div>
+      <div class="browser rv d1" aria-live="polite">
+        <div class="browser-bar"><b></b><b></b><b></b><span id="acctUrl">SmileCompose · Create your account</span></div>
+        <div class="browser-view" id="acctView">
+          <img class="on" src="/site/v6/assets/account/signup.webp" alt="The SmileCompose sign-up page" loading="lazy">
+          <img src="/site/v6/assets/account/dashboard.webp" alt="The SmileCompose web dashboard with recent cases" loading="lazy">
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- why -->
+<section class="why">
+  <div class="wrap">
+    <div class="why-top">
+      <div class="head">
+        <p class="eyebrow rv">Why dentists choose it</p>
+        <h2 class="d-l rv d1 v6s4">The consultation, <em>transformed.</em></h2>
+      </div>
+      <div class="why-shot rv d2"><div class="cmp why-cmp v6s5" id="whyCmp" role="slider" tabindex="0" aria-label="Compare his smile before and as a SmileCompose concept" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+        <img class="photo" src="/site/v6/assets/people/james-smile-before.webp" alt="His smile before" loading="lazy">
+        <img class="photo after" src="/site/v6/assets/people/james-smile-after.webp" alt="His smile as a SmileCompose concept" loading="lazy">
+        <span class="line"></span>
+        <span class="knob"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l-5 6 5 6M15 6l5 6-5 6"/></svg></span>
+        <span class="pill l">Before</span><span class="pill r"><b></b>Concept</span>
+      </div></div>
+    </div>
+    <div class="grid3">
+      <div class="rv"><strong>Seeing is deciding.</strong><span>A plan is easier to agree when the patient has seen it on their own face.</span></div>
+      <div class="rv d1"><strong>Designed in the chair.</strong><span>Start the conversation in the first appointment, without waiting for a wax-up.</span></div>
+      <div class="rv d2"><strong>In your own style.</strong><span>Your Case Library guides new designs to follow the work you deliver.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- Dr Vik -->
+<section class="drvik" id="drvik">
+  <div class="wrap drvik-grid">
+    <img class="drvik-photo rv" src="/site/v6/assets/brand/dr-vik.jpg" alt="Dr. Vikas Bajaj" loading="lazy">
+    <div>
+      <p class="eyebrow rv">The dentist behind it</p>
+      <h2 class="d-m rv d1 v6s6">Designed by a dentist, <em>for dentists.</em></h2>
+      <p class="rv d2">Dr. Vikas Bajaj is an award-winning cosmetic and restorative dentist in London. He built SmileCompose for the moment in every consultation when a patient asks, “What would it look like?”</p>
+      <p class="signed rv d3"><span><img src="/site/v6/assets/brand/drvik-logo.png" alt="Dr. Vik"></span><a class="link" href="#start">Book a demo with Dr. Vik</a></p>
+    </div>
+  </div>
+</section>
+
+<!-- privacy -->
+<div class="l-root">
+<section class="l-trust" aria-labelledby="trust-title">
+      <div class="l-wrap">
+        <header class="l-section-head l-center rv">
+          <p class="l-eyebrow">Trust</p>
+          <h2 class="l-display-2" id="trust-title">Built for the trust<br><em>your patients give you.</em></h2>
         </header>
-        <div class="team-grid" data-stagger>
-          <article class="team-card glow">
-            <span class="team-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="m14 6 3 3"/></svg></span>
-            <p class="tile-name">Cosmetic dentist</p>
-            <h3>Design it your way.</h3>
-            <p>Plan the smile chairside in the Design Studio, guided by your Case Library, and show the patient before they decide.</p>
-          </article>
-          <article class="team-card glow">
-            <span class="team-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
-            <p class="tile-name">Treatment coordinator</p>
-            <h3>Keep the conversation going.</h3>
-            <p>Open the Consultation view to walk through options, then send a Smile Preview or Consultation Report home with the patient.</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- More features -->
-    <section class="features" id="features">
-      <div class="wrap">
-        <header class="section-head reveal">
-          <p class="eyebrow">And everything around it</p>
-          <h2 class="display-2">Everything the consultation needs.<br><em>Nothing it doesn’t.</em></h2>
-        </header>
-        <div class="bento" data-stagger>
-          <article class="tile tile-tall tile-dark tile-analysis glow">
-            <div class="tile-copy">
-              <p class="tile-name">Smile analysis</p>
-              <h3>Read the face, not just the teeth.</h3>
-              <p>Facial midline, smile arc, nasal width and tooth proportions, drawn on the patient’s own face.</p>
-            </div>
-            <img src="/site/analysis-face.webp" alt="Smile analysis on a patient photo: eye line, facial midline, nasal width, mouth corners and smile arc" width="610" height="501" loading="lazy">
-          </article>
-          <article class="tile glow">
-            <div class="tile-copy">
-              <p class="tile-name">One tooth</p>
-              <h3>Fix the one that stands out.</h3>
-              <p>Rebuild a chipped tooth or fill a gap to match its neighbour.</p>
-            </div>
-            <div class="tile-visual tooth-visual">
-              <img src="/site/one-tooth-smile.webp" alt="A smile with UR1 and UL1 outlined; UL1 is chosen to rebuild" width="700" height="420" loading="lazy">
-              <div class="tooth-chip"><img src="/site/one-tooth-chart.webp" alt="" width="360" height="110" loading="lazy"><p><b>UL1</b> rebuilt to match UR1</p></div>
-            </div>
-          </article>
-          <article class="tile glow">
-            <div class="tile-copy">
-              <p class="tile-name">Compare 3 shapes</p>
-              <h3>Let them choose.</h3>
-              <p>Three options side by side, so the decision is theirs.</p>
-            </div>
-            <div class="tile-visual shapes" aria-label="Three tooth shapes for the same smile">
-              <figure><img src="/site/shape-rounded.webp" alt="Rounded" width="360" height="280" loading="lazy"><figcaption>Rounded</figcaption></figure>
-              <figure class="pick"><img src="/site/shape-square.webp" alt="Square, chosen" width="360" height="280" loading="lazy"><figcaption>Square <span aria-hidden="true">✓</span></figcaption></figure>
-              <figure><img src="/site/shape-tapered.webp" alt="Tapered" width="360" height="280" loading="lazy"><figcaption>Tapered</figcaption></figure>
-            </div>
-          </article>
-          <article class="tile tile-feature glow">
-            <div class="tile-copy">
-              <p class="tile-name">Whitening on the device</p>
-              <h3>Brighter, instantly.</h3>
-              <p>Shade changes on both arches in a moment, without using your allowance.</p>
-            </div>
-            <div class="tile-visual whiten" aria-label="The same smile before and after whitening">
-              <img src="/site/whiten-before.webp" alt="" width="310" height="185" loading="lazy">
-              <img class="whiten-after" src="/site/whiten-after.webp" alt="" width="310" height="185" loading="lazy">
-              <span class="whiten-line" aria-hidden="true"></span>
-              <span class="whiten-tag l">Before</span><span class="whiten-tag r">Whitened</span>
-              <span class="whiten-badge"><b>0</b> generations used</span>
-            </div>
-          </article>
-          <article class="tile tile-feature glow">
-            <div class="tile-copy">
-              <p class="tile-name">Home Screen widgets</p>
-              <h3>One tap from your Home Screen.</h3>
-              <p>Start a new design or check your allowance without opening the app.</p>
-            </div>
-            <div class="tile-visual widgets" aria-hidden="true">
-              <img class="w1" src="/site/widget-start.webp" alt="" width="340" height="337" loading="lazy">
-              <img class="w2" src="/site/widget-allowance.webp" alt="" width="340" height="337" loading="lazy">
-            </div>
-          </article>
-          <article class="tile tile-gold tile-span tile-private glow">
-            <div class="private-copy">
-              <p class="tile-name">Private by design</p>
-              <h3>Your patients stay yours.</h3>
-              <p>Cases save on your device first, then sync privately to your account, so only you can open them on your iPad, iPhone and the web.</p>
-            </div>
-            <ul class="private-list">
-              <li><span class="pi"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg></span><div><b>Saved on your device first</b><small>Works offline and syncs when you’re back online.</small></div></li>
-              <li><span class="pi"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span><div><b>Private to your account</b><small>Nobody else can see your cases or your Case Library.</small></div></li>
-            </ul>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- Return -->
-    <section class="roi" id="roi">
-      <div class="wrap roi-grid">
-        <div class="reveal">
-          <p class="eyebrow eyebrow-gold">The numbers</p>
-          <h2 class="display-2">Does it pay<br><em>for itself?</em></h2>
-          <p class="roi-lead">Patients who can see the result are easier to say yes. Put in your own numbers to see what a small change in case acceptance is worth.</p>
-        </div>
-        <div class="roi-card reveal" data-roi>
-          <label class="roi-field"><span>Smile consultations a month <output data-out="consults">8</output></span>
-            <input type="range" min="1" max="40" step="1" value="8" data-in="consults"></label>
-          <label class="roi-field"><span>Extra patients who go ahead, out of every 10 <output data-out="uplift">1</output></span>
-            <input type="range" min="0" max="5" step="0.5" value="1" data-in="uplift"></label>
-          <label class="roi-field"><span>Average treatment fee <output data-out="fee">£3,000</output></span>
-            <input type="range" min="300" max="15000" step="100" value="3000" data-in="fee"></label>
-          <div class="roi-result">
-            <div><small>Extra treatment a year</small><b data-out="revenue">£28,800</b></div>
-            <div><small>SmileCompose Pro a year</small><b>£299.99</b></div>
-            <div class="roi-x"><small>Return</small><b data-out="multiple">96×</b></div>
-          </div>
-          <p class="roi-note">An illustration from your own estimates, not a promise of results.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Devices -->
-    <section class="devices">
-      <div class="wrap devices-grid">
-        <div class="reveal">
-          <p class="eyebrow">iPad · iPhone · Web</p>
-          <h2 class="display-2">At the chair,<br>on the go,<br><em>at your desk.</em></h2>
-          <p class="lead-sm">Design chairside on iPad, follow up from your iPhone and review cases on the web, all with one account.</p>
-        </div>
-        <div class="devices-visual" aria-hidden="true">
-          <figure class="device device-dark devices-ipad" data-speed="-0.05"><img src="/site/screen-result.webp" alt="" width="1400" height="915" loading="lazy"></figure>
-          <figure class="phone" data-speed="0.14"><img src="/site/phone-result.webp" alt="" width="600" height="859" loading="lazy"></figure>
-        </div>
-      </div>
-    </section>
-
-    <!-- Trust -->
-    <section class="trust" aria-labelledby="trust-title">
-      <div class="wrap">
-        <header class="section-head center reveal">
-          <p class="eyebrow">Trust</p>
-          <h2 class="display-2" id="trust-title">Built for the trust<br><em>your patients give you.</em></h2>
-        </header>
-        <ul class="trust-grid" data-stagger>
+        <ul class="l-trust-grid">
           <li><b>Never used to train AI</b><span>We don’t use patient data to train AI models, and our AI provider’s terms don’t allow it either.</span></li>
           <li><b>No tracking or adverts</b><span>No analytics, advertising or tracking cookies, and we never sell data.</span></li>
           <li><b>Private to your account</b><span>Cases and your Case Library are stored privately. Nobody else can open them.</span></li>
@@ -461,29 +339,56 @@
         </ul>
       </div>
     </section>
+</div>
 
-    <!-- Pricing -->
-    <section class="pricing" id="pricing">
-      <div class="wrap">
-        <header class="section-head center reveal">
-          <p class="eyebrow">Pricing</p>
-          <h2 class="display-2">One plan. <em>Every feature.</em></h2>
-          <div class="toggle" role="group" aria-label="Billing period" data-billing>
-            <span class="toggle-pill" data-toggle-pill></span>
-            <button type="button" aria-pressed="true" data-plan="annual">Annual <span class="save">2 months free</span></button>
+<!-- return -->
+<section class="roi" id="roi">
+  <div class="wrap roi-grid">
+    <div class="head">
+      <p class="eyebrow rv">The numbers</p>
+      <h2 class="d-l rv d1">Does it pay <em>for itself?</em></h2>
+      <p class="lede rv d2">Patients find it easier to say yes when they can see the result. Put in your own numbers to see what a small change in case acceptance is worth.</p>
+    </div>
+    <div class="roi-card rv d1" id="roiCard">
+      <label class="roi-field"><span>Smile consultations a month <output data-out="consults">8</output></span>
+        <input type="range" min="1" max="40" step="1" value="8" data-in="consults"></label>
+      <label class="roi-field"><span>Extra patients who go ahead, out of every 10 <output data-out="uplift">1</output></span>
+        <input type="range" min="0" max="5" step="0.5" value="1" data-in="uplift"></label>
+      <label class="roi-field"><span>Average treatment fee <output data-out="fee">£3,000</output></span>
+        <input type="range" min="300" max="15000" step="100" value="3000" data-in="fee"></label>
+      <div class="roi-result" aria-live="polite">
+        <div class="big"><small>Extra treatment a year</small><b data-out="revenue">£28,800</b></div>
+        <div><small>SmileCompose Pro a year</small><b>£299.99</b></div>
+        <div class="x"><small>Return</small><b data-out="multiple">96×</b></div>
+      </div>
+      <p class="roi-note">An illustration from your own estimates, not a promise of results.</p>
+    </div>
+  </div>
+</section>
+
+<!-- pricing -->
+<div class="l-root">
+<section class="l-pricing" id="pricing">
+      <div class="l-wrap">
+        <header class="l-section-head l-center rv">
+          <p class="l-eyebrow">Pricing</p>
+          <h2 class="l-display-2">One plan. <em>Every feature.</em></h2>
+          <div class="l-toggle" role="group" aria-label="Billing period" data-billing>
+            <span class="l-toggle-pill" data-toggle-pill></span>
+            <button type="button" aria-pressed="true" data-plan="annual">Annual <span class="l-save">2 months free</span></button>
             <button type="button" aria-pressed="false" data-plan="monthly">Monthly</button>
           </div>
         </header>
-        <div class="plan reveal glow">
-          <div class="plan-head">
-            <p class="plan-name">SmileCompose Pro</p>
-            <p class="plan-price"><span data-price>£299.99</span><small data-period>/year</small></p>
-            <p class="plan-allowance" data-allowance>600 smile generations a year</p>
-            <p class="plan-trial">3-day free trial with 3 generations</p>
-            <a class="btn btn-dark btn-block btn-shine" href="/?app">Try SmileCompose</a>
-            <p class="plan-note">Subscribe in the SmileCompose app on iPhone or iPad. Your plan works on the web too.</p>
+        <div class="l-plan rv l-glow">
+          <div class="l-plan-head">
+            <p class="l-plan-name">SmileCompose Pro</p>
+            <p class="l-plan-price"><span data-price>£299.99</span><small data-period>/year</small></p>
+            <p class="l-plan-allowance" data-allowance>600 smile generations a year</p>
+            <p class="l-plan-trial">3-day free trial with 3 generations</p>
+            <a class="l-btn l-btn-dark l-btn-block l-btn-shine" href="/?app">Try SmileCompose</a>
+            <p class="l-plan-note">Subscribe in the SmileCompose app on iPhone or iPad. Your plan works on the web too.</p>
           </div>
-          <ul class="ticks plan-list" data-stagger>
+          <ul class="l-ticks l-plan-list">
             <li>Design Studio and Quick Smile</li>
             <li>Case Library: designs in your style</li>
             <li>Smile guide, Smile analysis and One tooth</li>
@@ -493,15 +398,16 @@
             <li>A design that fails is returned to your allowance</li>
           </ul>
         </div>
-        <p class="pricing-demo reveal">Not ready yet? <a class="link" href="/?app">Explore the sample patients</a>, no account needed.</p>
+        <p class="l-pricing-demo rv">Not ready yet? <a class="l-link" href="/?app">Explore the sample patients</a>, no account needed.</p>
       </div>
     </section>
+</div>
 
-    <!-- FAQ -->
-    <section class="faq">
-      <div class="wrap faq-grid">
-        <h2 class="display-2 reveal">Questions</h2>
-        <div class="faq-list reveal">
+<div class="l-root">
+<section class="l-faq">
+      <div class="l-wrap l-faq-grid">
+        <h2 class="l-display-2 rv">Questions</h2>
+        <div class="l-faq-list rv">
           <details>
             <summary>Is the concept a treatment outcome?</summary>
             <p>No. It’s a visual concept to support the conversation, not a diagnosis, treatment plan or guaranteed result. Clinical assessment always comes first.</p>
@@ -541,65 +447,58 @@
         </div>
       </div>
     </section>
+</div>
 
-    <!-- Book a demo -->
-    <section class="demo" id="demo">
-      <div class="wrap demo-grid">
-        <div class="reveal">
-          <p class="eyebrow">Book a demo</p>
-          <h2 class="display-2">See it with<br><em>your own cases.</em></h2>
-          <p class="lead-sm">Book a short video call with Dr Vik, or ask for early access to the iPad and iPhone app. We’ll reply by email.</p>
-          <p class="demo-store"><span class="store-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.9-3-.8a4.5 4.5 0 0 0-3.8 2.3c-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.5 1.3-2.6-.1 0-2.5-.9-2.5-3.7zM14.2 5.5c.6-.8 1.1-1.8 1-2.9-1 0-2.1.7-2.8 1.5-.6.7-1.1 1.8-1 2.8 1 .1 2.1-.6 2.8-1.4z"/></svg>iPad &amp; iPhone app · coming soon to the App Store</span></p>
+<div class="l-root">
+<section class="l-demo" id="demo">
+      <div class="l-wrap l-demo-grid">
+        <div class="rv">
+          <p class="l-eyebrow">Book a demo</p>
+          <h2 class="l-display-2">See it with<br><em>your own cases.</em></h2>
+          <p class="l-lead-sm">Book a short video call with Dr Vik, or ask for early access to the iPad and iPhone app. We’ll reply by email.</p>
+          <p class="l-demo-store"><span class="l-store-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.9-3-.8a4.5 4.5 0 0 0-3.8 2.3c-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.5 1.3-2.6-.1 0-2.5-.9-2.5-3.7zM14.2 5.5c.6-.8 1.1-1.8 1-2.9-1 0-2.1.7-2.8 1.5-.6.7-1.1 1.8-1 2.8 1 .1 2.1-.6 2.8-1.4z"/></svg>iPad &amp; iPhone app · coming soon to the App Store</span></p>
         </div>
-        <form class="demo-form reveal" data-lead novalidate>
-          <div class="demo-toggle" role="radiogroup" aria-label="What would you like?">
+        <form class="l-demo-form rv" data-lead novalidate>
+          <div class="l-demo-toggle" role="radiogroup" aria-label="What would you like?">
             <label><input type="radio" name="interest" value="demo" checked><span>Book a demo</span></label>
             <label><input type="radio" name="interest" value="early_access"><span>Early access</span></label>
           </div>
-          <div class="demo-row">
-            <label class="demo-field">Your name<input name="name" required maxlength="120" autocomplete="name"></label>
-            <label class="demo-field">Email<input name="email" type="email" required maxlength="254" autocomplete="email"></label>
+          <div class="l-demo-row">
+            <label class="l-demo-field">Your name<input name="name" required maxlength="120" autocomplete="name"></label>
+            <label class="l-demo-field">Email<input name="email" type="email" required maxlength="254" autocomplete="email"></label>
           </div>
-          <div class="demo-row">
-            <label class="demo-field"><span class="demo-label">Practice <em>Optional</em></span><input name="practice" maxlength="160" autocomplete="organization"></label>
-            <label class="demo-field">You are<select name="role"><option value="dentist">A dentist</option><option value="coordinator">A treatment coordinator</option><option value="other">Something else</option></select></label>
+          <div class="l-demo-row">
+            <label class="l-demo-field"><span class="l-demo-label">Practice <em>Optional</em></span><input name="practice" maxlength="160" autocomplete="organization"></label>
+            <label class="l-demo-field">You are<select name="role"><option value="dentist">A dentist</option><option value="coordinator">A treatment coordinator</option><option value="other">Something else</option></select></label>
           </div>
-          <label class="demo-field"><span class="demo-label">Anything we should know? <em>Optional</em></span><textarea name="message" maxlength="1000" rows="3" placeholder="Best times, the treatments you offer most…"></textarea></label>
-          <label class="demo-hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
-          <label class="demo-check"><input type="checkbox" name="privacy"><span>We’ll use these details only to reply to you about SmileCompose. See our <a href="/privacy.html">privacy policy</a>.</span></label>
-          <button class="btn btn-dark btn-block" type="submit">Send request</button>
-          <p class="demo-status" role="status" aria-live="polite" data-lead-status></p>
+          <label class="l-demo-field"><span class="l-demo-label">Anything we should know? <em>Optional</em></span><textarea name="message" maxlength="1000" rows="3" placeholder="Best times, the treatments you offer most…"></textarea></label>
+          <label class="l-demo-hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+          <label class="l-demo-check"><input type="checkbox" name="privacy"><span>We’ll use these details only to reply to you about SmileCompose. See our <a href="/privacy.html">privacy policy</a>.</span></label>
+          <button class="l-btn l-btn-dark l-btn-block" type="submit">Send request</button>
+          <p class="l-demo-status" role="status" aria-live="polite" data-lead-status></p>
         </form>
       </div>
     </section>
+</div>
 
-    <!-- Final CTA -->
-    <section class="final">
-      <img class="final-bg" src="/smile-hero-dr-vik-v2.webp" alt="" loading="lazy" data-zoom>
-      <div class="wrap final-inner reveal">
-        <h2 class="display-2">Show them the smile<br><em>before you pick up a bur.</em></h2>
-        <div class="cta-row center">
-          <a class="btn btn-gold btn-shine" href="/?app">Try SmileCompose <span aria-hidden="true">→</span></a>
-          <a class="btn btn-ghost-light" href="#demo">Book a demo</a>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer class="footer">
-    <div class="wrap footer-inner">
-      <a class="brand" href="/welcome" aria-label="SmileCompose home">
-        <img src="/brand/smilecompose-mark-dark.svg" alt="" width="24" height="24">
-        <span>SmileCompose</span>
-      </a>
-      <nav class="footer-links" aria-label="Footer">
-        <a href="/privacy.html">Privacy</a>
-        <a href="/terms.html">Terms</a>
-        <a href="https://drvik.co.uk" rel="noopener">drvik.co.uk</a>
-        <a href="/?signin">Sign in</a>
-      </nav>
-      <p class="footer-note">SmileCompose creates illustrative smile concepts for clinical consultations. Concepts are not treatment outcomes. © 2026 SmileCompose.</p>
+<!-- closing -->
+<section class="closing center" id="start">
+  <div class="wrap">
+    <svg class="mark" id="endMark" viewBox="150 176 724 724" fill="none"></svg>
+    <div class="head">
+      <h2 class="d-l rv">Your next consultation <em>could look like this.</em></h2>
+      <p class="lede rv d1">Open the sample patients in your browser. No account needed.</p>
     </div>
-  </footer>
+    <div class="ctas rv d2"><a class="btn" href="/?app">Start free trial</a><a class="link" href="#drvik">Book a demo</a></div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <span class="v6s7">SmileCompose creates illustrative smile concepts for clinical consultations. Concepts are visual guides for discussion, not treatment plans or guaranteed results. The patient shown is a sample. © 2026 SmileCompose.</span>
+    <nav aria-label="Footer"><a href="/?signin">Sign in</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="https://drvik.co.uk">drvik.co.uk</a></nav>
+  </div>
+</footer>
 </body>
 </html>

@@ -14,13 +14,12 @@ import {
   X,
 } from "lucide-react";
 import type { Photo } from "@/lib/types";
-import { SMILE_GUIDE } from "@/lib/types";
 import { preparePhoto } from "@/lib/photos";
 import { holdOriginal } from "@/lib/originals";
 import { isNativeApp } from "@/native/platform";
 import { UPLOAD_AUTHORITY_TEXT } from "@/config/legal";
 import { CaptureSymbol, CasesSymbol, IconTile, PhotosSymbol } from "@/components/icons/SmileIcons";
-import { EXAMPLE_COMPARISON, EXAMPLE_PORTRAITS } from "@/lib/exampleImages";
+import { CAMERA_SAMPLE, EXAMPLE_COMPARISON, EXAMPLE_PORTRAITS } from "@/lib/exampleImages";
 import { ZoomPan } from "./ZoomPan";
 
 const TIPS = [
@@ -40,6 +39,17 @@ const GALLERY = [
   { src: "/onboarding/case-male-smile.jpg", width: 480, height: 300 },
   { src: EXAMPLE_COMPARISON.after, width: 1086, height: 1448 },
 ];
+
+/** The camera's smile frame: four rounded corner marks (CornerFrameView in the iOS camera). */
+function cornerMarks({ x, y, width: w, height: h }: { x: number; y: number; width: number; height: number }, l = 50, c = 14): string {
+  const r = x + w, b = y + h;
+  return [
+    `M${x} ${y + l}V${y + c}Q${x} ${y} ${x + c} ${y}H${x + l}`,
+    `M${r - l} ${y}H${r - c}Q${r} ${y} ${r} ${y + c}V${y + l}`,
+    `M${r} ${b - l}V${b - c}Q${r} ${b} ${r - c} ${b}H${r - l}`,
+    `M${x + l} ${b}H${x + c}Q${x} ${b} ${x} ${b - c}V${b - l}`,
+  ].join("");
+}
 
 function PhotoTips() {
   return (
@@ -252,22 +262,14 @@ export function PhotoUploader({
                 <small>Use the camera, with a guide for the smile.</small>
               </span>
               <span className="photo-option-visual photo-option-capture" aria-hidden="true">
-                {/* The portrait and its smile guide move together, so the guide stays on the smile however the preview is cropped. */}
+                {/* Drawn like the camera once lined up (gold smile frame and centre ticks): the smile frame is in the photo's own coordinates, so it stays on her smile however the card crops. */}
                 <span className="photo-option-scene">
-                  <img {...EXAMPLE_PORTRAITS.man} sizes="(min-width: 700px) 600px, 100vw" alt="" draggable={false} decoding="async" />
-                  <span
-                    className="photo-option-guide"
-                    style={{
-                      left: `${SMILE_GUIDE.x * 100}%`,
-                      top: `${SMILE_GUIDE.y * 100}%`,
-                      width: `${SMILE_GUIDE.width * 100}%`,
-                      height: `${SMILE_GUIDE.height * 100}%`,
-                    }}
-                  />
+                  <svg className="photo-option-photo" viewBox={`0 0 ${CAMERA_SAMPLE.width} ${CAMERA_SAMPLE.height}`} preserveAspectRatio="xMidYMid slice">
+                    <image href={CAMERA_SAMPLE.src} width={CAMERA_SAMPLE.width} height={CAMERA_SAMPLE.height} />
+                    <path className="photo-option-smile" d={cornerMarks(CAMERA_SAMPLE.smile)} />
+                  </svg>
                 </span>
-                <span className="photo-option-corner tl" /><span className="photo-option-corner tr" />
-                <span className="photo-option-corner bl" /><span className="photo-option-corner br" />
-                <span className="photo-option-shutter" />
+                <span className="photo-option-tick top" /><span className="photo-option-tick bottom" />
               </span>
               <span className="photo-option-go" aria-hidden="true"><ChevronRight size={20} strokeWidth={1.7} /></span>
             </button>

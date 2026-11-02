@@ -705,16 +705,13 @@ input[type="checkbox"][role="switch"],
 .photo-option-text strong { font-family: var(--font-display); font-size: 22px; font-weight: 400; letter-spacing: -.01em; line-height: 1.1; }
 .photo-option-text small { font-size: 13px; line-height: 1.4; color: var(--text-secondary); }
 .photo-option-visual { position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 16px; background: #1A1714; }
-/* Positioned so the sample smile sits inside the guide rectangle (SMILE_GUIDE: centre 61.5% down). */
-.photo-option-capture img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 23%; }
-.photo-option-corner { position: absolute; width: 18px; height: 18px; border: 2px solid rgba(255, 255, 255, .92); }
-.photo-option-corner.tl { top: 10px; left: 10px; border-right: 0; border-bottom: 0; border-radius: 8px 0 0 0; }
-.photo-option-corner.tr { top: 10px; right: 10px; border-left: 0; border-bottom: 0; border-radius: 0 8px 0 0; }
-.photo-option-corner.bl { bottom: 10px; left: 10px; border-right: 0; border-top: 0; border-radius: 0 0 0 8px; }
-.photo-option-corner.br { bottom: 10px; right: 10px; border-left: 0; border-top: 0; border-radius: 0 0 8px 0; }
-.photo-option-guide { position: absolute; border: 1.5px dashed rgba(255, 255, 255, .85); border-radius: 8px; }
-/* The camera's shutter, at the foot of the preview */
-.photo-option-shutter { position: absolute; left: 50%; bottom: 12px; width: 30px; height: 30px; transform: translateX(-50%); border-radius: 50%; background: rgba(255, 255, 255, .28); box-shadow: 0 0 0 2.5px rgba(255, 255, 255, .92); }
+/* The "Take a photo" card, drawn like the camera picture once everything is lined up (PhotoPickerPlugin.swift):
+   centre ticks and gold corner marks round the smile. */
+.photo-option-photo { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.photo-option-smile { fill: none; stroke: #D0A466; stroke-width: 3px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.photo-option-tick { position: absolute; left: 50%; width: 2px; height: 14px; margin-left: -1px; background: #D0A466; }
+.photo-option-tick.top { top: 0; }
+.photo-option-tick.bottom { bottom: 0; }
 /* A mosaic of the library: a portrait and a wide shot above, a wide shot, a detail and a portrait below */
 .photo-option-gallery { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; background: var(--control-background); }
 .photo-option-gallery img { width: 100%; height: 100%; min-height: 0; object-fit: cover; border-radius: 8px; }
@@ -761,11 +758,10 @@ input[type="checkbox"][role="switch"],
   .photo-option { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 14px; row-gap: 12px; align-items: center; }
   .photo-option .icon-tile { grid-row: 1; }
   .photo-option-visual { grid-column: 1 / -1; aspect-ratio: 16 / 9; }
-  .photo-option-capture img { object-position: 50% 36%; } /* the 16:9 card crops more: keep the smile in the guide */
   .photo-option-gallery { grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: auto; aspect-ratio: auto; }
   .photo-option-gallery img, .photo-option-gallery img:nth-child(n) { grid-column: auto; aspect-ratio: 1; }
   .photo-option-go { top: 26px; right: 18px; }
-  .photo-option-shutter { width: 22px; height: 22px; bottom: 8px; box-shadow: 0 0 0 2px rgba(255, 255, 255, .92); }
+    .photo-option-tick { height: 10px; }
   .photo-option-text { padding-right: 28px; }
 }
 @media (prefers-reduced-motion: reduce) { .photo-start { animation: none; } }
@@ -1075,7 +1071,7 @@ input[type="checkbox"][role="switch"],
 
 /* The first photo page: the camera preview takes the height that's left, so the page fits without scrolling. */
 .photo-option-scene { position: absolute; inset: 0; }
-.photo-option-scene > img { position: absolute; inset: 0; }
+.photo-option-scene > svg { position: absolute; inset: 0; }
 @media (min-width: 600px) and (min-height: 600px) {
   .app-shell[data-screen="photo"] main > .photo-screen:has(> .photo-start) { flex: 1 1 0; min-height: 0; container-type: size; }
   .photo-start {

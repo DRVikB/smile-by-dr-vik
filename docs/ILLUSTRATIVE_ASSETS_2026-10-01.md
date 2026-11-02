@@ -119,3 +119,12 @@ Use case: identity-preserve. Asset: matched fictional BEFORE portrait for the Sm
 - Browser verification: subscription intro class animate, computed reveal-split2.8s/delay0.45s, no hint; completed intro at50%, hint visible. Subscription pointer25%→70%, hint dismissed; keyboard Home0%, End100%, ArrowLeft95%. Welcome pointer interaction changed the reveal and dismissed the hint; keyboard0/100/95 and subsequent reload hint verified.
 - Responsive browser previews:393×852 phone and1194×834 landscape tablet. Both final male assets decode1024×1536. Hint sits above the face/smile rather than covering the teeth. Screenshots: output/playwright/welcome-interactive-iphone.png and subscription-fictional-interactive-ipad.png.
 - Full suite773/773 PASS, lint/TypeScript/production/native build PASS. Final Before/Concept native SHA-256 hashes match their source WebPs; owner-likeness and rejected gap/wide-incisor assets are absent from public and native bundles. Browser interaction is not physical-device swipe/force-close acceptance. No installation, staging/production deployment or Apple upload.
+
+## Update 2026-11-02: new male sample (darker complexion)
+
+- Replaces the earlier fictional man everywhere he appeared (onboarding subscription slider, How it works capture photo, photo uploader frame and gallery).
+- Portrait: AI-generated fictional person (not a patient), made 1 Nov 2026.
+- Concept: a real SmileCompose result generated on staging on 2 Nov 2026 ("In your style"), lips and face untouched by the app's mouth lock.
+- Files (lossless WebP, cropped 2:3 from the app's 1536×2048 pair):
+  - `public/examples/subscription-fictional-man-{before,after}-v3.webp` (1365×2048)
+  - `public/examples/portrait-man-v2-{384,768,1024}.webp`

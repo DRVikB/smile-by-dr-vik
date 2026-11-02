@@ -912,7 +912,8 @@ export default function Smile() {
       const { newGuide } = await import("@/lib/smileDesign/frame");
       photoIn = { ...photoIn, smileGuide: { ...newGuide(fitted.fit, fitted.shape), ...(fitted.nasal ? { nasal: fitted.nasal } : {}) } };
     }
-    if (testMode) {
+    // Whitening needs no prepared example: the demo photo is whitened on this device, as a real case would be.
+    if (testMode && !isOnDeviceWhitening(settingsIn)) {
       onStage("request");
       const demoImage = await loadDemoPreview(settingsIn, controller.signal);
       await new Promise((resolve) => setTimeout(resolve, 900));

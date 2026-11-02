@@ -9,7 +9,7 @@ const MATERIAL = {
   Porcelain: "porcelain",
 } as const;
 
-export const DEMO_PREVIEW_NOTICE = "Prepared AI concepts on the same demo face: three shapes, three materials, alignment and zirconia. No AI credits are used. Shade, tooth count, individual edits and fine adjustments are not simulated; hidden lower teeth remain hidden.";
+export const DEMO_PREVIEW_NOTICE = "Prepared AI concepts on the same demo face: three shapes, three materials, alignment and zirconia. Whitening is made on this device from the demo photo. No AI credits are used. Shade, tooth count, individual edits and fine adjustments are not simulated; hidden lower teeth remain hidden.";
 
 /** Prepared examples only. Full-arch and alignment-only must win over stale material settings. */
 export function demoPreviewAsset(settings: SmileSettings): { src: string; label: string } {
